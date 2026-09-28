@@ -1,0 +1,5 @@
+,reagent,destination,transferred volume,expected mass,transferred mass,error,%error,0
+0,PC-LiBOB,A1 in QInstruments 24 Well Plate 4000 ÂµL (24x) on slot_03_b,0.744303797,0.900607595,0.8915,0.009107595,1.011272278,
+1,PC-LiBOB,B1 in QInstruments 24 Well Plate 4000 ÂµL (24x) on slot_03_b,0.494117647,0.597882353,0.5887,-0.009182353,1.535812672,
+2,BPAEDMA_540,A1 in QInstruments 24 Well Plate 4000 ÂµL (24x) on slot_03_b,0.455696203,0.510379747,0.4952,-0.015179747,2.974206349,
+3,BPAEDMA_540,B1 in QInstruments 24 Well Plate 4000 ÂµL (24x) on slot_03_b,0.705882353,0.790588235,0.7644,-0.026188235,3.3125,

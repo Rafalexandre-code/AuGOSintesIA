@@ -1,0 +1,10 @@
+path: [benchmark_results_hydra/20250304105114_synthetic_benchmark,
+benchmark_results_hydra/20250304111508_synthetic_benchmark]
+simulations: [branin, park]
+optimizers: [ei, mes]
+constraints:
+plot_path: plots/synthetic_results
+
+hydra:
+  run:
+    dir: plots/

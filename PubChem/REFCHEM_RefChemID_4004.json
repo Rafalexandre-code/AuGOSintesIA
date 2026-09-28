@@ -1,0 +1,667 @@
+{
+  "Record": {
+    "RecordType": "RefChemID",
+    "RecordNumber": 4004,
+    "RecordTitle": "Peisleyite",
+    "Section": [
+      {
+        "TOCHeading": "Synonyms",
+        "Description": "Synonyms",
+        "DisplayControls": {
+          "ListType": "Columns"
+        },
+        "Information": [
+          {
+            "ReferenceNumber": 1,
+            "Name": "Synonyms",
+            "Value": {
+              "StringWithMarkup": [
+                {
+                  "String": "Peisleyite"
+                },
+                {
+                  "String": "RefChem:4004"
+                },
+                {
+                  "String": "Na3Al16(SO4)2(PO4)10(OH)17.20H2O"
+                },
+                {
+                  "String": "Pei"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "TOCHeading": "MeSH Entry Terms",
+        "Description": "Medical Subject Heading (MeSH) names or identifiers matching this PubChem Compound record.",
+        "DisplayControls": {
+          "ListType": "Columns"
+        },
+        "Information": [
+          {
+            "ReferenceNumber": 6,
+            "Name": "MeSH Entry Terms",
+            "Value": {
+              "StringWithMarkup": [
+                {
+                  "String": "peisleyite"
+                },
+                {
+                  "String": "Na3Al16(SO4)2(PO4)10(OH)17.20H2O"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "TOCHeading": "Names and Identifiers",
+        "Description": "Chemical names, synonyms, identifiers, and descriptors.",
+        "Section": [
+          {
+            "TOCHeading": "Record Description",
+            "Description": "Summary Information",
+            "DisplayControls": {
+              "HideThisSection": true,
+              "MoveToTop": true
+            },
+            "Information": [
+              {
+                "ReferenceNumber": 5,
+                "Value": {
+                  "StringWithMarkup": [
+                    {
+                      "String": "Peisleyite is a mineral with formula of Na3Al16(PO4)10(S6+O4)2(OH)17·20H2O or Na3Al16(PO4)10(SO4)2(OH)17·20H2O. The corresponding IMA (International Mineralogical Association) number is IMA1981-053. The IMA symbol is Pei.",
+                      "Markup": [
+                        {
+                          "Start": 42,
+                          "Length": 1,
+                          "Type": "Subscript"
+                        },
+                        {
+                          "Start": 45,
+                          "Length": 2,
+                          "Type": "Subscript"
+                        },
+                        {
+                          "Start": 50,
+                          "Length": 1,
+                          "Type": "Subscript"
+                        },
+                        {
+                          "Start": 52,
+                          "Length": 2,
+                          "Type": "Subscript"
+                        },
+                        {
+                          "Start": 56,
+                          "Length": 2,
+                          "Type": "Superscript"
+                        },
+                        {
+                          "Start": 59,
+                          "Length": 1,
+                          "Type": "Subscript"
+                        },
+                        {
+                          "Start": 61,
+                          "Length": 1,
+                          "Type": "Subscript"
+                        },
+                        {
+                          "Start": 66,
+                          "Length": 2,
+                          "Type": "Subscript"
+                        },
+                        {
+                          "Start": 72,
+                          "Length": 1,
+                          "Type": "Subscript"
+                        },
+                        {
+                          "Start": 80,
+                          "Length": 1,
+                          "Type": "Subscript"
+                        },
+                        {
+                          "Start": 83,
+                          "Length": 2,
+                          "Type": "Subscript"
+                        },
+                        {
+                          "Start": 88,
+                          "Length": 1,
+                          "Type": "Subscript"
+                        },
+                        {
+                          "Start": 90,
+                          "Length": 2,
+                          "Type": "Subscript"
+                        },
+                        {
+                          "Start": 95,
+                          "Length": 1,
+                          "Type": "Subscript"
+                        },
+                        {
+                          "Start": 97,
+                          "Length": 1,
+                          "Type": "Subscript"
+                        },
+                        {
+                          "Start": 102,
+                          "Length": 2,
+                          "Type": "Subscript"
+                        },
+                        {
+                          "Start": 108,
+                          "Length": 1,
+                          "Type": "Subscript"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "TOCHeading": "Related Records",
+        "Description": "Records related to this compound.  This includes PubChem compound and substance records, as well as records in NCBI resources (e.g., PubMed, Gene, Protein Structure, and Taxonomy) and other databases external to NCBI.",
+        "Section": [
+          {
+            "TOCHeading": "Substances",
+            "Description": "Substance records associated with this record.  In PubChem, the term \"substance\" refers to depositor-provided data for a chemical..",
+            "URL": "https://pubchem.ncbi.nlm.nih.gov/docs/substances",
+            "Section": [
+              {
+                "TOCHeading": "PubChem Reference Collection SID",
+                "Description": "Substances from the special PubChem Reference Collection associated with this compound.",
+                "DisplayControls": {
+                  "MoveToTop": true
+                },
+                "Information": [
+                  {
+                    "ReferenceNumber": 1,
+                    "Name": "PubChem Reference Collection SID",
+                    "URL": "https://pubchem.ncbi.nlm.nih.gov/substance/481105344",
+                    "Value": {
+                      "Number": [
+                        481105344
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "TOCHeading": "Substances by Category",
+                "Description": "Substances associated with this record, grouped by the category of the data sources who submitted the substances to PubChem (e.g., government organizations, chemical vendors, research and development, curation efforts, NIH initiatives, etc.).",
+                "Information": [
+                  {
+                    "ReferenceNumber": 1,
+                    "Name": "Substances by Category",
+                    "Value": {
+                      "ExternalDataURL": [
+                        "https://pubchem.ncbi.nlm.nih.gov/rest/pug_view/categories/refchem/4004/JSON"
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "TOCHeading": "Minerals",
+        "Description": "This section provides information and links related to minerals and minerology",
+        "DisplayControls": {
+          "CreateTable": {
+            "FromInformationIn": "ThisSection",
+            "NumberOfColumns": 2,
+            "ColumnContents": [
+              "Name",
+              "Value"
+            ]
+          }
+        },
+        "Information": [
+          {
+            "ReferenceNumber": 2,
+            "Name": "Name",
+            "Value": {
+              "StringWithMarkup": [
+                {
+                  "String": "PEISLEYITE",
+                  "Markup": [
+                    {
+                      "Start": 0,
+                      "Length": 10,
+                      "URL": "https://athena.unige.ch/minfich?id=PEISLEYITE"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "ReferenceNumber": 2,
+            "Name": "Formula",
+            "Value": {
+              "StringWithMarkup": [
+                {
+                  "String": "Na3Al16(SO4)2(PO4)10(OH)17.20H2O"
+                }
+              ]
+            }
+          },
+          {
+            "ReferenceNumber": 2,
+            "Name": "System",
+            "Value": {
+              "StringWithMarkup": [
+                {
+                  "String": "Monoclinic"
+                }
+              ]
+            }
+          },
+          {
+            "ReferenceNumber": 3,
+            "Name": "Name",
+            "Value": {
+              "StringWithMarkup": [
+                {
+                  "String": "Peisleyite"
+                }
+              ]
+            }
+          },
+          {
+            "ReferenceNumber": 3,
+            "Name": "IMA Number / Year",
+            "Value": {
+              "StringWithMarkup": [
+                {
+                  "String": "1981-053"
+                }
+              ]
+            }
+          },
+          {
+            "ReferenceNumber": 3,
+            "Name": "IMA Symbol",
+            "Value": {
+              "StringWithMarkup": [
+                {
+                  "String": "Pei"
+                }
+              ]
+            }
+          },
+          {
+            "ReferenceNumber": 3,
+            "Name": "Status",
+            "Value": {
+              "StringWithMarkup": [
+                {
+                  "String": "A - Approved"
+                }
+              ]
+            }
+          },
+          {
+            "ReferenceNumber": 3,
+            "Name": "Formula",
+            "Value": {
+              "StringWithMarkup": [
+                {
+                  "String": "Na3Al16(PO4)10(SO4)2(OH)17·20H2O"
+                }
+              ]
+            }
+          },
+          {
+            "ReferenceNumber": 3,
+            "Name": "Reference(s)",
+            "Value": {
+              "StringWithMarkup": [
+                {
+                  "String": "Mineralogical Magazine 46 (1982), 449"
+                }
+              ]
+            }
+          },
+          {
+            "ReferenceNumber": 4,
+            "Name": "Name",
+            "Value": {
+              "StringWithMarkup": [
+                {
+                  "String": "peisleyite"
+                }
+              ]
+            }
+          },
+          {
+            "ReferenceNumber": 4,
+            "Name": "Link",
+            "Value": {
+              "StringWithMarkup": [
+                {
+                  "String": "PDF",
+                  "Markup": [
+                    {
+                      "Start": 0,
+                      "Length": 3,
+                      "URL": "http://www.handbookofmineralogy.org/pdfs/peisleyite.pdf"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "ReferenceNumber": 5,
+            "Name": "Name",
+            "Value": {
+              "StringWithMarkup": [
+                {
+                  "String": "Peisleyite"
+                }
+              ]
+            }
+          },
+          {
+            "ReferenceNumber": 5,
+            "Name": "Data Views",
+            "Value": {
+              "StringWithMarkup": [
+                {
+                  "String": "IMA list",
+                  "Markup": [
+                    {
+                      "Start": 0,
+                      "Length": 8,
+                      "URL": "https://www.rruff.net/ima/Peisleyite"
+                    }
+                  ]
+                },
+                {
+                  "String": "Cell parameters",
+                  "Markup": [
+                    {
+                      "Start": 0,
+                      "Length": 15,
+                      "URL": "https://www.rruff.net/odr/rruff_cellparams/Peisleyite"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "ReferenceNumber": 5,
+            "Name": "IMA Number",
+            "Value": {
+              "StringWithMarkup": [
+                {
+                  "String": "IMA1981-053"
+                }
+              ]
+            }
+          },
+          {
+            "ReferenceNumber": 5,
+            "Name": "Formula",
+            "Value": {
+              "StringWithMarkup": [
+                {
+                  "String": "Na3Al16(PO4)10(S6+O4)2(OH)17·20H2O or Na3Al16(PO4)10(SO4)2(OH)17·20H2O",
+                  "Markup": [
+                    {
+                      "Start": 2,
+                      "Length": 1,
+                      "Type": "Subscript"
+                    },
+                    {
+                      "Start": 5,
+                      "Length": 2,
+                      "Type": "Subscript"
+                    },
+                    {
+                      "Start": 10,
+                      "Length": 1,
+                      "Type": "Subscript"
+                    },
+                    {
+                      "Start": 12,
+                      "Length": 2,
+                      "Type": "Subscript"
+                    },
+                    {
+                      "Start": 16,
+                      "Length": 2,
+                      "Type": "Superscript"
+                    },
+                    {
+                      "Start": 19,
+                      "Length": 1,
+                      "Type": "Subscript"
+                    },
+                    {
+                      "Start": 21,
+                      "Length": 1,
+                      "Type": "Subscript"
+                    },
+                    {
+                      "Start": 26,
+                      "Length": 2,
+                      "Type": "Subscript"
+                    },
+                    {
+                      "Start": 32,
+                      "Length": 1,
+                      "Type": "Subscript"
+                    },
+                    {
+                      "Start": 40,
+                      "Length": 1,
+                      "Type": "Subscript"
+                    },
+                    {
+                      "Start": 43,
+                      "Length": 2,
+                      "Type": "Subscript"
+                    },
+                    {
+                      "Start": 48,
+                      "Length": 1,
+                      "Type": "Subscript"
+                    },
+                    {
+                      "Start": 50,
+                      "Length": 2,
+                      "Type": "Subscript"
+                    },
+                    {
+                      "Start": 55,
+                      "Length": 1,
+                      "Type": "Subscript"
+                    },
+                    {
+                      "Start": 57,
+                      "Length": 1,
+                      "Type": "Subscript"
+                    },
+                    {
+                      "Start": 62,
+                      "Length": 2,
+                      "Type": "Subscript"
+                    },
+                    {
+                      "Start": 68,
+                      "Length": 1,
+                      "Type": "Subscript"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "ReferenceNumber": 5,
+            "Name": "IMA Symbol",
+            "Value": {
+              "StringWithMarkup": [
+                {
+                  "String": "Pei"
+                }
+              ]
+            }
+          },
+          {
+            "ReferenceNumber": 5,
+            "Name": "PDF Link",
+            "URL": "https://www.rruff.net/odr_rruff/odr/view/downloadfile/205318",
+            "Value": {
+              "StringWithMarkup": [
+                {
+                  "String": "Peisleyite.pdf"
+                }
+              ]
+            }
+          },
+          {
+            "ReferenceNumber": 5,
+            "Name": "References",
+            "Value": {
+              "StringWithMarkup": [
+                {
+                  "String": "1. Dunn P J, Cabri L J, Clark A M, Fleischer M,New mineral names,American Mineralogist,1983,68,849-852."
+                },
+                {
+                  "String": "2. Frost R L, Mills S J, Erickson K L,Thermal decomposition of peisleyite: a thermogravimetry and hot stage Raman spectroscopic study,Thermochimica Acta,2004,419,109-114. http://www.sciencedirect.com/science?_ob=ArticleURL&_udi=B6THV-4C2FFGT-2&_coverDate=09%2F10%2F2004&_alid=280400942&_rdoc=1&_fmt=&_orig=search&_qd=1&_cdi=5292&_sort=d&view=c&_acct=C000059541&_version=1&_urlVersion=0&_userid=56761&md5=1bc6567f042750a9c31212"
+                },
+                {
+                  "String": "3. Mills S J, Ma C, Birch W D,A contribution to understanding the complex nature of peisleyite,Mineralogical Magazine,2011,75,2733-2737."
+                },
+                {
+                  "String": "4. Pilkington E S, Segnit E R, Watts J A,Peisleyite, a new sodium aluminium sulphate phosphate,Mineralogical Magazine,1982,46,449-452."
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "TOCHeading": "Literature",
+        "Description": "Scientific articles associated with this compound.  Some chemical-literature associations in this section are provided by data contributors or derived from MeSH annotations, as explained in Kim et al., J. Cheminform. 2016, 8, 32.  This section also provides the lists of chemicals, genes/proteins, and diseases, that are co-mentioned in scientific articles, as described in Zaslavsky et al., Front. Res. Metr. Anal., 2021, 6, 689059.",
+        "URL": "https://pubchem.ncbi.nlm.nih.gov/docs/literature",
+        "Section": [
+          {
+            "TOCHeading": "Consolidated References",
+            "Description": "The consolidated references include literature data from all sources including Springer Nature, Thieme Chemistry, Wiley, Nature journals, depositor provided citations, and NLM curated PubMed citations.",
+            "URL": "https://pubchem.ncbi.nlm.nih.gov/docs/literature",
+            "Information": [
+              {
+                "ReferenceNumber": 1,
+                "Name": "Consolidated References",
+                "Value": {
+                  "ExternalTableName": "collection=literature&query_type=refsid&query=481105344"
+                }
+              }
+            ]
+          },
+          {
+            "TOCHeading": "NLM Curated PubMed Citations",
+            "Description": "The NLM Curated PubMed Citations section links to all PubMed records that are tagged with the same MeSH term that has been associated with a particular compound.",
+            "URL": "https://jcheminf.biomedcentral.com/articles/10.1186/s13321-016-0142-6",
+            "Information": [
+              {
+                "ReferenceNumber": 7,
+                "Name": "NLM Curated PubMed Citations",
+                "Value": {
+                  "Boolean": [
+                    true
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "Reference": [
+      {
+        "ReferenceNumber": 1,
+        "SourceName": "PubChem",
+        "SourceID": "PubChem",
+        "Description": "Data deposited in or computed by PubChem",
+        "URL": "https://pubchem.ncbi.nlm.nih.gov"
+      },
+      {
+        "ReferenceNumber": 2,
+        "SourceName": "Athena Minerals",
+        "SourceID": "407722403",
+        "Name": "Peisleyite",
+        "Description": "The Athena mineral database was the first full mineral database on the internet. Data come from subscribed journals (paper or electronic). PubChem has integrated the Athena mineral data link with the author's written permission.",
+        "URL": "https://athena.unige.ch/minfich?id=PEISLEYITE",
+        "LicenseNote": "Copyright (c) ATHENA - Pierre Perroud. All Rights Reserved",
+        "ANID": 45859157
+      },
+      {
+        "ReferenceNumber": 3,
+        "SourceName": "Commission on New Minerals, Nomenclature and Classification (CNMNC)",
+        "SourceID": "c440d51ce1d94a51a13d6103a18dffc0",
+        "Name": "Peisleyite",
+        "Description": "This section provides the brief mineral information and link to the Commission on New Minerals, Nomenclature and Classification (CNMNC) of the International Mineralogical Association (IMA).",
+        "URL": "https://cnmnc.units.it/",
+        "LicenseNote": "This work is licensed under the Creative Commons Attribution-ShareAlike 3.0 Unported License.\u000ATo view a copy of this license, visit http://creativecommons.org/licenses/by-sa/3.0/",
+        "LicenseURL": "http://cnmnc.units.it/",
+        "ANID": 49417856
+      },
+      {
+        "ReferenceNumber": 4,
+        "SourceName": "Handbook of Mineralogy",
+        "SourceID": "407722403",
+        "Name": "peisleyite",
+        "Description": "The Handbook of Mineralogy contains data crucial to the identification of all mineral species and to provide up-to-date ref-erences containing information central to the definition of each species. The intent was to pro-vide data sufficient to distinguish a species from all others. It provides over 5000 mineral links. More information can be found at reference: John W. Anthony, Richard A. Bideaux, Kenneth W. Bladh, and Monte C. Nichols, Eds., Handbook of Mineralogy, Mineralogical Society of America, Chantilly, VA 20151-1110, USA.",
+        "URL": "http://www.handbookofmineralogy.org/pdfs/peisleyite.pdf",
+        "ANID": 39427453
+      },
+      {
+        "ReferenceNumber": 5,
+        "SourceName": "RRUFF Project",
+        "SourceID": "m_peisleyite",
+        "Name": "Peisleyite",
+        "Description": "The RRUFF Project is creating a complete set of high quality spectral data from well characterized minerals and is developing the technology to share this information with the world. The RRUFF data provides a standard for mineralogists, geoscientists, gemologists and the general public for the identification of minerals both on earth and for planetary exploration. \u000AReference: Lafuente B, Downs R T, Yang H, Stone N (2015) The power of databases: the RRUFF project. In: Highlights in Mineralogical Crystallography, T Armbruster and R M Danisi, eds. Berlin, Germany, W. De Gruyter, pp 1-30. (http://www.rruff.net/wp-content/uploads/2023/04/HMC1-30.pdf)",
+        "URL": "https://www.rruff.net/ima/Peisleyite",
+        "ANID": 24309740
+      },
+      {
+        "ReferenceNumber": 6,
+        "SourceName": "Medical Subject Headings (MeSH)",
+        "SourceID": "M0484738",
+        "Name": "peisleyite",
+        "Description": "MeSH (Medical Subject Headings) is the U.S. National Library of Medicine's controlled vocabulary thesaurus used for indexing articles for PubMed.",
+        "URL": "https://id.nlm.nih.gov/mesh/M0484738.html",
+        "LicenseNote": "Works produced by the U.S. government are not subject to copyright protection in the United States. Any such works found on National Library of Medicine (NLM) Web sites may be freely used or reproduced without permission in the U.S.",
+        "LicenseURL": "https://www.nlm.nih.gov/copyright.html"
+      },
+      {
+        "ReferenceNumber": 7,
+        "SourceName": "Medical Subject Headings (MeSH)",
+        "SourceID": "PubMed from MeSH",
+        "Description": "MeSH (Medical Subject Headings) is the U.S. National Library of Medicine's controlled vocabulary thesaurus used for indexing articles for PubMed.",
+        "URL": "https://www.nlm.nih.gov/mesh/meshhome.html",
+        "LicenseNote": "Works produced by the U.S. government are not subject to copyright protection in the United States. Any such works found on National Library of Medicine (NLM) Web sites may be freely used or reproduced without permission in the U.S.",
+        "LicenseURL": "https://www.nlm.nih.gov/copyright.html"
+      }
+    ]
+  }
+}

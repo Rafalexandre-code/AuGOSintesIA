@@ -1,0 +1,8 @@
+impedance==1.7.1
+matplotlib==3.10.9
+numpy==2.4.4
+pandas==3.0.3
+plotly==5.24.1
+scikit_learn==1.8.0
+scipy==1.17.1
+control-lab-ly==2.1.0

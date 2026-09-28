@@ -1,0 +1,34 @@
+{
+  "default":{
+		"aspiration_rate": 150.0, 
+		"dispense_rate": 150.0, 
+    	"blowout": false,  
+    	"delay_aspiration": 3, 
+		"delay_dispense": 3, 
+		"delay_blowout": 0, 
+    	"touch_tip_source": true, 
+		"touch_tip_destination": false 
+  },
+
+  "BPA-solvent mix":{
+	"aspiration_rate": 10.0, 
+	"dispense_rate": 10.0, 
+	"blowout": false,  
+	"delay_aspiration": 3, 
+	"delay_dispense": 3, 
+	"delay_blowout": 0, 
+	"touch_tip_source": true, 
+	"touch_tip_destination": false 
+},
+	"BPAEDMA_540": {
+		"aspiration_rate": 20, 
+		"dispense_rate": 4.0, 
+		"blowout": false, 
+		"delay_aspiration": 10, 
+		"delay_dispense": 10, 
+		"delay_blowout": 0, 
+		"touch_tip_source": true, 
+		"touch_tip_destination": false 
+	}
+
+}

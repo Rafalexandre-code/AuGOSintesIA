@@ -1,0 +1,31 @@
+reagent,destination,transferred volume,expected mass,transferred mass,error,%error
+Water,A1 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,6.424,6.424,6.374,-0.05,-0.778331258
+Water,A2 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,6.866,6.866,6.823,-0.043,-0.626274396
+Water,A3 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,5.416,5.416,5.333,-0.083,-1.532496307
+Water,B1 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,5.137,5.137,5.035,-0.102,-1.985594705
+Water,B2 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,5.158,5.158,5.05,-0.108,-2.09383482
+Water,B3 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,3.967,3.967,3.885,-0.082,-2.067053189
+Diluted Plantapon ACG 50,A3 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,2.127777778,2.276722222,2.279,0.002277778,0.100046373
+Diluted Plantapon ACG 50,B1 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,1.901851852,2.034981481,2.037,0.002018519,0.099191026
+Plantapon LC 7,A1 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,0.919720768,0.993298429,0.899,-0.094298429,-9.493464023
+Plantapon LC 7,A2 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,0.830715532,0.897172775,0.813,-0.084172775,-9.382002814
+Diluted Dehyton ML,A2 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,1.358925144,1.399692898,1.409,0.009307102,0.66493886
+Diluted Dehyton ML,B1 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,2.184261036,2.249788868,2.261,0.011211132,0.498319294
+Diluted Dehyton ML,B3 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,2.441458733,2.514702495,2.55,0.035297505,1.403645364
+Diluted Plantapon Amino SCG-L,B2 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,2.279749478,2.348141962,2.348,-0.000141962,-0.006045716
+Diluted Plantapon Amino SCG-L,B3 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,2.647181628,2.726597077,2.734,0.007402923,0.271507773
+Diluted Plantapon Amino KG-L,A1 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,1.701960784,1.718980392,1.73,0.011019608,0.641054898
+Diluted Plantapon Amino KG-L,A3 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,1.705882353,1.722941176,1.741,0.018058824,1.048139324
+Diluted Plantapon Amino KG-L,B2 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,1.868627451,1.887313725,1.906,0.018686275,0.990099036
+Diluted Luviquat Excellence,B1 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,0.394285714,0.414,0.407,-0.007,-1.690821256
+Diluted Dehyquart CC7 Benz,A3 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,0.210420842,0.210420842,0.205,-0.005420842,-2.576190623
+Diluted Dehyquart CC7 Benz,B2 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,0.350701403,0.350701403,0.349,-0.001701403,-0.485142912
+Diluted Dehyquart CC7 Benz,B3 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,0.458917836,0.458917836,0.461,0.002082164,0.453711718
+Diluted Salcare Super 7,A1 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,0.409433962,0.42990566,0.427,-0.00290566,-0.675883169
+Diluted Salcare Super 7,A2 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,0.441509434,0.463584906,0.457,-0.006584906,-1.420431493
+Arlypon F,A1 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,0.397740113,0.361943503,0.359,-0.002943503,-0.813249299
+Arlypon F,A2 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,0.336723164,0.306418079,0.302,-0.004418079,-1.441846713
+Arlypon F,A3 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,0.379661017,0.345491525,0.34,-0.005491525,-1.589481826
+Arlypon F,B2 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,0.454237288,0.413355932,0.404,-0.009355932,-2.263408185
+Arlypon F,B3 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,0.559322034,0.508983051,0.5,-0.008983051,-1.764901794
+Arlypon TT,B1 in Polyelectric 6 Well Plate 15000 ÂµL (6x) on slot_05,0.122933884,0.121704545,0.106,-0.015704545,-12.90382787

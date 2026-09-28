@@ -1,0 +1,264 @@
+{	"default": {
+	"aspiration_rate": 265, 
+	"dispense_rate": 265, 
+	"blowout": false, 
+	"blowout_rate": false,
+	"delay_aspiration" : 1, 
+	"delay_dispense" : 1, 
+	"delay_blowout" : 0,
+	"touch_tip_source": false, 
+	"touch_tip_destination": false,
+	"mean_error": false,
+	"prewet_rate": false
+	},
+
+	"Water": {
+		"aspiration_rate": 265, 
+		"dispense_rate": 265, 
+		"blowout": true, 
+		"blowout_rate": false,
+		"delay_aspiration" : 1, 
+		"delay_dispense" : 1, 
+		"delay_blowout" : 3,
+		"touch_tip_source": false, 
+		"touch_tip_destination": false,
+		"density": 1,
+		"mean_error" : false,
+		"prewet_rate": false
+	},
+
+	"Arlypon F": {
+		"aspiration_rate": 40.28, 
+		"dispense_rate": 34.64, 
+		"blowout": true, 
+		"blowout_rate": false, 
+   		"delay_aspiration" : 10, 
+    	"delay_dispense" : 10,
+		"delay_blowout" : 10, 
+		"touch_tip_source": true, 
+		"touch_tip_destination": false,
+		"density": 0.9,
+		"mean_error": false,
+		"prewet_rate": 100
+	},
+		 
+	"Arlypon TT": {
+		"aspiration_rate": 20, 
+		"dispense_rate": 10,
+		"blowout": false,  
+		"blowout_rate": false, 
+		"delay_aspiration" : 10, 
+    	"delay_dispense" : 10,
+		"delay_blowout" : 0,  
+		"touch_tip_source": true, 
+		"touch_tip_destination": false,
+		"prewet_rate": 100,
+		"density": 0.99
+	},
+		 
+	"Dehyquart A-CA": {
+		"aspiration_rate": 20, 
+		"dispense_rate": 16.00, 
+		"blowout": true, 
+		"blowout_rate": false, 
+		"delay_aspiration" : 10, 
+    	"delay_dispense" : 10,
+		"delay_blowout" : 10,  
+		"touch_tip_source": true, 
+		"touch_tip_destination": false,
+		"prewet_rate": 100,
+		"density": 0.97
+	},
+	 "Dehyquart CC7 Benz": {
+		"aspiration_rate": 58.13, 
+		"dispense_rate": 26.74,
+		"blowout": true,  
+		"blowout_rate": false, 
+		"delay_aspiration" : 10, 
+    	"delay_dispense" : 10, 
+		"delay_blowout" : 10,  
+		"touch_tip_source": true, 
+		"touch_tip_destination": false,
+		"density": 1.021
+	}, 
+		
+    "Dehyton ML": {
+		"aspiration_rate": 80.97, 
+		"dispense_rate": 12.10, 
+		"blowout": true, 
+		"blowout_rate": false, 
+		"delay_aspiration" : 10, 
+    	"delay_dispense" : 10, 
+		"delay_blowout" : 10,  
+		"touch_tip_source": true, 
+		"touch_tip_destination": false,
+		"density": 0.850
+	}, 
+ 
+    "Diluted Dehyquart CC7 Benz": {
+		"aspiration_rate": 82.20, 
+		"dispense_rate": 16.84,
+		"blowout": true,  
+		"blowout_rate": false, 
+		"delay_aspiration" : 10, 
+    	"delay_dispense" : 10, 
+		"delay_blowout" : 10,  
+		"touch_tip_source": true, 
+		"touch_tip_destination": false,
+		"density": 1,
+		"prewet_rate": 100
+	}, 
+		
+    "Diluted Dehyton ML": {
+		"aspiration_rate": 125, 
+		"dispense_rate": 10, 
+		"blowout": true, 
+		"blowout_rate": false, 
+		"delay_aspiration" : 10, 
+    	"delay_dispense" : 10, 
+		"delay_blowout" : 10,  
+		"touch_tip_source": true, 
+		"touch_tip_destination": false,
+		"density": 1.03,
+		"prewet_rate": 100
+	}, 
+
+   	"Diluted Luviquat Excellence": {
+		"aspiration_rate": 30, 
+		"dispense_rate": 15,
+		"blowout": true,  
+		"blowout_rate": false, 
+		"delay_aspiration" : 10, 
+    	"delay_dispense" : 10, 
+		"delay_blowout" : 10,  
+		"touch_tip_source": true, 
+		"touch_tip_destination": false,
+		"density": 1.05,
+		"prewet_rate": 100
+	},
+
+	"Diluted Plantapon ACG 50": {
+		"aspiration_rate": 10, 
+		"dispense_rate": 10,
+		"blowout": true,  
+		"blowout_rate": false, 
+		"delay_aspiration" : 10, 
+    	"delay_dispense" : 10,
+		"delay_blowout" : 10,  
+		"touch_tip_source": true, 
+		"touch_tip_destination": false,
+		"density": 1.07,
+		"prewet_rate": 100
+	}, 
+
+	"Diluted Plantapon Amino KG-L": {
+		"aspiration_rate": 48.13, 
+		"dispense_rate": 77.86, 
+		"blowout": true,  
+		"blowout_rate": false, 
+		"delay_aspiration" : 10, 
+    	"delay_dispense" : 10,  
+		"delay_blowout" : 10,   
+		"touch_tip_source": true, 
+		"touch_tip_destination": false,
+		"density": 1.01,
+		"prewet_rate": 100
+	},
+
+	"Diluted Plantapon Amino SCG-L": {
+		"aspiration_rate": 112.44, 
+		"dispense_rate": 113.74, 
+		"blowout": true,  
+		"blowout_rate": false, 
+		"delay_aspiration" : 10, 
+    	"delay_dispense" : 10,  
+		"delay_blowout" : 10,   
+		"touch_tip_source": true, 
+		"touch_tip_destination": false,
+		"density": 1.03,
+		"prewet_rate": 100
+	},
+
+	"Diluted Salcare Super 7": {
+		"aspiration_rate": 10, 
+		"dispense_rate": 10, 
+		"blowout": true,  
+		"blowout_rate": false, 
+		"delay_aspiration" : 10, 
+    	"delay_dispense" : 10,
+		"delay_blowout" : 10,   
+		"touch_tip_source": true, 
+		"touch_tip_destination": false,
+		"density": 1.05,
+		"prewet_rate": 100
+  }, 
+
+	"Luviquat Excellence": {
+		"aspiration_rate": 105.51, 
+		"dispense_rate": 13.74,
+		"blowout": true,  
+		"blowout_rate": false, 
+		"delay_aspiration" : 10, 
+    	"delay_dispense" : 10, 
+		"delay_blowout" : 10,  
+		"touch_tip_source": true, 
+		"touch_tip_destination": false,
+		"density": 1.117,
+		"prewet_rate": 90
+	},
+		
+	"Plantapon ACG 50": {
+		"aspiration_rate": 39.13, 
+		"dispense_rate": 11.93,
+		"blowout": true,  
+		"blowout_rate": false, 
+		"delay_aspiration" : 10, 
+    	"delay_dispense" : 10,
+		"delay_blowout" : 10,  
+		"touch_tip_source": true, 
+		"touch_tip_destination": false
+	}, 
+			
+	"Plantapon Amino KG-L": {
+		"aspiration_rate": 47.86, 
+		"dispense_rate": 12.26, 
+		"blowout": true,  
+		"blowout_rate": false, 
+		"delay_aspiration" : 10, 
+    	"delay_dispense" : 10,  
+		"delay_blowout" : 10,   
+		"touch_tip_source": true, 
+		"touch_tip_destination": false,
+		"density": 1.027
+	},
+
+	"Plantapon LC 7": {
+		"aspiration_rate": 0.85, 
+		"dispense_rate": 0.85, 
+		"blowout": true,  
+		"blowout_rate": false, 
+		"delay_aspiration" : 10, 
+    	"delay_dispense" : 10,
+		"delay_blowout" : 10,  
+		"touch_tip_source": true, 
+		"touch_tip_destination": false,
+		"density": 1.08,
+		"prewet_rate": 8.4
+	}, 
+
+
+	"Salcare Super 7": {
+		"aspiration_rate": 1.83, 
+		"dispense_rate": 2.26, 
+		"blowout": true,  
+		"blowout_rate": false, 
+		"delay_aspiration" : 10, 
+    	"delay_dispense" : 10,
+		"delay_blowout" : 10,   
+		"touch_tip_source": true, 
+		"touch_tip_destination": false,
+		"density": 1.120
+  }
+	
+
+}
