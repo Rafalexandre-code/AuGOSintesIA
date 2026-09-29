@@ -36,6 +36,18 @@ PUBCHEM_DIR = os.path.join(ROOT, "datasets", "pubchem")
 REAGENTS_DIR = os.path.join(ROOT, "datasets", "reagents")
 ALIASES = os.path.join(REAGENTS_DIR, "aliases.tsv")
 CRUSE_JSON = os.path.join(ROOT, "datasets", "aunp-text-mined", "aunp-synthesis_dataset_2021-9-14.json")
+# dicionários de sinônimos dos próprios autores do dataset (Cruse et al.), usados para validação cruzada
+CRUSE_RSC = os.path.join(ROOT, "projects", "literature-llm", "text-mined-aunp-synthesis", "rsc")
+# rótulo do regex de Cruse -> entidades deste dicionário consideradas equivalentes
+CRUSE_LABEL_TO_ENTITIES = {
+    "AuCl3": {"AuCl3", "HAuCl4"},  # Cruse chama "gold(III) chloride" de AuCl3; aqui vai para HAuCl4 (ambíguo)
+    "NaAuCl4": {"NaAuCl4"}, "HAuCl4": {"HAuCl4"}, "Ag+": {"AgNO3", "Ag"}, "AgNO3": {"AgNO3"}, "NaBH4": {"NaBH4"},
+    "ascorbic acid": {"ascorbic_acid"}, "HQ": {"hydroquinone"}, "H2O2": {"H2O2"},
+    "citrate": {"trisodium_citrate", "citric_acid"}, "sodium citrate": {"trisodium_citrate"}, "CTAB": {"CTAB"},
+    "CTAC": {"CTAC"}, "BSA": {"BSA"}, "PVP": {"PVP"}, "PDDA": {"PDDA"}, "TOAB": {"TOAB"}, "TEOS": {"TEOS"},
+    "DMF": {"DMF"}, "organic solvent": {"ethanol", "toluene", "PEG", "ethylene_glycol", "isopropanol", "methanol"},
+    "H2O": {"water"}, "HCl": {"HCl"}, "NaOH": {"NaOH"}, "HNO3": {"HNO3"}, "H2SO4": {"H2SO4"},
+}
 
 MAX_PUBCHEM_SYNONYMS = 25
 
@@ -334,8 +346,30 @@ def build(online: bool = False, out_dir: str = REAGENTS_DIR) -> None:
 
 # ---------------------------------------------------------------------------------------------- Cruse et al.
 
+def load_cruse_regex() -> tuple[list[tuple[str, re.Pattern]], set[str]]:
+    """Regex de precursores e lista de "lixo" publicados com o dataset de Cruse et al. (pasta rsc/)."""
+    path = os.path.join(CRUSE_RSC, "aunp_precursor_syns_regex.json")
+    if not os.path.exists(path):
+        return [], set()
+    pats = [(label, re.compile("|".join(f"(?:{p})" for p in ps)))
+            for label, ps in json.load(open(path, encoding="utf-8")).items()]
+    garbage = set(json.load(open(os.path.join(CRUSE_RSC, "aunp_garbage_precs.json"), encoding="utf-8")))
+    return pats, garbage
+
+
+def cruse_label(pats, name: str) -> str:
+    """Rótulo de Cruse cujo regex cobre o nome inteiro (mais longo vence), ou ''."""
+    best, size = "", 0
+    for label, pat in pats:
+        for m in pat.finditer(name):
+            if m.end() - m.start() > size and m.end() - m.start() >= 0.6 * len(name.strip()):
+                best, size = label, m.end() - m.start()
+    return best
+
+
 def apply_cruse(out_dir: str = REAGENTS_DIR, top_unresolved: int = 300) -> None:
     n = Normalizer()
+    pats, garbage = load_cruse_regex()
     data = json.load(open(CRUSE_JSON, encoding="utf-8"))
     counts: collections.Counter = collections.Counter()
     for art in data:
@@ -343,15 +377,24 @@ def apply_cruse(out_dir: str = REAGENTS_DIR, top_unresolved: int = 300) -> None:
             for m in p.get("materials_and_quantities") or []:
                 counts[m["material"].strip()] += 1
     rows, ent_mentions, resolved_mentions = [], collections.Counter(), 0
-    total = sum(counts.values())
+    agree = collections.Counter()
+    garbage_mentions = sum(c for name, c in counts.items() if name in garbage)
+    total = sum(counts.values()) - garbage_mentions
     for name, c in counts.most_common():
+        if name in garbage:
+            continue
         r = n.normalize(name)
         if r:
             resolved_mentions += c
             ent_mentions[r["entity_id"]] += c
+        lab = cruse_label(pats, name) if pats else ""
+        if lab:
+            ok = bool(r) and r["entity_id"] in CRUSE_LABEL_TO_ENTITIES.get(lab, set())
+            agree["concorda" if ok else ("só Cruse" if not r else "diverge")] += c
         rows.append({"material_raw": name, "mentions": c, "entity_id": r["entity_id"] if r else "",
                      "canonical_name": r["canonical_name"] if r else "", "form": r["form"] if r else "",
-                     "match": r["match"] if r else "", "ambiguous": int(r["ambiguous"]) if r else ""})
+                     "match": r["match"] if r else "", "ambiguous": int(r["ambiguous"]) if r else "",
+                     "cruse_regex_label": lab})
     path = os.path.join(out_dir, "cruse_material_normalization.csv")
     resolved = [x for x in rows if x["entity_id"]]
     unresolved = [x for x in rows if not x["entity_id"]][:top_unresolved]
@@ -364,6 +407,17 @@ def apply_cruse(out_dir: str = REAGENTS_DIR, top_unresolved: int = 300) -> None:
     print("HAuCl4: %d menções de %d grafias" % (ent_mentions["HAuCl4"],
                                                sum(1 for x in resolved if x["entity_id"] == "HAuCl4")))
     print(f"-> {os.path.relpath(path, ROOT)} (todas as resolvidas + {len(unresolved)} não resolvidas mais citadas)")
+    if agree:
+        tot = sum(agree.values())
+        print(f"validação contra os regex de Cruse (rsc/, {len(pats)} rótulos; {garbage_mentions} menções-lixo excluídas): "
+              + ", ".join(f"{k} {v} ({100 * v / tot:.1f} %)" for k, v in agree.most_common()))
+        div = collections.Counter()
+        for x in rows:
+            if x["cruse_regex_label"] and x["entity_id"] and \
+                    x["entity_id"] not in CRUSE_LABEL_TO_ENTITIES.get(x["cruse_regex_label"], set()):
+                div[(x["cruse_regex_label"], x["entity_id"])] += x["mentions"]
+        if div:
+            print("  maiores divergências (rótulo Cruse -> entidade aqui):", div.most_common(8))
 
 
 def main() -> None:

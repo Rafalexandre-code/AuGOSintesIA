@@ -51,21 +51,33 @@ ROLE_COLUMN = {
 }
 GO_ENTITIES = {"graphene_oxide", "reduced_graphene_oxide"}
 
-MORPH_CLASSES = [
-    ("cluster", r"cluster|\bncs?\b|\bauncs?\b"), ("bipyramid", r"bipyramid"), ("rod", r"rod|\bnrs?\b|\bgnrs?\b"),
-    ("wire", r"wire|\bnws?\b"), ("star", r"star|branched|urchin|flower"),
-    ("plate/prism", r"plate|prism|triang|disk|disc|sheet"), ("cube", r"cub"), ("octahedron", r"octahed"),
-    ("shell/cage", r"shell|cage|hollow|frame"), ("sphere", r"sphere|spheric"),
-    ("particle", r"particle|\bnps?\b|\bgnps?\b|\baunps?\b|colloid|nanocrystal|dot|seed"),
-]
+# Morfologias: primeiro os regex publicados por Cruse et al. (projects/literature-llm/text-mined-aunp-synthesis/
+# rsc/aunp_morph_syns_regex.json: rod, sphere, cube, octahedra, hexagon, star, wire, triangle, plate, tube,
+# prismatic, pyramid — sensíveis a maiúsculas, como no original); depois as classes que eles não cobrem.
+CRUSE_MORPH = os.path.join(ROOT, "projects", "literature-llm", "text-mined-aunp-synthesis", "rsc",
+                           "aunp_morph_syns_regex.json")
+_PRE = [("cluster", re.compile(r"cluster|\bncs?\b|\bauncs?\b|\bau\d+", re.I))]
+_POST = [("star", re.compile(r"branched|urchin|flower|dendrit", re.I)),
+         ("shell/cage", re.compile(r"shell|cage|hollow|frame|core", re.I)),
+         ("particle", re.compile(r"particle|\bnps?\b|\bgnps?\b|\baunps?\b|colloid|nanocrystal|dot|seed", re.I))]
+
+
+def _load_morph() -> list[tuple[str, re.Pattern]]:
+    cruse = []
+    if os.path.exists(CRUSE_MORPH):
+        for cls, pats in json.load(open(CRUSE_MORPH, encoding="utf-8")).items():
+            cruse.append((cls, re.compile("|".join(f"(?:{p})" for p in pats))))
+    return _PRE + cruse + _POST
+
+
+MORPH_CLASSES = _load_morph()
 
 
 def morph_class(names) -> str:
     found = []
     for n in names:
-        low = n.lower()
         for cls, pat in MORPH_CLASSES:
-            if re.search(pat, low):
+            if pat.search(n):
                 if cls not in found:
                     found.append(cls)
                 break

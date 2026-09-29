@@ -29,7 +29,7 @@
   "top_redutores": [
     [
       "trisodium_citrate",
-      5110
+      5121
     ],
     [
       "NaBH4",
@@ -37,7 +37,7 @@
     ],
     [
       "ascorbic_acid",
-      2080
+      2084
     ],
     [
       "citric_acid",
@@ -103,7 +103,7 @@
     ],
     [
       "TOAB",
-      276
+      284
     ],
     [
       "BSA",
@@ -122,6 +122,10 @@
       154
     ],
     [
+      "PVA",
+      119
+    ],
+    [
       "SDS",
       116
     ],
@@ -136,56 +140,68 @@
     [
       "chitosan",
       87
-    ],
-    [
-      "MUA",
-      86
     ]
   ],
   "top_morfologias": [
     [
       "particle",
-      11445
+      11335
     ],
     [
       "sphere",
-      2656
+      2725
     ],
     [
       "rod",
-      2266
+      2309
     ],
     [
       "cluster",
-      1071
-    ],
-    [
-      "plate/prism",
-      881
+      1604
     ],
     [
       "shell/cage",
-      790
+      1276
     ],
     [
       "cube",
-      597
+      564
     ],
     [
       "star",
-      464
+      510
+    ],
+    [
+      "plate",
+      415
+    ],
+    [
+      "octahedra",
+      381
+    ],
+    [
+      "tube",
+      365
     ],
     [
       "wire",
-      356
+      359
     ],
     [
-      "octahedron",
-      341
+      "prismatic",
+      188
     ],
     [
-      "bipyramid",
-      133
+      "pyramid",
+      161
+    ],
+    [
+      "triangle",
+      79
+    ],
+    [
+      "hexagon",
+      56
     ]
   ],
   "top_suportes": [

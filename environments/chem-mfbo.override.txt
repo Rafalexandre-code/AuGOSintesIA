@@ -1,0 +1,3 @@
+# chem-MFBO pede torch==2.2.1 no setup.py; testado aqui com torch 2.8 (mesmo botorch 0.10/gpytorch 1.11),
+# que é compartilhado com o ambiente ramboau (evita baixar outra pilha CUDA de ~3 GB)
+torch==2.8.0

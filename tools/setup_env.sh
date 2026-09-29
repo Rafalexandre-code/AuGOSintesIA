@@ -36,14 +36,17 @@ fi
 
 req="$name.lock.txt"; [ "$latest" = 1 ] && req="$spec"
 venv="$ROOT/.venvs/$name"
+# <nome>.override.txt: versões que substituem pinos do próprio subprojeto (ex.: torch do chem-MFBO)
+ovr=(); [ -f "$name.override.txt" ] && ovr=(--override "$name.override.txt")
 if command -v uv >/dev/null; then
   uv venv -p "$py" "$venv"
-  uv pip install --python "$venv/bin/python" -r "$req"
+  uv pip install --python "$venv/bin/python" -r "$req" "${ovr[@]}"
 else
   pybin="$(command -v "python$py" || true)"
   [ -n "$pybin" ] || { echo "Instale uv ou python$py"; exit 1; }
   "$pybin" -m venv "$venv"
   "$venv/bin/pip" install -U pip
-  "$venv/bin/pip" install -r "$req"
+  nodeps=(); [ "${#ovr[@]}" -gt 0 ] && [ "$latest" = 0 ] && nodeps=(--no-deps)   # o lock já está completo
+  "$venv/bin/pip" install -r "$req" "${nodeps[@]}"
 fi
 echo "Pronto ($desc): source .venvs/$name/bin/activate"

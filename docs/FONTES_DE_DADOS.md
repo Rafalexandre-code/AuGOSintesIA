@@ -44,7 +44,7 @@ e `RAMBOAU` = upstream `91cea5f` + dados/correções documentados.
 | 19 | **NIST Materials Data Repository** | depósito institucional / espelho | descrito em `deposit/GO-AuNP-Autonomous-Design/README.md` |
 | 20 | **Materials Data Facility** | publicação do dataset final | `external/data-access/foundry` (Foundry-ML) + passo no README do depósito |
 | 21 | **Zenodo** | DOI por versão | [`deposit/GO-AuNP-Autonomous-Design/`](../deposit/GO-AuNP-Autonomous-Design): estrutura proposta, `.zenodo.json`, `CITATION.cff` e `build_deposit.py` (monta a versão, gera MANIFEST com sha256 e .zip) |
-| 22 | **PubChem** | identidade química dos reagentes | [`datasets/reagents/`](../datasets/reagents): `reagent_dictionary.csv` (64 entidades com chemical_name, canonical_name, CID, SMILES, InChI, InChIKey, CAS e sinônimos) montado das 23 fichas locais. **HAuCl4**: 244 grafias (gold chloride, chloroauric acid, tetrachloroauric acid, hydrogen tetrachloroaurate, HAuCl4·3H2O…) → uma entidade (CID 28133) com a hidratação em `form`. Fornecedor, lote e pureza ficam em `reagent_lots` (são propriedades do frasco, não da substância) |
+| 22 | **PubChem** | identidade química dos reagentes | [`datasets/reagents/`](../datasets/reagents): `reagent_dictionary.csv` (67 entidades com chemical_name, canonical_name, CID, SMILES, InChI, InChIKey, CAS e sinônimos) montado das 23 fichas locais. **HAuCl4**: 244 grafias (gold chloride, chloroauric acid, tetrachloroauric acid, hydrogen tetrachloroaurate, HAuCl4·3H2O…) → uma entidade (CID 28133) com a hidratação em `form`. Fornecedor, lote e pureza ficam em `reagent_lots` (são propriedades do frasco, não da substância) |
 | 23 | **PubMed Central** | texto integral OA (XML JATS) | etapa `fetch` do `literature_pipeline.py` (E-utilities `efetch db=pmc`) |
 | 24 | **OpenAlex** | busca bibliográfica | `literature_pipeline.py search`: consulta `("gold nanoparticle" OR AuNP) AND ("graphene oxide" OR GO OR rGO) AND (synthesis OR reduction OR nucleation)` em título+resumo, com filtros de ano, citações, DOI e OA, ordenada por relevância, e também registra os datasets ligados; cliente `pyalex` |
 | 25 | **Crossref** | metadados por DOI e deduplicação | `literature_pipeline.py crossref`: editora, licenças, links de texto integral, indício de material suplementar, retratações/atualizações; cliente `habanero` |
@@ -74,7 +74,8 @@ python tools/data_sources/build_deposit.py --version 0.1.0
 ```
 
 ## 4. Limitações conhecidas
-- A normalização de reagentes cobre 78,5 % das menções de materiais em Cruse et al.; o restante é cauda longa
+- A normalização de reagentes concorda em 99,1 % com os regex de precursores dos próprios autores de Cruse et al.
+  (`rsc/aunp_precursor_syns_regex.json`) e cobre 79,0 % das menções de materiais em Cruse et al.; o restante é cauda longa
   (ligantes específicos, biomoléculas, substratos). A lista das 300 grafias sem entidade mais frequentes está em
   `datasets/reagents/cruse_material_normalization.csv`: acrescente-as em `aliases.tsv` e rode `build` de novo.
 - "gold chloride"/"gold(III) chloride" sem hidratação é, a rigor, ambíguo (AuCl3 × HAuCl4). Esses casos são

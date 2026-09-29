@@ -18,6 +18,8 @@ Cada pasta de primeiro nível tem um `README.md` com o seu índice.
   (.ge3: 5 frames 2048×2048 uint16, offset 8192). Gerados por `tools/data_sources/` (regeráveis): `reagents/`
   (dicionário PubChem; editar só `aliases.tsv`), `literature-seed/` (Cruse+NSP+AuNCs; `go_aunp_subset.csv`),
   `data-model/` (9 tabelas + validador). `lab/` = dados medidos (a preencher; validar com `lab_data_model.py validate`).
+- `code/` — código do projeto: `go_navigator/batch_descriptors.py` (descritores por lote de GO) e
+  `aunp_designer/designer.py` (GP Matérn-5/2+ARD + qLogNEHVI, contexto = lote; `demo` = laço simulado). Ambiente `core`.
 - `projects/<módulo>/` — 13 subprojetos base (modificados aqui: caminhos portáveis, bugs corrigidos):
   - `atomistic/GO-MACE-23` (gerador de GO em `code/`, potencial `models/fitting/potential/iter-12-final-model/go-mace-23.pt`,
     C/H/O, sem Au), `atomistic/AmberGO` (GO 5–68 % para AMBER/GAFF; depende do HierGO)
@@ -30,8 +32,13 @@ Cada pasta de primeiro nível tem um `README.md` com o seu índice.
   OPTIMADE/MP/JARVIS/MDF/eNanoMapper), cópias sem `.git` (manifesto `external/README.md`;
   commits `tools/external_repos.lock.tsv`; atualizar com `tools/fetch_external.sh --latest`). Não editar à mão.
 - `environments/` + `tools/setup_env.sh <nome>` — um ambiente por subprojeto (`--list`); `core` = projeto GO–AuNP;
+  `<nome>.override.txt` substitui pinos do subprojeto (chem-mfbo: torch 2.8 em vez de 2.2.1);
   `data-sources` = clientes de API.
 - `deposit/GO-AuNP-Autonomous-Design/` — esqueleto do depósito Zenodo/MDF; montar com `tools/data_sources/build_deposit.py`.
+
+## Verificar antes de commitar
+- `python tools/check_repo.py --regen` (estrutura + dados gerados reproduzíveis) e `tools/smoke_test.sh <ambiente>`
+  (roda cada subprojeto numa cópia temporária; `--install` cria o ambiente). Busca nos artigos: `tools/search_literature.py`.
 
 ## Cuidados
 - 13 arquivos usam **Git LFS** (caminhos exatos em `.gitattributes`; ao mover um deles, atualize o

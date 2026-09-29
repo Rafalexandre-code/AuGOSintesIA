@@ -43,6 +43,7 @@
 11. [Ambientes isolados (environments/)](#11-ambientes-isolados-environments)
 12. [`literature/` — corpus dos artigos citados](#12-literature--corpus-dos-artigos-citados)
 13. [Fontes de dados, curadoria e depósito](#13-fontes-de-dados-curadoria-e-depósito)
+14. [`code/` — GO Navigator e AuNP Designer; verificação do repositório](#14-code--go-navigator-e-aunp-designer-verificação-do-repositório)
 
 ---
 
@@ -841,8 +842,22 @@ Observação sobre os dados Qubot: em 3 das 96 linhas, os valores de `Coincell_d
 que aparecem no `summary.csv` publicado (o código só lê a planilha) — inconsistência dos dados originais.
 
 ### 7.5 Ambientes incompatíveis — ✅ um ambiente por subprojeto
-`environments/` + `tools/setup_env.sh` (ver §11). Todas as especificações resolvem; `core`, `sdl`,
-`text-mined`, `bgolearn`, `ramboau`, `qubot-scripts` e `go-mace` foram instalados e executados aqui.
+`environments/` + `tools/setup_env.sh` (ver §11). Todas as especificações resolvem, e **os 11 ambientes uv**
+(`core`, `data-sources`, `sdl`, `bgolearn`, `ramboau`, `chem-mfbo`, `bocode`, `go-mace`, `text-mined`, `qubot-scripts`,
+`matdesinne`) foram instalados e executados com `tools/smoke_test.sh` (2026-09-29, 11/11 OK). `qwen-llm` exige GPU;
+`m2hub` e `ambergo` usam conda (canais bloqueados no contêiner de nuvem).
+
+### 7.7 Revisão geral (2026-09-29) — novos problemas encontrados e corrigidos
+Verificação com `tools/check_repo.py` (estrutura) e `tools/smoke_test.sh` (execução):
+
+| Onde | Problema | Correção | Verificação |
+|---|---|---|---|
+| `chem-MFBO/src/chem_mfbo/regression/chemistry_regression.py` | caminho absoluto `/home/sabanza/Documents/chem-MFBO/data/clean/…` (escapou da varredura anterior) | `DATA_DIR` relativo ao arquivo (ou `CHEM_MFBO_DATA_DIR`) | arquivos localizados ✓ |
+| chem-MFBO `bandgap` | `chemistry_regression.py` e `data/preprocess_raw_data.py` exigem `Bandgap_data_withfeatures_CLEANED_2022-08-26.csv`, que **nunca foi publicado** (o `assert` abortava o pré-processamento) | pulam o conjunto ausente com aviso | pré-processamento reproduz `polarizability`, `freesolv` e `BH_dataset` byte a byte ✓ |
+| ambiente `chem-mfbo` | `setup.py` fixa `torch==2.2.1` (mais ~3 GB de CUDA) | `chem-mfbo.override.txt` → torch 2.8 (mesmo botorch 0.10/gpytorch 1.11, compartilhado com `ramboau`); `setup_env.sh` passa a aplicar `<nome>.override.txt` | benchmark COFs MF/SF/random × EI/MES ✓ |
+| `SDL` `model_mLPRegressionExhaustiveGridSearch` | `GridSearchCV` com 5 dobras quebrava com menos de 5 amostras iniciais (`startRandSamples < 5`) | `cv = min(5, n)` | `BRMLPR_EGS` com 3 pontos iniciais ✓ |
+| `M2Hub/tutorials/tutorial.ipynb` | `get_data(property=qmof:bandgap, task=jarvis, split=random…)` — erro de sintaxe (faltam aspas) | argumentos entre aspas | célula compila ✓ |
+| `M2Hub/README.md` | link para `DOCUMENTS.md`; o arquivo original se chama `DOUCUMENTS.md` | link corrigido | `check_repo.py` ✓ |
 
 ### 7.6 Arquivos supérfluos (não removidos, por serem parte das cópias originais)
 `.DS_Store`, `__pycache__/*.pyc`, `.ipynb_checkpoints/`, `.idea/` aninhados; `datasets/pubchem/REFCHEM_RefChemID_4004.json`
@@ -934,18 +949,20 @@ A maior parte das bibliotecas também está no ambiente `core` (§11), instalada
 
 Um ambiente por subprojeto, criado com `tools/setup_env.sh <nome>` (usa `uv`; cai para `venv`+`pip`;
 `conda` para M2Hub e AmberGO). Versões fixadas em `environments/<nome>.lock.txt`; `--latest` usa o `.in`.
-Detalhes e o que foi testado: [`environments/README.md`](../environments/README.md).
+Detalhes e o que foi testado: [`environments/README.md`](../environments/README.md). Teste de execução de
+todos: `tools/smoke_test.sh` (11/11 OK); verificação estrutural: `python tools/check_repo.py --regen`.
 
 | Nome | Python | Uso |
 |---|---|---|
 | `core` | 3.12 | projeto GO–AuNP (BoTorch/Ax/BayBE/BoFire, SHAP, DoWhy, lmfit, pyFAI, Mie, Bgolearn) |
 | `go-mace` | 3.11 | GO-MACE-23 |
 | `sdl`, `text-mined`, `qubot-scripts`, `bgolearn` | 3.11 | subprojetos homônimos |
-| `chem-mfbo` | 3.10 | chem-MFBO (torch 2.2.1) |
+| `chem-mfbo` | 3.9 | chem-MFBO (torch 2.8 via `chem-mfbo.override.txt`; o `setup.py` pede 2.2.1) |
 | `bocode` | 3.12 | BOCoDe |
 | `ramboau` | 3.9 | RAMBOAU (pymoo 0.4.2.2, torch 2.8) |
 | `matdesinne` | 3.8 | MatDesINNe (torch 1.7.1) |
 | `qwen-llm` | 3.12 | Qwen3/LLaMA-Factory (GPU) |
+| `data-sources` | 3.12 | clientes de API de `tools/data_sources/` (§13) |
 | `m2hub`, `ambergo` | conda | M2Hub (PyG/DGL), AmberGO (AmberTools) |
 
 ## 12. `literature/` — corpus dos artigos citados
@@ -977,9 +994,13 @@ Auditoria completa, fonte por fonte: [`FONTES_DE_DADOS.md`](FONTES_DE_DADOS.md).
   5 154 artigos; AuNCs: 207; vaso de pressão: 52 272). Ficam pendentes duas conferências que exigem rede:
   1 COF (69 839 × 69 840) e os arquivos do Zenodo do GO-MACE que não estão no GitHub (`fetch_records.py check`).
 - **Integração offline** (scripts em `tools/data_sources/`, só biblioteca padrão):
-  - `reagents.py` → `datasets/reagents/`: dicionário PubChem com 64 entidades; HAuCl4 junta 244 grafias num CID;
-    78,5 % das menções de materiais de Cruse normalizadas.
-  - `build_literature_seed.py` → `datasets/literature-seed/`: 15 928 sínteses de Au; 312 citam GO/rGO.
+  - `reagents.py` → `datasets/reagents/`: dicionário PubChem com 67 entidades; HAuCl4 junta 244 grafias num CID;
+    79,0 % das menções de materiais de Cruse normalizadas. **Validado contra os regex dos próprios autores**
+    (`projects/literature-llm/text-mined-aunp-synthesis/rsc/`): concorda em 99,1 % das menções que eles rotulam; as
+    divergências são refinamentos intencionais (água-régia, PAA ≠ ácido ascórbico, PVA, KAuCl4). A lista de "lixo"
+    deles (`L−1`, `tribasic dihydrate`…) é excluída da contagem.
+  - `build_literature_seed.py` → `datasets/literature-seed/`: 15 928 sínteses de Au; 312 citam GO/rGO. As classes de
+    morfologia vêm dos regex de Cruse (`rsc/aunp_morph_syns_regex.json`), mais cluster, casca e partícula genérica.
   - `lab_data_model.py` → `datasets/data-model/`: 9 tabelas, com validador, para a cadeia lote de GO → caracterização
     com incerteza → síntese → UV-Vis/TEM → desfecho.
   - `build_deposit.py` → `deposit/GO-AuNP-Autonomous-Design/`: estrutura do depósito, `.zenodo.json`,
@@ -987,4 +1008,35 @@ Auditoria completa, fonte por fonte: [`FONTES_DE_DADOS.md`](FONTES_DE_DADOS.md).
 - **Com rede** (rodar localmente): `fetch_records.py` (Zenodo/Figshare/HF), `literature_pipeline.py`
   (OpenAlex → Crossref → Unpaywall → PMC → fila para o extrator LLM), `optimade_query.py` (NOMAD, Materials Cloud,
   MP, OQMD, AFLOW, JARVIS — só camada computacional). Clientes em `external/data-access/`; ambiente `data-sources`.
+
+---
+
+## 14. `code/` — GO Navigator e AuNP Designer; verificação do repositório
+
+O que faltava para "usar tudo junto": um código que ligue o modelo de dados, os descritores dos lotes de GO e a
+otimização bayesiana. Agora ele existe em [`code/`](../code/README.md) (ambiente `core`):
+
+- `code/go_navigator/batch_descriptors.py`: média ± sd de cada descritor por lote de GO (de `go_characterization`
+  ou `go_descriptors`) e a versão padronizada, que serve de contexto do GP.
+- `code/aunp_designer/designer.py`: um GP **Matérn-5/2 + ARD** por objetivo e **qLogNEHVI** (BoTorch). Os objetivos
+  `maximize`/`minimize`/`target` vêm de `outcomes.csv`, e a **transferência entre lotes** é contextual (descritores do
+  lote fixos na otimização). As propostas saem no formato de `aunp_syntheses.csv`. `designer.py literature`
+  resume as faixas de condições na semente da literatura, e `designer.py demo` roda o laço completo com um simulador
+  **de brinquedo** (dados SIMULADOS em `outputs/`): no lote novo, o hipervolume sobe de ~245 para ~375 em 4 rodadas,
+  e as 160 linhas geradas passam no validador do modelo de dados.
+- `tools/search_literature.py`: busca BM25, sem dependências, nos 5 227 trechos dos 65 artigos (`literature/chunks.jsonl`).
+  Exemplo: `"oxygen groups graphene oxide gold nucleation"` → Chem. Mater. 2009 (10.1021/cm901052s), p. 5.
+
+Verificação do repositório inteiro:
+
+```bash
+python tools/check_repo.py --regen      # LFS, links, sintaxe (.py e notebooks), caminhos absolutos, ambientes,
+                                        # external × lock, sources.tsv, dados gerados reproduzíveis
+tools/smoke_test.sh                     # executa cada subprojeto no seu ambiente, numa cópia temporária
+SMOKE_FULL=1 tools/smoke_test.sh qubot-scripts   # inclui a análise completa de EIS (~20 min)
+```
+
+Resultado em 2026-09-29: `check_repo.py --regen` → 0 problemas; `smoke_test.sh` → 11/11 ambientes OK
+(qLogNEHVI + laço do Designer, SDL, Bgolearn, RAMBOAU, chem-MFBO, BOCoDe/AgNP, GO-MACE-23, notebook de Cruse,
+Qubot, cINN do MatDesINNe com localização, clientes de dados).
 
