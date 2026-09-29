@@ -1,0 +1,169 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["miepython"]
+include-package-data = false
+
+[tool.setuptools.package-data]
+miepython = ["data/*.txt"]
+
+[project]
+name = "miepython"
+authors = [{name = "Scott Prahl", email = "scott.prahl@oit.edu"}]
+description = "Mie scattering of a plane wave by a sphere"
+requires-python = ">=3.10"
+readme = "README.rst"
+license = "MIT"
+keywords = [
+    "mie",
+    "scattering",
+    "rainbow",
+    "droplet",
+    "backscatter",
+    "sphere",
+    "nanoparticle",
+    "cloud",
+    "phase function",
+    "efficiency",
+    "rayleigh",
+    "backscattering"
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dynamic = ["version"]
+dependencies = [
+    "numpy",
+    "matplotlib",
+    "scipy",
+    "numba; sys_platform != 'emscripten'",
+]
+
+[project.optional-dependencies]
+docs = [
+  "Sphinx>=8.1.3",
+  "nbsphinx>=0.9.7",
+  "ipython",
+  "sphinx_automodapi",
+  "sphinx_rtd_theme",
+]
+
+dev = [
+  # Testing
+  "pytest",
+  "pytest-cov",
+  "imageio",
+  "requests",
+
+  # Lint / QA
+  "ruff",
+  "yamllint",
+  "rstcheck[sphinx,toml]",
+  "pylint",
+  "pyroma",
+  "black[jupyter]",
+
+  # Release / packaging checks
+  "build",
+  "check-manifest",
+  # setuptools is not listed: check-manifest and pyroma both require it, and the
+  # backend is installed by build isolation, so an explicit pin adds nothing
+  "libarchive-c",
+  "pyyaml",
+
+  # Notebooks (local JupyterLab workflows)
+  "jupyterlab",
+  "nbconvert",
+  "nbformat",
+]
+
+lite = [
+  "jupyterlite-core>=0.7,<0.8",
+  "jupyterlite-pyodide-kernel>=0.7,<0.8",
+]
+
+[project.urls]
+Homepage = "https://github.com/scottprahl/miepython"
+Documentation = "https://miepython.readthedocs.io"
+Source = "https://github.com/scottprahl/miepython"
+Tracker = "https://github.com/scottprahl/miepython/issues"
+Changelog = "https://github.com/scottprahl/miepython/blob/main/docs/CHANGELOG.rst"
+
+[tool.setuptools.dynamic]
+version = {attr = "miepython.__version__"}
+
+[tool.black]
+line-length = 120
+target-version = ["py310", "py311", "py312", "py313", "py314"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = [
+    "--ignore=tests/test_all_notebooks.py",
+]
+
+[tool.pylint]
+disable = [
+    "C0103", "C0209", "C0302", "C0413", "E0611",
+    "R0801", "R0902", "R0903", "R0904", "R0912", 
+    "R0913", "R0914", "R0915", "R0917", "R1702",
+    "W0511"
+]
+max-line-length = 120
+exclude-protected = ["_single_sphere_py", "_single_sphere_nb", "_S1_S2_py", "_S1_S2_nb"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["D", "E", "F", "W"]
+ignore = ["D100", "D101", "D102", "D103", "D200", "D212", "E402", "F403", "F405"]
+pydocstyle.convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"docs/x_*.ipynb" = ["ALL"]
+"docs/11_performance.ipynb" = ["ALL"]
+
+[tool.coverage.run]
+source = ["miepython"]
+branch = true
+# the example scripts live inside the package directory but are not shipped, and
+# they run start to finish, so counting them only inflates the total
+omit = ["*/miepython/examples/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+# The whole package is covered, so hold it there.  Never lower this to make a run
+# pass; add the test the new code needs instead.
+fail_under = 100
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
+
+[tool.check-manifest]
+ignore = [
+  "_site/**",
+  ".gh-pages/**",
+  ".lite_src/**",
+  ".readthedocs.yaml",
+  ".testignore",
+  ".yamllint",
+  "jupyter_lite_config.json",
+  "Makefile",
+  "release.txt",
+  "docs/**",
+  "miepython/examples/**",
+]

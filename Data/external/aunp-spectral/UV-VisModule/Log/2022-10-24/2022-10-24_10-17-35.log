@@ -1,0 +1,896 @@
+2022-10-24 10:19:07,307 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 10:19:09,315 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 10:19:19,179 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 10:19:21,187 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 10:19:31,092 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 10:19:33,111 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 10:19:42,837 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 10:19:44,849 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 10:19:54,780 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 10:19:56,796 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 10:20:06,690 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 10:20:08,701 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 10:20:18,577 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 10:20:20,582 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 10:20:30,509 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 10:20:32,523 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 11:34:10,184 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 11:34:15,925 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 11:34:17,935 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 11:34:27,070 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 11:34:38,241 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 11:34:46,281 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:34:48,296 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:34:56,318 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:35:06,367 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:35:08,382 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:35:16,426 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:35:18,435 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:35:24,458 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 11:35:26,472 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:35:28,482 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:35:38,531 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:35:42,537 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:35:46,547 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:35:50,571 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:35:54,589 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:35:56,600 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 11:35:59,103 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 11:36:08,267 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 11:36:08,268 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 11:36:10,287 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 11:36:16,083 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 11:36:57,444 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 11:37:03,246 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 11:37:05,256 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 11:37:14,411 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 11:37:25,598 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 11:37:33,612 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:37:35,627 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:37:43,670 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:37:53,711 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:37:55,724 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:38:03,772 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:38:05,778 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:38:11,810 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 11:38:13,822 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:38:15,824 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:38:25,877 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:38:29,894 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:38:33,907 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:38:37,932 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:38:41,947 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:38:43,959 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 11:38:46,462 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 11:38:55,617 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 11:38:55,619 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 11:38:57,636 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 11:39:03,453 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 11:39:44,289 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 11:39:50,104 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 11:39:52,118 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 11:40:01,271 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 11:40:12,445 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 11:40:20,470 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:40:22,482 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:40:30,494 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:40:40,542 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:40:42,554 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:40:50,602 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:40:52,618 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:40:58,647 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 11:41:00,663 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:41:02,677 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:41:12,727 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:41:16,745 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:41:20,752 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:41:24,776 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:41:28,785 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:41:30,788 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 11:41:33,294 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 11:41:42,449 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 11:41:42,450 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 11:41:44,469 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 11:41:50,230 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 11:42:30,908 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 11:42:36,662 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 11:42:38,679 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 11:42:47,862 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 11:42:59,045 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 11:43:07,091 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:43:09,103 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:43:17,166 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:43:27,210 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:43:29,223 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:43:37,267 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:43:39,278 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:43:45,309 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 11:43:47,323 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:43:49,333 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:43:59,368 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:44:03,388 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:44:07,409 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:44:11,420 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:44:15,448 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:44:17,460 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 11:44:19,974 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 11:44:29,131 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 11:44:29,132 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 11:44:31,148 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 11:44:36,934 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 11:45:17,430 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 11:45:23,233 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 11:45:25,243 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 11:45:34,417 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 11:45:45,581 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 11:45:53,627 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:45:55,637 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:46:03,685 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:46:13,729 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:46:15,730 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:46:23,775 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:46:25,783 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:46:31,820 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 11:46:33,833 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:46:35,844 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:46:45,869 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:46:49,884 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:46:53,903 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:46:57,911 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:47:01,940 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:47:03,943 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 11:47:06,453 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 11:47:15,599 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 11:47:15,601 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 11:47:17,615 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 11:47:23,433 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 11:48:03,919 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 11:48:09,641 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 11:48:11,654 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 11:48:20,803 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 11:48:31,975 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 11:48:40,008 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:48:42,017 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:48:50,050 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:49:00,094 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:49:02,104 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:49:10,131 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:49:12,145 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:49:18,161 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 11:49:20,172 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:49:22,186 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:49:32,242 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:49:36,266 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:49:40,273 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:49:44,290 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:49:48,309 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:49:50,317 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 11:49:52,834 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 11:50:01,991 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 11:50:01,993 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 11:50:04,008 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 11:50:09,807 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 11:50:50,590 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 11:50:56,390 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 11:50:58,406 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 11:51:07,561 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 11:51:18,708 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 11:51:26,760 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:51:28,768 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:51:36,788 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:51:46,845 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:51:48,858 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:51:56,891 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:51:58,908 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:52:04,935 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 11:52:06,951 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:52:08,958 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:52:18,997 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:52:23,023 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:52:27,046 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:52:31,060 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:52:35,088 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:52:37,100 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 11:52:39,613 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 11:52:48,768 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 11:52:48,769 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 11:52:50,786 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 11:52:56,582 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 11:53:37,292 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 11:53:43,074 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 11:53:45,092 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 11:53:54,245 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 11:54:05,425 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 11:54:13,480 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:54:15,483 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:54:23,520 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:54:33,562 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:54:35,567 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:54:43,602 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:54:45,611 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:54:51,641 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 11:54:53,644 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:54:55,647 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 11:55:05,680 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:55:09,702 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:55:13,708 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:55:17,721 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 11:55:21,736 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 11:55:23,751 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 11:55:26,256 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 11:55:35,407 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 11:55:35,408 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 11:55:37,424 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 11:55:43,208 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 12:01:16,236 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 12:01:18,241 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 12:01:27,932 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 12:01:29,940 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 12:01:39,715 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 12:01:41,717 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 12:01:51,535 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 12:01:53,543 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 12:02:03,432 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 12:02:05,441 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 12:02:15,064 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 12:02:17,066 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 12:02:26,917 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 12:02:28,932 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 12:02:38,801 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 12:02:40,806 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 13:16:02,186 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 13:16:07,933 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 13:16:09,951 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 13:16:19,109 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 13:16:30,270 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 13:16:38,298 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:16:40,305 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:16:48,341 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:16:58,382 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:17:00,391 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:17:08,424 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:17:10,437 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:17:16,472 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 13:17:18,485 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:17:20,494 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:17:30,545 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:17:34,562 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:17:38,582 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:17:42,591 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:17:46,618 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:17:48,623 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 13:17:51,128 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 13:18:00,274 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 13:18:00,274 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 13:18:02,286 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 13:18:08,061 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 13:18:48,776 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 13:18:54,551 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 13:18:56,568 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 13:19:05,729 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 13:19:16,885 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 13:19:24,917 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:19:26,920 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:19:34,951 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:19:44,967 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:19:46,972 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:19:55,013 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:19:57,025 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:20:03,040 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 13:20:05,055 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:20:07,066 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:20:17,114 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:20:21,128 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:20:25,150 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:20:29,179 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:20:33,205 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:20:35,217 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 13:20:37,730 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 13:20:46,860 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 13:20:46,861 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 13:20:48,874 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 13:20:54,676 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 13:21:34,959 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 13:21:40,668 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 13:21:42,682 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 13:21:51,842 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 13:22:02,992 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 13:22:11,015 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:22:13,021 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:22:21,062 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:22:31,114 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:22:33,117 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:22:41,162 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:22:43,165 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:22:49,176 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 13:22:51,180 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:22:53,197 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:23:03,232 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:23:07,245 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:23:11,259 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:23:15,282 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:23:19,297 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:23:21,308 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 13:23:23,820 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 13:23:32,964 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 13:23:32,965 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 13:23:34,980 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 13:23:40,704 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 13:24:21,020 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 13:24:26,805 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 13:24:28,819 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 13:24:37,992 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 13:24:49,161 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 13:24:57,184 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:24:59,192 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:25:07,226 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:25:17,280 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:25:19,295 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:25:27,345 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:25:29,353 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:25:35,388 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 13:25:37,397 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:25:39,405 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:25:49,430 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:25:53,455 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:25:57,479 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:26:01,501 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:26:05,513 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:26:07,520 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 13:26:10,028 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 13:26:19,175 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 13:26:19,176 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 13:26:21,196 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 13:26:26,987 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 13:27:07,431 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 13:27:13,197 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 13:27:15,211 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 13:27:24,358 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 13:27:35,525 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 13:27:43,565 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:27:45,566 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:27:53,593 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:28:03,632 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:28:05,646 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:28:13,666 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:28:15,681 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:28:21,713 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 13:28:23,726 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:28:25,731 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:28:35,791 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:28:39,817 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:28:43,823 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:28:47,843 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:28:51,857 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:28:53,873 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 13:28:56,390 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 13:29:05,542 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 13:29:05,543 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 13:29:07,553 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 13:29:13,361 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 13:29:53,922 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 13:29:59,737 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 13:30:01,753 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 13:30:10,911 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 13:30:22,096 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 13:30:30,134 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:30:32,144 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:30:40,186 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:30:50,219 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:30:52,230 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:31:00,275 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:31:02,277 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:31:08,300 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 13:31:10,310 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:31:12,315 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:31:22,379 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:31:26,387 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:31:30,398 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:31:34,414 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:31:38,441 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:31:40,448 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 13:31:42,953 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 13:31:52,110 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 13:31:52,111 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 13:31:54,125 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 13:31:59,892 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 13:32:41,009 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 13:32:46,780 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 13:32:48,799 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 13:32:57,961 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 13:33:09,128 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 13:33:17,174 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:33:19,185 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:33:27,229 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:33:37,261 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:33:39,277 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:33:47,327 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:33:49,340 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:33:55,366 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 13:33:57,382 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:33:59,392 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:34:09,437 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:34:13,448 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:34:17,466 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:34:21,476 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:34:25,504 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:34:27,509 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 13:34:30,022 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 13:34:39,186 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 13:34:39,187 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 13:34:41,205 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 13:34:46,964 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 13:35:28,191 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 13:35:33,969 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 13:35:35,975 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 13:35:45,123 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 13:35:56,275 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 13:36:04,306 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:36:06,318 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:36:14,351 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:36:24,379 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:36:26,381 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:36:34,429 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:36:36,433 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:36:42,462 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 13:36:44,472 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:36:46,485 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 13:36:56,507 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:37:00,528 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:37:04,533 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:37:08,550 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 13:37:12,558 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 13:37:14,561 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 13:37:17,076 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 13:37:26,216 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 13:37:26,216 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 13:37:28,233 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 13:37:34,008 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 13:43:11,294 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 13:43:13,304 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 13:43:23,163 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 13:43:25,174 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 13:43:35,176 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 13:43:37,191 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 13:43:47,094 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 13:43:49,109 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 13:43:58,883 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 13:44:00,900 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 13:44:10,691 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 13:44:12,703 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 13:44:22,635 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 13:44:24,653 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 13:44:34,559 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 13:44:36,574 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 14:58:23,953 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 14:58:29,701 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 14:58:31,711 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 14:58:40,892 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 14:58:52,068 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 14:59:00,103 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 14:59:02,119 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 14:59:10,153 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 14:59:20,207 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 14:59:22,221 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 14:59:30,266 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 14:59:32,277 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 14:59:38,300 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 14:59:40,314 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 14:59:42,316 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 14:59:52,359 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 14:59:56,370 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:00:00,377 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:00:04,403 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:00:08,422 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:00:10,436 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 15:00:12,946 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 15:00:22,088 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 15:00:22,089 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 15:00:24,096 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 15:00:29,852 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 15:01:11,036 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 15:01:16,773 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 15:01:18,792 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 15:01:27,950 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 15:01:39,138 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 15:01:47,195 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:01:49,206 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:01:57,240 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:02:07,292 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:02:09,298 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:02:17,344 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:02:19,349 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:02:25,367 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 15:02:27,374 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:02:29,378 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:02:39,417 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:02:43,419 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:02:47,435 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:02:51,442 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:02:55,469 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:02:57,480 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 15:02:59,994 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 15:03:09,143 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 15:03:09,144 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 15:03:11,152 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 15:03:16,924 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 15:03:57,553 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 15:04:03,332 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 15:04:05,345 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 15:04:14,513 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 15:04:25,669 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 15:04:33,693 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:04:35,708 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:04:43,740 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:04:53,778 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:04:55,788 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:05:03,833 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:05:05,842 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:05:11,874 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 15:05:13,885 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:05:15,897 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:05:25,951 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:05:29,959 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:05:33,981 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:05:37,987 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:05:42,016 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:05:44,031 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 15:05:46,541 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 15:05:55,703 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 15:05:55,704 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 15:05:57,718 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 15:06:03,500 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 15:06:44,002 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 15:06:49,779 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 15:06:51,793 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 15:07:00,937 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 15:07:12,106 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 15:07:20,155 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:07:22,166 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:07:30,204 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:07:40,238 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:07:42,249 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:07:50,275 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:07:52,283 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:07:58,307 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 15:08:00,321 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:08:02,324 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:08:12,380 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:08:16,386 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:08:20,411 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:08:24,426 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:08:28,446 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:08:30,454 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 15:08:32,966 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 15:08:42,110 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 15:08:42,111 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 15:08:44,125 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 15:08:49,954 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 15:09:30,311 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 15:09:36,088 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 15:09:38,100 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 15:09:47,259 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 15:09:58,424 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 15:10:06,451 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:10:08,467 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:10:16,517 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:10:26,574 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:10:28,579 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:10:36,621 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:10:38,635 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:10:44,664 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 15:10:46,666 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:10:48,680 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:10:58,708 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:11:02,718 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:11:06,740 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:11:10,765 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:11:14,770 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:11:16,778 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 15:11:19,291 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 15:11:28,457 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 15:11:28,458 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 15:11:30,478 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 15:11:36,223 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 15:12:16,440 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 15:12:22,229 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 15:12:24,245 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 15:12:33,385 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 15:12:44,579 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 15:12:52,610 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:12:54,624 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:13:02,664 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:13:12,720 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:13:14,733 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:13:22,775 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:13:24,791 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:13:30,827 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 15:13:32,839 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:13:34,854 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:13:44,894 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:13:48,920 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:13:52,939 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:13:56,954 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:14:00,968 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:14:02,983 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 15:14:05,486 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 15:14:14,654 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 15:14:14,655 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 15:14:16,666 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 15:14:22,480 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 15:15:02,961 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 15:15:08,691 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 15:15:10,706 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 15:15:19,864 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 15:15:31,055 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 15:15:39,099 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:15:41,104 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:15:49,146 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:15:59,200 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:16:01,203 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:16:09,241 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:16:11,248 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:16:17,285 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 15:16:19,295 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:16:21,299 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:16:31,364 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:16:35,368 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:16:39,386 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:16:43,398 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:16:47,421 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:16:49,435 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 15:16:51,950 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 15:17:01,102 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 15:17:01,103 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 15:17:03,121 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 15:17:08,894 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 15:17:49,262 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 15:17:55,021 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 15:17:57,032 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 15:18:06,206 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 15:18:17,385 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 15:18:25,419 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:18:27,421 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:18:35,457 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:18:45,492 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:18:47,497 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:18:55,520 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:18:57,528 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:19:03,551 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 15:19:05,556 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:19:07,571 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 15:19:17,605 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:19:21,629 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:19:25,650 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:19:29,670 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 15:19:33,682 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 15:19:35,695 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 15:19:38,203 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 15:19:47,361 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 15:19:47,362 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 15:19:49,378 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 15:19:55,173 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 15:25:30,265 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 15:25:32,282 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 15:25:42,156 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 15:25:44,162 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 15:25:54,130 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 15:25:56,143 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 15:26:06,021 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 15:26:08,031 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 15:26:17,839 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 15:26:19,845 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 15:26:29,724 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 15:26:31,738 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 15:26:41,632 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 15:26:43,649 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 15:26:53,577 - UV Platform::DEBUG -- [Pipette Machine] : Hello World!! Succeed to connection to main computer!
+2022-10-24 15:26:55,585 - UV Platform::DEBUG -- [USB2000plus (hello)] : Hello World!! Succeed to connection to main computer!
+2022-10-24 16:40:11,951 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 16:40:17,693 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 16:40:19,706 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 16:40:28,862 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 16:40:40,038 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 16:40:48,063 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:40:50,078 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:40:58,109 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:41:08,150 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:41:10,161 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:41:18,204 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:41:20,218 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:41:26,243 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 16:41:28,248 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:41:30,251 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:41:40,280 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:41:44,291 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:41:48,304 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:41:52,322 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:41:56,338 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:41:58,340 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 16:42:00,850 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 16:42:10,016 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 16:42:10,016 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 16:42:12,032 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 16:42:17,803 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 16:42:58,094 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 16:43:03,899 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 16:43:05,911 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 16:43:15,072 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 16:43:26,264 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 16:43:34,316 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:43:36,326 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:43:44,353 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:43:54,406 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:43:56,408 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:44:04,438 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:44:06,455 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:44:12,482 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 16:44:14,498 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:44:16,511 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:44:26,567 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:44:30,588 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:44:34,599 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:44:38,630 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:44:42,653 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:44:44,660 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 16:44:47,173 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 16:44:56,322 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 16:44:56,323 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 16:44:58,343 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 16:45:04,126 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 16:45:44,066 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 16:45:49,832 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 16:45:51,844 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 16:46:01,002 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 16:46:12,159 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 16:46:20,193 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:46:22,198 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:46:30,232 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:46:40,277 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:46:42,277 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:46:50,309 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:46:52,320 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:46:58,357 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 16:47:00,358 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:47:02,374 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:47:12,427 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:47:16,436 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:47:20,458 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:47:24,472 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:47:28,479 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:47:30,481 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 16:47:32,998 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 16:47:42,136 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 16:47:42,137 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 16:47:44,151 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 16:47:49,950 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 16:48:30,000 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 16:48:35,761 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 16:48:37,772 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 16:48:46,922 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 16:48:58,107 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 16:49:06,153 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:49:08,158 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:49:16,187 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:49:26,233 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:49:28,240 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:49:36,274 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:49:38,278 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:49:44,291 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 16:49:46,294 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:49:48,303 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:49:58,340 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:50:02,345 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:50:06,351 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:50:10,368 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:50:14,376 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:50:16,384 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 16:50:18,889 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 16:50:28,040 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 16:50:28,041 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 16:50:30,052 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 16:50:35,839 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 16:51:16,004 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 16:51:21,760 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 16:51:23,777 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 16:51:32,960 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 16:51:44,150 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 16:51:52,174 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:51:54,178 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:52:02,218 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:52:12,250 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:52:14,261 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:52:22,291 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:52:24,303 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:52:30,326 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 16:52:32,340 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:52:34,348 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:52:44,387 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:52:48,409 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:52:52,429 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:52:56,444 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:53:00,457 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:53:02,466 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 16:53:04,973 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 16:53:14,131 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 16:53:14,132 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 16:53:16,145 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 16:53:21,909 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 16:54:02,255 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 16:54:07,998 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 16:54:10,011 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 16:54:19,170 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 16:54:30,353 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 16:54:38,373 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:54:40,385 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:54:48,431 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:54:58,463 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:55:00,474 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:55:08,506 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:55:10,521 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:55:16,548 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 16:55:18,559 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:55:20,561 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:55:30,612 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:55:34,618 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:55:38,631 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:55:42,650 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:55:46,669 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:55:48,673 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 16:55:51,187 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 16:56:00,345 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 16:56:00,346 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 16:56:02,360 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 16:56:08,136 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 16:56:49,076 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 16:56:54,855 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 16:56:56,860 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 16:57:06,030 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 16:57:17,190 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 16:57:25,218 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:57:27,230 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:57:35,282 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:57:45,328 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:57:47,332 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:57:55,344 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:57:57,358 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:58:03,400 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 16:58:05,413 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:58:07,428 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 16:58:17,502 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:58:21,524 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:58:25,548 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:58:29,558 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 16:58:33,583 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 16:58:35,587 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 16:58:38,105 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 16:58:47,241 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 16:58:47,242 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 16:58:49,262 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 16:58:55,014 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 16:59:36,060 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Reference data
+2022-10-24 16:59:41,805 - UV Platform::DEBUG -- [USB2000plus (real)] : finish
+2022-10-24 16:59:43,821 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Get the pipette tip
+2022-10-24 16:59:52,975 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 17:00:04,181 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 17:00:12,220 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 17:00:14,225 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 17:00:22,257 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 17:00:32,309 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 17:00:34,319 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 17:00:42,373 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 17:00:44,375 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 17:00:50,418 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject Solution
+2022-10-24 17:00:52,424 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 17:00:54,424 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Move vial to cuvette
+2022-10-24 17:01:04,489 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 17:01:08,519 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 17:01:12,531 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 17:01:16,544 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pull out solution
+2022-10-24 17:01:20,559 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Inject solution
+2022-10-24 17:01:22,572 - UV Platform::DEBUG -- [Pipette Machine (LA_pump) (real)] : Pump done
+2022-10-24 17:01:25,079 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : Remove the tip
+2022-10-24 17:01:34,225 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : initial point [200.0, 0.0, 150.0]
+2022-10-24 17:01:34,227 - UV Platform::DEBUG -- [Pipette Machine (Robot arm) (real)] : UV sample preaparation is done
+2022-10-24 17:01:36,245 - UV Platform::DEBUG -- [USB2000plus (real)] : start get Abs data
+2022-10-24 17:01:42,032 - UV Platform::DEBUG -- [USB2000plus (real)] : finish

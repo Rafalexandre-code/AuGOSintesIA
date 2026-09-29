@@ -1,0 +1,119 @@
+# yamllint disable rule:truthy
+---
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:  # allow manual triggering
+
+concurrency:                       # cancel stale CI runs on the same branch
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Runs the same `make lint` target a local release check does, through uv, so
+  # the set of checks lives only in the Makefile and cannot drift from CI.
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          enable-cache: true
+
+      - name: Run every static check
+        env:
+          # uv would otherwise pick any interpreter satisfying requires-python
+          UV_PYTHON: "3.14"
+        run: make lint
+
+  # Coverage needs one run per backend, plus NUMBA_DISABLE_JIT so coverage.py
+  # can see inside the njit bodies; the make target explains why.
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          enable-cache: true
+
+      - name: Measure combined coverage
+        env:
+          UV_PYTHON: "3.14"
+        run: make coverage
+
+      - name: Upload the HTML report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-html
+          path: htmlcov/
+          retention-days: 14
+
+  tests:
+    name: Python ${{ matrix.python-version }} – ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # every supported Python on Linux, since version problems are cheap to
+        # catch there and the classifiers promise 3.10 through 3.14
+        os: [ubuntu-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        include:
+          # numba holds the platform-specific half of this package, so check
+          # both ends of the range on the other operating systems too
+          - os: macos-latest
+            python-version: "3.10"
+          - os: macos-latest
+            python-version: "3.14"
+          - os: windows-latest
+            python-version: "3.10"
+          - os: windows-latest
+            python-version: "3.14"
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip                       # built-in cache for wheels
+          cache-dependency-path: |
+            pyproject.toml
+
+      - name: Install package (+tests)
+        run: |
+          # no setuptools here: the editable install is build-isolated, so the
+          # backend comes from [build-system] requires, not from this env
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+          python -m pip install pytest
+
+      # The backend is bound when miepython is first imported, so each
+      # process tests only one of them.  conftest.py skips the other's files.
+      - name: Run pytest with the pure python backend
+        env:
+          MIEPYTHON_USE_JIT: "0"
+        run: python -m pytest tests
+
+      - name: Run pytest with the numba backend
+        env:
+          MIEPYTHON_USE_JIT: "1"
+        run: python -m pytest tests
