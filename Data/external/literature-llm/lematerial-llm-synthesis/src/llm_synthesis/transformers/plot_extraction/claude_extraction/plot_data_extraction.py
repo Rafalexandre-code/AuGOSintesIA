@@ -1,0 +1,107 @@
+import re
+
+from llm_synthesis.models.figure import FigureInfoWithPaper
+from llm_synthesis.models.plot import ExtractedLinePlotData
+from llm_synthesis.services.llm_api.claude import (
+    ClaudeAPIClient,
+)
+from llm_synthesis.transformers.plot_extraction.base import (
+    LinePlotDataExtractorInterface,
+)
+from llm_synthesis.transformers.plot_extraction.claude_extraction import (
+    resources,
+)
+
+
+class ClaudeLinePlotDataExtractor(LinePlotDataExtractorInterface):
+    def __init__(
+        self,
+        model_name: str,
+        prompt: str = resources.LINE_CHART_PROMPT_WITH_CONTEXT,
+        max_tokens: int = 1024,
+        temperature: float = 0.0,
+        use_figure_context: bool = True,
+    ):
+        super().__init__()
+        self.claude_client = ClaudeAPIClient(model_name)
+        self.prompt = prompt
+        self.max_tokens = max_tokens
+        self.temperature = temperature
+        self.use_figure_context = use_figure_context
+
+    def forward(
+        self,
+        input: FigureInfoWithPaper,
+    ) -> ExtractedLinePlotData:
+        figure_base64 = input.base64_data
+
+        self.claude_client.reset_cost()
+
+        # Build prompt with or without figure context
+        if self.use_figure_context:
+            figure_context = f"{input.context_before}\n{input.context_after}"
+            prompt = self.prompt.format(figure_context=figure_context)
+        else:
+            prompt = self.prompt
+
+        # Use the cost-aware method
+        claude_response_obj = self.claude_client.vision_model_api_call(
+            figure_base64=figure_base64,
+            prompt=prompt,
+            max_tokens=self.max_tokens,
+            temperature=self.temperature,
+        )
+
+        return self._parse_into_pydantic(claude_response_obj)
+
+    def get_cost(self) -> float:
+        """Get cumulative cost from Claude client."""
+        return self.claude_client.get_cost()
+
+    def reset_cost(self) -> float:
+        """Reset costs in Claude client."""
+        return self.claude_client.reset_cost()
+
+    def _parse_into_pydantic(self, response: str) -> ExtractedLinePlotData:
+        """
+        Parse text into Pydantic object with regex pattern matching
+        """
+        lines = response.strip().split("\n")
+
+        data = {
+            "name_to_coordinates": {},
+            "title": None,
+            "x_axis_label": None,
+            "x_axis_unit": None,
+            "y_left_axis_label": None,
+            "y_left_axis_unit": None,
+        }
+
+        metadata_patterns = {
+            "title": re.compile(r"^title:\s*(.*)$"),
+            "x_axis_label": re.compile(r"^x_axis_label:\s*(.*)$"),
+            "x_axis_unit": re.compile(r"^x_axis_unit:\s*(.*)$"),
+            "y_left_axis_label": re.compile(r"^y_left_axis_label:\s*(.*)$"),
+            "y_left_axis_unit": re.compile(r"^y_left_axis_unit:\s*(.*)$"),
+        }
+
+        line_pattern = re.compile(r"^(.*?):\s*\[\[(.*?)\]\]$")
+
+        for line in lines:
+            line = line.strip()
+
+            if match := line_pattern.match(line):
+                name, coords_str = match.groups()
+                coords = [
+                    list(map(float, coord.split(",")))
+                    for coord in coords_str.split("], [")
+                ]
+                data["name_to_coordinates"][name] = coords
+                continue
+
+            for key, pattern in metadata_patterns.items():
+                if match := pattern.match(line):
+                    data[key] = match.group(1).strip()
+                    break
+
+        return ExtractedLinePlotData(**data)

@@ -1,0 +1,21 @@
+src/
+build/
+dist/
+*.egg-info/
+
+# mac specific #
+.DS_store
+
+# pycharm files #
+*/.idea/**
+.idea/
+.idea/**
+
+*/__pycache__/**
+*material_parser/core/preprocessing_tools/__pyache__/**
+*material_parser/core/postprocessing_tools/__pyache__/**
+*material_parser/core/__pyache__/**
+
+env/
+
+run.py

@@ -1,0 +1,107 @@
+site_name: LeMat-Synth
+site_description: >-
+  A multi-modal toolbox for extracting structured synthesis procedures
+  and performance data from materials science literature at scale.
+site_url: https://lematerial.github.io/lematerial-llm-synthesis/
+repo_name: LeMaterial/lematerial-llm-synthesis
+repo_url: https://github.com/LeMaterial/lematerial-llm-synthesis
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+  logo: assets/lematerial-logo.png
+  favicon: assets/favicon.png
+  icon:
+    repo: fontawesome/brands/github
+
+extra_css:
+  - css/custom.css
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_category_heading: true
+            show_symbol_type_heading: true
+            docstring_style: google
+            merge_init_into_class: true
+            members_order: source
+
+markdown_extensions:
+  - admonition
+  - github-callouts
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - attr_list
+  - md_in_html
+  - toc:
+      toc_depth: 2
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Quickstart: getting-started/quickstart.md
+      - Dataset Access: getting-started/dataset.md
+  - Tutorials: tutorials/index.md
+  - Case Studies:
+      - Overview: case-studies/index.md
+      - Thermocatalysis: case-studies/thermocatalysis.md
+      - Superconductors: case-studies/superconductors.md
+      - Porous Materials: case-studies/porosity.md
+      - Build Your Own: case-studies/custom-domain.md
+  - User Guide:
+      - CLI Reference: user-guide/cli.md
+      - Python API: user-guide/python-api.md
+      - Output Format: user-guide/output-format.md
+      - Troubleshooting: user-guide/troubleshooting.md
+  - Developer Guide:
+      - Architecture: developer-guide/architecture.md
+      - Annotations: developer-guide/annotations.md
+      - Configuration & Models: developer-guide/configuration.md
+  - API Reference:
+      - Pipeline: api/pipeline.md
+      - Data Models: api/models.md
+      - Transformers: api/transformers.md
+      - Configuration: api/configuration.md
+      - Metrics & Judges: api/metrics.md

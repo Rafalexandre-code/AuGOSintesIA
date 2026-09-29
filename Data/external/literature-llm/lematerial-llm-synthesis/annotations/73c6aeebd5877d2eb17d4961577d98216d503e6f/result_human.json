@@ -1,0 +1,269 @@
+{
+  "schema_version": "multi_llm_v1",
+  "paper_id": "73c6aeebd5877d2eb17d4961577d98216d503e6f",
+  "paper_url": "https://www.nature.com/articles/s41598-023-33625-x.pdf",
+  "extractor_order": [
+    "claude-sonnet-4.6",
+    "gemini-3-flash",
+    "qwen3.5-397b-a17b",
+    "deepseek-v3.2"
+  ],
+  "materials": [
+    {
+      "material_name": "Pf-AgNPs",
+      "human_recipe": {
+        "target_compound": "Pf-AgNPs",
+        "target_compound_type": "nanomaterials",
+        "synthesis_method": "other",
+        "starting_materials": [
+          {
+            "name": "AgNO3",
+            "vendor": null,
+            "amount": 0.5,
+            "unit": "mM",
+            "purity": null
+          },
+          {
+            "name": "P. frutescens extract aqueous solution",
+            "vendor": null,
+            "amount": 1.0,
+            "unit": "vol%",
+            "purity": null
+          }
+        ],
+        "steps": [
+          {
+            "step_number": 1,
+            "action": "mix",
+            "description": "AgNO3 in three concentrations of 0.5, 1, and 2 mM was dissolved in P. frutescens extract aqueous solution (1, 2.5, 5, and 10%, v/v)",
+            "materials": [
+              {
+                "name": "AgNO3",
+                "vendor": null,
+                "amount": 0.5,
+                "unit": "mM",
+                "purity": null
+              },
+              {
+                "name": "P. frutescens extract aqueous solution",
+                "vendor": null,
+                "amount": 1.0,
+                "unit": "vol%",
+                "purity": null
+              }
+            ],
+            "equipment": [],
+            "conditions": {
+              "temperature": null,
+              "duration": null,
+              "pressure": null,
+              "ph": null,
+              "temp_unit": null,
+              "time_unit": null,
+              "pressure_unit": null,
+              "atmosphere": null,
+              "stirring": null,
+              "stirring_speed": null
+            }
+          },
+          {
+            "step_number": 2,
+            "action": "sonicate",
+            "description": "mixture was sonicated for 90 min at 60 °C and in the dark condition",
+            "materials": [
+              {
+                "name": "AgNO3 P. frutescens extract mixture",
+                "vendor": null,
+                "amount": null,
+                "unit": null,
+                "purity": null
+              }
+            ],
+            "equipment": [],
+            "conditions": {
+              "temperature": 60.0,
+              "duration": 90.0,
+              "pressure": null,
+              "ph": null,
+              "temp_unit": "C",
+              "time_unit": "min",
+              "pressure_unit": null,
+              "atmosphere": null,
+              "stirring": null,
+              "stirring_speed": null
+            }
+          },
+          {
+            "step_number": 3,
+            "action": "centrifuge",
+            "description": "After that, the solution was centrifuged at 9000 rpm for 30 min and at 25 °C",
+            "materials": [
+              {
+                "name": "AgNO3 P. frutescens extract mixture",
+                "vendor": null,
+                "amount": null,
+                "unit": null,
+                "purity": null
+              }
+            ],
+            "equipment": [],
+            "conditions": {
+              "temperature": 25.0,
+              "duration": 30.0,
+              "pressure": null,
+              "ph": null,
+              "temp_unit": "C",
+              "time_unit": "min",
+              "pressure_unit": null,
+              "atmosphere": null,
+              "stirring": null,
+              "stirring_speed": null
+            }
+          },
+          {
+            "step_number": 4,
+            "action": "wash",
+            "description": "Then, the sediment obtained was washed three times",
+            "materials": [
+              {
+                "name": "AgNO3 P. frutescens extract sediment",
+                "vendor": null,
+                "amount": null,
+                "unit": null,
+                "purity": null
+              }
+            ],
+            "equipment": [],
+            "conditions": {
+              "temperature": null,
+              "duration": null,
+              "pressure": null,
+              "ph": null,
+              "temp_unit": null,
+              "time_unit": null,
+              "pressure_unit": null,
+              "atmosphere": null,
+              "stirring": null,
+              "stirring_speed": null
+            }
+          }
+        ],
+        "equipment": [],
+        "notes": "The whole reaction was carried out in the dark to prevent photo-activation. The concentration of 2 mM AgNO3 and 2.5% plant extract were obtained as the optimum conditions."
+      },
+      "evaluations": [
+        {
+          "evaluation": {
+            "reasoning": "",
+            "scores": {
+              "structural_completeness_score": 5.0,
+              "structural_completeness_reasoning": "",
+              "material_extraction_score": 4.5,
+              "material_extraction_reasoning": "Uses optimum concentrations (2 mM, 2.5%) rather than human initial values (0.5 mM, 1%); adds distilled water as starting material.",
+              "process_steps_score": 5.0,
+              "process_steps_reasoning": "",
+              "equipment_extraction_score": 5.0,
+              "equipment_extraction_reasoning": "",
+              "conditions_extraction_score": 5.0,
+              "conditions_extraction_reasoning": "",
+              "semantic_accuracy_score": 5.0,
+              "semantic_accuracy_reasoning": "",
+              "format_compliance_score": 5.0,
+              "format_compliance_reasoning": "",
+              "overall_score": 4.5,
+              "overall_reasoning": "High-quality extraction. Optimum concentrations used instead of initial"
+            },
+            "confidence_level": 4,
+            "missing_information": [],
+            "extraction_errors": [],
+            "improvement_suggestions": []
+          }
+        },
+        {
+          "evaluation": {
+            "reasoning": "Good extraction but characterization equipment wrongly placed in global list while synthesis equipment is missing from it. Target name imprecise.",
+            "scores": {
+              "structural_completeness_score": 4.5,
+              "structural_completeness_reasoning": "2/5 steps have conditions: null (unstructured null instead of null-field object). Minor.",
+              "material_extraction_score": 4.5,
+              "material_extraction_reasoning": "Purity field set to 'aqueous' for extract (schema misuse, not a purity value). ",
+              "process_steps_score": 4.5,
+              "process_steps_reasoning": "Mix and sonicate separated into two steps (reasonable)",
+              "equipment_extraction_score": 3.0,
+              "equipment_extraction_reasoning": "UV-Vis, XRD, FESEM-EDX (characterization) in global equipment list; sonicator and centrifuge (synthesis) not in global list.",
+              "conditions_extraction_score": 5.0,
+              "conditions_extraction_reasoning": "",
+              "semantic_accuracy_score": 4.5,
+              "semantic_accuracy_reasoning": "Target compound listed as 'Ag', less precise for a nanoparticle synthesis.",
+              "format_compliance_score": 4.5,
+              "format_compliance_reasoning": "conditions: null used as object value for step 2 instead of structured null fields.",
+              "overall_score": 4.0,
+              "overall_reasoning": "Good extraction but characterization equipment wrongly placed in global list while synthesis equipment is missing from it. Target name imprecise."
+            },
+            "confidence_level": 5,
+            "missing_information": [],
+            "extraction_errors": [
+              "UV-Vis, XRD, FESEM-EDX (characterization) in global equipment list; sonicator and centrifuge (synthesis) not in global list.",
+              "conditions: null used as object value for step 2 instead of structured null fields."
+            ],
+            "improvement_suggestions": []
+          }
+        },
+        {
+          "evaluation": {
+            "reasoning": "",
+            "scores": {
+              "structural_completeness_score": 5.0,
+              "structural_completeness_reasoning": "",
+              "material_extraction_score": 5.0,
+              "material_extraction_reasoning": "",
+              "process_steps_score": 5.0,
+              "process_steps_reasoning": "Action 'mix' used for wash/dry step (step 1) and cool/filter/store step (step 3); imprecise but descriptions are accurate.",
+              "equipment_extraction_score": 5.0,
+              "equipment_extraction_reasoning": "",
+              "conditions_extraction_score": 5.0,
+              "conditions_extraction_reasoning": "",
+              "semantic_accuracy_score": 5.0,
+              "semantic_accuracy_reasoning": "synthesis_method 'solution-based' does not match  'other'.",
+              "format_compliance_score": 5.0,
+              "format_compliance_reasoning": "",
+              "overall_score": 5.0,
+              "overall_reasoning": "Most complete extraction. "
+            },
+            "confidence_level": 5,
+            "missing_information": [],
+            "extraction_errors": [],
+            "improvement_suggestions": []
+          }
+        },
+        {
+          "evaluation": {
+            "reasoning": "",
+            "scores": {
+              "structural_completeness_score": 4.5,
+              "structural_completeness_reasoning": "Starting material amounts null despite concentrations available in text. Minor field-population gap.",
+              "material_extraction_score": 4.0,
+              "material_extraction_reasoning": "All starting material amounts and units null; concentrations only appear in step 1 description (range, not specific value). Target 'Ag' imprecise.",
+              "process_steps_score": 4.5,
+              "process_steps_reasoning": "Step 1 describes concentration range rather than specific value; no extract prep step (aligned with human recipe).",
+              "equipment_extraction_score": 5.0,
+              "equipment_extraction_reasoning": "",
+              "conditions_extraction_score": 5.0,
+              "conditions_extraction_reasoning": "",
+              "semantic_accuracy_score": 4.5,
+              "semantic_accuracy_reasoning": "Target listed as 'Ag' not 'Pf-AgNPs'.",
+              "format_compliance_score": 5.0,
+              "format_compliance_reasoning": "",
+              "overall_score": 4.5,
+              "overall_reasoning": "Conditions and steps well captured. Main gap: null amounts for starting materials despite explicit concentrations in text."
+            },
+            "confidence_level": 5,
+            "missing_information": [],
+            "extraction_errors": [],
+            "improvement_suggestions": []
+          }
+        }
+      ]
+    }
+  ]
+}
