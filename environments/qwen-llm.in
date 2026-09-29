@@ -1,2 +1,2 @@
 # Synthesis-Properties-Database (Qwen3-14B LoRA via LLaMA-Factory). Requer GPU >= 24 GB e CUDA 12.x.
--r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+-r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt

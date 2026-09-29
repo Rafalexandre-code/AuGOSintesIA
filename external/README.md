@@ -1,7 +1,7 @@
-# Data/external — repositórios de referência para a proposta FAPESP GO–AuNP
+# external — repositórios de referência para a proposta FAPESP GO–AuNP
 
 Cópias *shallow* (sem `.git`) de 48 repositórios do GitHub, clonadas em 2026-09-29.
-Commit exato de cada um: [`tools/external_repos.lock.tsv`](../../tools/external_repos.lock.tsv).
+Commit exato de cada um: [`tools/external_repos.lock.tsv`](../tools/external_repos.lock.tsv).
 
 ```bash
 tools/fetch_external.sh --list            # lista o que está aqui
@@ -74,7 +74,7 @@ checar com os autores.
 | `HierGO` | IFM-molecular-simulation-group | GPL-3.0 | gerador de tiles de GO (pré-requisito do AmberGO) |
 
 ### `characterization/` — dados de caracterização
-| `pyFAI` + `fabio` | silx-kit | MIT | ler `.ge3` (`Data/repo/`) e integrar SAXS/WAXS |
+| `pyFAI` + `fabio` | silx-kit | MIT | ler `.ge3` (`datasets/xrd-ceo2-calibration/`) e integrar SAXS/WAXS |
 |---|---|---|---|
 | `sasmodels` | SasView | BSD-3 | ajuste de curvas SAXS (tamanho/polidispersidade) |
 | `lmfit-py` | lmfit | BSD-3 | ajuste de picos (XPS C 1s, bandas Raman, plasmon) |

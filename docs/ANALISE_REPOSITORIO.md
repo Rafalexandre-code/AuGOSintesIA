@@ -5,8 +5,10 @@
 > nanocompósitos GO–AuNP sob variabilidade multi-fonte de matéria-prima"*.
 >
 > Análise feita em 2026-09-29 sobre o commit `e18986f` (2 commits, ~2 870 arquivos, ~1,7 GB em disco).
-> **Atualizado no mesmo dia:** 48 repositórios externos em `Data/external/` (§10), ambientes por
+> **Atualizado no mesmo dia:** 48 repositórios externos em `external/` (§10), ambientes por
 > subprojeto em `environments/` (§11) e correção dos problemas listados antes (§7).
+> **Reorganizado:** a antiga pasta `Data/` foi dividida em `datasets/`, `projects/<módulo>/` e `external/`;
+> `Articles/` virou `literature/` (§12). Os nomes antigos (`Data/…-main`) aparecem só no histórico do git.
 
 ---
 
@@ -15,71 +17,64 @@
 1. [Visão geral e mapa do repositório](#1-visão-geral-e-mapa-do-repositório)
 2. [O projeto FAPESP (documento-guia)](#2-o-projeto-fapesp-documento-guia)
 3. [Arquivos da raiz](#3-arquivos-da-raiz)
-4. [PubChem/ — fichas dos reagentes](#4-pubchem--fichas-dos-reagentes)
-5. [Data/ — arquivos soltos (datasets)](#5-data--arquivos-soltos-datasets)
-6. [Subprojetos em Data/](#6-subprojetos-em-data)
-   - 6.1 [GO-MACE-23-main — potencial ML e gerador de estruturas de GO](#61-go-mace-23-main--potencial-de-ml-e-gerador-de-estruturas-de-go)
-   - 6.2 [AmberGO-main — modelos de GO para AMBER/GAFF](#62-ambergo-main--modelos-de-go-compatíveis-com-ambergaff)
-   - 6.3 [text-mined-aunp-synthesis_public-main — receitas de AuNP mineradas](#63-text-mined-aunp-synthesis_public-main--receitas-de-aunp-mineradas-da-literatura)
-   - 6.4 [Synthesis-Properties-Database-for-Nanomaterials-main — extração com LLM (Qwen3-14B)](#64-synthesis-properties-database-for-nanomaterials-main--extração-com-llm-qwen3-14b)
-   - 6.5 [SDL-main — BO de brinquedo com ruído](#65-sdl-main--laço-de-bo-simples-com-ruído)
-   - 6.6 [Bgolearn-main — BO para materiais (pacote pronto)](#66-bgolearn-main--bo-para-materiais-pacote-pronto)
-   - 6.7 [RAMBOAU-main — BO multiobjetivo avesso a risco](#67-ramboau-main--bo-multiobjetivo-avesso-a-risco-ruído-aleatório)
-   - 6.8 [chem-MFBO-main — BO multi-fidelidade](#68-chem-mfbo-main--bo-multi-fidelidade-miso)
-   - 6.9 [BOCoDe-main — suíte de benchmarks + baselines](#69-bocode-main--suíte-de-benchmarks--31-algoritmos-de-referência)
-   - 6.10 [MatDesINNe-main — design inverso com redes invertíveis](#610-matdesinne-main--design-inverso-com-redes-invertíveis)
-   - 6.11 [M2Hub-master — GNNs e benchmarks de materiais](#611-m2hub-master--gnns-e-benchmarks-de-materiais)
-   - 6.12 [Qubot: data/, scripts/, qubot/, README.pdf — robô modular de SDL](#612-qubot-data-scripts-qubot-readmepdf--robô-modular-de-laboratório)
-   - 6.13 [repo/ — imagens de detector GE (.ge3)](#613-repo--imagens-de-detector-ge-ge3)
+4. [`datasets/pubchem/` — fichas dos reagentes](#4-datasetspubchem--fichas-dos-reagentes)
+5. [`datasets/` — dados avulsos](#5-datasets--dados-avulsos)
+6. [`projects/` — subprojetos base](#6-projects--subprojetos-base)
+   - 6.1 [GO-MACE-23 — potencial de ML e gerador de estruturas de GO](#61-go-mace-23--potencial-de-ml-e-gerador-de-estruturas-de-go)
+   - 6.2 [AmberGO — modelos de GO compatíveis com AMBER/GAFF](#62-ambergo--modelos-de-go-compatíveis-com-ambergaff)
+   - 6.3 [text-mined-aunp-synthesis — receitas de AuNP mineradas da literatura](#63-text-mined-aunp-synthesis--receitas-de-aunp-mineradas-da-literatura)
+   - 6.4 [Synthesis-Properties-Database-for-Nanomaterials — extração com LLM (Qwen3-14B)](#64-synthesis-properties-database-for-nanomaterials--extração-com-llm-qwen3-14b)
+   - 6.5 [SDL — laço de BO simples com ruído](#65-sdl--laço-de-bo-simples-com-ruído)
+   - 6.6 [Bgolearn — BO para materiais (pacote pronto)](#66-bgolearn--bo-para-materiais-pacote-pronto)
+   - 6.7 [RAMBOAU — BO multiobjetivo avesso a risco (ruído aleatório)](#67-ramboau--bo-multiobjetivo-avesso-a-risco-ruído-aleatório)
+   - 6.8 [chem-MFBO — BO multi-fidelidade (MISO)](#68-chem-mfbo--bo-multi-fidelidade-miso)
+   - 6.9 [BOCoDe — suíte de benchmarks + 31 algoritmos de referência](#69-bocode--suíte-de-benchmarks--31-algoritmos-de-referência)
+   - 6.10 [MatDesINNe — design inverso com redes invertíveis](#610-matdesinne--design-inverso-com-redes-invertíveis)
+   - 6.11 [M2Hub — GNNs e benchmarks de materiais](#611-m2hub--gnns-e-benchmarks-de-materiais)
+   - 6.12 [`self-driving-lab/qubot/` — robô modular de laboratório (hardware, dados, scripts)](#612-self-driving-labqubot--robô-modular-de-laboratório-hardware-dados-scripts)
+   - 6.13 [`datasets/xrd-ceo2-calibration/` — imagens de detector GE (.ge3)](#613-datasetsxrd-ceo2-calibration--imagens-de-detector-ge-ge3)
 7. [Problemas encontrados e como foram corrigidos](#7-problemas-encontrados-e-como-foram-corrigidos)
 8. [Como combinar tudo no pipeline GO–AuNP](#8-como-combinar-tudo-no-pipeline-goaunp)
 9. [Receitas rápidas (cola)](#9-receitas-rápidas-cola)
-10. [Repositórios externos (Data/external)](#10-repositórios-externos-dataexternal)
+10. [Repositórios externos (external)](#10-repositórios-externos-external)
 11. [Ambientes isolados (environments/)](#11-ambientes-isolados-environments)
+12. [`literature/` — corpus dos artigos citados](#12-literature--corpus-dos-artigos-citados)
 
 ---
 
 ## 1. Visão geral e mapa do repositório
 
-O repositório **não é um software único**: é uma coleção curada de (a) o projeto de pesquisa em `.docx`,
-(b) fichas PubChem dos reagentes, (c) datasets e (d) **13 repositórios de terceiros** baixados como `.zip`
-do GitHub/Zenodo e descompactados em `Data/` (daí os sufixos `-main`/`-master`), mais **48 repositórios de
-referência** em `Data/external/` (§10). Cada subprojeto tem dependências próprias e **deve ser usado em
-ambiente virtual separado** (`tools/setup_env.sh`, §11).
+O repositório **não é um software único**: é uma coleção curada de (a) o projeto de pesquisa, (b) o corpus
+de artigos citados, (c) datasets, (d) **13 subprojetos de terceiros** (código + dados, já corrigidos para
+rodar em qualquer SO) e (e) **48 repositórios de referência** clonados (§10). Cada subprojeto tem
+dependências próprias e **deve ser usado em ambiente virtual separado** (`tools/setup_env.sh`, §11).
 
 ```
 AuGOSintesIA/
-├── README.md                              # resumo + link para este documento
-├── CLAUDE.md                              # guia rápido para agentes
-├── docs/ANALISE_REPOSITORIO.md            # este documento
-├── environments/                          # um ambiente por subprojeto (§11)
-├── tools/                                 # setup_env.sh, fetch_external.sh + lock dos externos
-├── LICENSE                                # MIT, Rafael Alexandre (2026)
-├── .gitattributes                         # regras Git LFS (13 arquivos grandes)
-├── .idea/                                 # config do PyCharm (Python 3.13)
-├── Projeto_FAPESP_Iniciação_Rafael_Lopes.docx   # projeto de pesquisa (documento-guia)
-├── PubChem/                               # 53 JSON/XML de reagentes (Au, CTAB, citrato, NaBH4…)
-└── Data/
-    ├── README.md / README.pdf / gitattributes     # docs de 2 datasets externos (ver §5)
-    ├── DATASET_AuNCs.csv/.xlsx            # 207 nanoclusters de Au (λexc, λem, ligante, T, pH, t)
-    ├── dataset_v1.csv                     # 69 839 COFs (armazenamento de CH4)
-    ├── pressure_vessel_DS.csv             # 52 272 laminados compósitos (vaso de pressão)
-    ├── Statistics%20of%20Product%20Names.xlsx  # contagem de nomes de produtos (base Gu et al.)
-    ├── dataset.json, dataset_low_conf_skip-clean.json, aunp-synthesis_dataset_2021-9-14.json  # Git LFS (git lfs pull)
-    ├── external/                          # 48 repositórios de referência clonados (§10)
-    ├── GO-MACE-23-main/                   # potencial MACE p/ GO + gerador de estruturas (1,3 GB)
-    ├── AmberGO-main/                      # GO parametrizado p/ AMBER (GAFF/GAFF2)
-    ├── text-mined-aunp-synthesis_public-main/  # 5 154 artigos de síntese de AuNP (text mining)
-    ├── Synthesis-Properties-Database-for-Nanomaterials-main/  # LoRA Qwen3-14B p/ extrair sínteses
-    ├── SDL-main/                          # laço de BO simples (GPR/MLP ensemble + UCB)
-    ├── Bgolearn-main/                     # framework BO p/ materiais (pip install Bgolearn)
-    ├── RAMBOAU-main/                      # MOBO avesso a risco (MVaR) p/ síntese de nanomateriais
-    ├── chem-MFBO-main/                    # BO multi-fidelidade (MF-EI, MF-MES, MF-KG)
-    ├── BOCoDe-main/                       # 307 problemas de benchmark + 31 algoritmos
-    ├── MatDesINNe-main/                   # design inverso por INN/cINN/cVAE/MDN (MoS2)
-    ├── M2Hub-master/                      # GNNs (CGCNN, SchNet, ALIGNN…) + métricas de geração
-    ├── qubot/, data/, scripts/            # robô Qubot + dados (eletrólitos, shampoo, testes)
-    └── repo/                              # 4 imagens de detector GE (.ge3): CeO2 e dark
+├── README.md, CLAUDE.md, LICENSE, .gitattributes (Git LFS), .gitignore, .idea/ (PyCharm)
+├── docs/
+│   ├── ANALISE_REPOSITORIO.md          # este documento
+│   └── projeto/Projeto_FAPESP_Iniciação_Rafael_Lopes.docx
+├── literature/                         # 65 artigos em texto: .md combinado, chunks.jsonl (RAG), relatório (§12)
+├── datasets/                           # dados avulsos (catálogo em datasets/README.md)
+│   ├── aunc-fluorescence/              # 207 nanoclusters de Au (λexc, λem, ligante, T, pH, t)
+│   ├── nanocrystal-synthesis-db/       # base síntese→propriedade de Gu et al. (LFS) + estatística de nomes
+│   ├── aunp-text-mined/                # 5 154 artigos de AuNP minerados (LFS; = .zip do text-mined)
+│   ├── cofs-methane/                   # 69 839 COFs (armazenamento de CH4)
+│   ├── pressure-vessel/                # 52 272 laminados compósitos
+│   ├── pubchem/                        # 53 fichas de reagentes (Au, CTAB, citrato, NaBH4, GO…)
+│   └── xrd-ceo2-calibration/           # 4 imagens de detector GE (.ge3): CeO2 e dark
+├── projects/                           # 13 subprojetos base, por módulo (índice em projects/README.md)
+│   ├── atomistic/            GO-MACE-23, AmberGO
+│   ├── literature-llm/       text-mined-aunp-synthesis, Synthesis-Properties-Database-for-Nanomaterials
+│   ├── bayesian-optimization/ SDL, Bgolearn, RAMBOAU, BOCoDe
+│   ├── multi-fidelity/       chem-MFBO
+│   ├── inverse-design/       MatDesINNe
+│   ├── materials-ml/         M2Hub
+│   └── self-driving-lab/qubot/  hardware/ (CAD, BOM), data/, scripts/, README.pdf
+├── external/                           # 48 repositórios de referência, mesmas categorias (§10)
+├── environments/                       # um ambiente por subprojeto (§11)
+└── tools/                              # setup_env.sh, fetch_external.sh, external_repos.lock.tsv
 ```
 
 ### Mapa rápido: componente → papel no projeto
@@ -87,13 +82,13 @@ AuGOSintesIA/
 | Componente | Tipo | Papel no projeto GO–AuNP |
 |---|---|---|
 | Projeto FAPESP (.docx) | Documento | Define objetivos, hipóteses, métricas e cronograma |
-| PubChem/ | Dados de referência | Identidade/propriedades dos reagentes (HAuCl₄, CTAB, citrato, NaBH₄, ác. ascórbico, PVP, GO) |
+| datasets/pubchem/ | Dados de referência | Identidade/propriedades dos reagentes (HAuCl₄, CTAB, citrato, NaBH₄, ác. ascórbico, PVP, GO) |
 | GO-MACE-23 | Simulação atomística | Gerar/relaxar estruturas de GO com O/C e OH/epóxi controlados → descritores do **GO Navigator** |
 | AmberGO | Simulação MD clássica | Modelos de GO de 5 %–68 % de oxidação para MD (adsorção de Au, ligantes) |
 | text-mined AuNP | Dataset de literatura | Priors/espaço de busca para receitas de AuNP (**curadoria 4.1**) |
 | Synthesis-Properties DB (Qwen3) | LLM | Extração automática receita→propriedade (**curadoria assistida por LLM**) |
 | DATASET_AuNCs | Dataset | Mini-base de nanoclusters de Au para testar modelos pequenos (n≈200) |
-| SDL-main | Código didático | Aprender o laço BO (surrogate + UCB) e efeito do ruído/dimensão |
+| SDL | Código didático | Aprender o laço BO (surrogate + UCB) e efeito do ruído/dimensão |
 | Bgolearn | Biblioteca | BO pronto sobre "amostras virtuais" (EI, UCB, PoI, KG, PES…) — ideal para as primeiras campanhas |
 | RAMBOAU | Biblioteca/pesquisa | **qNEHVI** + versões avessas a risco (MVaR) para ruído heteroscedástico → **AuNP Designer** |
 | chem-MFBO | Biblioteca/pesquisa | Custos por fidelidade, MF-KG → base para **MISO** (UV-Vis barato × TEM/XPS caro) |
@@ -101,13 +96,13 @@ AuGOSintesIA/
 | MatDesINNe | Design inverso | Modelo generativo condicional (cINN/cVAE) → propriedade-alvo → receita (**módulo 4.6**) |
 | M2Hub | GNN/benchmark | Predição de propriedades a partir de estrutura; métricas para modelos generativos |
 | Qubot | Hardware + dados | Referência de SDL de baixo custo, protocolos de repetibilidade, análise de EIS |
-| repo/*.ge3 | Dados brutos | Exemplo de dados de difração 2D (calibração CeO₂) para o fluxo SAXS/WAXS |
+| datasets/xrd-ceo2-calibration/*.ge3 | Dados brutos | Exemplo de dados de difração 2D (calibração CeO₂) para o fluxo SAXS/WAXS |
 
 ---
 
 ## 2. O projeto FAPESP (documento-guia)
 
-**Arquivo:** `Projeto_FAPESP_Iniciação_Rafael_Lopes.docx` (IC, 12 meses, SisPlexos/DFM/IQ-UNESP Araraquara;
+**Arquivo:** `docs/projeto/Projeto_FAPESP_Iniciação_Rafael_Lopes.docx` (IC, 12 meses, SisPlexos/DFM/IQ-UNESP Araraquara;
 orientador Prof. Dr. Henrique A. M. Faria; candidato Rafael Alexandre de Pinho Lopes).
 
 **Pergunta central:** em síntese de GO–AuNP guiada por aprendizado ativo, *quando* medir a matéria-prima
@@ -117,17 +112,17 @@ orientador Prof. Dr. Henrique A. M. Faria; candidato Rafael Alexandre de Pinho L
 
 | Módulo do projeto | Descrição no projeto | Recurso no repositório |
 |---|---|---|
-| Curadoria (4.1) | Dados rastreáveis, FAIR, LLM p/ extrair receitas | `text-mined-aunp…`, `Synthesis-Properties…`, `Statistics…xlsx`, `DATASET_AuNCs` |
-| GO Navigator (4.2) | Descritores do lote (C/O, XPS, Raman, FTIR, XRD), Batch Fingerprint | `GO-MACE-23` (estruturas com O/C, OH:epóxi controlados), `AmberGO`, `PubChem/…RefChem 782691 (Graphene oxide)` |
-| Módulo de impurezas (4.3) | CTAB (iodeto), OCP | `PubChem/` (CTAB CID 5974, cetrimônio CID 2681) — descritores ainda a construir |
+| Curadoria (4.1) | Dados rastreáveis, FAIR, LLM p/ extrair receitas | `literature/` (65 artigos em texto), `text-mined-aunp…`, `Synthesis-Properties…`, `datasets/nanocrystal-synthesis-db`, `datasets/aunc-fluorescence` |
+| GO Navigator (4.2) | Descritores do lote (C/O, XPS, Raman, FTIR, XRD), Batch Fingerprint | `GO-MACE-23` (estruturas com O/C, OH:epóxi controlados), `AmberGO`, `datasets/pubchem/…RefChem 782691 (Graphene oxide)` |
+| Módulo de impurezas (4.3) | CTAB (iodeto), OCP | `datasets/pubchem/` (CTAB CID 5974, cetrimônio CID 2681) — descritores ainda a construir |
 | Função objetivo (4.4) | Perda espectral J (UV-Vis) + diâmetro | `BOCoDe` → `AgNP` usa exatamente uma *loss* espectral (Mekki-Berrada 2021) |
 | AuNP Designer (4.5) | GP Matérn 5/2 + ARD, qNEHVI, 4 braços de contexto, novelty-aware | `RAMBOAU` (qNEHVI/qLogNEHVI BoTorch), `BOCoDe/algorithms`, `Bgolearn` |
 | Modelos diferenciáveis/generativos (4.6) | Neural Processes, VAE/difusão para design inverso | `MatDesINNe` (cINN, cVAE, MDN), `Synthesis-Properties…/inverse_design` |
 | Transfer learning (4.7) | Multi-task/hierarchical GP, LBO | `chem-MFBO` (GP multi-tarefa vs multi-fidelidade: `regression/mt_vs_mf_regression.py`) |
 | MISO (4.8) | cost-sensitive KG, MGP/ICM/PCM | `chem-MFBO` (`qMultiFidelityKnowledgeGradient`, `InverseCostWeightedUtility`) |
-| Benchmark (4.15) | Múltiplas seeds, orçamento igual, hypervolume | `BOCoDe` (protocolo 25 seeds, traços `.npz`), `SDL-main`, `RAMBOAU/visualization` |
-| SDL/cloud lab (4.16) | Integração opcional com robô | `qubot/` + `scripts/tutorial` (biblioteca `control-lab-ly`) |
-| SAXS/WAXS (4.4/4.12) | Caracterização estrutural in situ | `repo/*.ge3` (frames de calibração CeO₂ + dark) |
+| Benchmark (4.15) | Múltiplas seeds, orçamento igual, hypervolume | `BOCoDe` (protocolo 25 seeds, traços `.npz`), `SDL`, `RAMBOAU/visualization` |
+| SDL/cloud lab (4.16) | Integração opcional com robô | `projects/self-driving-lab/qubot/` (`hardware/` + `scripts/tutorial`, biblioteca `control-lab-ly`) |
+| SAXS/WAXS (4.4/4.12) | Caracterização estrutural in situ | `datasets/xrd-ceo2-calibration/*.ge3` (frames de calibração CeO₂ + dark) |
 
 ---
 
@@ -138,14 +133,16 @@ orientador Prof. Dr. Henrique A. M. Faria; candidato Rafael Alexandre de Pinho L
 | `README.md` | Resumo do repositório + link para este documento | |
 | `CLAUDE.md` | Guia rápido para agentes (mapa + cuidados) | |
 | `.gitignore` | ignora `.venvs/` e `__pycache__/` | |
-| `LICENSE` | MIT © 2026 Rafael Alexandre | Os subprojetos em `Data/` mantêm **suas próprias licenças** (MIT, GPL-3 no AmberGO etc.) |
+| `LICENSE` | MIT © 2026 Rafael Alexandre | Os subprojetos em `projects/` e `external/` mantêm **suas próprias licenças** (MIT, GPL-3 no AmberGO etc.) |
 | `.gitattributes` | 13 caminhos rastreados por **Git LFS** | Requer `git lfs install` antes do clone (ou `git lfs pull` depois) — §7.1 |
 | `.idea/` | Projeto PyCharm, SDK "Python 3.13" | Sem efeito fora do PyCharm |
-| `Projeto_FAPESP_…docx` | Projeto de pesquisa completo (§2) | Ler com Word/LibreOffice ou `pandoc` |
+| `docs/projeto/Projeto_FAPESP_…docx` | Projeto de pesquisa completo (§2) | Ler com Word/LibreOffice ou `pandoc` |
+| `literature/` | Corpus dos artigos citados (§12) | |
+| `datasets/`, `projects/`, `external/` | Ver §5, §6 e §10 | cada pasta tem um `README.md` |
 
 ---
 
-## 4. PubChem/ — fichas dos reagentes
+## 4. `datasets/pubchem/` — fichas dos reagentes
 
 53 arquivos baixados do PubChem (PUG-View). Três formatos:
 
@@ -175,7 +172,7 @@ orientador Prof. Dr. Henrique A. M. Faria; candidato Rafael Alexandre de Pinho L
 
 ```python
 import json
-rec = json.load(open("PubChem/COMPOUND_CID_5974.json"))["Record"]
+rec = json.load(open("datasets/pubchem/COMPOUND_CID_5974.json"))["Record"]
 def find(sec, heading):                       # busca recursiva por TOCHeading
     for s in sec.get("Section", []):
         if s.get("TOCHeading") == heading: return s
@@ -189,9 +186,9 @@ E-factor (§4.14 do projeto) e para normalizar nomes em dados minerados (sinôni
 
 ---
 
-## 5. Data/ — arquivos soltos (datasets)
+## 5. `datasets/` — dados avulsos
 
-### 5.1 `DATASET_AuNCs.csv` / `DATASET_AuNCs.xlsx` — nanoclusters de ouro
+### 5.1 `aunc-fluorescence/` (`DATASET_AuNCs.csv` / `.xlsx`) — nanoclusters de ouro
 - 207 linhas × 11 colunas (CSV separado por `;`, codificação **latin-1**; a planilha é a mesma, aba `Hoja1`).
 - Colunas: `Entry`, `Size (nm)` (0,6–3,9; mediana 2), `Measuring Solvent` (17 valores, 152× água),
   `λexc (nm)` (262–800), `λem (nm)` (371–1100), `Ligand` (9; GSH em 182), `Au atoms` (só 18 preenchidos),
@@ -202,15 +199,15 @@ E-factor (§4.14 do projeto) e para normalizar nomes em dados minerados (sinôni
 
 ```python
 import pandas as pd
-df = pd.read_csv("Data/DATASET_AuNCs.csv", sep=";", encoding="latin-1")
+df = pd.read_csv("datasets/aunc-fluorescence/DATASET_AuNCs.csv", sep=";", encoding="latin-1")
 ```
 
-### 5.2 `Statistics%20of%20Product%20Names.xlsx`
+### 5.2 `nanocrystal-synthesis-db/statistics_of_product_names.xlsx` (antes `Statistics%20of%20Product%20Names.xlsx`)
 - 95 262 linhas × 2 (`Names`, `Counts`): frequência dos nomes de produtos na base de Gu et al. (2026)
   (AgNPs 1 247, AuNPs 1 095, "Gold Nanoparticles" 870, "Au NPs" 427…).
 - **Uso:** dicionário de sinônimos para normalizar "AuNPs/Au NPs/Gold Nanoparticles" ao filtrar a base.
 
-### 5.3 `Data/README.md` + `Data/gitattributes`
+### 5.3 `nanocrystal-synthesis-db/` — `README.md`, `gitattributes`, `dataset*.json`
 - São o *dataset card* do HuggingFace `Kai-gu/Synthesis-Properties-Database-for-Nanomaterials`
   (licença MIT, 10k–100k amostras). Descreve `dataset.json` (bruto) e `dataset_low_conf_skip-clean.json`
   (limpo, sem respostas de baixa confiança) com campos `sample_id, title, paragraph, step_number,
@@ -221,36 +218,36 @@ df = pd.read_csv("Data/DATASET_AuNCs.csv", sep=";", encoding="latin-1")
   passos/rotas/propriedades dentro de `extracted_content` (o texto do card lista os campos já "achatados").
 - Fonte alternativa: `huggingface-cli download Kai-gu/Synthesis-Properties-Database-for-Nanomaterials --repo-type dataset`.
 
-### 5.4 `Data/README.pdf`
-- README da publicação **Qubot** (ver §6.12): explica `data/`, `scripts/`, `qubot/`.
+### 5.4 README.pdf do Qubot (movido para `projects/self-driving-lab/qubot/`)
+- README da publicação **Qubot** (ver §6.12): explica `data/`, `scripts/` e o hardware (agora em `projects/self-driving-lab/qubot/`, com `qubot/` → `hardware/`).
 
-### 5.5 `dataset_v1.csv` — COFs para armazenamento de metano
+### 5.5 `cofs-methane/dataset_v1.csv` — COFs para armazenamento de metano
 - 69 839 COFs × 43 colunas: topologia (`net`, `linkerA/B`, `bond_type`, `dimensions` 2D/3D), geometria
   (`voidFraction`, `surface_area`, `density`, `largest_incl_sphere`…, parâmetros de célula), composição
   (`num_carbon`…), adsorção GCMC (`highUptake_*` ≈ 65 bar, `lowUptake_*` ≈ 5,8 bar, calores de dessorção)
   e o alvo `del_capacity` (capacidade de entrega de CH₄, v/v; 4,5–217).
 - Corresponde ao conjunto de COFs de Mercado et al. (armazenamento de metano). **Não é referenciado por
   nenhum código** do repositório. (Correção: o "problema COF" do `chem-MFBO` é *outro* conjunto — 608 COFs
-  de separação Xe/Kr, SimonEnsemble — agora restaurado em `chem-MFBO-main/data/clean/cofs.csv`, §6.8.)
+  de separação Xe/Kr, SimonEnsemble — agora restaurado em `chem-MFBO/data/clean/cofs.csv`, §6.8.)
 - **Uso:** benchmark grande de BO/triagem virtual (`del_capacity` como alvo); para multi-fidelidade, uma
   propriedade barata correlacionada (ex.: `surface_area`, `voidFraction`) pode fazer o papel de LF.
 
-### 5.6 `pressure_vessel_DS.csv` — laminados compósitos
+### 5.6 `pressure-vessel/pressure_vessel_DS.csv` — laminados compósitos
 - 52 272 linhas × 9: `SAngle` (0–175°), `Nrplies` (8–40), `Stepply`, `SymLam` (0/1), `Thickpl` (1–2),
   `S11`, `S22`, `Thick`, `min_val`. Grade completa de projeto de laminado de vaso de pressão (valor mínimo
   de um critério/fator de segurança). Também **órfão** (nenhum código usa).
 - **Uso:** problema discreto grande para testar BO em tabela (tipo "virtual samples" do Bgolearn).
 
-### 5.7 `aunp-synthesis_dataset_2021-9-14.json`, `dataset.json`, `dataset_low_conf_skip-clean.json`
+### 5.7 Arquivos LFS: `aunp-text-mined/aunp-synthesis_dataset_2021-9-14.json` e `nanocrystal-synthesis-db/dataset*.json`
 - Arquivos **Git LFS** (antes apareciam como ponteiros de 133 bytes). Com `git lfs pull` vêm completos.
   O primeiro é idêntico (byte a byte) ao conteúdo de
-  `text-mined-aunp-synthesis_public-main/aunp-synthesis_dataset_2021-9-14.json.zip` (51 MB).
+  `text-mined-aunp-synthesis/aunp-synthesis_dataset_2021-9-14.json.zip` (51 MB).
 
 ---
 
-## 6. Subprojetos em Data/
+## 6. `projects/` — subprojetos base
 
-### 6.1 GO-MACE-23-main — potencial de ML e gerador de estruturas de GO
+### 6.1 GO-MACE-23 — potencial de ML e gerador de estruturas de GO
 
 **Origem:** El-Machachi, …, Deringer, *Angew. Chem. Int. Ed.* 2024, e202410088 (citado no projeto);
 Zenodo 10.5281/zenodo.14066557.
@@ -290,7 +287,7 @@ controlados; (3) as estruturas finais de MD de 2 ns.
 
 ```bash
 pip install ase numpy            # gerador (testado: funciona sem GPU)
-cd Data/GO-MACE-23-main/code
+cd projects/atomistic/GO-MACE-23/code
 python run.py                    # gera GO-0.50-0.50.xyz (célula pequena: 8 C + 4 O + 2 H)
 ```
 
@@ -322,7 +319,7 @@ original: o modelo **não contém Au**).
 
 ---
 
-### 6.2 AmberGO-main — modelos de GO compatíveis com AMBER/GAFF
+### 6.2 AmberGO — modelos de GO compatíveis com AMBER/GAFF
 
 **Licença:** GPL-3.0. Zenodo 10.5281/zenodo.17863270. Depende do **HierGO**
 (github.com/IFM-molecular-simulation-group/HierGO; Garcia et al., *2D Mater.* 2023).
@@ -353,11 +350,11 @@ mas sem Au e caro).
 
 ---
 
-### 6.3 text-mined-aunp-synthesis_public-main — receitas de AuNP mineradas da literatura
+### 6.3 text-mined-aunp-synthesis — receitas de AuNP mineradas da literatura
 
 **Origem:** Cruse et al., *Sci. Data* 9, 234 (2022) (citado no projeto). Grupo Ceder.
 
-![pipeline](../Data/text-mined-aunp-synthesis_public-main/docs/ExtractionPipeline.png)
+![pipeline](../projects/literature-llm/text-mined-aunp-synthesis/docs/ExtractionPipeline.png)
 
 **Pipeline:** > 4,5 mi artigos → regex (811 905) → tf-idf (130 692) → classificação de parágrafos de síntese
 de AuNP (18 101) → refinamento de alvo → **5 154 artigos**, 7 608 parágrafos de receita e 12 519 de
@@ -390,7 +387,7 @@ caracterização.
 **Como usar:**
 ```python
 import json, zipfile
-with zipfile.ZipFile("Data/text-mined-aunp-synthesis_public-main/aunp-synthesis_dataset_2021-9-14.json.zip") as z:
+with zipfile.ZipFile("projects/literature-llm/text-mined-aunp-synthesis/aunp-synthesis_dataset_2021-9-14.json.zip") as z:
     data = json.loads(z.read("aunp-synthesis_dataset_2021-9-14.json"))
 recipes = [(p["doi"], q) for p in data for q in p["paragraphs"] if q["contains_recipe"]]
 ```
@@ -403,7 +400,7 @@ priorização, não como substituto de medições).
 
 ---
 
-### 6.4 Synthesis-Properties-Database-for-Nanomaterials-main — extração com LLM (Qwen3-14B)
+### 6.4 Synthesis-Properties-Database-for-Nanomaterials — extração com LLM (Qwen3-14B)
 
 **Origem:** Gu et al., *ACS Nano* 20, 17413 (2026), DOI 10.1021/acsnano.6c03070 (NanoExtractor/NanoDesigner,
 citado no projeto). Modelo: huggingface.co/Kai-gu/Qwen3-14B-finetune; base: huggingface.co/datasets/Kai-gu/…
@@ -437,7 +434,7 @@ devolver **passos de síntese** (S1, S2…), **rotas** (`product_1 <nome>: S1 �
 
 ---
 
-### 6.5 SDL-main — laço de BO simples com ruído
+### 6.5 SDL — laço de BO simples com ruído
 
 **O que é:** código didático para estudar como **ruído** e **dimensão** afetam a BO. Sem README.
 
@@ -462,7 +459,7 @@ devolver **passos de síntese** (S1, S2…), **rotas** (`product_1 <nome>: S1 �
 **Como usar (testado):**
 ```bash
 pip install numpy scipy scikit-learn matplotlib
-cd Data/SDL-main
+cd projects/bayesian-optimization/SDL
 python -c "from Functions import BayesianOptimization as BO; r=BO.run(modeltype='GPR',surrogate='ackley',noise=0.1,dimensions=2,runlength=20).singleOptimization(); print(max(r.Y))"
 mkdir -p "save data" "save plots" && python main.py && python main_plot.py
 ```
@@ -475,7 +472,7 @@ atrapalha e comparar GP × ensemble de MLP antes de ir para BoTorch.
 
 ---
 
-### 6.6 Bgolearn-main — BO para materiais (pacote pronto)
+### 6.6 Bgolearn — BO para materiais (pacote pronto)
 
 **Origem:** Cao et al., *npj Comput. Mater.* (2026), DOI 10.1038/s41524-026-02226-3. MIT. `pip install Bgolearn`.
 
@@ -515,7 +512,7 @@ Para multiobjetivo o README aponta o pacote separado **MultiBgolearn**.
 
 ---
 
-### 6.7 RAMBOAU-main — BO multiobjetivo avesso a risco (ruído aleatório)
+### 6.7 RAMBOAU — BO multiobjetivo avesso a risco (ruído aleatório)
 
 **Origem:** Ben Hicham, Jose, Jeraal, Rittig, Lapkin (2025), "RAMBO…for Nanomaterial Synthesis".
 Estrutura derivada do DGEMO. Baseado em BoTorch + pymoo 0.4.2.2.
@@ -546,8 +543,8 @@ Estrutura derivada do DGEMO. Baseado em BoTorch + pymoo 0.4.2.2.
 
 **Como usar:**
 ```bash
-conda env create -f Data/RAMBOAU-main/install_help/env_man.yml && conda activate ramboau
-cd Data/RAMBOAU-main
+conda env create -f projects/bayesian-optimization/RAMBOAU/install_help/env_man.yml && conda activate ramboau
+cd projects/bayesian-optimization/RAMBOAU
 python main.py --problem bstdiag --algo raqneirs --n-iter 20 --n-init-sample 6
 python run.py --problem bstvert bsthorz bstdiag --algo qnehvi raqneirs raqnehvi --n-seed 20
 python visualization/visualize_batch_all.py --problem bstvert bsthorz bstdiag --algo qnehvi raqneirs raqnehvi --n-seed 20
@@ -560,7 +557,7 @@ projeto propõe) com `raqnehvi` (robusto a lote/ruído) sob mesmo orçamento.
 
 ---
 
-### 6.8 chem-MFBO-main — BO multi-fidelidade (MISO)
+### 6.8 chem-MFBO — BO multi-fidelidade (MISO)
 
 **Origem:** Sabanza-Gil et al., "Best Practices for Multi-Fidelity BO in Materials and Molecular Research",
 arXiv 2410.00544 (Atinary + EPFL). Pacote instalável (`pip install .`), configs Hydra.
@@ -584,7 +581,7 @@ aleatório, sob orçamento de custo.
 
 **Como usar:**
 ```bash
-cd Data/chem-MFBO-main && python -m venv venv && source venv/bin/activate && pip install .
+cd projects/multi-fidelity/chem-MFBO && python -m venv venv && source venv/bin/activate && pip install .
 python src/chem_mfbo/benchmark/benchmark.py                                  # sintéticos
 python src/chem_mfbo/benchmark/benchmark.py --config-name=synthetic_sweep.yaml
 python src/chem_mfbo/metrics/plot_synthetic.py        # (README diz benchmark/, o arquivo está em metrics/)
@@ -600,11 +597,11 @@ para o cálculo de valor da informação/custo do projeto.
 
 ---
 
-### 6.9 BOCoDe-main — suíte de benchmarks + 31 algoritmos de referência
+### 6.9 BOCoDe — suíte de benchmarks + 31 algoritmos de referência
 
 **Origem:** Yu, Hatterer, Narayanan, Picard, Ahmed, arXiv 2608.15073 (2026). MIT. `pip install bocode`.
 Tem `AGENTS.md`, `CLAUDE.md` e uma *skill* `.claude/skills/bocode/SKILL.md` próprios (só ativos se a
-sessão for aberta dentro de `Data/BOCoDe-main`).
+sessão for aberta dentro de `projects/bayesian-optimization/BOCoDe`).
 
 **Regras fundamentais:** tudo é **maximização** (negue se seu otimizador minimiza); restrições são
 **g(x) ≤ 0 = viável**; entradas `torch.Tensor (batch, dim)` dentro de `problem.bounds`, use float64.
@@ -634,8 +631,8 @@ GIT-BO, RF/TabPFN/TabICL variantes, SMAC-RF), `single_obj_constrained` (CEI, SCB
 
 **Como usar:**
 ```bash
-pip install -e "Data/BOCoDe-main[hpo]"
-cd Data/BOCoDe-main
+pip install -e "projects/bayesian-optimization/BOCoDe[hpo]"
+cd projects/bayesian-optimization/BOCoDe
 python -m algorithms.single_obj.turbo --dataset AgNP --init 10 --iters 40 --seed 0 --saved_full_experiment
 python -m algorithms.multi_obj.qnehvi --problem Penicillin --init 10 --iters 50
 ```
@@ -652,7 +649,7 @@ implemente o problema GO–AuNP como `MaterialsDatasetProblem` com seus próprio
 
 ---
 
-### 6.10 MatDesINNe-main — design inverso com redes invertíveis
+### 6.10 MatDesINNe — design inverso com redes invertíveis
 
 **Origem:** Fung, Zhang, Hu, Ganesh, Sumpter, *npj Comput. Mater.* 7 (2021). MIT. Requer `FrEIA`,
 `torch 1.7`, `numpy 1.19`, `sklearn 0.24` (versões antigas — criar ambiente dedicado).
@@ -671,8 +668,8 @@ a, b, c, α, β, γ da célula deformada + campo elétrico) e `data_y.csv` (band
 
 **Como usar:**
 ```bash
-pip install -r Data/MatDesINNe-main/requirement.txt
-cd Data/MatDesINNe-main/MatDesINNe_cINN/generation && python generator.py
+pip install -r projects/inverse-design/MatDesINNe/requirement.txt
+cd projects/inverse-design/MatDesINNe/MatDesINNe_cINN/generation && python generator.py
 cd ../localization && python localization.py
 ```
 
@@ -683,7 +680,7 @@ treinar em dados sintéticos.
 
 ---
 
-### 6.11 M2Hub-master — GNNs e benchmarks de materiais
+### 6.11 M2Hub — GNNs e benchmarks de materiais
 
 **Origem:** Du et al., NeurIPS 2023 Datasets & Benchmarks. MIT. Código baseado no Open Catalyst Project e CDVAE.
 
@@ -703,8 +700,8 @@ treinar em dados sintéticos.
 
 **Como usar:**
 ```bash
-conda env create -f Data/M2Hub-master/environment.yml && conda activate m2hub   # PyTorch 1.13 / CUDA 11.6
-cd Data/M2Hub-master && pip install -e .
+conda env create -f projects/materials-ml/M2Hub/environment.yml && conda activate m2hub   # PyTorch 1.13 / CUDA 11.6
+cd projects/materials-ml/M2Hub && pip install -e .
 python scripts/download_data.py --task jarvis --property qmof:bandgap --split random --get-edges
 python -u main.py --mode train --config-yml config/jarvis/qmof/bandgap/random/cgcnn.yml
 ```
@@ -716,12 +713,12 @@ avaliar modelos generativos.
 
 ---
 
-### 6.12 Qubot: `data/`, `scripts/`, `qubot/`, `README.pdf` — robô modular de laboratório
+### 6.12 `self-driving-lab/qubot/` — robô modular de laboratório (hardware, dados, scripts)
 
 **Origem:** publicação "Open-Source Modular Laboratory Robots as Building Blocks for Flexible Assembly of
 Self-Driving Labs" (Qubot-Publication v1.0.1; repo mat-fox/qubot). `README.pdf` explica a organização.
 
-**`qubot/`** (hardware aberto): `CAD/Qubot Gantry V4.zip` (CAD), `CAD/STL/*.stl` (peças impressas:
+**`hardware/`** (antes `qubot/`; hardware aberto): `CAD/Qubot Gantry V4.zip` (CAD), `CAD/STL/*.stl` (peças impressas:
 carcaças, suportes de fim de curso, plataforma Z…), `CAD/Technical drawings/*.pdf` (adaptadores 2020/2040,
 breadboard, gantry), `Manuals/Assembly Guide Qubot Gantry V4.pdf`, `BOM *.xlsx` (lista de materiais).
 
@@ -751,7 +748,7 @@ breadboard, gantry), `Manuals/Assembly Guide Qubot Gantry V4.pdf`, `BOM *.xlsx` 
 - `requirements.txt`: impedance 1.7.1, matplotlib, numpy 2.4, pandas 3.0, plotly, scikit-learn 1.8,
   scipy 1.17, control-lab-ly 2.1.0.
 
-**Como usar:** `tools/setup_env.sh qubot-scripts`; rode a partir de `Data/scripts/<pasta>` (ou defina
+**Como usar:** `tools/setup_env.sh qubot-scripts`; rode a partir de `projects/self-driving-lab/qubot/scripts/<pasta>` (ou defina
 `QUBOT_DATA_DIR`) célula a célula ou inteiro (`python data_analysis.py`). Os caminhos agora funcionam em
 Windows/Linux/macOS; `EIS_INTERACTIVE=0` pula a revisão manual dos ajustes de EIS. ⚠ As análises
 regravam `data/*/summary.csv`.
@@ -763,7 +760,7 @@ desenho de lote inicial com cobertura de reagentes.
 
 ---
 
-### 6.13 `repo/` — imagens de detector GE (.ge3)
+### 6.13 `datasets/xrd-ceo2-calibration/` — imagens de detector GE (.ge3)
 
 - `CeO2_1s_000012.ge3`, `CeO2_1s_000013.ge3`: 5 frames de 2048×2048 px (uint16, cabeçalho de 8 192 bytes)
   de um detector de área GE (padrão APS) com **pó de CeO₂** (padrão de calibração de difração), 1 s.
@@ -772,8 +769,8 @@ desenho de lote inicial com cobertura de reagentes.
   `pyFAI`/`fabio`/GSAS-II:
 ```python
 import numpy as np
-frames = np.fromfile("Data/repo/CeO2_1s_000012.ge3", dtype=np.uint16, offset=8192).reshape(-1, 2048, 2048)
-dark   = np.fromfile("Data/repo/dark_1s_000014.ge3", dtype=np.uint16, offset=8192).reshape(-1, 2048, 2048)
+frames = np.fromfile("datasets/xrd-ceo2-calibration/CeO2_1s_000012.ge3", dtype=np.uint16, offset=8192).reshape(-1, 2048, 2048)
+dark   = np.fromfile("datasets/xrd-ceo2-calibration/dark_1s_000014.ge3", dtype=np.uint16, offset=8192).reshape(-1, 2048, 2048)
 img = frames.mean(0) - dark.mean(0)        # depois: pyFAI.AzimuthalIntegrator(...).integrate1d(img, 2000)
 ```
 - **Aplicação:** treino do fluxo de SAXS/WAXS (tamanho de cristalito de Au via Scherrer, projeto §4.4/4.12)
@@ -801,7 +798,7 @@ git clone https://github.com/Rafalexandre-code/AuGOSintesIA   # já baixa os LFS
 | RAMBOAU `problems/data/MT-KBH-004/*.xlsx` | ⚠ não público | O repositório original (Queimo/RAMBOAU) também não publica os dados do ZnO. `problems/exp.py` agora lê a pasta de `RAMBOAU_EXP_DATA` e explica o problema se não achar nada; `problems/data/make_synthetic_experiment.py` gera planilhas **sintéticas** no mesmo formato (útil também como molde para os dados GO–AuNP). |
 | Qubot *Liquid Formulations Dataset* | ⚠ baixar à parte | Figshare (Chitre et al. 2024) — bloqueado neste ambiente; `formulation_selection.py` agora explica onde baixar. |
 | Qwen3-14B + adaptador LoRA | ⚠ baixar à parte | HuggingFace (`Qwen/Qwen3-14B`, `Kai-gu/Qwen3-14B-finetune`); caminhos configuráveis (§7.3). |
-| Submódulos CederGroupHub | ✅ parcial | Clonados em `Data/external/literature-llm/` (sem os modelos de 780 MB/Stanford Parser, listados em `LFS_OBJECTS_NOT_INCLUDED.txt`). |
+| Submódulos CederGroupHub | ✅ parcial | Clonados em `external/literature-llm/` (sem os modelos de 780 MB/Stanford Parser, listados em `LFS_OBJECTS_NOT_INCLUDED.txt`). |
 
 ### 7.3 Caminhos fixos — ✅ corrigidos (padrão: relativo à pasta do script; variável de ambiente para sobrescrever)
 | Arquivo(s) | Antes | Agora |
@@ -809,11 +806,11 @@ git clone https://github.com/Rafalexandre-code/AuGOSintesIA   # já baixa os LFS
 | `Synthesis-Properties…/train.py`, `train_config.yaml` | `/root/autodl-tmp/…`, conda em `/root/miniconda3` | `Qwen3-14B`, `.`, `saves/…` relativos; `LLAMAFACTORY_CONFIG`, `LLAMAFAC_CONDA_ACTIVATE` (opcional) |
 | `…/test_model_optimized.py` | 5 caminhos `/root/autodl-tmp/…` | flags `--base-model --saves-path --test-data --output-dir` (ou `QWEN_*`); saída em `outputs/` (não sobrescreve `results/` do artigo) |
 | `…/inverse_design/*` | `/home/ubuntu/project/…` | relativos + `dataset_info.json` novo apontando para `example_dataset.json` |
-| `GO-MACE-23-main/models/fitting/potential/*/train.sh` (14) | `python /u/vld/sedm6197/software/mace/scripts/run_train.py` | `${MACE_RUN_TRAIN:-mace_run_train}` (comando do `mace-torch`), `GPU_ID` |
-| `SDL-main` | `folderpath + '\\Opt …'`, pastas precisavam existir | `os.path.join`, `os.makedirs` |
-| `Data/scripts/{electrolytes,shampoo}/*.py` | `r'\…'`, `\Data\…` (só Windows) | `os.path.join`/`pathlib`; `QUBOT_DATA_DIR` opcional |
-| `Data/scripts/nominal_testing/*.py` | portas seriais `''` | `GAUGE_PORT`, `DEVICE_PORT` |
-| `Bgolearn-main/SnIn/*/WPEMsimulation.ipynb` | `/Users/jacob/…` | `pip install PyWPEM` ou `PYWPEM_DIR` |
+| `GO-MACE-23/models/fitting/potential/*/train.sh` (14) | `python /u/vld/sedm6197/software/mace/scripts/run_train.py` | `${MACE_RUN_TRAIN:-mace_run_train}` (comando do `mace-torch`), `GPU_ID` |
+| `SDL` | `folderpath + '\\Opt …'`, pastas precisavam existir | `os.path.join`, `os.makedirs` |
+| `projects/self-driving-lab/qubot/scripts/{electrolytes,shampoo}/*.py` | `r'\…'`, `\Data\…` (só Windows) | `os.path.join`/`pathlib`; `QUBOT_DATA_DIR` opcional |
+| `projects/self-driving-lab/qubot/scripts/nominal_testing/*.py` | portas seriais `''` | `GAUGE_PORT`, `DEVICE_PORT` |
+| `Bgolearn/SnIn/*/WPEMsimulation.ipynb` | `/Users/jacob/…` | `pip install PyWPEM` ou `PYWPEM_DIR` |
 | READMEs M2Hub e chem-MFBO | comandos com caminhos errados | corrigidos |
 
 ### 7.4 Bugs — ✅ corrigidos e testados
@@ -822,9 +819,9 @@ Os dois apontados antes e os demais encontrados ao executar o código:
 | Onde | Bug | Correção | Verificação |
 |---|---|---|---|
 | `scripts/nominal_testing/data_acquisition.py` | `data.loc[...]` numa lista; salvava a lista | acumula linhas numa lista, monta o `DataFrame` e salva; Ctrl+C encerra a captura | revisão (precisa do relógio Mitutoyo) |
-| `SDL-main` `dimensionScreen` | chamava `Plotting.saveDimensionLinePlots` (inexistente) e guardava o mesmo objeto para todas as dimensões | função criada; guarda a curva "melhor até agora" de cada dimensão | executado ✓ |
-| `SDL-main` `levy` | `math.sin` em array de 1 elemento → `TypeError` no NumPy atual (quebrava `main.py`) | vetor 1-D + `float()` | 5 funções × 3 dimensões ✓ |
-| `SDL-main` `main.py`/`main_plot.py` | modelos diferentes (`BRMLPR_EGS` × `GPR`) → gráficos não achavam os arquivos | ambos leem `SDL_BELIEF_MODEL` | pipeline completo ✓ |
+| `SDL` `dimensionScreen` | chamava `Plotting.saveDimensionLinePlots` (inexistente) e guardava o mesmo objeto para todas as dimensões | função criada; guarda a curva "melhor até agora" de cada dimensão | executado ✓ |
+| `SDL` `levy` | `math.sin` em array de 1 elemento → `TypeError` no NumPy atual (quebrava `main.py`) | vetor 1-D + `float()` | 5 funções × 3 dimensões ✓ |
+| `SDL` `main.py`/`main_plot.py` | modelos diferentes (`BRMLPR_EGS` × `GPR`) → gráficos não achavam os arquivos | ambos leem `SDL_BELIEF_MODEL` | pipeline completo ✓ |
 | `scripts/electrolytes/data_analysis.py` | `math.phase` (não existe); `load_df(df, instrument=…)`+`.df` (assinatura errada); glob do EIS montava caminho inválido; `log` recebia o caminho inteiro; `segments` indefinida; colunas inexistentes na agregação final; `chi_squared_eis` fazia `if Series != None` (todo ajuste virava "Fail"); `impedance==1.7.1` + NumPy 2 quebra o `eval` do Lin-KK | `cmath.phase`; classe `EISData`; `os.path.join`; `directory.name`; `segments = {}`; nomes corretos; `is not None`; `np.set_printoptions(legacy='1.25')`; modo `EIS_INTERACTIVE=0` | reproduz o `summary.csv` publicado: massas, espessuras e erros de transferência 96/96, χ² 74/96 (os outros 22 foram reajustados à mão pelos autores no modo interativo) ✓ |
 | `scripts/shampoo/data_analysis.py` | só funcionava no Windows | caminhos portáveis | reproduz **exatamente** o `summary.csv` publicado ✓ |
 | RAMBOAU `utils.RefPoint` / `main_exp.py` | `self.solver.alpha` inexistente; `RefPoint(...)` chamado com argumentos errados; `Experiment4D` sem `ref_point` | `alpha`; mesma chamada do `main.py`; `self.ref_point = None` | `main.py` ✓; `main_exp.py` com os dados sintéticos ✓ (em CPU use `--pop-size 40 --n-gen 5`; o padrão 500×100 do NSGA-II leva >20 min por passo) |
@@ -837,7 +834,7 @@ que aparecem no `summary.csv` publicado (o código só lê a planilha) — incon
 `text-mined`, `bgolearn`, `ramboau`, `qubot-scripts` e `go-mace` foram instalados e executados aqui.
 
 ### 7.6 Arquivos supérfluos (não removidos, por serem parte das cópias originais)
-`.DS_Store`, `__pycache__/*.pyc`, `.ipynb_checkpoints/`, `.idea/` aninhados; `PubChem/REFCHEM_RefChemID_4004.json`
+`.DS_Store`, `__pycache__/*.pyc`, `.ipynb_checkpoints/`, `.idea/` aninhados; `datasets/pubchem/REFCHEM_RefChemID_4004.json`
 (Peisleyite, fora do tema). Um `.gitignore` na raiz agora evita novos `__pycache__/` e `.venvs/`.
 
 ---
@@ -859,13 +856,13 @@ GO-MACE-23 / AmberGO (estruturas O/C, OH:epóxi) ─► GO Navigator (descritore
      │ design inverso (MatDesINNe cINN) quando n > 200 espectros                   │
      └─────────────────────────────────────────────────────────────────────────────┘
                                                             │
-Benchmark prévio em simulação: BOCoDe (AgNP, sintéticos), SDL-main (ruído), RAMBOAU (BST), chem-MFBO
+Benchmark prévio em simulação: BOCoDe (AgNP, sintéticos), SDL (ruído), RAMBOAU (BST), chem-MFBO
                                                             │
-Execução: bancada manual  →  (opcional) Qubot/control-lab-ly  ;  SAXS/WAXS: fluxo com repo/*.ge3
+Execução: bancada manual  →  (opcional) Qubot/control-lab-ly  ;  SAXS/WAXS: fluxo com datasets/xrd-ceo2-calibration/*.ge3
 ```
 
 **Sequência sugerida de estudo/implementação (alinhada ao cronograma do projeto):**
-1. *Mês 1–2:* rodar `SDL-main` e `Bgolearn/Template` para entender GP/EI/UCB; ler `Refs/` do Bgolearn.
+1. *Mês 1–2:* rodar `SDL` e `Bgolearn/Template` para entender GP/EI/UCB; ler `Refs/` do Bgolearn.
 2. *Mês 2–3:* explorar o dataset text-mined e a base do Gu et al.; montar tabela de receitas citrato/NaBH₄/
    ascórbico com GO; normalizar reagentes com PubChem.
 3. *Mês 3–4:* gerar GO com `GO-MACE-23/code` para O/C 0,1–0,5 e OH 0–1; relaxar com o MACE; definir
@@ -882,9 +879,9 @@ Execução: bancada manual  →  (opcional) Qubot/control-lab-ly  ;  SAXS/WAXS: 
 
 | Quero… | Comando / código |
 |---|---|
-| Gerar uma folha de GO com O/C = 0,3 e 50 % OH | editar `O_content_range=[0.3]` em `Data/GO-MACE-23-main/code/run.py` → `python run.py` |
+| Gerar uma folha de GO com O/C = 0,3 e 50 % OH | editar `O_content_range=[0.3]` em `projects/atomistic/GO-MACE-23/code/run.py` → `python run.py` |
 | Energia/forças DFT-like de um GO | `MACECalculator(model_paths="…/iter-12-final-model/go-mace-23.pt")` |
-| Modelos de GO prontos para AMBER | `unzip Data/AmberGO-main/Data/All_final_models.zip` (5 %–68 %) |
+| Modelos de GO prontos para AMBER | `unzip projects/atomistic/AmberGO/Data/All_final_models.zip` (5 %–68 %) |
 | Ler receitas de AuNP da literatura | §6.3 (ler o `.zip` direto com `zipfile`) |
 | Recomendar próximas receitas de uma planilha | `Bgolearn().fit(X, y, candidatos).EI()` ou `python bgolearn_ui.py` |
 | MOBO robusto a ruído | `python main.py --problem bstdiag --algo raqnehvi` (RAMBOAU) |
@@ -895,15 +892,15 @@ Execução: bancada manual  →  (opcional) Qubot/control-lab-ly  ;  SAXS/WAXS: 
 | Controlar gantry Qubot | `Gantry('COMx', device_type_name='GRBL').home()` (control-lab-ly) |
 | Criar o ambiente de um subprojeto | `tools/setup_env.sh <nome>` (lista: `--list`) |
 | Atualizar os repositórios externos | `tools/fetch_external.sh --latest` |
-| Banco de grafeno amorfo (substituto) | `cd Data/GO-MACE-23-main/code && python make_amorphous_db.py` |
+| Banco de grafeno amorfo (substituto) | `cd projects/atomistic/GO-MACE-23/code && python make_amorphous_db.py` |
 | Integrar imagem de difração | `np.fromfile(..., dtype=np.uint16, offset=8192).reshape(-1,2048,2048)` + pyFAI |
 
 ---
 
-## 10. Repositórios externos (Data/external)
+## 10. Repositórios externos (external)
 
 48 repositórios do GitHub clonados para cobrir o que faltava à proposta (lista completa, licenças, o que foi
-podado e por quê: [`Data/external/README.md`](../Data/external/README.md); commit exato de cada um:
+podado e por quê: [`external/README.md`](../external/README.md); commit exato de cada um:
 [`tools/external_repos.lock.tsv`](../tools/external_repos.lock.tsv)). Organizados por módulo do projeto:
 
 | Pasta | Conteúdo principal | Módulo |
@@ -938,3 +935,18 @@ Detalhes e o que foi testado: [`environments/README.md`](../environments/README.
 | `matdesinne` | 3.8 | MatDesINNe (torch 1.7.1) |
 | `qwen-llm` | 3.12 | Qwen3/LLaMA-Factory (GPU) |
 | `m2hub`, `ambergo` | conda | M2Hub (PyG/DGL), AmberGO (AmberTools) |
+
+## 12. `literature/` — corpus dos artigos citados
+
+(Pasta antes chamada `Articles/`; não havia sido coberta na primeira versão desta análise.) Texto integral de
+**65 artigos** da bibliografia da proposta (1 de 2009, 22 de 2026), extraídos de PDF com sucesso (65/65):
+
+| Arquivo | Conteúdo |
+|---|---|
+| `artigos_combinados.md` | todos os artigos num Markdown (≈1,36 M tokens); `<document index="N">` com `<metadata>`/`<document_content>`, marcadores de página `<!-- p. N -->`, tabelas em Markdown, índice no topo |
+| `chunks.jsonl` | 5 227 trechos (≈255 tokens) com título, autores, ano, DOI, seção, tipo e páginas — pronto para busca semântica/RAG |
+| `relatorio.csv` (`;`), `relatorio.json` | inventário da extração: páginas, palavras, tokens, qualidade, metadados (DOI, revista, palavras-chave) |
+
+**Uso:** consultar a literatura sem os PDFs; alimentar um assistente de leitura (embeddings de
+`contexto + texto`, recuperar os trechos mais próximos e citar `titulo` + `paginas`); cruzar com
+`external/` (vários desses artigos têm o código clonado lá: HEAD/Vaddi, SPACESHIP, Yoo/KIST, Aqeeli, Pilon…).

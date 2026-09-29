@@ -1,4 +1,4 @@
-# Data/scripts (Qubot): versões fixadas pelos autores + leitura de .xlsx e serial
--r ../Data/scripts/requirements.txt
+# projects/self-driving-lab/qubot/scripts (Qubot): versões fixadas pelos autores + leitura de .xlsx e serial
+-r ../projects/self-driving-lab/qubot/scripts/requirements.txt
 openpyxl
 pyserial

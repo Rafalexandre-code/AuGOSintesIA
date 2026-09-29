@@ -1,2 +1,2 @@
 # MatDesINNe (versões antigas do artigo; requer Python 3.8)
--r ../Data/MatDesINNe-main/requirement.txt
+-r ../projects/inverse-design/MatDesINNe/requirement.txt
