@@ -17,5 +17,6 @@ hits = [c for c in chunks if "graphene oxide" in c["texto"].lower()]
 print(len(hits), hits[0]["titulo"], "p.", hits[0]["paginas"])
 ```
 
-Para busca semântica, gere embeddings de `contexto + texto` de cada trecho (ex.: com `sentence-transformers`)
+Busca por palavras-chave (BM25, sem dependências): `python tools/search_literature.py "oxygen groups gold nucleation" -k 5`
+(`--json` para alimentar um LLM). Para busca semântica, gere embeddings de `contexto + texto` de cada trecho (ex.: com `sentence-transformers`)
 e recupere os trechos mais próximos da pergunta; cite sempre `titulo` + `paginas`.

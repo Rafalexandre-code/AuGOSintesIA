@@ -6,9 +6,9 @@ acid", "gold chloride" e "hydrogen tetrachloroaurate" → `HAuCl4` (CID 28133), 
 | Arquivo | Conteúdo | Origem |
 |---|---|---|
 | `aliases.tsv` | **curado à mão**: entidade, papel (precursor, redutor, estabilizante, solvente, suporte…), nome canônico, CIDs, sinônimos, siglas, regex | edite aqui |
-| `reagent_dictionary.csv` | 64 entidades: `entity_id, role, canonical_name, chemical_name_pubchem, formula, molecular_formula, molecular_weight, pubchem_cid, related_cids, refchem_ids, iupac_name, smiles, inchi, inchikey, cas, synonyms, alias_keys, abbrev, resolved_by, notes` | `reagents.py build` (fichas de `../pubchem/`) |
+| `reagent_dictionary.csv` | 67 entidades: `entity_id, role, canonical_name, chemical_name_pubchem, formula, molecular_formula, molecular_weight, pubchem_cid, related_cids, refchem_ids, iupac_name, smiles, inchi, inchikey, cas, synonyms, alias_keys, abbrev, resolved_by, notes` | `reagents.py build` (fichas de `../pubchem/`) |
 | `pubchem_records.csv` | as 23 fichas locais (CID/RefChem) com identificadores extraídos e a entidade a que pertencem | idem |
-| `cruse_material_normalization.csv` | grafias de materiais de Cruse et al. → entidade (1 071 grafias resolvidas = 78,5 % das menções; + as 300 sem entidade mais citadas) | `reagents.py cruse` |
+| `cruse_material_normalization.csv` | grafias de materiais de Cruse et al. → entidade (1 092 grafias resolvidas = 79,0 % das menções, sem o "lixo" listado pelos autores; + as 300 sem entidade mais citadas); coluna `cruse_regex_label` = rótulo dos regex de Cruse (`projects/literature-llm/text-mined-aunp-synthesis/rsc/`) — concordância de 99,1 % | `reagents.py cruse` |
 
 Fornecedor, lote, pureza e forma do frasco **não** são propriedades da substância: vão em
 `datasets/data-model/templates/reagent_lots.csv`, ligados a `entity_id`.

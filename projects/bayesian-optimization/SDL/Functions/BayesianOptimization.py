@@ -124,7 +124,8 @@ class BeliefModels:
     def model_mLPRegressionExhaustiveGridSearch(self):
         param_grid = {"activation": ["identity", "logistic", "tanh", "relu"],
                       "solver": ["lbfgs"], "alpha": [a for a in np.logspace(-6, 0, 3)]}
-        GSmodel = GridSearchCV(sknn.MLPRegressor(), param_grid)
+        # 5-fold CV (sklearn default) fails with fewer than 5 points; use at most len(X) folds
+        GSmodel = GridSearchCV(sknn.MLPRegressor(), param_grid, cv=max(2, min(5, len(self.X))))
         GSmodel.fit(self.X, self.Y)
         model = GSmodel.best_estimator_
         return model

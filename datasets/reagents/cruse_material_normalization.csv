@@ -1,1372 +1,1393 @@
-material_raw,mentions,entity_id,canonical_name,form,match,ambiguous
-HAuCl4,5051,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-sodium citrate,1821,trisodium_citrate,trisodium citrate,,alias,0
-CTAB,1418,CTAB,hexadecyltrimethylammonium bromide,,abbrev,0
-NaBH4,1413,NaBH4,sodium borohydride,,alias,0
-trisodium citrate,1314,trisodium_citrate,trisodium citrate,,alias,0
-ascorbic acid,992,ascorbic_acid,L-ascorbic acid,,alias,0
-AgNO3,882,AgNO3,silver nitrate,,alias,0
-gold,723,Au,gold (metal / nanoparticle product),,alias,0
-sodium borohydride,593,NaBH4,sodium borohydride,,alias,0
-water,576,water,water,,alias,0
-Au,559,Au,gold (metal / nanoparticle product),,alias,0
-HAuCl4·3H2O,536,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-HCl,373,HCl,hydrochloric acid,,alias,0
-chloroauric acid,358,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-NaOH,352,NaOH,sodium hydroxide,,alias,0
-silver nitrate,348,AgNO3,silver nitrate,,alias,0
-AA,236,ascorbic_acid,L-ascorbic acid,,abbrev,0
-PVP,234,PVP,polyvinylpyrrolidone,,abbrev,0
-cetyltrimethylammonium bromide,222,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-AuNPs,195,Au,gold (metal / nanoparticle product),,abbrev,0
-ethanol,193,ethanol,ethanol,,alias,0
-citrate,192,trisodium_citrate,trisodium citrate,,alias,0
-HNO3,149,HNO3,nitric acid,,alias,0
-CTAC,145,CTAC,hexadecyltrimethylammonium chloride,,abbrev,0
-hydrogen tetrachloroaurate,138,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-sodium hydroxide,135,NaOH,sodium hydroxide,,alias,0
-HAuCl4·4H2O,133,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0
-trisodium citrate dihydrate,129,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-hydrochloric acid,120,HCl,hydrochloric acid,,alias,0
-tetrachloroauric acid,115,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-l-ascorbic acid,113,ascorbic_acid,L-ascorbic acid,,alias,0
-L-ascorbic acid,104,ascorbic_acid,L-ascorbic acid,,alias,0
-gold chloride,103,HAuCl4,hydrogen tetrachloroaurate(III),,alias,1
-tannic acid,101,tannic_acid,tannic acid,,alias,0
-BSA,100,BSA,bovine serum albumin,,abbrev,0
-NaCl,96,NaCl,sodium chloride,,alias,0
-sodium chloride,92,NaCl,sodium chloride,,alias,0
-citric acid,91,citric_acid,citric acid,,alias,0
-H2O,87,water,water,,alias,0
-Sodium citrate,82,trisodium_citrate,trisodium citrate,,alias,0
-AuNP,76,Au,gold (metal / nanoparticle product),,abbrev,0
-hydroquinone,76,hydroquinone,hydroquinone,,alias,0
-methanol,72,methanol,methanol,,alias,0
-ammonia,72,ammonia,ammonia / ammonium hydroxide,,alias,0
-tri-sodium citrate,70,trisodium_citrate,trisodium citrate,,alias,0
-H2O2,68,H2O2,hydrogen peroxide,,alias,0
-gold(III) chloride trihydrate,67,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-hexadecyltrimethylammonium bromide,66,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-graphite,66,graphite,graphite,,alias,0
-TEOS,63,TEOS,tetraethyl orthosilicate,,abbrev,0
-chitosan,63,chitosan,chitosan,,alias,0
-Chloroauric acid,61,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-toluene,61,toluene,toluene,,alias,0
-sodium citrate dihydrate,61,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-polyvinylpyrrolidone,60,PVP,polyvinylpyrrolidone,,alias,0
-Ag,59,Ag,silver (metal),,alias,0
-Gold(III) chloride trihydrate,58,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-oleylamine,56,oleylamine,oleylamine,,alias,0
-tetraoctylammonium bromide,54,TOAB,tetraoctylammonium bromide,,alias,0
-acetone,53,acetone,acetone,,alias,0
-Sodium borohydride,52,NaBH4,sodium borohydride,,alias,0
-THPC,51,THPC,tetrakis(hydroxymethyl)phosphonium chloride,,abbrev,0
-PDDA,51,PDDA,poly(diallyldimethylammonium chloride),,abbrev,0
-ammonium hydroxide,51,ammonia,ammonia / ammonium hydroxide,,alias,0
-H2SO4,50,H2SO4,sulfuric acid,,alias,0
-nitric acid,50,HNO3,nitric acid,,alias,0
-NaAuCl4,49,NaAuCl4,sodium tetrachloroaurate(III),,alias,0
-hydrogen tetrachloroaurate(III) trihydrate,48,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-hydrogen peroxide,48,H2O2,hydrogen peroxide,,alias,0
-tribasic dihydrate,48,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-trisodium citrate dehydrate,48,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-GSH,47,GSH,glutathione (reduced),,abbrev,0
-Hydrogen tetrachloroaurate,46,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-acetic acid,46,acetic_acid,acetic acid,,alias,0
-K2CO3,45,K2CO3,potassium carbonate,,alias,0
-Cetyltrimethylammonium bromide,45,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-ethylene glycol,44,ethylene_glycol,ethylene glycol,,alias,0
-cetyltrimethylammonium chloride,44,CTAC,hexadecyltrimethylammonium chloride,,alias,0
-Silver nitrate,43,AgNO3,silver nitrate,,alias,0
-GO,41,graphene_oxide,graphene oxide,,abbrev,0
-Trisodium citrate,40,trisodium_citrate,trisodium citrate,,alias,0
-PAH,40,PAH,poly(allylamine hydrochloride),,abbrev,0
-silver,40,Ag,silver (metal),,alias,0
-GNPs,40,Au,gold (metal / nanoparticle product),,abbrev,0
-KAuCl4,39,KAuCl4,potassium tetrachloroaurate(III),,alias,0
-PSS,39,PSS,poly(sodium 4-styrenesulfonate),,abbrev,0
-hydrogen tetrachloroaurate trihydrate,39,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-serum albumin,36,BSA,bovine serum albumin,,alias,0
-SDS,35,SDS,sodium dodecyl sulfate,,abbrev,0
-Ascorbic acid,35,ascorbic_acid,L-ascorbic acid,,alias,0
-gold (III) chloride trihydrate,35,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-AuCl3,35,AuCl3,"gold(III) chloride (anhydrous, Au2Cl6)",,alias,0
-HAuCl4.3H2O,34,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-KI,34,KI,potassium iodide,,alias,0
-sulfuric acid,33,H2SO4,sulfuric acid,,alias,0
-tetraethyl orthosilicate,33,TEOS,tetraethyl orthosilicate,,alias,0
-potassium chloride,33,KCl,potassium chloride,,alias,0
-Hydrogen tetrachloroaurate trihydrate,31,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-potassium carbonate,30,K2CO3,potassium carbonate,,alias,0
-hydroxylamine hydrochloride,30,hydroxylamine_HCl,hydroxylamine hydrochloride,,alias,0
-Na3C6H5O7,30,trisodium_citrate,trisodium citrate,,alias,0
-Au NP,29,Au,gold (metal / nanoparticle product),,alias,0
-NH2OH·HCl,29,hydroxylamine_HCl,hydroxylamine hydrochloride,,alias,0
-sodium oleate,28,oleic_acid,oleic acid,,alias,0
-gold(III) chloride hydrate,28,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
-TSC,27,trisodium_citrate,trisodium citrate,,abbrev,0
-sodium dodecyl sulfate,26,SDS,sodium dodecyl sulfate,,alias,0
-oleic acid,26,oleic_acid,oleic acid,,alias,0
-dodecanethiol,26,dodecanethiol,1-dodecanethiol,,alias,0
-Tetrachloroauric acid,26,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-glucose,26,glucose,D-glucose,,alias,0
-KCl,26,KCl,potassium chloride,,alias,0
-DMF,25,DMF,"N,N-dimethylformamide",,abbrev,0
-tetraethylorthosilicate,25,TEOS,tetraethyl orthosilicate,,alias,0
-11-mercaptoundecanoic acid,25,MUA,11-mercaptoundecanoic acid,,alias,0
-Hexadecyltrimethylammonium bromide,24,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-poly(vinylpyrrolidone),24,PVP,polyvinylpyrrolidone,,alias,0
-Hydrogen tetrachloroaurate(III) trihydrate,24,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-Gold (III) chloride trihydrate,24,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-cetyltrimethyl ammonium bromide,23,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-NH4OH,22,ammonia,ammonia / ammonium hydroxide,,alias,0
-TOAB,21,TOAB,tetraoctylammonium bromide,,abbrev,0
-glutathione,21,GSH,glutathione (reduced),,alias,0
-HAuCl4 · 3H2O,21,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-sodium citrate tribasic dihydrate,21,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-MPA,20,MPA,3-mercaptopropionic acid,,abbrev,0
-chloroform,20,chloroform,chloroform,,alias,0
-Chloroauric acid tetrahydrate,20,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0
-Na3C6H5O7·2H2O,20,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-gold(III) chloride,20,HAuCl4,hydrogen tetrachloroaurate(III),,alias,1
-Na3Ct,20,trisodium_citrate,trisodium citrate,,abbrev,0
-poly(allylamine hydrochloride,19,PAH,poly(allylamine hydrochloride),,pattern,0
-Sodium chloride,19,NaCl,sodium chloride,,alias,0
-chlorauric acid,19,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-Na3-citrate,19,trisodium_citrate,trisodium citrate,,alias,0
-gold chloride trihydrate,19,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-GNP,19,Au,gold (metal / nanoparticle product),,alias,0
-hydrazine hydrate,19,hydrazine,hydrazine,hydrate,alias,0
-NaOL,18,oleic_acid,oleic acid,,abbrev,0
-3-mercaptopropionic acid,18,MPA,3-mercaptopropionic acid,,alias,0
-poly(diallyldimethylammonium chloride,17,PDDA,poly(diallyldimethylammonium chloride),,pattern,0
-hydrazine,17,hydrazine,hydrazine,,alias,0
-cysteamine,17,cysteamine,cysteamine,,alias,0
-PEI,17,PEI,polyethylenimine,,abbrev,0
-hydrogen tetrachloroaurate(III) hydrate,17,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
-tetrachloroauric acid trihydrate,16,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-sodium citrate dehydrate,16,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-Sodium hydroxide,16,NaOH,sodium hydroxide,,alias,0
-poly(vinyl pyrrolidone),15,PVP,polyvinylpyrrolidone,,alias,0
-formaldehyde,15,formaldehyde,formaldehyde,,alias,0
-Ethanol,15,ethanol,ethanol,,alias,0
-Gold,15,Au,gold (metal / nanoparticle product),,alias,0
-tribasic dehydrate,15,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-HAuCl4·xH2O,15,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
-EG,15,ethylene_glycol,ethylene glycol,,alias,0
-HAuCl4⋅3 H2O,14,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-Sodium citrate dihydrate,14,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-2-propanol,14,isopropanol,2-propanol,,alias,0
-"N,N-dimethylformamide",14,DMF,"N,N-dimethylformamide",,alias,0
-potassium iodide,14,KI,potassium iodide,,alias,0
-Water,14,water,water,,alias,0
-hydroxylamine,14,hydroxylamine_HCl,hydroxylamine hydrochloride,,alias,0
-isopropanol,14,isopropanol,2-propanol,,alias,0
-MUA,13,MUA,11-mercaptoundecanoic acid,,abbrev,0
-hexadecyltrimethylammonium chloride,13,CTAC,hexadecyltrimethylammonium chloride,,alias,0
-hydrogen tetrachloroaurate(III),13,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-tetraethoxysilane,13,TEOS,tetraethyl orthosilicate,,alias,0
-1-dodecanethiol,13,dodecanethiol,1-dodecanethiol,,alias,0
-AuCl4 −,13,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-PEG,13,PEG,poly(ethylene glycol),,abbrev,0
-gold (III) chloride hydrate,13,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
-Trisodium citrate dihydrate,12,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-Tetraethyl orthosilicate,12,TEOS,tetraethyl orthosilicate,,alias,0
-NH3,12,ammonia,ammonia / ammonium hydroxide,,alias,0
-KBH4,12,KBH4,potassium borohydride,,alias,0
-PEG-SH,12,PEG,poly(ethylene glycol),,alias,0
-gold (III) chloride,12,HAuCl4,hydrogen tetrachloroaurate(III),,alias,1
-Hydrochloric acid,12,HCl,hydrochloric acid,,alias,0
-L−1 CTAB,12,CTAB,hexadecyltrimethylammonium bromide,,pattern,0
-gold chloride tetrahydrate,12,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0
-HAuCl4 trihydrate,12,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-AuCl4,11,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-tetrachloroaurate,11,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-vitamin C,11,ascorbic_acid,L-ascorbic acid,,alias,0
-tetrakis(hydroxymethyl)phosphonium chloride,11,THPC,tetrakis(hydroxymethyl)phosphonium chloride,,alias,0
-NH2OH,11,hydroxylamine_HCl,hydroxylamine hydrochloride,,pattern,0
-NH3·H2O,11,ammonia,ammonia / ammonium hydroxide,hydrate,alias,0
-polyethylene glycol,11,PEG,poly(ethylene glycol),,alias,0
-HAuCl4(aq),11,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-Toluene,10,toluene,toluene,,alias,0
-HAuCl4⋅3H2O,10,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-HAuCl4·H2O,10,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
-Methanol,10,methanol,methanol,,alias,0
-tetrachloroauric (III) acid,10,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-L−1 sodium citrate,10,trisodium_citrate,trisodium citrate,,pattern,0
-polyethylenimine,10,PEI,polyethylenimine,,alias,0
-polyethyleneimine,10,PEI,polyethylenimine,,alias,0
-Hydrogen tetrachloroaurate(III) hydrate,10,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
-Gold chloride trihydrate,10,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-AuCl4−,10,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-chloroauric acid trihydrate,9,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-sodium tetrahydroborate,9,NaBH4,sodium borohydride,,alias,0
-graphene oxide,9,graphene_oxide,graphene oxide,,alias,0
-sodium citrate trihydrate,9,trisodium_citrate,trisodium citrate,trihydrate,alias,0
-sodium borohydrate,9,NaBH4,sodium borohydride,,pattern,0
-tri-sodium citrate dihydrate,9,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-Chloroauric acid trihydrate,9,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-poly(sodium 4-styrenesulfonate),9,PSS,poly(sodium 4-styrenesulfonate),,alias,0
-isopropyl alcohol,9,isopropanol,2-propanol,,alias,0
-tetrachloroauric(III) acid trihydrate,9,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-NaAuCl4·2H2O,9,NaAuCl4,sodium tetrachloroaurate(III),dihydrate,alias,0
-poly(ethylene glycol,8,PEG,poly(ethylene glycol),,pattern,0
-[HAuCl4],8,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-tetrachloroauric(III) acid,8,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-EtOH,8,ethanol,ethanol,,alias,0
-potassium tetrachloroaurate,8,KAuCl4,potassium tetrachloroaurate(III),,alias,0
-mercaptopropionic acid,8,MPA,3-mercaptopropionic acid,,alias,0
-Gold chloride,8,HAuCl4,hydrogen tetrachloroaurate(III),,alias,1
-Hydrogen tetrachloroaurate(III) tetrahydrate,8,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0
-cetyl trimethylammonium bromide,8,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-Gold (III) chloride hydrate,8,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
-chloroauric acid tetrahydrate,8,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0
-Sodium oleate,8,oleic_acid,oleic acid,,alias,0
-AuNR,8,Au,gold (metal / nanoparticle product),,alias,0
-Hexadecyltrimethylammonium chloride,7,CTAC,hexadecyltrimethylammonium chloride,,alias,0
-HAuCl4 water,7,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-sodium tetrachloroaurate,7,NaAuCl4,sodium tetrachloroaurate(III),,alias,0
-Hydrogen tetrachloroaurate hydrate,7,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
-polyvinyl pyrrolidone,7,PVP,polyvinylpyrrolidone,,alias,0
-HAuCl4 ⋅ 3H2O,7,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-hexadecyl trimethyl ammonium bromide,7,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-Na3Cit,7,trisodium_citrate,trisodium citrate,,alias,0
-Polyvinylpyrrolidone,7,PVP,polyvinylpyrrolidone,,alias,0
-cysteamine hydrochloride,7,cysteamine,cysteamine,,alias,0
-DDT,7,dodecanethiol,1-dodecanethiol,,abbrev,0
-Hydrogen peroxide,7,H2O2,hydrogen peroxide,,alias,0
-Acetone,7,acetone,acetone,,alias,0
-mPEG-SH,7,PEG,poly(ethylene glycol),,alias,0
-HAuCl4⋅4H2O,7,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0
-Ammonium hydroxide,7,ammonia,ammonia / ammonium hydroxide,,alias,0
-[AuCl4]−,7,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-cetyl trimethyl ammonium bromide,7,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-Graphite,6,graphite,graphite,,alias,0
-Au NR,6,Au,gold (metal / nanoparticle product),,alias,0
-Gold(III) chloride hydrate,6,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
-OAm,6,oleylamine,oleylamine,,abbrev,0
-AgNPs,6,Ag,silver (metal),,alias,0
-hexadecyltrimethyl ammonium bromide,6,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-HAuCl4 × 3H2O,6,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-HAuCL4,6,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-Sulfuric acid,6,H2SO4,sulfuric acid,,alias,0
-gold chloride hydrate,6,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
-Tri-sodium citrate,6,trisodium_citrate,trisodium citrate,,alias,0
-HAuCl4.xH2O,6,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
-β-d-glucose,6,glucose,D-glucose,,pattern,0
-H[AuCl4],6,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-graphite oxide,6,graphene_oxide,graphene oxide,,alias,0
-HAuCl4 3H2O,5,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-HAuCl4•3H2O,5,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-dimethylformamide,5,DMF,"N,N-dimethylformamide",,alias,0
-Hydrogen tetrachloroaurate(III),5,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-"N,N-Dimethylformamide",5,DMF,"N,N-dimethylformamide",,alias,0
-Gold(III) chloride,5,HAuCl4,hydrogen tetrachloroaurate(III),,alias,1
-Tetraethoxysilane,5,TEOS,tetraethyl orthosilicate,,alias,0
-ethyl alcohol,5,ethanol,ethanol,,alias,0
-Na-cit,5,trisodium_citrate,trisodium citrate,,alias,0
-Na3citrate,5,trisodium_citrate,trisodium citrate,,alias,0
-hydrogen tetrachloroaurate hydrate,5,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
-Au-NP,5,Au,gold (metal / nanoparticle product),,alias,0
-sodium citrate tribasic dehydrate,5,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-gold(III)chloride trihydrate,5,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-[CTAB],5,CTAB,hexadecyltrimethylammonium bromide,,pattern,0
-Tetraoctylammonium bromide,5,TOAB,tetraoctylammonium bromide,,alias,0
-sulphuric acid,5,H2SO4,sulfuric acid,,alias,0
-Gold chloride hydrate,5,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
-Tetrachloroauric acid trihydrate,5,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-tri-sodium citrate dehydrate,5,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-Potassium chloride,5,KCl,potassium chloride,,alias,0
-mL−1 sodium citrate,5,trisodium_citrate,trisodium citrate,,pattern,0
-tetrachloroauric,5,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-poly(styrenesulfonate),5,PSS,poly(sodium 4-styrenesulfonate),,alias,0
-glacial acetic acid,5,acetic_acid,acetic acid,,alias,0
-Ethylene glycol,5,ethylene_glycol,ethylene glycol,,alias,0
-HauCl4,5,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-poly(sodium 4-styrene sulfonate,5,PSS,poly(sodium 4-styrenesulfonate),,pattern,0
-d-glucose,5,glucose,D-glucose,,alias,0
-Sodium dodecyl sulfate,5,SDS,sodium dodecyl sulfate,,alias,0
-H[AuCl4]·3H2O,5,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0
-poly(ethylene glycol),5,PEG,poly(ethylene glycol),,alias,0
-citric acid trisodium,4,trisodium_citrate,trisodium citrate,,alias,0
-MilliQ water,4,water,water,,alias,0
-tetrachloroaurate(III),4,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-Chloroauric acid hydrate,4,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
--ascorbic acid,4,ascorbic_acid,L-ascorbic acid,,alias,0
-L-glutathione,4,GSH,glutathione (reduced),,alias,0
-sodium tetrahydridoborate,4,NaBH4,sodium borohydride,,alias,0
-citric acid monohydrate,4,citric_acid,citric acid,monohydrate,alias,0
-l-glutathione,4,GSH,glutathione (reduced),,alias,0
-poly (diallyldimethylammonium chloride,4,PDDA,poly(diallyldimethylammonium chloride),,pattern,0
-N2H4·H2O,4,hydrazine,hydrazine,hydrate,alias,0
-hydrogen chloride,4,HCl,hydrochloric acid,,alias,0
-auric chloride,4,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-Na3C6H5O7.2H2O,4,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-HAuCl4 ·3H2O,4,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-L−1 AgNO3,4,AgNO3,silver nitrate,,pattern,0
-Cetyltrimethylammonium chloride,4,CTAC,hexadecyltrimethylammonium chloride,,alias,0
-dicarboxylic PEG,4,PEG,poly(ethylene glycol),,pattern,0
-sodium ascorbate,4,ascorbic_acid,L-ascorbic acid,,alias,0
-sodium-citrate,4,trisodium_citrate,trisodium citrate,,alias,0
-sodium tetrachloroaurate(III) dihydrate,4,NaAuCl4,sodium tetrachloroaurate(III),dihydrate,alias,0
-L-Ascorbic acid,4,ascorbic_acid,L-ascorbic acid,,alias,0
-HAuCl4∙3H2O,4,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-Hydrogen tetrachloroaurate tetrahydrate,4,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0
-hydrochloroauric acid,4,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-aurochloric acid,4,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-Ammonia,4,ammonia,ammonia / ammonium hydroxide,,alias,0
-poly(N-vinylpyrrolidone),4,PVP,polyvinylpyrrolidone,,alias,0
-L−1 trisodium citrate,4,trisodium_citrate,trisodium citrate,,pattern,0
-hydrogen tetrachloroaurate(III) tetrahydrate,4,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0
-Milli-Q-grade water,4,water,water,,pattern,0
-SH-PEG-SH,4,PEG,poly(ethylene glycol),,pattern,0
-tetrachloroaurate trihydrate,3,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-HAuCl4·3 H2O,3,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-Na3 citrate,3,trisodium_citrate,trisodium citrate,,alias,0
-potassium borohydride,3,KBH4,potassium borohydride,,alias,0
-AuCl4–,3,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-tri sodium citrate,3,trisodium_citrate,trisodium citrate,,alias,0
-L−1 ascorbic acid,3,ascorbic_acid,L-ascorbic acid,,pattern,0
-tetra-n-octylammonium bromide,3,TOAB,tetraoctylammonium bromide,,alias,0
-ultra-pure water,3,water,water,,alias,0
-HCHO,3,formaldehyde,formaldehyde,,alias,0
-Poly (diallyldimethylammonium chloride,3,PDDA,poly(diallyldimethylammonium chloride),,pattern,0
-[AgNO3],3,AgNO3,silver nitrate,,pattern,0
-Hydrochloroauric acid,3,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-silver nitrate AgNO3,3,AgNO3,silver nitrate,,pattern,0
-chloroauric acid hydrate,3,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
-Trisodium citrate dehydrate,3,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-poly (vinyl pyrrolidone),3,PVP,polyvinylpyrrolidone,,alias,0
-Au-NPs,3,Au,gold (metal / nanoparticle product),,alias,0
-2-aminoethanethiol,3,cysteamine,cysteamine,,alias,0
-trisodiumcitrate,3,trisodium_citrate,trisodium citrate,,alias,0
-cetyltrimethylammoniumbromide,3,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-cetyl-trimethylammonium bromide,3,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-Hydrogen tetrachloroaurate-(III) trihydrate,3,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-AuCl4-,3,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-hydrogen tetrachloroaurate tetrahydrate,3,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0
-poly(diallyldimethylammonium chloride),3,PDDA,poly(diallyldimethylammonium chloride),,alias,0
-Tetrachloroauric (III) acid,3,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-citric acid sodium,3,citric_acid,citric acid,,pattern,0
-Vitamin C,3,ascorbic_acid,L-ascorbic acid,,alias,0
-Citric acid,3,citric_acid,citric acid,,alias,0
-poly(sodium-4-styrenesulfonate),3,PSS,poly(sodium 4-styrenesulfonate),,alias,0
-trisodium citrate trihydrate,3,trisodium_citrate,trisodium citrate,trihydrate,alias,0
-cetyltrimethylammonium-bromide,3,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-hydrazine monohydrate,3,hydrazine,hydrazine,monohydrate,alias,0
-trisodium-citrate,3,trisodium_citrate,trisodium citrate,,alias,0
-ammonia water,3,ammonia,ammonia / ammonium hydroxide,,pattern,0
-tetrakis(hydroxymethyl) phosphonium chloride,3,THPC,tetrakis(hydroxymethyl)phosphonium chloride,,alias,0
-Glutathione,3,GSH,glutathione (reduced),,alias,0
-poly(sodium 4-styrenesulfonate,3,PSS,poly(sodium 4-styrenesulfonate),,pattern,0
-HAuCl4 × 3 H2O,3,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-Tannic acid,3,tannic_acid,tannic acid,,alias,0
-hydrogen tetrachloroauric acid,3,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-polyallylamine hydrochloride,3,PAH,poly(allylamine hydrochloride),,alias,0
-HS-PEG-NH2,3,PEG,poly(ethylene glycol),,pattern,0
-Cetyl trimethylammonium bromide,3,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-AuNRs,3,Au,gold (metal / nanoparticle product),,abbrev,0
-mercaptopolyethylene glycol,2,PEG,poly(ethylene glycol),,pattern,0
-"N, N-dimethylformamide",2,DMF,"N,N-dimethylformamide",,alias,0
-D-glucose,2,glucose,D-glucose,,alias,0
-N-vinyl pyrrolidone,2,PVP,polyvinylpyrrolidone,,alias,0
-MeOH,2,methanol,methanol,,alias,0
-trisodium citrate hydrate,2,trisodium_citrate,trisodium citrate,hydrate,alias,0
-CHCl3,2,chloroform,chloroform,,alias,0
-HAuCl4 · xH2O,2,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
-Oleic acid,2,oleic_acid,oleic acid,,alias,0
-poly(N-vinyl-2-pyrrolidone),2,PVP,polyvinylpyrrolidone,,alias,0
-sodium dodecylsulfate,2,SDS,sodium dodecyl sulfate,,alias,0
-tetraoctylammoniumbromide,2,TOAB,tetraoctylammonium bromide,,alias,0
-AuNps,2,Au,gold (metal / nanoparticle product),,alias,0
-L−1 sodium borohydride,2,NaBH4,sodium borohydride,,pattern,0
-COOH-PEG-Au,2,PEG,poly(ethylene glycol),,pattern,0
-N2H4,2,hydrazine,hydrazine,,alias,0
-tetraoctyl ammonium bromide,2,TOAB,tetraoctylammonium bromide,,alias,0
-Poly(sodium-p-styrenesulfonate),2,PSS,poly(sodium 4-styrenesulfonate),,pattern,0
-Polyethylenimine,2,PEI,polyethylenimine,,alias,0
-sodium borohydride NaBH4,2,NaBH4,sodium borohydride,,pattern,0
-cit-AuNPs,2,Au,gold (metal / nanoparticle product),,pattern,0
-tetrakis (hydroxymethyl) phosphonium chloride,2,THPC,tetrakis(hydroxymethyl)phosphonium chloride,,alias,0
-Gold(III) Chloride trihydrate,2,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-PEG-2000,2,PEG,poly(ethylene glycol),,pattern,0
-ascorbic,2,ascorbic_acid,L-ascorbic acid,,pattern,0
-Carbon graphite,2,graphite,graphite,,pattern,0
-poly(diallyldimethyl ammonium chloride,2,PDDA,poly(diallyldimethylammonium chloride),,pattern,0
-chloroauric,2,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-mercaptoundecanoic acid,2,MUA,11-mercaptoundecanoic acid,,alias,0
-Au(III)-CTAB,2,CTAB,hexadecyltrimethylammonium bromide,,pattern,0
-HAuCl4•4H2O,2,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0
-SH-PEG-COOH,2,PEG,poly(ethylene glycol),,pattern,0
-sodium dodecyl sulphate,2,SDS,sodium dodecyl sulfate,,alias,0
-chloroauric acid terahydrate,2,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-Glucose,2,glucose,D-glucose,,alias,0
-Cit-AuNP,2,Au,gold (metal / nanoparticle product),,pattern,0
-CM-PEG-SH,2,PEG,poly(ethylene glycol),,pattern,0
-4-MBA ethanol,2,ethanol,ethanol,,pattern,0
-Graphene oxide,2,graphene_oxide,graphene oxide,,alias,0
-Gold chloride tetrahydrate,2,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0
-poly-(vinylpyrrolidone),2,PVP,polyvinylpyrrolidone,,alias,0
-n-cetyltrimethylammonium bromide,2,CTAB,hexadecyltrimethylammonium bromide,,pattern,0
-Nitric acid,2,HNO3,nitric acid,,alias,0
-chlorauric acid hydrated,2,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
-NH2-PEG-SH,2,PEG,poly(ethylene glycol),,pattern,0
-L−1 NH2OH·HCl,2,hydroxylamine_HCl,hydroxylamine hydrochloride,,pattern,0
-hexadecylcetyltrimethylammonium bromide,2,CTAB,hexadecyltrimethylammonium bromide,,pattern,0
-Tetra-n-octylammonium bromide,2,TOAB,tetraoctylammonium bromide,,alias,0
-CTAB-Au,2,CTAB,hexadecyltrimethylammonium bromide,,pattern,0
-Tetrachloroaurate trihydrate,2,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-HAuCl4 × 3H2O,2,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-H[AuCl4]3·3H2O,2,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0
-Ascorbic Acid,2,ascorbic_acid,L-ascorbic acid,,alias,0
-Tetrachloroauric(III) acid,2,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-tetrachloroaurate(III) hydrate,2,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
-tetrachloroauric (III) acid trihydrate,2,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-polystyrenesulfonate,2,PSS,poly(sodium 4-styrenesulfonate),,pattern,0
-Hexadecyltrimethylammonium bromide CTAB,2,CTAB,hexadecyltrimethylammonium bromide,,pattern,0
-d-Glucose,2,glucose,D-glucose,,alias,0
-Acetic acid,2,acetic_acid,acetic acid,,alias,0
-gold chloroauric acid,2,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-HAuCl4·3H20,2,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-tri‑sodium citrate,2,trisodium_citrate,trisodium citrate,,alias,0
-NaBH4(aq),2,NaBH4,sodium borohydride,,pattern,0
-Dodecanethiol,2,dodecanethiol,1-dodecanethiol,,alias,0
-tetrachloroaurate acid,2,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-hexadecyl trimethyl ammonium Bromide,2,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-tetrachloroauric acid tetrahydrate,2,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0
-HAuCl4-,2,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-AgNO3(aq),2,AgNO3,silver nitrate,,pattern,0
-HAuCl4 .3H2O,2,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-SH-PEG,2,PEG,poly(ethylene glycol),,pattern,0
-disodium citrate,2,trisodium_citrate,trisodium citrate,,pattern,0
-Cysteamine,2,cysteamine,cysteamine,,alias,0
-cetyltrimethyl-ammonium chloride,2,CTAC,hexadecyltrimethylammonium chloride,,alias,0
-hexadecyl trimethyl ammonium chloride,2,CTAC,hexadecyltrimethylammonium chloride,,alias,0
-DI-water,2,water,water,,alias,0
-Hydrazine hydrate,2,hydrazine,hydrazine,hydrate,alias,0
-PP@AuNPs,2,Au,gold (metal / nanoparticle product),,pattern,0
-glycerol–NaOH,2,NaOH,sodium hydroxide,,pattern,0
-L−1 PVP,2,PVP,polyvinylpyrrolidone,,pattern,0
-Cetyltrimethyl ammonium bromide,2,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-Ultrapure water,2,water,water,,alias,0
-RGO,2,reduced_graphene_oxide,reduced graphene oxide,,alias,0
-L−1 NaOH,2,NaOH,sodium hydroxide,,pattern,0
-L−1 citric acid,2,citric_acid,citric acid,,pattern,0
-sodium citrate tribasic,2,trisodium_citrate,trisodium citrate,,alias,0
-HAuCl4·2H2O,2,HAuCl4,hydrogen tetrachloroaurate(III),dihydrate,alias,0
-HAuCl4∙xH2O,2,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
-O-[2-(3-mercaptopropionylamino)ethyl]-O′-methylpolyethylene glycol,2,PEG,poly(ethylene glycol),,pattern,0
-HAuCl4 dihydrate,2,HAuCl4,hydrogen tetrachloroaurate(III),dihydrate,alias,0
-L-(+)-ascorbic acid,2,ascorbic_acid,L-ascorbic acid,,alias,0
-Au(III)–CTAB,2,CTAB,hexadecyltrimethylammonium bromide,,pattern,0
-HCL,2,HCl,hydrochloric acid,,alias,0
-Hydroquinone,2,hydroquinone,hydroquinone,,alias,0
-sodium citrate dibasic trihydrate,2,trisodium_citrate,trisodium citrate,trihydrate,pattern,0
-α-hydroxy-ω-mercapto-PEG,2,PEG,poly(ethylene glycol),,pattern,0
-α-carboxy-ω-mercapto-PEG,2,PEG,poly(ethylene glycol),,pattern,0
-α-biotinyl-ω-mercapto-PEG,2,PEG,poly(ethylene glycol),,pattern,0
-HS-PEG-COOH,2,PEG,poly(ethylene glycol),,pattern,0
-HS-PEG,2,PEG,poly(ethylene glycol),,pattern,0
-Poly(styrene sulfonate,2,PSS,poly(sodium 4-styrenesulfonate),,pattern,0
-(1-hexadecyl)trimethylammonium chloride,2,CTAC,hexadecyltrimethylammonium chloride,,pattern,0
-poly(diallyldimethylammonium) chloride,2,PDDA,poly(diallyldimethylammonium chloride),,pattern,0
-Chlorauric acid,2,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-Poly(vinylpyrrolidone),2,PVP,polyvinylpyrrolidone,,alias,0
-NaCit,2,trisodium_citrate,trisodium citrate,,alias,0
-HA–AuNP,2,Au,gold (metal / nanoparticle product),,pattern,0
-PLA(1k)-b-PEG(10k)-b-PLA(1k),2,PEG,poly(ethylene glycol),,pattern,0
-Gold tetrachloroaurate trihydrate,2,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0
-"polyvinylpyrrolidone Mw ~55,000",2,PVP,polyvinylpyrrolidone,,pattern,0
-tetrachlorauric acid,2,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-Au (III)-CTAB,2,CTAB,hexadecyltrimethylammonium bromide,,pattern,0
-(W V−1) HAuCl4·4H2O,2,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,pattern,0
-PEG-POSS,2,PEG,poly(ethylene glycol),,pattern,0
-hydrogen tetrachloroauric(III) acid trihydrate,2,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0
-SPA-PEG,2,PEG,poly(ethylene glycol),,pattern,0
-polyethyleneglycol,2,PEG,poly(ethylene glycol),,alias,0
-HAuCl4/K2CO3,2,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-gold chloride acid,2,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-PEG-diacid,2,PEG,poly(ethylene glycol),,pattern,0
-ammonia chloride,2,ammonia,ammonia / ammonium hydroxide,,pattern,0
-mL−1 chitosan,2,chitosan,chitosan,,pattern,0
-Sodium tetrahydroborate,2,NaBH4,sodium borohydride,,alias,0
-cetrimonium bromide,2,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-sodium tetrachloroaurate(III) dehydrate,2,NaAuCl4,sodium tetrachloroaurate(III),dihydrate,alias,0
-Na3cit,2,trisodium_citrate,trisodium citrate,,alias,0
-hydroxylamine-hydrochloride,2,hydroxylamine_HCl,hydroxylamine hydrochloride,,alias,0
-Poly-diallyldimethylammonium chloride,2,PDDA,poly(diallyldimethylammonium chloride),,pattern,0
-[HAuCl4]·3H2O,2,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0
-PVP K30,2,PVP,polyvinylpyrrolidone,,pattern,0
-sodium citrate tribasic hydrate,2,trisodium_citrate,trisodium citrate,hydrate,alias,0
-tri-n-octylammonium bromide,1,TOAB,tetraoctylammonium bromide,,alias,0
-Hexadecyltrimethyl ammonium bromide,1,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-PEG‐SH,1,PEG,poly(ethylene glycol),,alias,0
-‐ascorbic acid,1,ascorbic_acid,L-ascorbic acid,,alias,0
-PEG‐6K‐SH,1,PEG,poly(ethylene glycol),,pattern,0
-HAuCl4 •3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-Au‐PVP,1,PVP,polyvinylpyrrolidone,,pattern,0
-ascorbic acid–citrate,1,ascorbic_acid,L-ascorbic acid,,pattern,0
-mPEG‐SH,1,PEG,poly(ethylene glycol),,alias,0
-tetrachloroauratetrihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-PEG 600,1,PEG,poly(ethylene glycol),,pattern,0
-DMF—,1,DMF,"N,N-dimethylformamide",,alias,0
-Poly(styrenesulfonate),1,PSS,poly(sodium 4-styrenesulfonate),,alias,0
-Tetrachloroauric (IV) acid trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0
-2‐propanol,1,isopropanol,2-propanol,,alias,0
-Ethyl alcohol,1,ethanol,ethanol,,alias,0
-Tetrakis(hydroxymethyl)phosphonium Chloride,1,THPC,tetrakis(hydroxymethyl)phosphonium chloride,,alias,0
-β-D-glucose,1,glucose,D-glucose,,pattern,0
-HAuCl4⋅4 H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0
-Au (III)‐CTAB,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0
-silver nitrate(100 mM),1,AgNO3,silver nitrate,,pattern,0
-HAuCl4/citrate/AgNO3,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-Isopropanol,1,isopropanol,2-propanol,,alias,0
-L‐ascorbic acid,1,ascorbic_acid,L-ascorbic acid,,alias,0
-methoxy-poly(ethylene glycol)-thiol,1,PEG,poly(ethylene glycol),,pattern,0
-Na3C6H5O7 · H2O,1,trisodium_citrate,trisodium citrate,hydrate,alias,0
-water-ethanol,1,water,water,,pattern,0
-tetraethyl ammonium hydroxide,1,ammonia,ammonia / ammonium hydroxide,,pattern,0
-β-d-(+)-Glucose,1,glucose,D-glucose,,pattern,0
-gold(IV) tetrachloroaurate,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-gold/CTAB,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0
-tert-dodecanethiol,1,dodecanethiol,1-dodecanethiol,,pattern,0
-L-(+) ascorbic acid,1,ascorbic_acid,L-ascorbic acid,,alias,0
-CTAC/NaBH4,1,NaBH4,sodium borohydride,,pattern,0
-PVP‐DADMAN,1,PVP,polyvinylpyrrolidone,,pattern,0
-ice‐NaBH4,1,NaBH4,sodium borohydride,,pattern,0
-Auric chloride,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-C(HAuCl4):C(Na-cit),1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-MUA-AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0
-C(НAuCl4):C(Na3C6H5O7),1,trisodium_citrate,trisodium citrate,,pattern,0
-C(Na3C6H5O7),1,trisodium_citrate,trisodium citrate,,pattern,0
-tetrachloroaurate(III) trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-poly-diallyldimethylammoniumchloride,1,PDDA,poly(diallyldimethylammonium chloride),,pattern,0
-Hydrogen tetrachloroauratetrihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-Potassium iodide,1,KI,potassium iodide,,alias,0
-HPLC water,1,water,water,,pattern,0
-Hydrogen tetra-chloroaurate(III) trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-NaBH4(0.010,1,NaBH4,sodium borohydride,,pattern,0
-HAuCl4(1,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-NaBH4/NaOH,1,NaBH4,sodium borohydride,,pattern,0
-NH2OH.HCl,1,hydroxylamine_HCl,hydroxylamine hydrochloride,,pattern,0
-HAuCl4 4H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-NaAuCl4 2H2O,1,NaAuCl4,sodium tetrachloroaurate(III),,pattern,0
-L−1 sodium chloride,1,NaCl,sodium chloride,,pattern,0
-Sodium tetrachloroaurate(III)dihydrate,1,NaAuCl4,sodium tetrachloroaurate(III),dihydrate,alias,0
-sodium tetra-chloroaurate,1,NaAuCl4,sodium tetrachloroaurate(III),,alias,0
-trisodium citrate dehydrate Na3C6H5O7·2H2O,1,trisodium_citrate,trisodium citrate,dihydrate,pattern,0
-d-(+)glucose,1,glucose,D-glucose,,pattern,0
-L−1 HAuCl4·4H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,pattern,0
-LA ethanol,1,ethanol,ethanol,,pattern,0
-Auric chloride acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-citric acid buffer,1,citric_acid,citric acid,,pattern,0
-glutathione disulfide,1,GSH,glutathione (reduced),,pattern,0
-tetrakis(hydroxymethyl)-phosphonium chloride,1,THPC,tetrakis(hydroxymethyl)phosphonium chloride,,alias,0
-L−1 tannic acid,1,tannic_acid,tannic acid,,pattern,0
-L−1 chloroauric acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-RNA-AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0
-kDa branched polyethyleneimine,1,PEI,polyethylenimine,,pattern,0
-citrate AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0
-N-hexadecyltrimethylammonium chloride,1,CTAC,hexadecyltrimethylammonium chloride,,pattern,0
-thiol-PEG,1,PEG,poly(ethylene glycol),,pattern,0
-thiol-PEG-carboxylic acid,1,PEG,poly(ethylene glycol),,pattern,0
-GNR-CTAB,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0
-methoxy-PEG-thiol,1,PEG,poly(ethylene glycol),,pattern,0
-poly (sodium 4-styrenesulfonate),1,PSS,poly(sodium 4-styrenesulfonate),,alias,0
-poly(ethyleneglycol)-block-poly(propyleneglycol)-block-poly(ethyleneglycol),1,PEG,poly(ethylene glycol),,pattern,0
-Hydrogen tetrachloroauric acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-mPEG-Thiol,1,PEG,poly(ethylene glycol),,pattern,0
-torisodium citrate,1,trisodium_citrate,trisodium citrate,,pattern,0
-Hydroxylamine hydrochloride NH2OH·HCl,1,hydroxylamine_HCl,hydroxylamine hydrochloride,,pattern,0
-sodium hydroxide NaOH,1,NaOH,sodium hydroxide,,pattern,0
-sodium citrate Na3Cit,1,trisodium_citrate,trisodium citrate,,pattern,0
-sodium borohydrite,1,NaBH4,sodium borohydride,,pattern,0
-HAuCl4 .4H2O/HCl,1,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,pattern,0
-Vitamin-C,1,ascorbic_acid,L-ascorbic acid,,alias,0
-Sodium citrate(SC),1,trisodium_citrate,trisodium citrate,,pattern,0
-Tetrachloroauric(III) acid-trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-Trisodium citrate [Na3(C3H5O(COO)3)],1,trisodium_citrate,trisodium citrate,,pattern,0
-HAucl4,1,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-Hydrogen tetra-chloroaurate hydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
-Nafion/AuNPs/AzA/MWCNTs,1,Au,gold (metal / nanoparticle product),,pattern,0
-HAuCl4∙4H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0
-HAuCl4 × H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-dihydrate sodium citrate,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-sodium citrate decahydrate,1,trisodium_citrate,trisodium citrate,,pattern,0
-gold(III) chloride tri-hydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,pattern,0
-AuCl3HCl·4H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0
-Silver Nitrate,1,AgNO3,silver nitrate,,alias,0
-silver nitrate ACS,1,AgNO3,silver nitrate,,pattern,0
-PEG acid disulfide,1,PEG,poly(ethylene glycol),,pattern,0
-tetrachloroauric (Ⅲ) acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-Poly(ethylene glycol,1,PEG,poly(ethylene glycol),,pattern,0
-Poly(sodium 4-styrenesulfonate,1,PSS,poly(sodium 4-styrenesulfonate),,pattern,0
-Methoxypoly(ethylene glycol) thiol,1,PEG,poly(ethylene glycol),,pattern,0
-trisodium citrate heptahydrate,1,trisodium_citrate,trisodium citrate,,pattern,0
-Na3C6H5O7·7H2O,1,trisodium_citrate,trisodium citrate,hydrate,alias,0
-Maleimide-PEG,1,PEG,poly(ethylene glycol),,pattern,0
-m-PEG-SH,1,PEG,poly(ethylene glycol),,alias,0
-TEOS ethanol,1,ethanol,ethanol,,pattern,0
-PEG@AuNPs,1,PEG,poly(ethylene glycol),,pattern,0
-NaBH4 ethanol,1,NaBH4,sodium borohydride,,pattern,0
-PCS2-AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0
-L−1 glucose,1,glucose,D-glucose,,pattern,0
-hexadecylcetyltri-methylammonium bromide,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0
-HAuCl4(),1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-carboxy AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0
-poly(sodium-p-styrenesulfonate),1,PSS,poly(sodium 4-styrenesulfonate),,pattern,0
-tetrachloroaurate·trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0
-CH3O-PEG-SH,1,PEG,poly(ethylene glycol),,pattern,0
-tri–sodium citrate dehydrate,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-p-MBA ethanol,1,ethanol,ethanol,,pattern,0
-HAuCl3,1,AuCl3,"gold(III) chloride (anhydrous, Au2Cl6)",,pattern,0
-poly-(diallyldimethylammonium chloride,1,PDDA,poly(diallyldimethylammonium chloride),,pattern,0
-Ultra-pure water,1,water,water,,alias,0
-AuNPs/Nafion/GCE,1,Au,gold (metal / nanoparticle product),,pattern,0
-l-ascorbic acid 2-phosphate,1,ascorbic_acid,L-ascorbic acid,,pattern,0
-sodium citrate dihyhrate,1,trisodium_citrate,trisodium citrate,,pattern,0
-sodium NaBH4,1,NaBH4,sodium borohydride,,pattern,0
-PVP-Au,1,PVP,polyvinylpyrrolidone,,pattern,0
-L−1 HAuCl4·3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0
-sodium hydroxide(NaOH),1,NaOH,sodium hydroxide,,pattern,0
-HAuCl4 ·,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-hydroaurochloric acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-HTCC-AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0
-aq NaOH,1,NaOH,sodium hydroxide,,pattern,0
-Hydrogen tetrachloroaurate trihydrate HAuCl4·3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0
-cetyl trimethylammonium chloride,1,CTAC,hexadecyltrimethylammonium chloride,,alias,0
-sulphuric acid H2SO4,1,H2SO4,sulfuric acid,,pattern,0
-mMHAuCl4,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-poly(ethylene glycol)-block-poly(propylene glycol)-block-poly(ethylene glycol),1,PEG,poly(ethylene glycol),,pattern,0
-H2SO 4,1,H2SO4,sulfuric acid,,alias,0
-NaBH4/citrate,1,NaBH4,sodium borohydride,,pattern,0
-NaBH4-NaOH,1,NaBH4,sodium borohydride,,pattern,0
-Cetyltrimethylammonium Bromide,1,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-Polyethylene glycol (PEG)-SH,1,PEG,poly(ethylene glycol),,pattern,0
-Sodium citrate dehydrate,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-HAuCl4∙ 4H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0
-HAuCl4.4H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0
-ammonia hydrogen,1,ammonia,ammonia / ammonium hydroxide,,pattern,0
-Amine-PEG-thiol,1,PEG,poly(ethylene glycol),,pattern,0
-carboxymethyl-PEG-thiol,1,PEG,poly(ethylene glycol),,pattern,0
-Biotin-PEG-thiol,1,PEG,poly(ethylene glycol),,pattern,0
-biotin-PEG-SH,1,PEG,poly(ethylene glycol),,pattern,0
-sodium lauryl sulfate,1,SDS,sodium dodecyl sulfate,,alias,0
-AuNPs-l-cysteine,1,Au,gold (metal / nanoparticle product),,pattern,0
-AuNP-CS,1,Au,gold (metal / nanoparticle product),,pattern,0
-auric chloride acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-Tri-Sodium Citrate,1,trisodium_citrate,trisodium citrate,,alias,0
-L−1 tri-sodium citrate,1,trisodium_citrate,trisodium citrate,,pattern,0
-tetrachloroaurate acid tetrahydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,pattern,0
-HAuCl4 · 4H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0
-K-30 polyvinylpyrrolidone,1,PVP,polyvinylpyrrolidone,,pattern,0
-hexa-decylcetyl trimethyl-ammonium bromide,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0
-DNBA ethanol,1,ethanol,ethanol,,pattern,0
-tetra-chloroauric acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-d-β-glucose,1,glucose,D-glucose,,pattern,0
-AuNPs −,1,Au,gold (metal / nanoparticle product),,alias,0
-dm−3 tetrachloroaurate,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-poly (sodium 4-styrene-sulfonate),1,PSS,poly(sodium 4-styrenesulfonate),,alias,0
-l−1 chloroauric acid trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0
-Sodium tetrachloroaurate dihydrate,1,NaAuCl4,sodium tetrachloroaurate(III),dihydrate,alias,0
-hexadecyl-trimethyl-ammonium bromide,1,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-cysteamine-AuNP,1,cysteamine,cysteamine,,pattern,0
-tetra-ethylorthosilicate,1,TEOS,tetraethyl orthosilicate,,alias,0
-tetra-methyl-ammonium hydroxide,1,ammonia,ammonia / ammonium hydroxide,,pattern,0
-Ammonia borane,1,ammonia,ammonia / ammonium hydroxide,,pattern,0
-SC-sodium citrate,1,trisodium_citrate,trisodium citrate,,pattern,0
-PVP-polyvinylpyrrolidone,1,PVP,polyvinylpyrrolidone,,pattern,0
-Cetyltrime-thylammonium bromide,1,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-cetyltrime-thylammonium chloride,1,CTAC,hexadecyltrimethylammonium chloride,,alias,0
-Polyvinyl pyrrolidone,1,PVP,polyvinylpyrrolidone,,alias,0
-l-glutathione reduced,1,GSH,glutathione (reduced),,pattern,0
-AuNP/TiO2,1,Au,gold (metal / nanoparticle product),,pattern,0
-iso-ascorbic acid,1,ascorbic_acid,L-ascorbic acid,,pattern,0
-poly(vinylpyrrolidine),1,PVP,polyvinylpyrrolidone,,pattern,0
-ammonia 25%,1,ammonia,ammonia / ammonium hydroxide,,alias,0
-Poly(sodium styrene sulfonate,1,PSS,poly(sodium 4-styrenesulfonate),,pattern,0
-HAuCl4: S1,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-AuCl− 4,1,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-sodium dodecylsulphate,1,SDS,sodium dodecyl sulfate,,alias,0
-poly(ethylene glycol)2000,1,PEG,poly(ethylene glycol),,pattern,0
-Polyethylene-block-poly(ethylene glycol),1,PEG,poly(ethylene glycol),,pattern,0
-Na3C6H5O7 2H2O,1,trisodium_citrate,trisodium citrate,,pattern,0
-Na3Citrate,1,trisodium_citrate,trisodium citrate,,alias,0
-PVP-1,1,PVP,polyvinylpyrrolidone,,pattern,0
-PVP-2,1,PVP,polyvinylpyrrolidone,,pattern,0
-APS ethanol,1,ethanol,ethanol,,pattern,0
-Type I water,1,water,water,,pattern,0
-–methanol,1,methanol,methanol,,alias,0
-Hydrogentetrachloroaurate trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-AgNO3.The,1,AgNO3,silver nitrate,,pattern,0
-Polydiallyldimethylammonium chloride,1,PDDA,poly(diallyldimethylammonium chloride),,pattern,0
-Tetrachloroaurate(III) hydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
-AuNP-Citrate-S,1,Au,gold (metal / nanoparticle product),,pattern,0
-trisodium citrate(C6H5Na3O7·2H2O,1,trisodium_citrate,trisodium citrate,dihydrate,pattern,0
-sodium citrate tribasicdihydrate,1,trisodium_citrate,trisodium citrate,,alias,0
-trisodium citrate-2-hydrate,1,trisodium_citrate,trisodium citrate,hydrate,pattern,0
-Absolute ethanol,1,ethanol,ethanol,,alias,0
-Tetrachloroauric (III) acid trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-CTAB-HAuCl4,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-NHS-Polyethylene glycol-OPSS,1,PEG,poly(ethylene glycol),,pattern,0
-anti-CD20-PEG,1,PEG,poly(ethylene glycol),,pattern,0
-Na3C6H5O7•2H2O,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-hydrogen tetrachloroaurate trihydrate HAuCl4·3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0
-Aunp,1,Au,gold (metal / nanoparticle product),,alias,0
-L−1 sodium hydroxide,1,NaOH,sodium hydroxide,,pattern,0
-H[AuCl4]⋅3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0
-dihydrate trisodium citrate,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-hyperbranched polyethylenimine,1,PEI,polyethylenimine,,pattern,0
-poly (diallyldimethylammonium chloride),1,PDDA,poly(diallyldimethylammonium chloride),,alias,0
-polyvinylpyrrolidone PVP,1,PVP,polyvinylpyrrolidone,,pattern,0
-tetra chloro auric acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-dimethyl formamide,1,DMF,"N,N-dimethylformamide",,alias,0
-hexadecyltrimethylammoniumbromide,1,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-Hexadecyl trimethylammonium bromide,1,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-MPEG-SH,1,PEG,poly(ethylene glycol),,alias,0
-tetramethyl-orthosilicate,1,TEOS,tetraethyl orthosilicate,,pattern,0
-MiliQ water,1,water,water,,pattern,0
-hydrate hydrazine,1,hydrazine,hydrazine,hydrate,alias,0
-sodium citratedehydrate,1,trisodium_citrate,trisodium citrate,,pattern,0
-poly (sodium-p-styrene sulfonate,1,PSS,poly(sodium 4-styrenesulfonate),,pattern,0
-tetra-octyl-ammonium bromide,1,TOAB,tetraoctylammonium bromide,,alias,0
-HAuCl4-CTAB,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-CTAB-AgNO3,1,AgNO3,silver nitrate,,pattern,0
-cetyltrimethylammonium,1,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-Sodium tetrachloroaurate(III) dihydrate,1,NaAuCl4,sodium tetrachloroaurate(III),dihydrate,alias,0
-n-dodecanethiol,1,dodecanethiol,1-dodecanethiol,,pattern,0
-ethylene glycol(EG),1,ethylene_glycol,ethylene glycol,,pattern,0
-Zn(NO3)2 ethanol,1,ethanol,ethanol,,pattern,0
-NaOH ethanol,1,NaOH,sodium hydroxide,,pattern,0
-NaBH4-citrate,1,NaBH4,sodium borohydride,,pattern,0
-HAuCl4-citrate,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-Hexadecyl trimethyl ammonium bromide,1,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-Natural graphite,1,graphite,graphite,,pattern,0
-Hydrazine monohydrate,1,hydrazine,hydrazine,monohydrate,alias,0
-glycidyltrimethylammonium chloride,1,CTAC,hexadecyltrimethylammonium chloride,,pattern,0
-tribasic sodium citrate,1,trisodium_citrate,trisodium citrate,,pattern,0
-ethanol C2H5OH,1,ethanol,ethanol,,pattern,0
-Tetramethylorthosilicate,1,TEOS,tetraethyl orthosilicate,,pattern,0
-Hydrogentetrachloroauric acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-HAuCl4.H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
-Au@CTAB,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0
-poly(ethylene glycol)methylether thiol,1,PEG,poly(ethylene glycol),,pattern,0
-KAuCL4,1,KAuCl4,potassium tetrachloroaurate(III),,alias,0
-chitosan biopolymer,1,chitosan,chitosan,,pattern,0
-NH3⋅ H2O,1,ammonia,ammonia / ammonium hydroxide,hydrate,alias,0
-hydrogen tetrachloroaurate trihydrates,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-Tetrakis (hydroxymethyl) phosphonium chloride,1,THPC,tetrakis(hydroxymethyl)phosphonium chloride,,alias,0
-hydrogen tetrachloroaurate-(III) trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-11-Mercaptoundecanoic acid,1,MUA,11-mercaptoundecanoic acid,,alias,0
-glycol chitosan,1,chitosan,chitosan,,pattern,0
-2‑Thiophene acetic acid,1,acetic_acid,acetic acid,,pattern,0
-hexadecyl-trimethyl-ammonium-bromide,1,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-Gold (III) chloride,1,HAuCl4,hydrogen tetrachloroaurate(III),,alias,1
-PEG/lipoic acid,1,PEG,poly(ethylene glycol),,pattern,0
-[AuNP],1,Au,gold (metal / nanoparticle product),,pattern,0
-hydrogen tetrachloroaurate(HAuCl4 · 3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0
-ascorbic acids,1,ascorbic_acid,L-ascorbic acid,,pattern,0
-hydroxylammonium chloride,1,hydroxylamine_HCl,hydroxylamine hydrochloride,,alias,0
-sodium boro-hydride,1,NaBH4,sodium borohydride,,alias,0
-sodium citrate 2-hydrate,1,trisodium_citrate,trisodium citrate,hydrate,pattern,0
-tri-sodium citrate di-hydrate,1,trisodium_citrate,trisodium citrate,hydrate,pattern,0
-Na3C6H5O7⋅2H2O,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-polydiallyldimethyl ammonium chloride,1,PDDA,poly(diallyldimethylammonium chloride),,pattern,0
-HAuCl4 ethanol,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-poly (allylamine hydrochloride,1,PAH,poly(allylamine hydrochloride),,pattern,0
-HAuCl44H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-dextrose,1,glucose,D-glucose,,alias,0
-tetrachloroaurate(III)trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-L− 1 HAuCl4·3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0
-DMAP-AuNP,1,Au,gold (metal / nanoparticle product),,pattern,0
-Cysteamine hydrochloride,1,cysteamine,cysteamine,,alias,0
-poly-(sodium 4-styrenesulfonate),1,PSS,poly(sodium 4-styrenesulfonate),,alias,0
-poly (diallyldimethyl ammoniumchioride),1,PDDA,poly(diallyldimethylammonium chloride),,pattern,0
-α-d-glucose,1,glucose,D-glucose,,pattern,0
-hydrogen tetrachloroaurate HAuCl4,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-Ru-AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0
-Chitosan,1,chitosan,chitosan,,alias,0
-sodium ascorbic acid,1,ascorbic_acid,L-ascorbic acid,,pattern,0
-PEG-200,1,PEG,poly(ethylene glycol),,pattern,0
-AuCl3-PVP,1,AuCl3,"gold(III) chloride (anhydrous, Au2Cl6)",,pattern,0
-Nacl,1,NaCl,sodium chloride,,alias,0
-L−1 tetrachloroauric acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-L−1sodium borohydride,1,NaBH4,sodium borohydride,,pattern,0
-hydrogen tetrachloro-aurate,1,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-dex-AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0
-cl-dex-AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0
-Citrate,1,trisodium_citrate,trisodium citrate,,alias,0
-polyethylene glycol octylphenyl ether,1,PEG,poly(ethylene glycol),,pattern,0
-AuNPs/RB,1,Au,gold (metal / nanoparticle product),,pattern,0
-(D)-(+)-Glucose,1,glucose,D-glucose,,pattern,0
-polyethylene glycol-5000,1,PEG,poly(ethylene glycol),,pattern,0
-Tri-Sodium citrate dihydrate,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-dm−3 cetyltrimethylammonium bromide,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0
-dm−3 tetraethyl orthosilicate,1,TEOS,tetraethyl orthosilicate,,pattern,0
-HAuCl4 ⋅3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-Glacial acetic acid,1,acetic_acid,acetic acid,,alias,0
-tetrachloroaurate hydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
-trihydrate [HAuCl4·3H2O],1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0
-TEOS isopropanol,1,isopropanol,2-propanol,,pattern,0
-Poly(diallyldimethylammonium chloride,1,PDDA,poly(diallyldimethylammonium chloride),,pattern,0
-citrate·2H2O,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-Polyethyleneglycol,1,PEG,poly(ethylene glycol),,alias,0
-L−1 pyrene methanol,1,methanol,methanol,,pattern,0
-sodiumborohydride,1,NaBH4,sodium borohydride,,alias,0
-Tetrachloroaurate,1,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-L−1 hydrogen tetrachloroaurate,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-ethylene glycol dimethacrylate,1,ethylene_glycol,ethylene glycol,,pattern,0
-tetrachloroaurate(III) dihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),dihydrate,alias,0
-C-AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0
-1-thio-β-d-glucose,1,glucose,D-glucose,,pattern,0
-thioglucose,1,glucose,D-glucose,,pattern,0
-Hydrogentetrachloroaurate(III)trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-Tetrachloroauric acid III,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-Au 49%,1,Au,gold (metal / nanoparticle product),,alias,0
-hydrogentetrachloroaurate trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-HAuCl4-3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-HAuCl4·3(H2O),1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-thiolated poly(ethylene glycol),1,PEG,poly(ethylene glycol),,pattern,0
-Tetraethylorthosilicate 98%,1,TEOS,tetraethyl orthosilicate,,alias,0
-hexadecyl-trimethylammonium bromide,1,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-Au NR@Cu2O,1,Au,gold (metal / nanoparticle product),,pattern,0
-CTAB/NaI,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0
-(1-Hexadecyl) trimethylammonium chloride,1,CTAC,hexadecyltrimethylammonium chloride,,pattern,0
-cysteamine·HCl,1,cysteamine,cysteamine,,pattern,0
-Sodium citrate trihydrate,1,trisodium_citrate,trisodium citrate,trihydrate,alias,0
-cethyltrimethylammonium chloride,1,CTAC,hexadecyltrimethylammonium chloride,,pattern,0
-thiol-polyethylene glycol-amine,1,PEG,poly(ethylene glycol),,pattern,0
-ammonia hydroxide,1,ammonia,ammonia / ammonium hydroxide,,pattern,0
-d-Glutathione,1,GSH,glutathione (reduced),,pattern,0
-trisodium borohydride,1,NaBH4,sodium borohydride,,pattern,0
-trisodium citrated,1,trisodium_citrate,trisodium citrate,,pattern,0
-trisodium citrate·2H2O,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-Tetrachloroauric(III) acid trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-PEGlyated AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0
-Glycol chitosan,1,chitosan,chitosan,,pattern,0
-CTAB−HAuCl4,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-hydrogentetrachloroauric acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-cetyltrimethyl ammonium bromide CTAB,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0
-Mili-Q water,1,water,water,,pattern,0
-sodium borohydrade,1,NaBH4,sodium borohydride,,pattern,0
-2-Propanol,1,isopropanol,2-propanol,,alias,0
-NaAuCl4·3H2O,1,NaAuCl4,sodium tetrachloroaurate(III),trihydrate,alias,0
-toluene.29,1,toluene,toluene,,pattern,0
-hydrogentetrachloroaurate,1,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-Na3C6H5O7 × 2 H2O,1,trisodium_citrate,trisodium citrate,,pattern,0
-polydiallyldimethylammonium chloride,1,PDDA,poly(diallyldimethylammonium chloride),,pattern,0
-Sodium ascorbate,1,ascorbic_acid,L-ascorbic acid,,alias,0
-sodium citrate.39,1,trisodium_citrate,trisodium citrate,,pattern,0
-c-AuNP,1,Au,gold (metal / nanoparticle product),,pattern,0
-sodium citrates,1,trisodium_citrate,trisodium citrate,,pattern,0
-tetramethyl ammonium hydroxide,1,ammonia,ammonia / ammonium hydroxide,,pattern,0
-nitric acid HNO3,1,HNO3,nitric acid,,pattern,0
-ethanol C2H6O,1,ethanol,ethanol,,pattern,0
-sodium citrate Na3C6H5O7·2H2O,1,trisodium_citrate,trisodium citrate,dihydrate,pattern,0
-sodium tetrachloroaurate(III) NaAuCl4·2H2O,1,NaAuCl4,sodium tetrachloroaurate(III),dihydrate,pattern,0
-O-[2-(3-mercaptopropionylamino)ethyl]-O′-methyl-poly(ethylene glycol),1,PEG,poly(ethylene glycol),,pattern,0
-THPC/NaOH,1,THPC,tetrakis(hydroxymethyl)phosphonium chloride,,pattern,0
-Millipore-Q water,1,water,water,,pattern,0
-l-Ascorbic acid,1,ascorbic_acid,L-ascorbic acid,,alias,0
-GNS/CTAB,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0
-oleyl amine,1,oleylamine,oleylamine,,alias,0
-CTAC-Au,1,CTAC,hexadecyltrimethylammonium chloride,,pattern,0
-Thiolated-PEG,1,PEG,poly(ethylene glycol),,alias,0
-MQ water,1,water,water,,pattern,0
-4-styrenesulfonate),1,PSS,poly(sodium 4-styrenesulfonate),,pattern,0
-cationic polyelectrolyte poly(diallyldimethylammonium chloride),1,PDDA,poly(diallyldimethylammonium chloride),,pattern,0
-HAuCl4sodium citrate,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-trisodium citrate 2-hydrate,1,trisodium_citrate,trisodium citrate,hydrate,pattern,0
-silver nitrates,1,AgNO3,silver nitrate,,pattern,0
-hydrogen tetrachloro aurate,1,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-3-Mercaptopropionic acid,1,MPA,3-mercaptopropionic acid,,alias,0
-Cetyltrimethylammonium bromide/chloride,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0
-mPEG,1,PEG,poly(ethylene glycol),,alias,0
-carboxy-PEG,1,PEG,poly(ethylene glycol),,pattern,0
-HOOC-PEG,1,PEG,poly(ethylene glycol),,pattern,0
-trimethylammonium chloride,1,CTAC,hexadecyltrimethylammonium chloride,,pattern,0
-O-[2-(3-Mercaptopropionylamino)ethyl]-O′-methylpoly(ethylene glycol),1,PEG,poly(ethylene glycol),,pattern,0
-tetraethyl-orthosilicate,1,TEOS,tetraethyl orthosilicate,,alias,0
-Au(III) chloride hydrate [HAuCl4],1,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,pattern,0
-sodium borohydrate [NaBH4],1,NaBH4,sodium borohydride,,pattern,0
-sodium tetrachloroaurate(III) hydrate,1,NaAuCl4,sodium tetrachloroaurate(III),hydrate,alias,0
-O-[2-(3-mercaptopropionylamino)ethyl]-O′-methylpoly(ethylene glycol),1,PEG,poly(ethylene glycol),,pattern,0
-hydrogen HAuCl4,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-mPEG-sulfhydryl,1,PEG,poly(ethylene glycol),,pattern,0
-mPEG(2K)-SH,1,PEG,poly(ethylene glycol),,pattern,0
-biterminal PEG,1,PEG,poly(ethylene glycol),,pattern,0
-mPEG(5K)-SH,1,PEG,poly(ethylene glycol),,pattern,0
-tetrachloroauric acid hydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
-Na3citrate·2H2O,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-Lascorbic acid,1,ascorbic_acid,L-ascorbic acid,,alias,0
-poly(4-styrenesulfonate,1,PSS,poly(sodium 4-styrenesulfonate),,pattern,0
-NH2OH HCl,1,hydroxylamine_HCl,hydroxylamine hydrochloride,,alias,0
-ethyleneglycol diglycidyl ether,1,ethylene_glycol,ethylene glycol,,pattern,0
-poly(styrene sulfonate,1,PSS,poly(sodium 4-styrenesulfonate),,pattern,0
-HAuCL4·3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-iced-water-cooled sodium borohydride,1,NaBH4,sodium borohydride,,pattern,0
-silver nitrate AgNO3(aq),1,AgNO3,silver nitrate,,pattern,0
-ascorbic acid12,1,ascorbic_acid,L-ascorbic acid,,pattern,0
-ethanolic dodecanethiol,1,dodecanethiol,1-dodecanethiol,,pattern,0
-Oleylamine,1,oleylamine,oleylamine,,alias,0
-kDa sulfhydryl-mPEG,1,PEG,poly(ethylene glycol),,pattern,0
-MPEG-SH-5000,1,PEG,poly(ethylene glycol),,pattern,0
-sulphydryl-mPEG,1,PEG,poly(ethylene glycol),,pattern,0
-PEG-thiol,1,PEG,poly(ethylene glycol),,pattern,0
-L-ascorbic Acid,1,ascorbic_acid,L-ascorbic acid,,alias,0
-2-(2-[2-(11-mercapto-undecyloxy)-ethoxy]-ethoxy)-ethoxy-ethoxy-ethoxy-ethoxy-acetic acid,1,acetic_acid,acetic acid,,pattern,0
-HAuCl430,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-anti-solvent isopropanol,1,isopropanol,2-propanol,,pattern,0
-hydrogen tetrachloroaurate(iii) hydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
-O-[2-(3-mercaptopropionylamino)ethyl]-O’-methylpolyethylene glycol,1,PEG,poly(ethylene glycol),,pattern,0
-mL−1 graphene oxide,1,graphene_oxide,graphene oxide,,pattern,0
-mL−1 chloroauric acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-ethylene glycol tetraacetic acid,1,ethylene_glycol,ethylene glycol,,pattern,0
-potassium auric chloride,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-L-Glutathione,1,GSH,glutathione (reduced),,alias,0
-tetramethyl orthosilicate,1,TEOS,tetraethyl orthosilicate,,pattern,0
-silver nitrate(AgNO3),1,AgNO3,silver nitrate,,pattern,0
-TEOS-ethanol,1,ethanol,ethanol,,pattern,0
-hydrolyzed tetraethylorthosilicate,1,TEOS,tetraethyl orthosilicate,,pattern,0
-mPEG–SH,1,PEG,poly(ethylene glycol),,alias,0
-SH–PEG–COOH,1,PEG,poly(ethylene glycol),,pattern,0
-HS-PEG-OMe,1,PEG,poly(ethylene glycol),,pattern,0
-Na3-Citrate,1,trisodium_citrate,trisodium citrate,,alias,0
-MHAuCl4,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-Mol L-ascorbic acid,1,ascorbic_acid,L-ascorbic acid,,pattern,0
-tri-methyl ammonium chloride,1,CTAC,hexadecyltrimethylammonium chloride,,pattern,0
-poly(styrenesulfonate) sodium,1,PSS,poly(sodium 4-styrenesulfonate),,pattern,0
-melamine formaldehyde,1,formaldehyde,formaldehyde,,pattern,0
-PEG 35000 MW,1,PEG,poly(ethylene glycol),,pattern,0
-Hydroxylamine hydrochloride,1,hydroxylamine_HCl,hydroxylamine hydrochloride,,alias,0
-20-AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0
-cetyltrimethyl-ammonium bromide,1,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-acetic acid glacial,1,acetic_acid,acetic acid,,pattern,0
-HAuCl4 · H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
-Au-CTAB,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0
-methoxy poly(ethylene glycol,1,PEG,poly(ethylene glycol),,pattern,0
-PLL-PEG,1,PEG,poly(ethylene glycol),,pattern,0
-tetrachloroauric(III)acid hydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0
-[HAuCl4]·H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,pattern,0
-citric acid tri-sodium,1,trisodium_citrate,trisodium citrate,,alias,0
-hexadecyl trimethylammonium bromide,1,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-Hydrogen tetrachloroaurate(III) dehydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),dihydrate,alias,0
-HAuCl4·3(H2O)3,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-tetrachloroauric(III) acid hydrate [HAuCl4]·H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,pattern,0
-cysteamine hydrochloride [C2H7NS·HCl],1,cysteamine,cysteamine,,pattern,0
-Tetrachloroauric(III)acid trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-NiHCF/AuNP,1,Au,gold (metal / nanoparticle product),,pattern,0
-mL−1 trisodium citrate,1,trisodium_citrate,trisodium citrate,,pattern,0
-starch–NaOH,1,NaOH,sodium hydroxide,,pattern,0
-L−1 trisodium citrate dehydrate,1,trisodium_citrate,trisodium citrate,dihydrate,pattern,0
-AuCl3·HCl·4H2O,1,AuCl3,"gold(III) chloride (anhydrous, Au2Cl6)",tetrahydrate,pattern,0
-mL−1 OVDAC chloroform,1,chloroform,chloroform,,pattern,0
-DDAB toluene,1,toluene,toluene,,pattern,0
-Au chloroform,1,chloroform,chloroform,,pattern,0
-Cetyltrimethylammonium chloride (CTAC)-capped,1,CTAC,hexadecyltrimethylammonium chloride,,pattern,0
-Mill-Q water,1,water,water,,pattern,0
-Gold chloroauric acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-"ethylene glycol-bis(2-aminoethylether)-N,N,N′,N′-tetraacetic acid",1,ethylene_glycol,ethylene glycol,,pattern,0
-polystyrene sulfonates,1,PSS,poly(sodium 4-styrenesulfonate),,pattern,0
-Ammonium tetrachloroaurate(III),1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-1-thioglucose,1,glucose,D-glucose,,pattern,0
-CTS-AuNP,1,Au,gold (metal / nanoparticle product),,pattern,0
-(+)AuNP,1,Au,gold (metal / nanoparticle product),,pattern,0
-L−1 tetrachloroauric(III) acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-sodium tetra-chloroaurate(III) dihydrate,1,NaAuCl4,sodium tetrachloroaurate(III),dihydrate,alias,0
-D-(+)-glucose,1,glucose,D-glucose,,pattern,0
-dimethyl amino ethanol,1,ethanol,ethanol,,pattern,0
-gold tetrachloroaurate,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-Tri-sodium citrate dihydrate,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-milli-Q water,1,water,water,,alias,0
-AuNR@AgNC,1,Au,gold (metal / nanoparticle product),,pattern,0
-mercaptopolyethylene glycol monomethyl ether,1,PEG,poly(ethylene glycol),,pattern,0
-Tetrachloroauric acid tetrahydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0
-Linear polyethyleneimine,1,PEI,polyethylenimine,,pattern,0
-Q-water,1,water,water,,pattern,0
-AuCl3–PVP,1,AuCl3,"gold(III) chloride (anhydrous, Au2Cl6)",,pattern,0
-L−1 hydroquinone,1,hydroquinone,hydroquinone,,pattern,0
-1-Dodecanethiol,1,dodecanethiol,1-dodecanethiol,,alias,0
-sodium polystyrenesulfonate,1,PSS,poly(sodium 4-styrenesulfonate),,alias,0
-gold tetrachloroaurate hydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,pattern,0
-polystyrene sulfonate,1,PSS,poly(sodium 4-styrenesulfonate),,pattern,0
-CTAB–AuNR,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0
-Tetrakis(hydroxymethyl) phosphonium chloride,1,THPC,tetrakis(hydroxymethyl)phosphonium chloride,,alias,0
-trisodium citrate tetrahydrate,1,trisodium_citrate,trisodium citrate,tetrahydrate,alias,0
-tetrachloroauric acid trihidrate,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-paraformaldehyde,1,formaldehyde,formaldehyde,,pattern,0
-citrate-AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0
-Di-CnPh toluene,1,toluene,toluene,,pattern,0
-cetyltrimethyl ammonium chloride,1,CTAC,hexadecyltrimethylammonium chloride,,alias,0
-Ascorbic acids,1,ascorbic_acid,L-ascorbic acid,,pattern,0
-Na3Citrate·2H2O,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-mL−1 gold(III) chloride,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-L−1 hydrochloric acid,1,HCl,hydrochloric acid,,pattern,0
-L−1 hydrogen tetrachloroaurate(III),1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-FITC-PEG-SH,1,PEG,poly(ethylene glycol),,pattern,0
-poly(ethylene glycol) 2-mercaptoethyl ether acetic acid,1,PEG,poly(ethylene glycol),,pattern,0
-kDa poly(ethylene glycol,1,PEG,poly(ethylene glycol),,pattern,0
-O-[2-(3-Mercaptopropionylamino)ethyl]-O′-methylpolyethylene glycol,1,PEG,poly(ethylene glycol),,pattern,0
-poly(ethylene glycol)methyl ether,1,PEG,poly(ethylene glycol),,pattern,0
-hydrogen tetrachloroaurate(III)trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-Tetrakis(hydroxymethyl)phosphonium chloride,1,THPC,tetrakis(hydroxymethyl)phosphonium chloride,,alias,0
-polydiallyldimethylammonium,1,PDDA,poly(diallyldimethylammonium chloride),,pattern,0
-propargyl-PEG-NHS ester,1,PEG,poly(ethylene glycol),,pattern,0
-thiolated methoxy-poly(ethylene glycol),1,PEG,poly(ethylene glycol),,pattern,0
-D-glucose monohydrate,1,glucose,D-glucose,monohydrate,alias,0
-PEG-MoS2,1,PEG,poly(ethylene glycol),,pattern,0
-2-MPy–AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0
-AuNPs-40,1,Au,gold (metal / nanoparticle product),,pattern,0
-AuNPs-100,1,Au,gold (metal / nanoparticle product),,pattern,0
-D-Glucose,1,glucose,D-glucose,,alias,0
-β-cysteamine,1,cysteamine,cysteamine,,pattern,0
-polyvinylpyrrolidone Mw ∼ 55000,1,PVP,polyvinylpyrrolidone,,pattern,0
-gold(III) chloride trihydrate HAuCl4·3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0
-poly(ethylene glycol) 2-aminoethyl ether acetic acid,1,PEG,poly(ethylene glycol),,pattern,0
-Gold(III) chloride tetrahydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0
-aluminum sulfate water,1,water,water,,pattern,0
-[HAuCl4·3H2O],1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0
-mPEG–thiol,1,PEG,poly(ethylene glycol),,pattern,0
-KAuCl4 : PVP,1,KAuCl4,potassium tetrachloroaurate(III),,pattern,0
-poly(vinylpyrrolidone) (C6H9NO)n,1,PVP,polyvinylpyrrolidone,,pattern,0
-dodecyl sulfate,1,SDS,sodium dodecyl sulfate,,pattern,0
-Hexadecyltrimethylammoniumbromide,1,CTAB,hexadecyltrimethylammonium bromide,,alias,0
-thiol polyethylene glycol,1,PEG,poly(ethylene glycol),,pattern,0
-L−1 NaBH4,1,NaBH4,sodium borohydride,,pattern,0
-AG,1,Ag,silver (metal),,alias,0
-4-aminothiophenoland sodium borohydride,1,NaBH4,sodium borohydride,,pattern,0
-Au–CTAB,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0
-sodium tetrachloroaurate(III),1,NaAuCl4,sodium tetrachloroaurate(III),,alias,0
-mp-TiO2/ethanol,1,ethanol,ethanol,,pattern,0
-DSPE-mPEG,1,PEG,poly(ethylene glycol),,pattern,0
-hydrogen tetra-chloroaurate trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-sodium citrate di-hydrate,1,trisodium_citrate,trisodium citrate,hydrate,pattern,0
-Na3Cit·2H2O,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-Hydrogen tetrachloroauric acid(III) trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0
-FA-PEG-SH,1,PEG,poly(ethylene glycol),,pattern,0
-isopropanol alcohol,1,isopropanol,2-propanol,,pattern,0
-mL−1 hydroxylamine hydrochloride,1,hydroxylamine_HCl,hydroxylamine hydrochloride,,pattern,0
-C4H6O4Zn·2H2O ethanol,1,ethanol,ethanol,dihydrate,pattern,0
-HAuCl4–3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-H2SO4:H2O2,1,H2O2,hydrogen peroxide,,pattern,0
-0.254mMNaAuCl4(100mL),1,NaAuCl4,sodium tetrachloroaurate(III),,pattern,0
-(65mg∕ml)to1ml toluene,1,toluene,toluene,,pattern,0
-trisodium- citrate,1,trisodium_citrate,trisodium citrate,,alias,0
-chloroauric acid HAuCl4.3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0
-Serum albumins,1,BSA,bovine serum albumin,,pattern,0
-m(PEG)-SH,1,PEG,poly(ethylene glycol),,pattern,0
-2-(methacryloyloxy)ethyl-trimethylammonium chloride,1,CTAC,hexadecyltrimethylammonium chloride,,pattern,0
-NaBH 4,1,NaBH4,sodium borohydride,,alias,0
-HAuCl 4,1,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0
-hydrazine hydrate N2H4·0.5H2O,1,hydrazine,hydrazine,pentahydrate,pattern,0
-CTAB/BDAC,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0
-Hydrogen tetrachloroaurate III trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0
-Hydrochloroauric acid trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0
-HAuCl4‧3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0
-Na3C6H5O7 · 2H2O,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0
-polyvinyl-pyrrolidone,1,PVP,polyvinylpyrrolidone,,alias,0
-DDT ethanol,1,ethanol,ethanol,,pattern,0
-N-Cetyltrimethylammonium bromide,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0
-AuNP-S-β-CD,1,Au,gold (metal / nanoparticle product),,pattern,0
-GNP water,1,water,water,,pattern,0
-potassium tetrachloroaurate(III),1,KAuCl4,potassium tetrachloroaurate(III),,alias,0
-L−1,72,,,,,
-H2PtCl6,37,,,,,
-Na2S,33,,,,,
-TiO2,32,,,,,
-FeCl3,29,,,,,
-DNA,29,,,,,
-Au(III),23,,,,,
-urea,23,,,,,
-Na2HPO4,22,,,,,
-BDAC,21,,,,,
-silica,21,,,,,
-HEPES,21,,,,,
-PBS,20,,,,,
-FeCl3·6H2O,20,,,,,
-sodium silicate,20,,,,,
-sodium acetate,20,,,,,
-boric acid,19,,,,,
-N-hydroxysuccinimide,19,,,,,
-KH2PO4,19,,,,,
-APTES,18,,,,,
-aqua regia,18,,,,,
-cyclohexane,18,,,,,
-TBAB,17,,,,,
-borohydride,17,,,,,
-sodium sulfide,17,,,,,
-MO,17,,,,,
-EDTA,16,,,,,
-MSA,16,,,,,
-starch,16,,,,,
-PVA,16,,,,,
-FeCl2·4H2O,16,,,,,
-SiO2,16,,,,,
-Triton X-100,16,,,,,
-DDAB,16,,,,,
-KMnO4,15,,,,,
-CdCl2,15,,,,,
-NaI,15,,,,,
-3-aminopropyltriethoxysilane,15,,,,,
-hexamethylenetetramine,14,,,,,
-3H2O,14,,,,,
-sodium sulfate,14,,,,,
-Pluronic F127,14,,,,,
-sucrose,14,,,,,
-5-bromosalicylic acid,14,,,,,
-PAA,13,,,,,
-acetonitrile,13,,,,,
-NP,13,,,,,
-phosphoric acid,13,,,,,
-Fe3O4,13,,,,,
-EDC,12,,,,,
-NaBr,12,,,,,
-phosphate buffer,12,,,,,
-MPS,12,,,,,
-NaNO3,12,,,,,
-glycerol,12,,,,,
-glutaraldehyde,12,,,,,
-NHS,12,,,,,
-selenium,11,,,,,
-hexane,11,,,,,
-sodium bromide,11,,,,,
-mL−1,11,,,,,
-APTMS,11,,,,,
-calcium chloride,11,,,,,
-uric acid,11,,,,,
-potassium permanganate,11,,,,,
-CuCl2,11,,,,,
-CS,11,,,,,
-zinc chloride,11,,,,,
-dimethyl sulfoxide,11,,,,,
-NaHCO3,11,,,,,
-sodium iodide,11,,,,,
-cobalt chloride,11,,,,,
-AuNCs,11,,,,,
-PS,11,,,,,
-4-aminothiophenol,11,,,,,
-carbon,10,,,,,
-Nafion,10,,,,,
-sodium carbonate,10,,,,,
-HRP,10,,,,,
-FSN,10,,,,,
-l-cysteine,10,,,,,
-albumin,10,,,,,
-thiourea,10,,,,,
-4-mercaptobenzoic acid,10,,,,,
-CoCl2,10,,,,,
-Tween-20,10,,,,,
-cobalt,10,,,,,
-FeCl2,10,,,,,
-Se,9,,,,,
-CPC,9,,,,,
-KBr,9,,,,,
-sodium nitrate,9,,,,,
-potassium bromide,9,,,,,
-GA,9,,,,,
-H3PO4,9,,,,,
-4-nitrophenol,9,,,,,
-potassium nitrate,9,,,,,
-magnesium chloride hexahydrate,9,,,,,
-NaH2PO4,9,,,,,
-potassium hydroxide,9,,,,,
-dodecylamine,8,,,,,
-K2PtCl4,8,,,,,
-APS,8,,,,,
-mercaptoacetic acid,8,,,,,
-nitrogen,8,,,,,
-Au NCs,8,,,,,
-Tris,8,,,,,
-auric acid,8,,,,,
-HAuC14,8,,,,,
-potassium persulfate,8,,,,,
-dopamine,8,,,,,
-DMAP,8,,,,,
-CALNN,8,,,,,
-streptomycin,8,,,,,
-AgNCs,8,,,,,
-mercaptosuccinic acid,8,,,,,
-16-mercaptohexadecanoic acid,8,,,,,
-dihydrate,8,,,,,
-fluorescein isothiocyanate,8,,,,,
-DT,8,,,,,
-TGA,8,,,,,
-sodium nitrite,8,,,,,
-titanium isopropoxide,8,,,,,
-HgCl2,8,,,,,
-aniline,8,,,,,
-TOABr,8,,,,,
-n-hexane,8,,,,,
-GNR,8,,,,,
-sodium salicylate,8,,,,,
-L-cysteine,8,,,,,
-Au chloride,8,,,,,
-Au NC,8,,,,,
-Na2S·9H2O,7,,,,,
-C16TAB,7,,,,,
-PNIPAM,7,,,,,
-didodecyldimethylammonium bromide,7,,,,,
-H2PdCl4,7,,,,,
-PdCl2,7,,,,,
-CuSO4,7,,,,,
-octadecylamine,7,,,,,
-anatase,7,,,,,
-citrate sodium,7,,,,,
-polyvinyl alcohol,7,,,,,
-AOT,7,,,,,
-(3-aminopropyl)trimethoxysilane,7,,,,,
-C6H8O6,7,,,,,
-sodium azide,7,,,,,
-lysozyme,7,,,,,
-K3Fe(CN)6,7,,,,,
-NaHTe,7,,,,,
-sodium phosphate,7,,,,,
-triethylamine,7,,,,,
-benzyldimethylhexadecylammonium chloride,7,,,,,
-cadmium chloride,7,,,,,
-cysteine,7,,,,,
-AuNS,7,,,,,
-TCEP,7,,,,,
-C6H5Na3O7·2H2O,7,,,,,
-PP,7,,,,,
-TBA,7,,,,,
-folic acid,7,,,,,
-thiophenol,7,,,,,
-HDA,7,,,,,
-Pt,7,,,,,
-zinc acetate dihydrate,7,,,,,
-ZnO,7,,,,,
-cobalt chloride hexahydrate,7,,,,,
-sulfur,6,,,,,
-Au3+,6,,,,,
-trisodium,6,,,,,
-luminol,6,,,,,
-zinc acetate,6,,,,,
-poly(acrylic acid,6,,,,,
-rutile,6,,,,,
-Cd(NO3)2·4H2O,6,,,,,
-HPLC,6,,,,,
-regia,6,,,,,
-magnesium chloride,6,,,,,
-poly,6,,,,,
-lead(II) nitrate,6,,,,,
-methylene blue,6,,,,,
-OA,6,,,,,
-iron(III) chloride,6,,,,,
-ACROS,6,,,,,
-sodium phosphate dibasic,6,,,,,
-CF3COOAg,6,,,,,
-Pb(NO3)2,6,,,,,
-ethanolamine,6,,,,,
-stearic acid,6,,,,,
-dithiothreitol,6,,,,,
-SA,6,,,,,
-GNRs,6,,,,,
-ferric chloride,6,,,,,
-TritonX-100,6,,,,,
-IgG,6,,,,,
-copper,6,,,,,
-ssDNA,6,,,,,
-p-nitrophenol,6,,,,,
-dopamine hydrochloride,6,,,,,
-ammonium persulfate,6,,,,,
-gelatin,6,,,,,
-NADH,6,,,,,
-ZnCl2,6,,,,,
-PC30,6,,,,,
-hexadecylamine,6,,,,,
-Vc,6,,,,,
-MBA,6,,,,,
-Tween 80,6,,,,,
-polystyrene,6,,,,,
-CuCl2·2H2O,6,,,,,
-ATP,5,,,,,
-Au@Ag,5,,,,,
-H2,5,,,,,
-n-hexanol,5,,,,,
-thioacetamide,5,,,,,
-N-isopropylacrylamide,5,,,,,
-tetrahydrofuran,5,,,,,
-HMT,5,,,,,
-Na-citrate,5,,,,,
-hydrogen tetrachloroaureate,5,,,,,
-KOH,5,,,,,
-thiol,5,,,,,
-Na2TeO3,5,,,,,
-zinc nitrate hexahydrate,5,,,,,
-”,5,,,,,
-tris(hydroxymethyl)aminomethane,5,,,,,
-glucose oxidase,5,,,,,
-streptavidin,5,,,,,
-ethylenediaminetetraacetic acid,5,,,,,
-sodium bicarbonate,5,,,,,
-AuNSs,5,,,,,
-tellurium,5,,,,,
-BSPP,5,,,,,
-disodium hydrogen phosphate,5,,,,,
-glycine,5,,,,,
-C2H5OH,5,,,,,
-P25,5,,,,,
-Ferric chloride,5,,,,,
-SC,5,,,,,
-dichloromethane,5,,,,,
-potassium dichromate,5,,,,,
-HA,5,,,,,
-MgCl2,5,,,,,
-l-AA,5,,,,,
-CoCl2·6H2O,5,,,,,
-phosphate buffer saline,5,,,,,
-HQ,5,,,,,
-thioctic acid,5,,,,,
-BPEI,5,,,,,
-THF,5,,,,,
-KNO3,5,,,,,
-CaCl2,5,,,,,
-ethylenediamine,5,,,,,
-ODE,5,,,,,
-glutamic acid,5,,,,,
-formic acid,5,,,,,
-3-aminopropyltrimethoxysilane,5,,,,,
-K[AuCl4],5,,,,,
-8-hydroxyquinoline,5,,,,,
-triethanolamine,5,,,,,
-TC,5,,,,,
-platinum,5,,,,,
-sodium tetrachloropalladate(II),5,,,,,
-salicylic acid,5,,,,,
-lipoic acid,5,,,,,
-1-octadecene,5,,,,,
-4-Mercaptobenzoic acid,5,,,,,
-TDSP,5,,,,,
-tetramethylammonium hydroxide,5,,,,,
-cetylpyridinium chloride,5,,,,,
-iron(III) nitrate nonahydrate,5,,,,,
-PGMA@PAH,5,,,,,
-Na2PdCl4,4,,,,,
-iron pentacarbonyl,4,,,,,
-manganese acetate,4,,,,,
-Vulcan XC-72R carbon,4,,,,,
-diethyl ether,4,,,,,
-NiCl2,4,,,,,
-DMSO,4,,,,,
-decanoic acid,4,,,,,
-titanium tetraisopropoxide,4,,,,,
-MWCNTs,4,,,,,
-1-propanol,4,,,,,
-ODT,4,,,,,
-Na citrate,4,,,,,
-tetrabutyl titanate,4,,,,,
-propidium iodide,4,,,,,
-iron chloride,4,,,,,
-Na2SO3,4,,,,,
-cadmium nitrate,4,,,,,
-C,4,,,,,
-BPE,4,,,,,
-NaHB4,4,,,,,
-antibody,4,,,,,
-DA,4,,,,,
-DMSA,4,,,,,
-fibrinogen,4,,,,,
-gold(III),4,,,,,
-mercuric chloride,4,,,,,
-sodium dihydrogen phosphate,4,,,,,
+material_raw,mentions,entity_id,canonical_name,form,match,ambiguous,cruse_regex_label
+HAuCl4,5051,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,HAuCl4
+sodium citrate,1821,trisodium_citrate,trisodium citrate,,alias,0,sodium citrate
+CTAB,1418,CTAB,hexadecyltrimethylammonium bromide,,abbrev,0,CTAB
+NaBH4,1413,NaBH4,sodium borohydride,,alias,0,NaBH4
+trisodium citrate,1314,trisodium_citrate,trisodium citrate,,alias,0,sodium citrate
+ascorbic acid,992,ascorbic_acid,L-ascorbic acid,,alias,0,ascorbic acid
+AgNO3,882,AgNO3,silver nitrate,,alias,0,AgNO3
+gold,723,Au,gold (metal / nanoparticle product),,alias,0,
+sodium borohydride,593,NaBH4,sodium borohydride,,alias,0,NaBH4
+water,576,water,water,,alias,0,
+Au,559,Au,gold (metal / nanoparticle product),,alias,0,
+HAuCl4·3H2O,536,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,HAuCl4
+HCl,373,HCl,hydrochloric acid,,alias,0,HCl
+chloroauric acid,358,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,HAuCl4
+NaOH,352,NaOH,sodium hydroxide,,alias,0,NaOH
+silver nitrate,348,AgNO3,silver nitrate,,alias,0,AgNO3
+AA,236,ascorbic_acid,L-ascorbic acid,,abbrev,0,ascorbic acid
+PVP,234,PVP,polyvinylpyrrolidone,,abbrev,0,PVP
+cetyltrimethylammonium bromide,222,CTAB,hexadecyltrimethylammonium bromide,,alias,0,CTAB
+AuNPs,195,Au,gold (metal / nanoparticle product),,abbrev,0,
+ethanol,193,ethanol,ethanol,,alias,0,organic solvent
+citrate,192,trisodium_citrate,trisodium citrate,,alias,0,citrate
+HNO3,149,HNO3,nitric acid,,alias,0,HNO3
+CTAC,145,CTAC,hexadecyltrimethylammonium chloride,,abbrev,0,CTAC
+hydrogen tetrachloroaurate,138,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,HAuCl4
+sodium hydroxide,135,NaOH,sodium hydroxide,,alias,0,NaOH
+HAuCl4·4H2O,133,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0,HAuCl4
+trisodium citrate dihydrate,129,trisodium_citrate,trisodium citrate,dihydrate,alias,0,sodium citrate
+hydrochloric acid,120,HCl,hydrochloric acid,,alias,0,HCl
+tetrachloroauric acid,115,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,HAuCl4
+l-ascorbic acid,113,ascorbic_acid,L-ascorbic acid,,alias,0,ascorbic acid
+L-ascorbic acid,104,ascorbic_acid,L-ascorbic acid,,alias,0,ascorbic acid
+gold chloride,103,HAuCl4,hydrogen tetrachloroaurate(III),,alias,1,AuCl3
+tannic acid,101,tannic_acid,tannic acid,,alias,0,
+BSA,100,BSA,bovine serum albumin,,abbrev,0,BSA
+NaCl,96,NaCl,sodium chloride,,alias,0,
+sodium chloride,92,NaCl,sodium chloride,,alias,0,
+citric acid,91,citric_acid,citric acid,,alias,0,citrate
+H2O,87,water,water,,alias,0,
+Sodium citrate,82,trisodium_citrate,trisodium citrate,,alias,0,sodium citrate
+hydroquinone,76,hydroquinone,hydroquinone,,alias,0,HQ
+methanol,72,methanol,methanol,,alias,0,organic solvent
+ammonia,72,ammonia,ammonia / ammonium hydroxide,,alias,0,
+tri-sodium citrate,70,trisodium_citrate,trisodium citrate,,alias,0,sodium citrate
+H2O2,68,H2O2,hydrogen peroxide,,alias,0,H2O2
+gold(III) chloride trihydrate,67,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,AuCl3
+hexadecyltrimethylammonium bromide,66,CTAB,hexadecyltrimethylammonium bromide,,alias,0,CTAB
+graphite,66,graphite,graphite,,alias,0,
+TEOS,63,TEOS,tetraethyl orthosilicate,,abbrev,0,TEOS
+chitosan,63,chitosan,chitosan,,alias,0,
+Chloroauric acid,61,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,HAuCl4
+toluene,61,toluene,toluene,,alias,0,organic solvent
+sodium citrate dihydrate,61,trisodium_citrate,trisodium citrate,dihydrate,alias,0,
+polyvinylpyrrolidone,60,PVP,polyvinylpyrrolidone,,alias,0,PVP
+Ag,59,Ag,silver (metal),,alias,0,
+Gold(III) chloride trihydrate,58,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,AuCl3
+oleylamine,56,oleylamine,oleylamine,,alias,0,
+tetraoctylammonium bromide,54,TOAB,tetraoctylammonium bromide,,alias,0,TOAB
+acetone,53,acetone,acetone,,alias,0,
+Sodium borohydride,52,NaBH4,sodium borohydride,,alias,0,NaBH4
+THPC,51,THPC,tetrakis(hydroxymethyl)phosphonium chloride,,abbrev,0,
+PDDA,51,PDDA,poly(diallyldimethylammonium chloride),,abbrev,0,PDDA
+ammonium hydroxide,51,ammonia,ammonia / ammonium hydroxide,,alias,0,
+H2SO4,50,H2SO4,sulfuric acid,,alias,0,H2SO4
+nitric acid,50,HNO3,nitric acid,,alias,0,HNO3
+NaAuCl4,49,NaAuCl4,sodium tetrachloroaurate(III),,alias,0,NaAuCl4
+hydrogen tetrachloroaurate(III) trihydrate,48,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,HAuCl4
+hydrogen peroxide,48,H2O2,hydrogen peroxide,,alias,0,H2O2
+trisodium citrate dehydrate,48,trisodium_citrate,trisodium citrate,dihydrate,alias,0,sodium citrate
+GSH,47,GSH,glutathione (reduced),,abbrev,0,
+Hydrogen tetrachloroaurate,46,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,HAuCl4
+acetic acid,46,acetic_acid,acetic acid,,alias,0,
+K2CO3,45,K2CO3,potassium carbonate,,alias,0,
+Cetyltrimethylammonium bromide,45,CTAB,hexadecyltrimethylammonium bromide,,alias,0,CTAB
+ethylene glycol,44,ethylene_glycol,ethylene glycol,,alias,0,
+cetyltrimethylammonium chloride,44,CTAC,hexadecyltrimethylammonium chloride,,alias,0,CTAC
+Silver nitrate,43,AgNO3,silver nitrate,,alias,0,AgNO3
+GO,41,graphene_oxide,graphene oxide,,abbrev,0,
+Trisodium citrate,40,trisodium_citrate,trisodium citrate,,alias,0,sodium citrate
+PAH,40,PAH,poly(allylamine hydrochloride),,abbrev,0,
+silver,40,Ag,silver (metal),,alias,0,
+GNPs,40,Au,gold (metal / nanoparticle product),,abbrev,0,
+KAuCl4,39,KAuCl4,potassium tetrachloroaurate(III),,alias,0,
+PSS,39,PSS,poly(sodium 4-styrenesulfonate),,abbrev,0,
+hydrogen tetrachloroaurate trihydrate,39,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,HAuCl4
+serum albumin,36,BSA,bovine serum albumin,,alias,0,
+SDS,35,SDS,sodium dodecyl sulfate,,abbrev,0,
+Ascorbic acid,35,ascorbic_acid,L-ascorbic acid,,alias,0,ascorbic acid
+gold (III) chloride trihydrate,35,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,AuCl3
+AuCl3,35,AuCl3,"gold(III) chloride (anhydrous, Au2Cl6)",,alias,0,AuCl3
+HAuCl4.3H2O,34,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,
+KI,34,KI,potassium iodide,,alias,0,
+sulfuric acid,33,H2SO4,sulfuric acid,,alias,0,H2SO4
+tetraethyl orthosilicate,33,TEOS,tetraethyl orthosilicate,,alias,0,TEOS
+potassium chloride,33,KCl,potassium chloride,,alias,0,
+Hydrogen tetrachloroaurate trihydrate,31,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,HAuCl4
+potassium carbonate,30,K2CO3,potassium carbonate,,alias,0,
+hydroxylamine hydrochloride,30,hydroxylamine_HCl,hydroxylamine hydrochloride,,alias,0,
+Na3C6H5O7,30,trisodium_citrate,trisodium citrate,,alias,0,sodium citrate
+Au NP,29,Au,gold (metal / nanoparticle product),,alias,0,
+NH2OH·HCl,29,hydroxylamine_HCl,hydroxylamine hydrochloride,,alias,0,
+sodium oleate,28,oleic_acid,oleic acid,,alias,0,
+gold(III) chloride hydrate,28,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,AuCl3
+TSC,27,trisodium_citrate,trisodium citrate,,abbrev,0,
+sodium dodecyl sulfate,26,SDS,sodium dodecyl sulfate,,alias,0,
+oleic acid,26,oleic_acid,oleic acid,,alias,0,
+dodecanethiol,26,dodecanethiol,1-dodecanethiol,,alias,0,
+Tetrachloroauric acid,26,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,HAuCl4
+glucose,26,glucose,D-glucose,,alias,0,
+KCl,26,KCl,potassium chloride,,alias,0,
+DMF,25,DMF,"N,N-dimethylformamide",,abbrev,0,DMF
+tetraethylorthosilicate,25,TEOS,tetraethyl orthosilicate,,alias,0,
+11-mercaptoundecanoic acid,25,MUA,11-mercaptoundecanoic acid,,alias,0,
+Hexadecyltrimethylammonium bromide,24,CTAB,hexadecyltrimethylammonium bromide,,alias,0,CTAB
+poly(vinylpyrrolidone),24,PVP,polyvinylpyrrolidone,,alias,0,PVP
+Hydrogen tetrachloroaurate(III) trihydrate,24,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,HAuCl4
+Gold (III) chloride trihydrate,24,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,AuCl3
+cetyltrimethyl ammonium bromide,23,CTAB,hexadecyltrimethylammonium bromide,,alias,0,CTAB
+NH4OH,22,ammonia,ammonia / ammonium hydroxide,,alias,0,
+TOAB,21,TOAB,tetraoctylammonium bromide,,abbrev,0,TOAB
+glutathione,21,GSH,glutathione (reduced),,alias,0,
+HAuCl4 · 3H2O,21,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,
+sodium citrate tribasic dihydrate,21,trisodium_citrate,trisodium citrate,dihydrate,alias,0,
+MPA,20,MPA,3-mercaptopropionic acid,,abbrev,0,
+chloroform,20,chloroform,chloroform,,alias,0,
+Chloroauric acid tetrahydrate,20,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0,
+Na3C6H5O7·2H2O,20,trisodium_citrate,trisodium citrate,dihydrate,alias,0,sodium citrate
+gold(III) chloride,20,HAuCl4,hydrogen tetrachloroaurate(III),,alias,1,AuCl3
+Na3Ct,20,trisodium_citrate,trisodium citrate,,abbrev,0,
+poly(allylamine hydrochloride,19,PAH,poly(allylamine hydrochloride),,pattern,0,
+Sodium chloride,19,NaCl,sodium chloride,,alias,0,
+chlorauric acid,19,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,
+Na3-citrate,19,trisodium_citrate,trisodium citrate,,alias,0,citrate
+gold chloride trihydrate,19,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,
+GNP,19,Au,gold (metal / nanoparticle product),,alias,0,
+hydrazine hydrate,19,hydrazine,hydrazine,hydrate,alias,0,
+NaOL,18,oleic_acid,oleic acid,,abbrev,0,
+aqua regia,18,aqua_regia,aqua regia (HCl:HNO3 3:1),,alias,0,HCl
+3-mercaptopropionic acid,18,MPA,3-mercaptopropionic acid,,alias,0,
+poly(diallyldimethylammonium chloride,17,PDDA,poly(diallyldimethylammonium chloride),,pattern,0,
+hydrazine,17,hydrazine,hydrazine,,alias,0,
+cysteamine,17,cysteamine,cysteamine,,alias,0,
+PEI,17,PEI,polyethylenimine,,abbrev,0,
+hydrogen tetrachloroaurate(III) hydrate,17,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,HAuCl4
+tetrachloroauric acid trihydrate,16,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,HAuCl4
+sodium citrate dehydrate,16,trisodium_citrate,trisodium citrate,dihydrate,alias,0,sodium citrate
+PVA,16,PVA,poly(vinyl alcohol),,abbrev,0,
+Sodium hydroxide,16,NaOH,sodium hydroxide,,alias,0,
+poly(vinyl pyrrolidone),15,PVP,polyvinylpyrrolidone,,alias,0,PVP
+formaldehyde,15,formaldehyde,formaldehyde,,alias,0,
+Ethanol,15,ethanol,ethanol,,alias,0,organic solvent
+Gold,15,Au,gold (metal / nanoparticle product),,alias,0,
+HAuCl4·xH2O,15,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,HAuCl4
+EG,15,ethylene_glycol,ethylene glycol,,alias,0,
+HAuCl4⋅3 H2O,14,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,HAuCl4
+Sodium citrate dihydrate,14,trisodium_citrate,trisodium citrate,dihydrate,alias,0,
+2-propanol,14,isopropanol,2-propanol,,alias,0,
+"N,N-dimethylformamide",14,DMF,"N,N-dimethylformamide",,alias,0,DMF
+potassium iodide,14,KI,potassium iodide,,alias,0,
+Water,14,water,water,,alias,0,
+hydroxylamine,14,hydroxylamine_HCl,hydroxylamine hydrochloride,,alias,0,
+isopropanol,14,isopropanol,2-propanol,,alias,0,
+PAA,13,PAA,poly(acrylic acid),,abbrev,0,ascorbic acid
+MUA,13,MUA,11-mercaptoundecanoic acid,,abbrev,0,
+hexadecyltrimethylammonium chloride,13,CTAC,hexadecyltrimethylammonium chloride,,alias,0,CTAC
+hydrogen tetrachloroaurate(III),13,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,HAuCl4
+tetraethoxysilane,13,TEOS,tetraethyl orthosilicate,,alias,0,
+1-dodecanethiol,13,dodecanethiol,1-dodecanethiol,,alias,0,
+AuCl4 −,13,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,
+PEG,13,PEG,poly(ethylene glycol),,abbrev,0,
+gold (III) chloride hydrate,13,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,AuCl3
+Trisodium citrate dihydrate,12,trisodium_citrate,trisodium citrate,dihydrate,alias,0,sodium citrate
+Tetraethyl orthosilicate,12,TEOS,tetraethyl orthosilicate,,alias,0,TEOS
+NH3,12,ammonia,ammonia / ammonium hydroxide,,alias,0,
+KBH4,12,KBH4,potassium borohydride,,alias,0,
+PEG-SH,12,PEG,poly(ethylene glycol),,alias,0,
+gold (III) chloride,12,HAuCl4,hydrogen tetrachloroaurate(III),,alias,1,AuCl3
+Hydrochloric acid,12,HCl,hydrochloric acid,,alias,0,
+L−1 CTAB,12,CTAB,hexadecyltrimethylammonium bromide,,pattern,0,
+gold chloride tetrahydrate,12,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0,
+HAuCl4 trihydrate,12,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,
+AuCl4,11,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,
+tetrachloroaurate,11,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,HAuCl4
+vitamin C,11,ascorbic_acid,L-ascorbic acid,,alias,0,
+tetrakis(hydroxymethyl)phosphonium chloride,11,THPC,tetrakis(hydroxymethyl)phosphonium chloride,,alias,0,
+NH2OH,11,hydroxylamine_HCl,hydroxylamine hydrochloride,,pattern,0,
+NH3·H2O,11,ammonia,ammonia / ammonium hydroxide,hydrate,alias,0,
+polyethylene glycol,11,PEG,poly(ethylene glycol),,alias,0,organic solvent
+HAuCl4(aq),11,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+Toluene,10,toluene,toluene,,alias,0,organic solvent
+HAuCl4⋅3H2O,10,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,HAuCl4
+HAuCl4·H2O,10,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,HAuCl4
+Methanol,10,methanol,methanol,,alias,0,organic solvent
+tetrachloroauric (III) acid,10,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,
+L−1 sodium citrate,10,trisodium_citrate,trisodium citrate,,pattern,0,sodium citrate
+polyethylenimine,10,PEI,polyethylenimine,,alias,0,
+polyethyleneimine,10,PEI,polyethylenimine,,alias,0,
+Hydrogen tetrachloroaurate(III) hydrate,10,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,HAuCl4
+Gold chloride trihydrate,10,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,
+AuCl4−,10,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,
+chloroauric acid trihydrate,9,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,
+sodium tetrahydroborate,9,NaBH4,sodium borohydride,,alias,0,NaBH4
+graphene oxide,9,graphene_oxide,graphene oxide,,alias,0,
+sodium citrate trihydrate,9,trisodium_citrate,trisodium citrate,trihydrate,alias,0,
+sodium borohydrate,9,NaBH4,sodium borohydride,,pattern,0,
+tri-sodium citrate dihydrate,9,trisodium_citrate,trisodium citrate,dihydrate,alias,0,sodium citrate
+Chloroauric acid trihydrate,9,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,
+poly(sodium 4-styrenesulfonate),9,PSS,poly(sodium 4-styrenesulfonate),,alias,0,
+isopropyl alcohol,9,isopropanol,2-propanol,,alias,0,
+tetrachloroauric(III) acid trihydrate,9,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,
+NaAuCl4·2H2O,9,NaAuCl4,sodium tetrachloroaurate(III),dihydrate,alias,0,NaAuCl4
+poly(ethylene glycol,8,PEG,poly(ethylene glycol),,pattern,0,organic solvent
+[HAuCl4],8,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+tetrachloroauric(III) acid,8,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,
+EtOH,8,ethanol,ethanol,,alias,0,
+potassium tetrachloroaurate,8,KAuCl4,potassium tetrachloroaurate(III),,alias,0,HAuCl4
+mercaptopropionic acid,8,MPA,3-mercaptopropionic acid,,alias,0,
+Gold chloride,8,HAuCl4,hydrogen tetrachloroaurate(III),,alias,1,AuCl3
+Hydrogen tetrachloroaurate(III) tetrahydrate,8,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0,HAuCl4
+cetyl trimethylammonium bromide,8,CTAB,hexadecyltrimethylammonium bromide,,alias,0,CTAB
+Gold (III) chloride hydrate,8,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,AuCl3
+TOABr,8,TOAB,tetraoctylammonium bromide,,alias,0,TOAB
+chloroauric acid tetrahydrate,8,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0,
+Sodium oleate,8,oleic_acid,oleic acid,,alias,0,
+AuNR,8,Au,gold (metal / nanoparticle product),,alias,0,
+Hexadecyltrimethylammonium chloride,7,CTAC,hexadecyltrimethylammonium chloride,,alias,0,CTAC
+HAuCl4 water,7,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,
+sodium tetrachloroaurate,7,NaAuCl4,sodium tetrachloroaurate(III),,alias,0,NaAuCl4
+Hydrogen tetrachloroaurate hydrate,7,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,HAuCl4
+polyvinyl pyrrolidone,7,PVP,polyvinylpyrrolidone,,alias,0,PVP
+HAuCl4 ⋅ 3H2O,7,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,
+hexadecyl trimethyl ammonium bromide,7,CTAB,hexadecyltrimethylammonium bromide,,alias,0,CTAB
+Na3Cit,7,trisodium_citrate,trisodium citrate,,alias,0,
+polyvinyl alcohol,7,PVA,poly(vinyl alcohol),,alias,0,organic solvent
+Polyvinylpyrrolidone,7,PVP,polyvinylpyrrolidone,,alias,0,PVP
+C6H8O6,7,ascorbic_acid,L-ascorbic acid,,alias,0,ascorbic acid
+cysteamine hydrochloride,7,cysteamine,cysteamine,,alias,0,
+DDT,7,dodecanethiol,1-dodecanethiol,,abbrev,0,
+Hydrogen peroxide,7,H2O2,hydrogen peroxide,,alias,0,H2O2
+Acetone,7,acetone,acetone,,alias,0,
+mPEG-SH,7,PEG,poly(ethylene glycol),,alias,0,
+C6H5Na3O7·2H2O,7,trisodium_citrate,trisodium citrate,dihydrate,alias,0,sodium citrate
+HAuCl4⋅4H2O,7,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0,HAuCl4
+Ammonium hydroxide,7,ammonia,ammonia / ammonium hydroxide,,alias,0,
+[AuCl4]−,7,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,
+cetyl trimethyl ammonium bromide,7,CTAB,hexadecyltrimethylammonium bromide,,alias,0,CTAB
+Graphite,6,graphite,graphite,,alias,0,
+Au NR,6,Au,gold (metal / nanoparticle product),,alias,0,
+Gold(III) chloride hydrate,6,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,AuCl3
+OAm,6,oleylamine,oleylamine,,abbrev,0,
+AgNPs,6,Ag,silver (metal),,alias,0,
+poly(acrylic acid,6,PAA,poly(acrylic acid),,pattern,0,
+hexadecyltrimethyl ammonium bromide,6,CTAB,hexadecyltrimethylammonium bromide,,alias,0,CTAB
+HAuCl4 × 3H2O,6,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,
+HAuCL4,6,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,
+Sulfuric acid,6,H2SO4,sulfuric acid,,alias,0,H2SO4
+gold chloride hydrate,6,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,AuCl3
+Tri-sodium citrate,6,trisodium_citrate,trisodium citrate,,alias,0,sodium citrate
+HAuCl4.xH2O,6,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,
+β-d-glucose,6,glucose,D-glucose,,pattern,0,
+H[AuCl4],6,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,
+graphite oxide,6,graphene_oxide,graphene oxide,,alias,0,
+HAuCl4 3H2O,5,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,
+HAuCl4•3H2O,5,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,HAuCl4
+dimethylformamide,5,DMF,"N,N-dimethylformamide",,alias,0,DMF
+Hydrogen tetrachloroaurate(III),5,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,HAuCl4
+Na-citrate,5,trisodium_citrate,trisodium citrate,,alias,0,citrate
+"N,N-Dimethylformamide",5,DMF,"N,N-dimethylformamide",,alias,0,DMF
+Gold(III) chloride,5,HAuCl4,hydrogen tetrachloroaurate(III),,alias,1,AuCl3
+Tetraethoxysilane,5,TEOS,tetraethyl orthosilicate,,alias,0,
+ethyl alcohol,5,ethanol,ethanol,,alias,0,
+Na-cit,5,trisodium_citrate,trisodium citrate,,alias,0,
+Na3citrate,5,trisodium_citrate,trisodium citrate,,alias,0,citrate
+hydrogen tetrachloroaurate hydrate,5,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,HAuCl4
+Au-NP,5,Au,gold (metal / nanoparticle product),,alias,0,
+sodium citrate tribasic dehydrate,5,trisodium_citrate,trisodium citrate,dihydrate,alias,0,
+gold(III)chloride trihydrate,5,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,
+[CTAB],5,CTAB,hexadecyltrimethylammonium bromide,,pattern,0,CTAB
+Tetraoctylammonium bromide,5,TOAB,tetraoctylammonium bromide,,alias,0,TOAB
+sulphuric acid,5,H2SO4,sulfuric acid,,alias,0,
+Gold chloride hydrate,5,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,AuCl3
+Tetrachloroauric acid trihydrate,5,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,HAuCl4
+tri-sodium citrate dehydrate,5,trisodium_citrate,trisodium citrate,dihydrate,alias,0,sodium citrate
+Potassium chloride,5,KCl,potassium chloride,,alias,0,
+mL−1 sodium citrate,5,trisodium_citrate,trisodium citrate,,pattern,0,sodium citrate
+tetrachloroauric,5,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,
+poly(styrenesulfonate),5,PSS,poly(sodium 4-styrenesulfonate),,alias,0,
+glacial acetic acid,5,acetic_acid,acetic acid,,alias,0,
+Ethylene glycol,5,ethylene_glycol,ethylene glycol,,alias,0,
+HauCl4,5,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,
+poly(sodium 4-styrene sulfonate,5,PSS,poly(sodium 4-styrenesulfonate),,pattern,0,
+d-glucose,5,glucose,D-glucose,,alias,0,
+Sodium dodecyl sulfate,5,SDS,sodium dodecyl sulfate,,alias,0,
+H[AuCl4]·3H2O,5,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0,
+poly(ethylene glycol),5,PEG,poly(ethylene glycol),,alias,0,organic solvent
+citric acid trisodium,4,trisodium_citrate,trisodium citrate,,alias,0,
+MilliQ water,4,water,water,,alias,0,
+tetrachloroaurate(III),4,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,HAuCl4
+Na citrate,4,trisodium_citrate,trisodium citrate,,alias,0,citrate
+Chloroauric acid hydrate,4,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,HAuCl4
+-ascorbic acid,4,ascorbic_acid,L-ascorbic acid,,alias,0,ascorbic acid
+L-glutathione,4,GSH,glutathione (reduced),,alias,0,
+sodium tetrahydridoborate,4,NaBH4,sodium borohydride,,alias,0,NaBH4
+citric acid monohydrate,4,citric_acid,citric acid,monohydrate,alias,0,
+l-glutathione,4,GSH,glutathione (reduced),,alias,0,
+poly (diallyldimethylammonium chloride,4,PDDA,poly(diallyldimethylammonium chloride),,pattern,0,
+N2H4·H2O,4,hydrazine,hydrazine,hydrate,alias,0,
+hydrogen chloride,4,HCl,hydrochloric acid,,alias,0,
+auric chloride,4,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,
+Na3C6H5O7.2H2O,4,trisodium_citrate,trisodium citrate,dihydrate,alias,0,sodium citrate
+HAuCl4 ·3H2O,4,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,
+L−1 AgNO3,4,AgNO3,silver nitrate,,pattern,0,
+Cetyltrimethylammonium chloride,4,CTAC,hexadecyltrimethylammonium chloride,,alias,0,CTAC
+dicarboxylic PEG,4,PEG,poly(ethylene glycol),,pattern,0,
+sodium ascorbate,4,ascorbic_acid,L-ascorbic acid,,alias,0,
+sodium-citrate,4,trisodium_citrate,trisodium citrate,,alias,0,citrate
+sodium tetrachloroaurate(III) dihydrate,4,NaAuCl4,sodium tetrachloroaurate(III),dihydrate,alias,0,NaAuCl4
+L-Ascorbic acid,4,ascorbic_acid,L-ascorbic acid,,alias,0,ascorbic acid
+HAuCl4∙3H2O,4,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,HAuCl4
+Hydrogen tetrachloroaurate tetrahydrate,4,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0,HAuCl4
+hydrochloroauric acid,4,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,HAuCl4
+aurochloric acid,4,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,
+Ammonia,4,ammonia,ammonia / ammonium hydroxide,,alias,0,
+poly(N-vinylpyrrolidone),4,PVP,polyvinylpyrrolidone,,alias,0,organic solvent
+poly(vinyl alcohol),4,PVA,poly(vinyl alcohol),,alias,0,organic solvent
+L−1 trisodium citrate,4,trisodium_citrate,trisodium citrate,,pattern,0,sodium citrate
+hydrogen tetrachloroaurate(III) tetrahydrate,4,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0,HAuCl4
+Milli-Q-grade water,4,water,water,,pattern,0,
+SH-PEG-SH,4,PEG,poly(ethylene glycol),,pattern,0,
+tetrachloroaurate trihydrate,3,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,HAuCl4
+HAuCl4·3 H2O,3,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,HAuCl4
+Na3 citrate,3,trisodium_citrate,trisodium citrate,,alias,0,sodium citrate
+potassium borohydride,3,KBH4,potassium borohydride,,alias,0,
+AuCl4–,3,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,
+tri sodium citrate,3,trisodium_citrate,trisodium citrate,,alias,0,sodium citrate
+L−1 ascorbic acid,3,ascorbic_acid,L-ascorbic acid,,pattern,0,ascorbic acid
+tetra-n-octylammonium bromide,3,TOAB,tetraoctylammonium bromide,,alias,0,TOAB
+ultra-pure water,3,water,water,,alias,0,
+HCHO,3,formaldehyde,formaldehyde,,alias,0,
+Poly (diallyldimethylammonium chloride,3,PDDA,poly(diallyldimethylammonium chloride),,pattern,0,
+[AgNO3],3,AgNO3,silver nitrate,,pattern,0,AgNO3
+Hydrochloroauric acid,3,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,HAuCl4
+silver nitrate AgNO3,3,AgNO3,silver nitrate,,pattern,0,AgNO3
+chloroauric acid hydrate,3,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,HAuCl4
+Trisodium citrate dehydrate,3,trisodium_citrate,trisodium citrate,dihydrate,alias,0,sodium citrate
+poly (vinyl pyrrolidone),3,PVP,polyvinylpyrrolidone,,alias,0,
+Au-NPs,3,Au,gold (metal / nanoparticle product),,alias,0,
+2-aminoethanethiol,3,cysteamine,cysteamine,,alias,0,
+trisodiumcitrate,3,trisodium_citrate,trisodium citrate,,alias,0,citrate
+cetyltrimethylammoniumbromide,3,CTAB,hexadecyltrimethylammonium bromide,,alias,0,
+cetyl-trimethylammonium bromide,3,CTAB,hexadecyltrimethylammonium bromide,,alias,0,
+Hydrogen tetrachloroaurate-(III) trihydrate,3,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,HAuCl4
+AuCl4-,3,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,
+hydrogen tetrachloroaurate tetrahydrate,3,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0,HAuCl4
+poly(diallyldimethylammonium chloride),3,PDDA,poly(diallyldimethylammonium chloride),,alias,0,
+Tetrachloroauric (III) acid,3,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,
+citric acid sodium,3,citric_acid,citric acid,,pattern,0,citrate
+Vitamin C,3,ascorbic_acid,L-ascorbic acid,,alias,0,
+Citric acid,3,citric_acid,citric acid,,alias,0,citrate
+poly(sodium-4-styrenesulfonate),3,PSS,poly(sodium 4-styrenesulfonate),,alias,0,
+trisodium citrate trihydrate,3,trisodium_citrate,trisodium citrate,trihydrate,alias,0,sodium citrate
+cetyltrimethylammonium-bromide,3,CTAB,hexadecyltrimethylammonium bromide,,alias,0,
+hydrazine monohydrate,3,hydrazine,hydrazine,monohydrate,alias,0,
+trisodium-citrate,3,trisodium_citrate,trisodium citrate,,alias,0,citrate
+ammonia water,3,ammonia,ammonia / ammonium hydroxide,,pattern,0,
+tetrakis(hydroxymethyl) phosphonium chloride,3,THPC,tetrakis(hydroxymethyl)phosphonium chloride,,alias,0,
+Glutathione,3,GSH,glutathione (reduced),,alias,0,
+poly(sodium 4-styrenesulfonate,3,PSS,poly(sodium 4-styrenesulfonate),,pattern,0,
+HAuCl4 × 3 H2O,3,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,
+Tannic acid,3,tannic_acid,tannic acid,,alias,0,
+hydrogen tetrachloroauric acid,3,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+polyallylamine hydrochloride,3,PAH,poly(allylamine hydrochloride),,alias,0,
+HS-PEG-NH2,3,PEG,poly(ethylene glycol),,pattern,0,
+Cetyl trimethylammonium bromide,3,CTAB,hexadecyltrimethylammonium bromide,,alias,0,CTAB
+AuNRs,3,Au,gold (metal / nanoparticle product),,abbrev,0,
+mercaptopolyethylene glycol,2,PEG,poly(ethylene glycol),,pattern,0,organic solvent
+"N, N-dimethylformamide",2,DMF,"N,N-dimethylformamide",,alias,0,DMF
+D-glucose,2,glucose,D-glucose,,alias,0,
+N-vinyl pyrrolidone,2,PVP,polyvinylpyrrolidone,,alias,0,
+MeOH,2,methanol,methanol,,alias,0,
+trisodium citrate hydrate,2,trisodium_citrate,trisodium citrate,hydrate,alias,0,sodium citrate
+CHCl3,2,chloroform,chloroform,,alias,0,HCl
+HAuCl4 · xH2O,2,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,
+Oleic acid,2,oleic_acid,oleic acid,,alias,0,
+poly(N-vinyl-2-pyrrolidone),2,PVP,polyvinylpyrrolidone,,alias,0,organic solvent
+sodium dodecylsulfate,2,SDS,sodium dodecyl sulfate,,alias,0,
+tetraoctylammoniumbromide,2,TOAB,tetraoctylammonium bromide,,alias,0,
+AuNps,2,Au,gold (metal / nanoparticle product),,alias,0,
+L−1 sodium borohydride,2,NaBH4,sodium borohydride,,pattern,0,NaBH4
+COOH-PEG-Au,2,PEG,poly(ethylene glycol),,pattern,0,
+N2H4,2,hydrazine,hydrazine,,alias,0,
+tetraoctyl ammonium bromide,2,TOAB,tetraoctylammonium bromide,,alias,0,TOAB
+Poly(sodium-p-styrenesulfonate),2,PSS,poly(sodium 4-styrenesulfonate),,pattern,0,
+Polyethylenimine,2,PEI,polyethylenimine,,alias,0,
+sodium borohydride NaBH4,2,NaBH4,sodium borohydride,,pattern,0,NaBH4
+cit-AuNPs,2,Au,gold (metal / nanoparticle product),,pattern,0,
+tetrakis (hydroxymethyl) phosphonium chloride,2,THPC,tetrakis(hydroxymethyl)phosphonium chloride,,alias,0,
+Gold(III) Chloride trihydrate,2,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,
+PEG-2000,2,PEG,poly(ethylene glycol),,pattern,0,
+ascorbic,2,ascorbic_acid,L-ascorbic acid,,pattern,0,
+Carbon graphite,2,graphite,graphite,,pattern,0,
+poly(diallyldimethyl ammonium chloride,2,PDDA,poly(diallyldimethylammonium chloride),,pattern,0,
+chloroauric,2,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,
+mercaptoundecanoic acid,2,MUA,11-mercaptoundecanoic acid,,alias,0,
+Au(III)-CTAB,2,CTAB,hexadecyltrimethylammonium bromide,,pattern,0,
+HAuCl4•4H2O,2,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0,HAuCl4
+SH-PEG-COOH,2,PEG,poly(ethylene glycol),,pattern,0,
+sodium dodecyl sulphate,2,SDS,sodium dodecyl sulfate,,alias,0,
+chloroauric acid terahydrate,2,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,
+Glucose,2,glucose,D-glucose,,alias,0,
+Cit-AuNP,2,Au,gold (metal / nanoparticle product),,pattern,0,
+CM-PEG-SH,2,PEG,poly(ethylene glycol),,pattern,0,
+4-MBA ethanol,2,ethanol,ethanol,,pattern,0,
+Graphene oxide,2,graphene_oxide,graphene oxide,,alias,0,
+Gold chloride tetrahydrate,2,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0,
+poly-(vinylpyrrolidone),2,PVP,polyvinylpyrrolidone,,alias,0,organic solvent
+C6H5Na3O7,2,trisodium_citrate,trisodium citrate,,alias,0,
+n-cetyltrimethylammonium bromide,2,CTAB,hexadecyltrimethylammonium bromide,,pattern,0,CTAB
+Nitric acid,2,HNO3,nitric acid,,alias,0,HNO3
+chlorauric acid hydrated,2,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,
+Polyvinyl alcohol,2,PVA,poly(vinyl alcohol),,alias,0,
+NH2-PEG-SH,2,PEG,poly(ethylene glycol),,pattern,0,
+L−1 NH2OH·HCl,2,hydroxylamine_HCl,hydroxylamine hydrochloride,,pattern,0,
+hexadecylcetyltrimethylammonium bromide,2,CTAB,hexadecyltrimethylammonium bromide,,pattern,0,CTAB
+Tetra-n-octylammonium bromide,2,TOAB,tetraoctylammonium bromide,,alias,0,TOAB
+CTAB-Au,2,CTAB,hexadecyltrimethylammonium bromide,,pattern,0,CTAB
+Tetrachloroaurate trihydrate,2,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,HAuCl4
+HAuCl4 × 3H2O,2,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,
+H[AuCl4]3·3H2O,2,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0,
+Ascorbic Acid,2,ascorbic_acid,L-ascorbic acid,,alias,0,
+Tetrachloroauric(III) acid,2,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,
+sodium polyacrylate,2,PAA,poly(acrylic acid),,alias,0,
+tetrachloroaurate(III) hydrate,2,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,HAuCl4
+tetrachloroauric (III) acid trihydrate,2,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,
+polystyrenesulfonate,2,PSS,poly(sodium 4-styrenesulfonate),,pattern,0,
+Hexadecyltrimethylammonium bromide CTAB,2,CTAB,hexadecyltrimethylammonium bromide,,pattern,0,CTAB
+d-Glucose,2,glucose,D-glucose,,alias,0,
+Acetic acid,2,acetic_acid,acetic acid,,alias,0,
+gold chloroauric acid,2,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+HAuCl4·3H20,2,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+tri‑sodium citrate,2,trisodium_citrate,trisodium citrate,,alias,0,sodium citrate
+NaBH4(aq),2,NaBH4,sodium borohydride,,pattern,0,NaBH4
+Dodecanethiol,2,dodecanethiol,1-dodecanethiol,,alias,0,
+tetrachloroaurate acid,2,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+hexadecyl trimethyl ammonium Bromide,2,CTAB,hexadecyltrimethylammonium bromide,,alias,0,CTAB
+tetrachloroauric acid tetrahydrate,2,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0,HAuCl4
+HAuCl4-,2,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,HAuCl4
+AgNO3(aq),2,AgNO3,silver nitrate,,pattern,0,AgNO3
+HAuCl4 .3H2O,2,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,
+SH-PEG,2,PEG,poly(ethylene glycol),,pattern,0,
+disodium citrate,2,trisodium_citrate,trisodium citrate,,pattern,0,sodium citrate
+Cysteamine,2,cysteamine,cysteamine,,alias,0,
+cetyltrimethyl-ammonium chloride,2,CTAC,hexadecyltrimethylammonium chloride,,alias,0,
+hexadecyl trimethyl ammonium chloride,2,CTAC,hexadecyltrimethylammonium chloride,,alias,0,CTAC
+DI-water,2,water,water,,alias,0,
+Hydrazine hydrate,2,hydrazine,hydrazine,hydrate,alias,0,
+PP@AuNPs,2,Au,gold (metal / nanoparticle product),,pattern,0,
+glycerol–NaOH,2,NaOH,sodium hydroxide,,pattern,0,
+L−1 PVP,2,PVP,polyvinylpyrrolidone,,pattern,0,
+Cetyltrimethyl ammonium bromide,2,CTAB,hexadecyltrimethylammonium bromide,,alias,0,CTAB
+Ultrapure water,2,water,water,,alias,0,
+RGO,2,reduced_graphene_oxide,reduced graphene oxide,,alias,0,
+L−1 NaOH,2,NaOH,sodium hydroxide,,pattern,0,
+L−1 citric acid,2,citric_acid,citric acid,,pattern,0,citrate
+sodium citrate tribasic,2,trisodium_citrate,trisodium citrate,,alias,0,sodium citrate
+HAuCl4·2H2O,2,HAuCl4,hydrogen tetrachloroaurate(III),dihydrate,alias,0,HAuCl4
+HAuCl4∙xH2O,2,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,HAuCl4
+O-[2-(3-mercaptopropionylamino)ethyl]-O′-methylpolyethylene glycol,2,PEG,poly(ethylene glycol),,pattern,0,
+HAuCl4 dihydrate,2,HAuCl4,hydrogen tetrachloroaurate(III),dihydrate,alias,0,
+L-(+)-ascorbic acid,2,ascorbic_acid,L-ascorbic acid,,alias,0,ascorbic acid
+Au(III)–CTAB,2,CTAB,hexadecyltrimethylammonium bromide,,pattern,0,
+HCL,2,HCl,hydrochloric acid,,alias,0,
+Hydroquinone,2,hydroquinone,hydroquinone,,alias,0,HQ
+sodium citrate dibasic trihydrate,2,trisodium_citrate,trisodium citrate,trihydrate,pattern,0,
+α-hydroxy-ω-mercapto-PEG,2,PEG,poly(ethylene glycol),,pattern,0,
+α-carboxy-ω-mercapto-PEG,2,PEG,poly(ethylene glycol),,pattern,0,
+α-biotinyl-ω-mercapto-PEG,2,PEG,poly(ethylene glycol),,pattern,0,
+HS-PEG-COOH,2,PEG,poly(ethylene glycol),,pattern,0,
+HS-PEG,2,PEG,poly(ethylene glycol),,pattern,0,
+Poly(styrene sulfonate,2,PSS,poly(sodium 4-styrenesulfonate),,pattern,0,
+(1-hexadecyl)trimethylammonium chloride,2,CTAC,hexadecyltrimethylammonium chloride,,pattern,0,
+poly(diallyldimethylammonium) chloride,2,PDDA,poly(diallyldimethylammonium chloride),,pattern,0,PDDA
+Chlorauric acid,2,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,
+Poly(vinylpyrrolidone),2,PVP,polyvinylpyrrolidone,,alias,0,PVP
+NaCit,2,trisodium_citrate,trisodium citrate,,alias,0,
+HA–AuNP,2,Au,gold (metal / nanoparticle product),,pattern,0,
+PLA(1k)-b-PEG(10k)-b-PLA(1k),2,PEG,poly(ethylene glycol),,pattern,0,
+Gold tetrachloroaurate trihydrate,2,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0,
+"polyvinylpyrrolidone Mw ~55,000",2,PVP,polyvinylpyrrolidone,,pattern,0,PVP
+tetrachlorauric acid,2,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,
+Au (III)-CTAB,2,CTAB,hexadecyltrimethylammonium bromide,,pattern,0,
+(W V−1) HAuCl4·4H2O,2,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,pattern,0,
+PEG-POSS,2,PEG,poly(ethylene glycol),,pattern,0,
+hydrogen tetrachloroauric(III) acid trihydrate,2,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0,
+SPA-PEG,2,PEG,poly(ethylene glycol),,pattern,0,
+polyethyleneglycol,2,PEG,poly(ethylene glycol),,alias,0,organic solvent
+HAuCl4/K2CO3,2,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,
+gold chloride acid,2,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,AuCl3
+PEG-diacid,2,PEG,poly(ethylene glycol),,pattern,0,
+ammonia chloride,2,ammonia,ammonia / ammonium hydroxide,,pattern,0,
+mL−1 chitosan,2,chitosan,chitosan,,pattern,0,
+Sodium tetrahydroborate,2,NaBH4,sodium borohydride,,alias,0,NaBH4
+cetrimonium bromide,2,CTAB,hexadecyltrimethylammonium bromide,,alias,0,CTAB
+sodium tetrachloroaurate(III) dehydrate,2,NaAuCl4,sodium tetrachloroaurate(III),dihydrate,alias,0,NaAuCl4
+Na3cit,2,trisodium_citrate,trisodium citrate,,alias,0,
+hydroxylamine-hydrochloride,2,hydroxylamine_HCl,hydroxylamine hydrochloride,,alias,0,
+Poly-diallyldimethylammonium chloride,2,PDDA,poly(diallyldimethylammonium chloride),,pattern,0,
+[HAuCl4]·3H2O,2,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0,HAuCl4
+PVP K30,2,PVP,polyvinylpyrrolidone,,pattern,0,
+sodium citrate tribasic hydrate,2,trisodium_citrate,trisodium citrate,hydrate,alias,0,
+tri-n-octylammonium bromide,1,TOAB,tetraoctylammonium bromide,,alias,0,
+Hexadecyltrimethyl ammonium bromide,1,CTAB,hexadecyltrimethylammonium bromide,,alias,0,CTAB
+PEG‐SH,1,PEG,poly(ethylene glycol),,alias,0,
+‐ascorbic acid,1,ascorbic_acid,L-ascorbic acid,,alias,0,ascorbic acid
+PEG‐6K‐SH,1,PEG,poly(ethylene glycol),,pattern,0,
+poly(acrylic acid sodium,1,PAA,poly(acrylic acid),,pattern,0,
+HAuCl4 •3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,
+Au‐PVP,1,PVP,polyvinylpyrrolidone,,pattern,0,PVP
+ascorbic acid–citrate,1,ascorbic_acid,L-ascorbic acid,,pattern,0,ascorbic acid
+mPEG‐SH,1,PEG,poly(ethylene glycol),,alias,0,
+tetrachloroauratetrihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+PEG 600,1,PEG,poly(ethylene glycol),,pattern,0,
+DMF—,1,DMF,"N,N-dimethylformamide",,alias,0,DMF
+Poly(styrenesulfonate),1,PSS,poly(sodium 4-styrenesulfonate),,alias,0,
+Tetrachloroauric (IV) acid trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0,
+2‐propanol,1,isopropanol,2-propanol,,alias,0,
+Ethyl alcohol,1,ethanol,ethanol,,alias,0,
+Tetrakis(hydroxymethyl)phosphonium Chloride,1,THPC,tetrakis(hydroxymethyl)phosphonium chloride,,alias,0,
+β-D-glucose,1,glucose,D-glucose,,pattern,0,
+HAuCl4⋅4 H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0,HAuCl4
+Au (III)‐CTAB,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0,
+silver nitrate(100 mM),1,AgNO3,silver nitrate,,pattern,0,AgNO3
+HAuCl4/citrate/AgNO3,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,citrate
+Isopropanol,1,isopropanol,2-propanol,,alias,0,
+L‐ascorbic acid,1,ascorbic_acid,L-ascorbic acid,,alias,0,ascorbic acid
+methoxy-poly(ethylene glycol)-thiol,1,PEG,poly(ethylene glycol),,pattern,0,organic solvent
+Na3C6H5O7 · H2O,1,trisodium_citrate,trisodium citrate,hydrate,alias,0,sodium citrate
+poly vinyl alcohol,1,PVA,poly(vinyl alcohol),,alias,0,
+water-ethanol,1,water,water,,pattern,0,
+tetraethyl ammonium hydroxide,1,ammonia,ammonia / ammonium hydroxide,,pattern,0,
+β-d-(+)-Glucose,1,glucose,D-glucose,,pattern,0,
+gold(IV) tetrachloroaurate,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+gold/CTAB,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0,
+tert-dodecanethiol,1,dodecanethiol,1-dodecanethiol,,pattern,0,
+L-(+) ascorbic acid,1,ascorbic_acid,L-ascorbic acid,,alias,0,ascorbic acid
+CTAC/NaBH4,1,NaBH4,sodium borohydride,,pattern,0,CTAC
+PVP‐DADMAN,1,PVP,polyvinylpyrrolidone,,pattern,0,PVP
+ice‐NaBH4,1,NaBH4,sodium borohydride,,pattern,0,
+Auric chloride,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,
+C(HAuCl4):C(Na-cit),1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,
+MUA-AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0,
+C(НAuCl4):C(Na3C6H5O7),1,trisodium_citrate,trisodium citrate,,pattern,0,
+C(Na3C6H5O7),1,trisodium_citrate,trisodium citrate,,pattern,0,sodium citrate
+tetrachloroaurate(III) trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,HAuCl4
+poly-diallyldimethylammoniumchloride,1,PDDA,poly(diallyldimethylammonium chloride),,pattern,0,
+Hydrogen tetrachloroauratetrihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+Potassium iodide,1,KI,potassium iodide,,alias,0,
+HPLC water,1,water,water,,pattern,0,
+Hydrogen tetra-chloroaurate(III) trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,
+NaBH4(0.010,1,NaBH4,sodium borohydride,,pattern,0,NaBH4
+HAuCl4(1,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+NaBH4/NaOH,1,NaBH4,sodium borohydride,,pattern,0,
+NH2OH.HCl,1,hydroxylamine_HCl,hydroxylamine hydrochloride,,pattern,0,
+HAuCl4 4H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,
+NaAuCl4 2H2O,1,NaAuCl4,sodium tetrachloroaurate(III),,pattern,0,
+L−1 sodium chloride,1,NaCl,sodium chloride,,pattern,0,
+Sodium tetrachloroaurate(III)dihydrate,1,NaAuCl4,sodium tetrachloroaurate(III),dihydrate,alias,0,NaAuCl4
+sodium tetra-chloroaurate,1,NaAuCl4,sodium tetrachloroaurate(III),,alias,0,
+trisodium citrate dehydrate Na3C6H5O7·2H2O,1,trisodium_citrate,trisodium citrate,dihydrate,pattern,0,sodium citrate
+d-(+)glucose,1,glucose,D-glucose,,pattern,0,
+L−1 HAuCl4·4H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,pattern,0,HAuCl4
+LA ethanol,1,ethanol,ethanol,,pattern,0,organic solvent
+Auric chloride acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,
+citric acid buffer,1,citric_acid,citric acid,,pattern,0,citrate
+glutathione disulfide,1,GSH,glutathione (reduced),,pattern,0,
+tetrakis(hydroxymethyl)-phosphonium chloride,1,THPC,tetrakis(hydroxymethyl)phosphonium chloride,,alias,0,
+L−1 tannic acid,1,tannic_acid,tannic acid,,pattern,0,
+L−1 chloroauric acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+RNA-AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0,
+kDa branched polyethyleneimine,1,PEI,polyethylenimine,,pattern,0,
+citrate AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0,
+N-hexadecyltrimethylammonium chloride,1,CTAC,hexadecyltrimethylammonium chloride,,pattern,0,CTAC
+thiol-PEG,1,PEG,poly(ethylene glycol),,pattern,0,
+thiol-PEG-carboxylic acid,1,PEG,poly(ethylene glycol),,pattern,0,
+GNR-CTAB,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0,
+methoxy-PEG-thiol,1,PEG,poly(ethylene glycol),,pattern,0,
+poly (sodium 4-styrenesulfonate),1,PSS,poly(sodium 4-styrenesulfonate),,alias,0,
+poly(ethyleneglycol)-block-poly(propyleneglycol)-block-poly(ethyleneglycol),1,PEG,poly(ethylene glycol),,pattern,0,
+Hydrogen tetrachloroauric acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+mPEG-Thiol,1,PEG,poly(ethylene glycol),,pattern,0,
+torisodium citrate,1,trisodium_citrate,trisodium citrate,,pattern,0,sodium citrate
+Hydroxylamine hydrochloride NH2OH·HCl,1,hydroxylamine_HCl,hydroxylamine hydrochloride,,pattern,0,
+sodium hydroxide NaOH,1,NaOH,sodium hydroxide,,pattern,0,NaOH
+sodium citrate Na3Cit,1,trisodium_citrate,trisodium citrate,,pattern,0,sodium citrate
+sodium borohydrite,1,NaBH4,sodium borohydride,,pattern,0,
+HAuCl4 .4H2O/HCl,1,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,pattern,0,
+Vitamin-C,1,ascorbic_acid,L-ascorbic acid,,alias,0,
+Sodium citrate(SC),1,trisodium_citrate,trisodium citrate,,pattern,0,sodium citrate
+Tetrachloroauric(III) acid-trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,
+Trisodium citrate [Na3(C3H5O(COO)3)],1,trisodium_citrate,trisodium citrate,,pattern,0,
+HAucl4,1,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,
+Hydrogen tetra-chloroaurate hydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,
+Nafion/AuNPs/AzA/MWCNTs,1,Au,gold (metal / nanoparticle product),,pattern,0,
+HAuCl4∙4H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0,HAuCl4
+HAuCl4 × H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,
+dihydrate sodium citrate,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0,
+sodium citrate decahydrate,1,trisodium_citrate,trisodium citrate,,pattern,0,
+gold(III) chloride tri-hydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,pattern,0,AuCl3
+AuCl3HCl·4H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0,AuCl3
+Silver Nitrate,1,AgNO3,silver nitrate,,alias,0,AgNO3
+silver nitrate ACS,1,AgNO3,silver nitrate,,pattern,0,AgNO3
+PEG acid disulfide,1,PEG,poly(ethylene glycol),,pattern,0,
+tetrachloroauric (Ⅲ) acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,
+Poly(ethylene glycol,1,PEG,poly(ethylene glycol),,pattern,0,
+Poly(sodium 4-styrenesulfonate,1,PSS,poly(sodium 4-styrenesulfonate),,pattern,0,
+Methoxypoly(ethylene glycol) thiol,1,PEG,poly(ethylene glycol),,pattern,0,organic solvent
+trisodium citrate heptahydrate,1,trisodium_citrate,trisodium citrate,,pattern,0,
+Na3C6H5O7·7H2O,1,trisodium_citrate,trisodium citrate,hydrate,alias,0,sodium citrate
+Maleimide-PEG,1,PEG,poly(ethylene glycol),,pattern,0,
+m-PEG-SH,1,PEG,poly(ethylene glycol),,alias,0,
+TEOS ethanol,1,ethanol,ethanol,,pattern,0,
+PEG@AuNPs,1,PEG,poly(ethylene glycol),,pattern,0,
+NaBH4 ethanol,1,NaBH4,sodium borohydride,,pattern,0,
+PCS2-AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0,
+L−1 glucose,1,glucose,D-glucose,,pattern,0,
+hexadecylcetyltri-methylammonium bromide,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0,
+HAuCl4(),1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+carboxy AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0,
+poly(sodium-p-styrenesulfonate),1,PSS,poly(sodium 4-styrenesulfonate),,pattern,0,
+tetrachloroaurate·trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0,HAuCl4
+CH3O-PEG-SH,1,PEG,poly(ethylene glycol),,pattern,0,
+tri–sodium citrate dehydrate,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0,sodium citrate
+p-MBA ethanol,1,ethanol,ethanol,,pattern,0,
+HAuCl3,1,AuCl3,"gold(III) chloride (anhydrous, Au2Cl6)",,pattern,0,AuCl3
+poly-(diallyldimethylammonium chloride,1,PDDA,poly(diallyldimethylammonium chloride),,pattern,0,
+Ultra-pure water,1,water,water,,alias,0,
+AuNPs/Nafion/GCE,1,Au,gold (metal / nanoparticle product),,pattern,0,
+l-ascorbic acid 2-phosphate,1,ascorbic_acid,L-ascorbic acid,,pattern,0,
+sodium citrate dihyhrate,1,trisodium_citrate,trisodium citrate,,pattern,0,
+Aqua Regia,1,aqua_regia,aqua regia (HCl:HNO3 3:1),,alias,0,
+sodium NaBH4,1,NaBH4,sodium borohydride,,pattern,0,
+PVP-Au,1,PVP,polyvinylpyrrolidone,,pattern,0,
+L−1 HAuCl4·3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0,HAuCl4
+sodium hydroxide(NaOH),1,NaOH,sodium hydroxide,,pattern,0,NaOH
+HAuCl4 ·,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+hydroaurochloric acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,
+HTCC-AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0,
+aq NaOH,1,NaOH,sodium hydroxide,,pattern,0,
+Hydrogen tetrachloroaurate trihydrate HAuCl4·3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0,
+cetyl trimethylammonium chloride,1,CTAC,hexadecyltrimethylammonium chloride,,alias,0,CTAC
+sulphuric acid H2SO4,1,H2SO4,sulfuric acid,,pattern,0,
+mMHAuCl4,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+poly(ethylene glycol)-block-poly(propylene glycol)-block-poly(ethylene glycol),1,PEG,poly(ethylene glycol),,pattern,0,
+H2SO 4,1,H2SO4,sulfuric acid,,alias,0,
+NaBH4/citrate,1,NaBH4,sodium borohydride,,pattern,0,
+NaBH4-NaOH,1,NaBH4,sodium borohydride,,pattern,0,
+Cetyltrimethylammonium Bromide,1,CTAB,hexadecyltrimethylammonium bromide,,alias,0,CTAB
+Polyethylene glycol (PEG)-SH,1,PEG,poly(ethylene glycol),,pattern,0,
+Sodium citrate dehydrate,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0,sodium citrate
+HAuCl4∙ 4H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0,
+HAuCl4.4H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0,
+ammonia hydrogen,1,ammonia,ammonia / ammonium hydroxide,,pattern,0,
+Amine-PEG-thiol,1,PEG,poly(ethylene glycol),,pattern,0,
+carboxymethyl-PEG-thiol,1,PEG,poly(ethylene glycol),,pattern,0,
+Biotin-PEG-thiol,1,PEG,poly(ethylene glycol),,pattern,0,
+biotin-PEG-SH,1,PEG,poly(ethylene glycol),,pattern,0,
+sodium lauryl sulfate,1,SDS,sodium dodecyl sulfate,,alias,0,
+AuNPs-l-cysteine,1,Au,gold (metal / nanoparticle product),,pattern,0,
+AuNP-CS,1,Au,gold (metal / nanoparticle product),,pattern,0,
+auric chloride acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,
+Tri-Sodium Citrate,1,trisodium_citrate,trisodium citrate,,alias,0,sodium citrate
+L−1 tri-sodium citrate,1,trisodium_citrate,trisodium citrate,,pattern,0,sodium citrate
+tetrachloroaurate acid tetrahydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,pattern,0,
+HAuCl4 · 4H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0,
+K-30 polyvinylpyrrolidone,1,PVP,polyvinylpyrrolidone,,pattern,0,PVP
+hexa-decylcetyl trimethyl-ammonium bromide,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0,
+DNBA ethanol,1,ethanol,ethanol,,pattern,0,
+tetra-chloroauric acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,HAuCl4
+d-β-glucose,1,glucose,D-glucose,,pattern,0,
+AuNPs −,1,Au,gold (metal / nanoparticle product),,alias,0,
+dm−3 tetrachloroaurate,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+poly (sodium 4-styrene-sulfonate),1,PSS,poly(sodium 4-styrenesulfonate),,alias,0,
+l−1 chloroauric acid trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0,
+Sodium tetrachloroaurate dihydrate,1,NaAuCl4,sodium tetrachloroaurate(III),dihydrate,alias,0,NaAuCl4
+hexadecyl-trimethyl-ammonium bromide,1,CTAB,hexadecyltrimethylammonium bromide,,alias,0,
+cysteamine-AuNP,1,cysteamine,cysteamine,,pattern,0,
+tetra-ethylorthosilicate,1,TEOS,tetraethyl orthosilicate,,alias,0,
+tetra-methyl-ammonium hydroxide,1,ammonia,ammonia / ammonium hydroxide,,pattern,0,
+Ammonia borane,1,ammonia,ammonia / ammonium hydroxide,,pattern,0,
+SC-sodium citrate,1,trisodium_citrate,trisodium citrate,,pattern,0,sodium citrate
+PVP-polyvinylpyrrolidone,1,PVP,polyvinylpyrrolidone,,pattern,0,PVP
+Cetyltrime-thylammonium bromide,1,CTAB,hexadecyltrimethylammonium bromide,,alias,0,
+cetyltrime-thylammonium chloride,1,CTAC,hexadecyltrimethylammonium chloride,,alias,0,
+Polyvinyl pyrrolidone,1,PVP,polyvinylpyrrolidone,,alias,0,PVP
+l-glutathione reduced,1,GSH,glutathione (reduced),,pattern,0,
+AuNP/TiO2,1,Au,gold (metal / nanoparticle product),,pattern,0,
+iso-ascorbic acid,1,ascorbic_acid,L-ascorbic acid,,pattern,0,ascorbic acid
+poly(vinylpyrrolidine),1,PVP,polyvinylpyrrolidone,,pattern,0,organic solvent
+ammonia 25%,1,ammonia,ammonia / ammonium hydroxide,,alias,0,
+Poly(sodium styrene sulfonate,1,PSS,poly(sodium 4-styrenesulfonate),,pattern,0,
+HAuCl4: S1,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+AuCl− 4,1,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,
+sodium dodecylsulphate,1,SDS,sodium dodecyl sulfate,,alias,0,
+poly(ethylene glycol)2000,1,PEG,poly(ethylene glycol),,pattern,0,organic solvent
+Polyethylene-block-poly(ethylene glycol),1,PEG,poly(ethylene glycol),,pattern,0,
+Na3C6H5O7 2H2O,1,trisodium_citrate,trisodium citrate,,pattern,0,sodium citrate
+Na3Citrate,1,trisodium_citrate,trisodium citrate,,alias,0,citrate
+PVP-1,1,PVP,polyvinylpyrrolidone,,pattern,0,PVP
+PVP-2,1,PVP,polyvinylpyrrolidone,,pattern,0,PVP
+APS ethanol,1,ethanol,ethanol,,pattern,0,organic solvent
+Type I water,1,water,water,,pattern,0,
+–methanol,1,methanol,methanol,,alias,0,organic solvent
+Hydrogentetrachloroaurate trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,HAuCl4
+AgNO3.The,1,AgNO3,silver nitrate,,pattern,0,
+Polydiallyldimethylammonium chloride,1,PDDA,poly(diallyldimethylammonium chloride),,pattern,0,PDDA
+Tetrachloroaurate(III) hydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,HAuCl4
+AuNP-Citrate-S,1,Au,gold (metal / nanoparticle product),,pattern,0,citrate
+trisodium citrate(C6H5Na3O7·2H2O,1,trisodium_citrate,trisodium citrate,dihydrate,pattern,0,sodium citrate
+polyvinyl alcohol 1788,1,PVA,poly(vinyl alcohol),,pattern,0,organic solvent
+sodium citrate tribasicdihydrate,1,trisodium_citrate,trisodium citrate,,alias,0,
+trisodium citrate-2-hydrate,1,trisodium_citrate,trisodium citrate,hydrate,pattern,0,sodium citrate
+Absolute ethanol,1,ethanol,ethanol,,alias,0,
+Tetrachloroauric (III) acid trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,
+CTAB-HAuCl4,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,CTAB
+NHS-Polyethylene glycol-OPSS,1,PEG,poly(ethylene glycol),,pattern,0,
+anti-CD20-PEG,1,PEG,poly(ethylene glycol),,pattern,0,
+Na3C6H5O7•2H2O,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0,sodium citrate
+hydrogen tetrachloroaurate trihydrate HAuCl4·3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0,
+Aunp,1,Au,gold (metal / nanoparticle product),,alias,0,
+L−1 sodium hydroxide,1,NaOH,sodium hydroxide,,pattern,0,NaOH
+H[AuCl4]⋅3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0,
+dihydrate trisodium citrate,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0,sodium citrate
+hyperbranched polyethylenimine,1,PEI,polyethylenimine,,pattern,0,
+poly (diallyldimethylammonium chloride),1,PDDA,poly(diallyldimethylammonium chloride),,alias,0,
+polyvinylpyrrolidone PVP,1,PVP,polyvinylpyrrolidone,,pattern,0,PVP
+C6H5Na3O7 · 2H2O,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0,
+tetra chloro auric acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,
+dimethyl formamide,1,DMF,"N,N-dimethylformamide",,alias,0,DMF
+hexadecyltrimethylammoniumbromide,1,CTAB,hexadecyltrimethylammonium bromide,,alias,0,
+Hexadecyl trimethylammonium bromide,1,CTAB,hexadecyltrimethylammonium bromide,,alias,0,CTAB
+MPEG-SH,1,PEG,poly(ethylene glycol),,alias,0,
+tetramethyl-orthosilicate,1,TEOS,tetraethyl orthosilicate,,pattern,0,
+MiliQ water,1,water,water,,pattern,0,
+hydrate hydrazine,1,hydrazine,hydrazine,hydrate,alias,0,
+sodium citratedehydrate,1,trisodium_citrate,trisodium citrate,,pattern,0,sodium citrate
+poly (sodium-p-styrene sulfonate,1,PSS,poly(sodium 4-styrenesulfonate),,pattern,0,
+tetra-octyl-ammonium bromide,1,TOAB,tetraoctylammonium bromide,,alias,0,
+HAuCl4-CTAB,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+CTAB-AgNO3,1,AgNO3,silver nitrate,,pattern,0,CTAB
+cetyltrimethylammonium,1,CTAB,hexadecyltrimethylammonium bromide,,alias,0,
+Sodium tetrachloroaurate(III) dihydrate,1,NaAuCl4,sodium tetrachloroaurate(III),dihydrate,alias,0,NaAuCl4
+n-dodecanethiol,1,dodecanethiol,1-dodecanethiol,,pattern,0,
+ethylene glycol(EG),1,ethylene_glycol,ethylene glycol,,pattern,0,
+Zn(NO3)2 ethanol,1,ethanol,ethanol,,pattern,0,
+NaOH ethanol,1,NaOH,sodium hydroxide,,pattern,0,
+NaBH4-citrate,1,NaBH4,sodium borohydride,,pattern,0,citrate
+HAuCl4-citrate,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+Hexadecyl trimethyl ammonium bromide,1,CTAB,hexadecyltrimethylammonium bromide,,alias,0,CTAB
+Natural graphite,1,graphite,graphite,,pattern,0,
+Hydrazine monohydrate,1,hydrazine,hydrazine,monohydrate,alias,0,
+glycidyltrimethylammonium chloride,1,CTAC,hexadecyltrimethylammonium chloride,,pattern,0,
+tribasic sodium citrate,1,trisodium_citrate,trisodium citrate,,pattern,0,sodium citrate
+ethanol C2H5OH,1,ethanol,ethanol,,pattern,0,
+poly(acrylic acid),1,PAA,poly(acrylic acid),,alias,0,
+Tetramethylorthosilicate,1,TEOS,tetraethyl orthosilicate,,pattern,0,
+Hydrogentetrachloroauric acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+HAuCl4.H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,HAuCl4
+Au@CTAB,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0,
+poly(ethylene glycol)methylether thiol,1,PEG,poly(ethylene glycol),,pattern,0,organic solvent
+KAuCL4,1,KAuCl4,potassium tetrachloroaurate(III),,alias,0,
+poly (vinyl alcohol),1,PVA,poly(vinyl alcohol),,alias,0,
+chitosan biopolymer,1,chitosan,chitosan,,pattern,0,
+NH3⋅ H2O,1,ammonia,ammonia / ammonium hydroxide,hydrate,alias,0,
+hydrogen tetrachloroaurate trihydrates,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+Tetrakis (hydroxymethyl) phosphonium chloride,1,THPC,tetrakis(hydroxymethyl)phosphonium chloride,,alias,0,
+hydrogen tetrachloroaurate-(III) trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,HAuCl4
+11-Mercaptoundecanoic acid,1,MUA,11-mercaptoundecanoic acid,,alias,0,
+glycol chitosan,1,chitosan,chitosan,,pattern,0,
+2‑Thiophene acetic acid,1,acetic_acid,acetic acid,,pattern,0,
+hexadecyl-trimethyl-ammonium-bromide,1,CTAB,hexadecyltrimethylammonium bromide,,alias,0,
+Gold (III) chloride,1,HAuCl4,hydrogen tetrachloroaurate(III),,alias,1,AuCl3
+PEG/lipoic acid,1,PEG,poly(ethylene glycol),,pattern,0,
+[AuNP],1,Au,gold (metal / nanoparticle product),,pattern,0,
+hydrogen tetrachloroaurate(HAuCl4 · 3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0,HAuCl4
+ascorbic acids,1,ascorbic_acid,L-ascorbic acid,,pattern,0,ascorbic acid
+hydroxylammonium chloride,1,hydroxylamine_HCl,hydroxylamine hydrochloride,,alias,0,
+sodium boro-hydride,1,NaBH4,sodium borohydride,,alias,0,
+sodium citrate 2-hydrate,1,trisodium_citrate,trisodium citrate,hydrate,pattern,0,
+tri-sodium citrate di-hydrate,1,trisodium_citrate,trisodium citrate,hydrate,pattern,0,sodium citrate
+Na3C6H5O7⋅2H2O,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0,sodium citrate
+polydiallyldimethyl ammonium chloride,1,PDDA,poly(diallyldimethylammonium chloride),,pattern,0,PDDA
+HAuCl4 ethanol,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,
+poly (allylamine hydrochloride,1,PAH,poly(allylamine hydrochloride),,pattern,0,
+HAuCl44H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+dextrose,1,glucose,D-glucose,,alias,0,
+tetrachloroaurate(III)trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,HAuCl4
+L− 1 HAuCl4·3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0,HAuCl4
+DMAP-AuNP,1,Au,gold (metal / nanoparticle product),,pattern,0,
+Cysteamine hydrochloride,1,cysteamine,cysteamine,,alias,0,
+poly-(sodium 4-styrenesulfonate),1,PSS,poly(sodium 4-styrenesulfonate),,alias,0,
+poly (diallyldimethyl ammoniumchioride),1,PDDA,poly(diallyldimethylammonium chloride),,pattern,0,
+α-d-glucose,1,glucose,D-glucose,,pattern,0,
+hydrogen tetrachloroaurate HAuCl4,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+Ru-AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0,
+Chitosan,1,chitosan,chitosan,,alias,0,
+sodium ascorbic acid,1,ascorbic_acid,L-ascorbic acid,,pattern,0,ascorbic acid
+PEG-200,1,PEG,poly(ethylene glycol),,pattern,0,
+AuCl3-PVP,1,AuCl3,"gold(III) chloride (anhydrous, Au2Cl6)",,pattern,0,AuCl3
+Nacl,1,NaCl,sodium chloride,,alias,0,
+L−1 tetrachloroauric acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+L−1sodium borohydride,1,NaBH4,sodium borohydride,,pattern,0,NaBH4
+hydrogen tetrachloro-aurate,1,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,
+dex-AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0,
+cl-dex-AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0,
+Citrate,1,trisodium_citrate,trisodium citrate,,alias,0,citrate
+polyethylene glycol octylphenyl ether,1,PEG,poly(ethylene glycol),,pattern,0,
+AuNPs/RB,1,Au,gold (metal / nanoparticle product),,pattern,0,
+(D)-(+)-Glucose,1,glucose,D-glucose,,pattern,0,
+polyethylene glycol-5000,1,PEG,poly(ethylene glycol),,pattern,0,organic solvent
+Tri-Sodium citrate dihydrate,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0,sodium citrate
+dm−3 cetyltrimethylammonium bromide,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0,CTAB
+dm−3 tetraethyl orthosilicate,1,TEOS,tetraethyl orthosilicate,,pattern,0,TEOS
+HAuCl4 ⋅3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,
+Glacial acetic acid,1,acetic_acid,acetic acid,,alias,0,
+tetrachloroaurate hydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,HAuCl4
+trihydrate [HAuCl4·3H2O],1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0,
+TEOS isopropanol,1,isopropanol,2-propanol,,pattern,0,
+Poly(diallyldimethylammonium chloride,1,PDDA,poly(diallyldimethylammonium chloride),,pattern,0,
+citrate·2H2O,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0,citrate
+Polyethyleneglycol,1,PEG,poly(ethylene glycol),,alias,0,
+L−1 pyrene methanol,1,methanol,methanol,,pattern,0,
+sodiumborohydride,1,NaBH4,sodium borohydride,,alias,0,NaBH4
+Tetrachloroaurate,1,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,HAuCl4
+L−1 hydrogen tetrachloroaurate,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+ethylene glycol dimethacrylate,1,ethylene_glycol,ethylene glycol,,pattern,0,
+tetrachloroaurate(III) dihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),dihydrate,alias,0,HAuCl4
+C-AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0,
+1-thio-β-d-glucose,1,glucose,D-glucose,,pattern,0,
+thioglucose,1,glucose,D-glucose,,pattern,0,
+Hydrogentetrachloroaurate(III)trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,HAuCl4
+Tetrachloroauric acid III,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+Au 49%,1,Au,gold (metal / nanoparticle product),,alias,0,
+hydrogentetrachloroaurate trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,HAuCl4
+HAuCl4-3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+HAuCl4·3(H2O),1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+thiolated poly(ethylene glycol),1,PEG,poly(ethylene glycol),,pattern,0,organic solvent
+Tetraethylorthosilicate 98%,1,TEOS,tetraethyl orthosilicate,,alias,0,
+TOA-Br,1,TOAB,tetraoctylammonium bromide,,alias,0,
+hexadecyl-trimethylammonium bromide,1,CTAB,hexadecyltrimethylammonium bromide,,alias,0,
+Au NR@Cu2O,1,Au,gold (metal / nanoparticle product),,pattern,0,
+CTAB/NaI,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0,CTAB
+(1-Hexadecyl) trimethylammonium chloride,1,CTAC,hexadecyltrimethylammonium chloride,,pattern,0,
+cysteamine·HCl,1,cysteamine,cysteamine,,pattern,0,
+Sodium citrate trihydrate,1,trisodium_citrate,trisodium citrate,trihydrate,alias,0,
+cethyltrimethylammonium chloride,1,CTAC,hexadecyltrimethylammonium chloride,,pattern,0,
+thiol-polyethylene glycol-amine,1,PEG,poly(ethylene glycol),,pattern,0,organic solvent
+ammonia hydroxide,1,ammonia,ammonia / ammonium hydroxide,,pattern,0,
+d-Glutathione,1,GSH,glutathione (reduced),,pattern,0,
+trisodium borohydride,1,NaBH4,sodium borohydride,,pattern,0,NaBH4
+trisodium citrated,1,trisodium_citrate,trisodium citrate,,pattern,0,sodium citrate
+trisodium citrate·2H2O,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0,sodium citrate
+Tetrachloroauric(III) acid trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,
+PEGlyated AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0,
+Glycol chitosan,1,chitosan,chitosan,,pattern,0,
+CTAB−HAuCl4,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,CTAB
+hydrogentetrachloroauric acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+cetyltrimethyl ammonium bromide CTAB,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0,CTAB
+Mili-Q water,1,water,water,,pattern,0,
+sodium borohydrade,1,NaBH4,sodium borohydride,,pattern,0,
+2-Propanol,1,isopropanol,2-propanol,,alias,0,
+NaAuCl4·3H2O,1,NaAuCl4,sodium tetrachloroaurate(III),trihydrate,alias,0,NaAuCl4
+toluene.29,1,toluene,toluene,,pattern,0,organic solvent
+hydrogentetrachloroaurate,1,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,HAuCl4
+Na3C6H5O7 × 2 H2O,1,trisodium_citrate,trisodium citrate,,pattern,0,
+polydiallyldimethylammonium chloride,1,PDDA,poly(diallyldimethylammonium chloride),,pattern,0,PDDA
+Sodium ascorbate,1,ascorbic_acid,L-ascorbic acid,,alias,0,
+sodium citrate.39,1,trisodium_citrate,trisodium citrate,,pattern,0,sodium citrate
+c-AuNP,1,Au,gold (metal / nanoparticle product),,pattern,0,
+sodium citrates,1,trisodium_citrate,trisodium citrate,,pattern,0,sodium citrate
+tetramethyl ammonium hydroxide,1,ammonia,ammonia / ammonium hydroxide,,pattern,0,
+nitric acid HNO3,1,HNO3,nitric acid,,pattern,0,HNO3
+ethanol C2H6O,1,ethanol,ethanol,,pattern,0,
+sodium citrate Na3C6H5O7·2H2O,1,trisodium_citrate,trisodium citrate,dihydrate,pattern,0,
+sodium tetrachloroaurate(III) NaAuCl4·2H2O,1,NaAuCl4,sodium tetrachloroaurate(III),dihydrate,pattern,0,NaAuCl4
+O-[2-(3-mercaptopropionylamino)ethyl]-O′-methyl-poly(ethylene glycol),1,PEG,poly(ethylene glycol),,pattern,0,
+THPC/NaOH,1,THPC,tetrakis(hydroxymethyl)phosphonium chloride,,pattern,0,
+Millipore-Q water,1,water,water,,pattern,0,
+l-Ascorbic acid,1,ascorbic_acid,L-ascorbic acid,,alias,0,ascorbic acid
+GNS/CTAB,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0,
+oleyl amine,1,oleylamine,oleylamine,,alias,0,
+CTAC-Au,1,CTAC,hexadecyltrimethylammonium chloride,,pattern,0,CTAC
+Thiolated-PEG,1,PEG,poly(ethylene glycol),,alias,0,
+MQ water,1,water,water,,pattern,0,H2O
+4-styrenesulfonate),1,PSS,poly(sodium 4-styrenesulfonate),,pattern,0,
+cationic polyelectrolyte poly(diallyldimethylammonium chloride),1,PDDA,poly(diallyldimethylammonium chloride),,pattern,0,organic solvent
+HAuCl4sodium citrate,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,sodium citrate
+trisodium citrate 2-hydrate,1,trisodium_citrate,trisodium citrate,hydrate,pattern,0,sodium citrate
+silver nitrates,1,AgNO3,silver nitrate,,pattern,0,AgNO3
+hydrogen tetrachloro aurate,1,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,
+3-Mercaptopropionic acid,1,MPA,3-mercaptopropionic acid,,alias,0,
+Cetyltrimethylammonium bromide/chloride,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0,CTAB
+mPEG,1,PEG,poly(ethylene glycol),,alias,0,
+carboxy-PEG,1,PEG,poly(ethylene glycol),,pattern,0,
+HOOC-PEG,1,PEG,poly(ethylene glycol),,pattern,0,
+trimethylammonium chloride,1,CTAC,hexadecyltrimethylammonium chloride,,pattern,0,
+O-[2-(3-Mercaptopropionylamino)ethyl]-O′-methylpoly(ethylene glycol),1,PEG,poly(ethylene glycol),,pattern,0,
+tetraethyl-orthosilicate,1,TEOS,tetraethyl orthosilicate,,alias,0,
+Au(III) chloride hydrate [HAuCl4],1,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,pattern,0,
+sodium borohydrate [NaBH4],1,NaBH4,sodium borohydride,,pattern,0,
+sodium tetrachloroaurate(III) hydrate,1,NaAuCl4,sodium tetrachloroaurate(III),hydrate,alias,0,NaAuCl4
+O-[2-(3-mercaptopropionylamino)ethyl]-O′-methylpoly(ethylene glycol),1,PEG,poly(ethylene glycol),,pattern,0,
+hydrogen HAuCl4,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,
+mPEG-sulfhydryl,1,PEG,poly(ethylene glycol),,pattern,0,
+mPEG(2K)-SH,1,PEG,poly(ethylene glycol),,pattern,0,
+biterminal PEG,1,PEG,poly(ethylene glycol),,pattern,0,
+mPEG(5K)-SH,1,PEG,poly(ethylene glycol),,pattern,0,
+tetrachloroauric acid hydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,HAuCl4
+Na3citrate·2H2O,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0,citrate
+Lascorbic acid,1,ascorbic_acid,L-ascorbic acid,,alias,0,ascorbic acid
+poly(4-styrenesulfonate,1,PSS,poly(sodium 4-styrenesulfonate),,pattern,0,
+NH2OH HCl,1,hydroxylamine_HCl,hydroxylamine hydrochloride,,alias,0,
+ethyleneglycol diglycidyl ether,1,ethylene_glycol,ethylene glycol,,pattern,0,
+poly(styrene sulfonate,1,PSS,poly(sodium 4-styrenesulfonate),,pattern,0,
+HAuCL4·3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,
+iced-water-cooled sodium borohydride,1,NaBH4,sodium borohydride,,pattern,0,
+silver nitrate AgNO3(aq),1,AgNO3,silver nitrate,,pattern,0,
+ascorbic acid12,1,ascorbic_acid,L-ascorbic acid,,pattern,0,ascorbic acid
+ethanolic dodecanethiol,1,dodecanethiol,1-dodecanethiol,,pattern,0,
+Oleylamine,1,oleylamine,oleylamine,,alias,0,
+kDa sulfhydryl-mPEG,1,PEG,poly(ethylene glycol),,pattern,0,
+MPEG-SH-5000,1,PEG,poly(ethylene glycol),,pattern,0,
+sulphydryl-mPEG,1,PEG,poly(ethylene glycol),,pattern,0,
+PEG-thiol,1,PEG,poly(ethylene glycol),,pattern,0,
+L-ascorbic Acid,1,ascorbic_acid,L-ascorbic acid,,alias,0,
+2-(2-[2-(11-mercapto-undecyloxy)-ethoxy]-ethoxy)-ethoxy-ethoxy-ethoxy-ethoxy-acetic acid,1,acetic_acid,acetic acid,,pattern,0,
+HAuCl430,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+anti-solvent isopropanol,1,isopropanol,2-propanol,,pattern,0,
+hydrogen tetrachloroaurate(iii) hydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,HAuCl4
+O-[2-(3-mercaptopropionylamino)ethyl]-O’-methylpolyethylene glycol,1,PEG,poly(ethylene glycol),,pattern,0,
+mL−1 graphene oxide,1,graphene_oxide,graphene oxide,,pattern,0,
+mL−1 chloroauric acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+ethylene glycol tetraacetic acid,1,ethylene_glycol,ethylene glycol,,pattern,0,
+potassium auric chloride,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,
+L-Glutathione,1,GSH,glutathione (reduced),,alias,0,
+tetramethyl orthosilicate,1,TEOS,tetraethyl orthosilicate,,pattern,0,
+silver nitrate(AgNO3),1,AgNO3,silver nitrate,,pattern,0,AgNO3
+polyacrylic acid,1,PAA,poly(acrylic acid),,alias,0,
+TEOS-ethanol,1,ethanol,ethanol,,pattern,0,TEOS
+hydrolyzed tetraethylorthosilicate,1,TEOS,tetraethyl orthosilicate,,pattern,0,
+mPEG–SH,1,PEG,poly(ethylene glycol),,alias,0,
+SH–PEG–COOH,1,PEG,poly(ethylene glycol),,pattern,0,
+HS-PEG-OMe,1,PEG,poly(ethylene glycol),,pattern,0,
+Na3-Citrate,1,trisodium_citrate,trisodium citrate,,alias,0,citrate
+MHAuCl4,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+Mol L-ascorbic acid,1,ascorbic_acid,L-ascorbic acid,,pattern,0,ascorbic acid
+tri-methyl ammonium chloride,1,CTAC,hexadecyltrimethylammonium chloride,,pattern,0,
+poly(styrenesulfonate) sodium,1,PSS,poly(sodium 4-styrenesulfonate),,pattern,0,
+melamine formaldehyde,1,formaldehyde,formaldehyde,,pattern,0,
+PEG 35000 MW,1,PEG,poly(ethylene glycol),,pattern,0,
+Hydroxylamine hydrochloride,1,hydroxylamine_HCl,hydroxylamine hydrochloride,,alias,0,
+20-AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0,
+cetyltrimethyl-ammonium bromide,1,CTAB,hexadecyltrimethylammonium bromide,,alias,0,
+acetic acid glacial,1,acetic_acid,acetic acid,,pattern,0,
+HAuCl4 · H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,
+Au-CTAB,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0,
+methoxy poly(ethylene glycol,1,PEG,poly(ethylene glycol),,pattern,0,organic solvent
+PLL-PEG,1,PEG,poly(ethylene glycol),,pattern,0,
+tetrachloroauric(III)acid hydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,alias,0,
+[HAuCl4]·H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,pattern,0,HAuCl4
+citric acid tri-sodium,1,trisodium_citrate,trisodium citrate,,alias,0,
+hexadecyl trimethylammonium bromide,1,CTAB,hexadecyltrimethylammonium bromide,,alias,0,CTAB
+Hydrogen tetrachloroaurate(III) dehydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),dihydrate,alias,0,HAuCl4
+HAuCl4·3(H2O)3,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+tetrachloroauric(III) acid hydrate [HAuCl4]·H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,pattern,0,
+cysteamine hydrochloride [C2H7NS·HCl],1,cysteamine,cysteamine,,pattern,0,
+Tetrachloroauric(III)acid trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,
+NiHCF/AuNP,1,Au,gold (metal / nanoparticle product),,pattern,0,
+mL−1 trisodium citrate,1,trisodium_citrate,trisodium citrate,,pattern,0,sodium citrate
+starch–NaOH,1,NaOH,sodium hydroxide,,pattern,0,
+L−1 trisodium citrate dehydrate,1,trisodium_citrate,trisodium citrate,dihydrate,pattern,0,sodium citrate
+AuCl3·HCl·4H2O,1,AuCl3,"gold(III) chloride (anhydrous, Au2Cl6)",tetrahydrate,pattern,0,AuCl3
+mL−1 OVDAC chloroform,1,chloroform,chloroform,,pattern,0,
+DDAB toluene,1,toluene,toluene,,pattern,0,
+Au chloroform,1,chloroform,chloroform,,pattern,0,
+Cetyltrimethylammonium chloride (CTAC)-capped,1,CTAC,hexadecyltrimethylammonium chloride,,pattern,0,CTAC
+Mill-Q water,1,water,water,,pattern,0,
+Gold chloroauric acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+"ethylene glycol-bis(2-aminoethylether)-N,N,N′,N′-tetraacetic acid",1,ethylene_glycol,ethylene glycol,,pattern,0,
+polystyrene sulfonates,1,PSS,poly(sodium 4-styrenesulfonate),,pattern,0,
+Ammonium tetrachloroaurate(III),1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+1-thioglucose,1,glucose,D-glucose,,pattern,0,
+CTS-AuNP,1,Au,gold (metal / nanoparticle product),,pattern,0,
+(+)AuNP,1,Au,gold (metal / nanoparticle product),,pattern,0,
+L−1 tetrachloroauric(III) acid,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,
+sodium tetra-chloroaurate(III) dihydrate,1,NaAuCl4,sodium tetrachloroaurate(III),dihydrate,alias,0,
+D-(+)-glucose,1,glucose,D-glucose,,pattern,0,
+dimethyl amino ethanol,1,ethanol,ethanol,,pattern,0,
+gold tetrachloroaurate,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+Tri-sodium citrate dihydrate,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0,sodium citrate
+milli-Q water,1,water,water,,alias,0,
+AuNR@AgNC,1,Au,gold (metal / nanoparticle product),,pattern,0,
+mercaptopolyethylene glycol monomethyl ether,1,PEG,poly(ethylene glycol),,pattern,0,organic solvent
+Tetrachloroauric acid tetrahydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0,HAuCl4
+Linear polyethyleneimine,1,PEI,polyethylenimine,,pattern,0,
+Q-water,1,water,water,,pattern,0,
+AuCl3–PVP,1,AuCl3,"gold(III) chloride (anhydrous, Au2Cl6)",,pattern,0,AuCl3
+L−1 hydroquinone,1,hydroquinone,hydroquinone,,pattern,0,HQ
+1-Dodecanethiol,1,dodecanethiol,1-dodecanethiol,,alias,0,
+sodium polystyrenesulfonate,1,PSS,poly(sodium 4-styrenesulfonate),,alias,0,
+gold tetrachloroaurate hydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),hydrate,pattern,0,
+polyvinylalcohol,1,PVA,poly(vinyl alcohol),,alias,0,organic solvent
+polystyrene sulfonate,1,PSS,poly(sodium 4-styrenesulfonate),,pattern,0,
+CTAB–AuNR,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0,CTAB
+Tetrakis(hydroxymethyl) phosphonium chloride,1,THPC,tetrakis(hydroxymethyl)phosphonium chloride,,alias,0,
+trisodium citrate tetrahydrate,1,trisodium_citrate,trisodium citrate,tetrahydrate,alias,0,
+tetrachloroauric acid trihidrate,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+paraformaldehyde,1,formaldehyde,formaldehyde,,pattern,0,
+citrate-AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0,citrate
+Di-CnPh toluene,1,toluene,toluene,,pattern,0,
+cetyltrimethyl ammonium chloride,1,CTAC,hexadecyltrimethylammonium chloride,,alias,0,CTAC
+Ascorbic acids,1,ascorbic_acid,L-ascorbic acid,,pattern,0,ascorbic acid
+Na3Citrate·2H2O,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0,citrate
+mL−1 gold(III) chloride,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,AuCl3
+L−1 hydrochloric acid,1,HCl,hydrochloric acid,,pattern,0,HCl
+L−1 hydrogen tetrachloroaurate(III),1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+FITC-PEG-SH,1,PEG,poly(ethylene glycol),,pattern,0,
+poly(ethylene glycol) 2-mercaptoethyl ether acetic acid,1,PEG,poly(ethylene glycol),,pattern,0,
+kDa poly(ethylene glycol,1,PEG,poly(ethylene glycol),,pattern,0,organic solvent
+O-[2-(3-Mercaptopropionylamino)ethyl]-O′-methylpolyethylene glycol,1,PEG,poly(ethylene glycol),,pattern,0,
+poly(ethylene glycol)methyl ether,1,PEG,poly(ethylene glycol),,pattern,0,organic solvent
+hydrogen tetrachloroaurate(III)trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,HAuCl4
+Tetrakis(hydroxymethyl)phosphonium chloride,1,THPC,tetrakis(hydroxymethyl)phosphonium chloride,,alias,0,
+polydiallyldimethylammonium,1,PDDA,poly(diallyldimethylammonium chloride),,pattern,0,PDDA
+propargyl-PEG-NHS ester,1,PEG,poly(ethylene glycol),,pattern,0,
+thiolated methoxy-poly(ethylene glycol),1,PEG,poly(ethylene glycol),,pattern,0,
+D-glucose monohydrate,1,glucose,D-glucose,monohydrate,alias,0,
+PEG-MoS2,1,PEG,poly(ethylene glycol),,pattern,0,
+2-MPy–AuNPs,1,Au,gold (metal / nanoparticle product),,pattern,0,
+AuNPs-40,1,Au,gold (metal / nanoparticle product),,pattern,0,
+AuNPs-100,1,Au,gold (metal / nanoparticle product),,pattern,0,
+D-Glucose,1,glucose,D-glucose,,alias,0,
+β-cysteamine,1,cysteamine,cysteamine,,pattern,0,
+polyvinylpyrrolidone Mw ∼ 55000,1,PVP,polyvinylpyrrolidone,,pattern,0,PVP
+gold(III) chloride trihydrate HAuCl4·3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0,
+poly(ethylene glycol) 2-aminoethyl ether acetic acid,1,PEG,poly(ethylene glycol),,pattern,0,
+Gold(III) chloride tetrahydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),tetrahydrate,alias,0,
+aluminum sulfate water,1,water,water,,pattern,0,
+[HAuCl4·3H2O],1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0,HAuCl4
+mPEG–thiol,1,PEG,poly(ethylene glycol),,pattern,0,
+KAuCl4 : PVP,1,KAuCl4,potassium tetrachloroaurate(III),,pattern,0,
+poly(vinylpyrrolidone) (C6H9NO)n,1,PVP,polyvinylpyrrolidone,,pattern,0,PVP
+dodecyl sulfate,1,SDS,sodium dodecyl sulfate,,pattern,0,
+Hexadecyltrimethylammoniumbromide,1,CTAB,hexadecyltrimethylammonium bromide,,alias,0,
+thiol polyethylene glycol,1,PEG,poly(ethylene glycol),,pattern,0,organic solvent
+L−1 NaBH4,1,NaBH4,sodium borohydride,,pattern,0,
+AG,1,Ag,silver (metal),,alias,0,
+4-aminothiophenoland sodium borohydride,1,NaBH4,sodium borohydride,,pattern,0,
+Au–CTAB,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0,
+sodium tetrachloroaurate(III),1,NaAuCl4,sodium tetrachloroaurate(III),,alias,0,NaAuCl4
+mp-TiO2/ethanol,1,ethanol,ethanol,,pattern,0,
+DSPE-mPEG,1,PEG,poly(ethylene glycol),,pattern,0,
+hydrogen tetra-chloroaurate trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,
+sodium citrate di-hydrate,1,trisodium_citrate,trisodium citrate,hydrate,pattern,0,
+Na3Cit·2H2O,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0,
+Hydrogen tetrachloroauric acid(III) trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0,
+FA-PEG-SH,1,PEG,poly(ethylene glycol),,pattern,0,
+isopropanol alcohol,1,isopropanol,2-propanol,,pattern,0,
+mL−1 hydroxylamine hydrochloride,1,hydroxylamine_HCl,hydroxylamine hydrochloride,,pattern,0,
+C4H6O4Zn·2H2O ethanol,1,ethanol,ethanol,dihydrate,pattern,0,
+HAuCl4–3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+H2SO4:H2O2,1,H2O2,hydrogen peroxide,,pattern,0,
+0.254mMNaAuCl4(100mL),1,NaAuCl4,sodium tetrachloroaurate(III),,pattern,0,NaAuCl4
+(65mg∕ml)to1ml toluene,1,toluene,toluene,,pattern,0,
+trisodium- citrate,1,trisodium_citrate,trisodium citrate,,alias,0,
+chloroauric acid HAuCl4.3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0,
+Serum albumins,1,BSA,bovine serum albumin,,pattern,0,
+m(PEG)-SH,1,PEG,poly(ethylene glycol),,pattern,0,
+2-(methacryloyloxy)ethyl-trimethylammonium chloride,1,CTAC,hexadecyltrimethylammonium chloride,,pattern,0,
+NaBH 4,1,NaBH4,sodium borohydride,,alias,0,
+HAuCl 4,1,HAuCl4,hydrogen tetrachloroaurate(III),,alias,0,
+hydrazine hydrate N2H4·0.5H2O,1,hydrazine,hydrazine,pentahydrate,pattern,0,
+CTAB/BDAC,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0,CTAB
+Hydrogen tetrachloroaurate III trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,pattern,0,HAuCl4
+Hydrochloroauric acid trihydrate,1,HAuCl4,hydrogen tetrachloroaurate(III),trihydrate,alias,0,HAuCl4
+HAuCl4‧3H2O,1,HAuCl4,hydrogen tetrachloroaurate(III),,pattern,0,HAuCl4
+Na3C6H5O7 · 2H2O,1,trisodium_citrate,trisodium citrate,dihydrate,alias,0,
+polyvinyl-pyrrolidone,1,PVP,polyvinylpyrrolidone,,alias,0,organic solvent
+DDT ethanol,1,ethanol,ethanol,,pattern,0,organic solvent
+N-Cetyltrimethylammonium bromide,1,CTAB,hexadecyltrimethylammonium bromide,,pattern,0,CTAB
+AuNP-S-β-CD,1,Au,gold (metal / nanoparticle product),,pattern,0,
+GNP water,1,water,water,,pattern,0,
+potassium tetrachloroaurate(III),1,KAuCl4,potassium tetrachloroaurate(III),,alias,0,HAuCl4
+H2PtCl6,37,,,,,,
+Na2S,33,,,,,,
+TiO2,32,,,,,,
+FeCl3,29,,,,,,
+DNA,29,,,,,,
+Au(III),23,,,,,,
+urea,23,,,,,,
+Na2HPO4,22,,,,,,
+BDAC,21,,,,,,
+silica,21,,,,,,
+HEPES,21,,,,,,
+PBS,20,,,,,,
+FeCl3·6H2O,20,,,,,,
+sodium silicate,20,,,,,,
+sodium acetate,20,,,,,,
+boric acid,19,,,,,,
+N-hydroxysuccinimide,19,,,,,,
+KH2PO4,19,,,,,,
+APTES,18,,,,,,
+cyclohexane,18,,,,,,
+TBAB,17,,,,,,
+sodium sulfide,17,,,,,,
+MO,17,,,,,,
+EDTA,16,,,,,,
+MSA,16,,,,,,
+starch,16,,,,,,
+FeCl2·4H2O,16,,,,,,
+SiO2,16,,,,,,
+Triton X-100,16,,,,,,
+DDAB,16,,,,,,
+KMnO4,15,,,,,,
+CdCl2,15,,,,,,
+NaI,15,,,,,,
+3-aminopropyltriethoxysilane,15,,,,,,
+hexamethylenetetramine,14,,,,,,
+3H2O,14,,,,,,
+sodium sulfate,14,,,,,,
+Pluronic F127,14,,,,,,
+sucrose,14,,,,,,
+5-bromosalicylic acid,14,,,,,,
+acetonitrile,13,,,,,,
+NP,13,,,,,,
+phosphoric acid,13,,,,,,
+Fe3O4,13,,,,,,
+EDC,12,,,,,,
+NaBr,12,,,,,,
+phosphate buffer,12,,,,,,
+MPS,12,,,,,,
+NaNO3,12,,,,,,
+glycerol,12,,,,,,
+glutaraldehyde,12,,,,,,
+NHS,12,,,,,,
+selenium,11,,,,,,
+hexane,11,,,,,,
+sodium bromide,11,,,,,,
+APTMS,11,,,,,,
+calcium chloride,11,,,,,,
+uric acid,11,,,,,,
+potassium permanganate,11,,,,,,
+CuCl2,11,,,,,,
+CS,11,,,,,,
+zinc chloride,11,,,,,,
+dimethyl sulfoxide,11,,,,,,
+NaHCO3,11,,,,,,
+sodium iodide,11,,,,,,
+cobalt chloride,11,,,,,,
+AuNCs,11,,,,,,
+PS,11,,,,,,
+4-aminothiophenol,11,,,,,,
+carbon,10,,,,,,
+Nafion,10,,,,,,
+sodium carbonate,10,,,,,,
+HRP,10,,,,,,
+FSN,10,,,,,,
+l-cysteine,10,,,,,,
+albumin,10,,,,,,
+thiourea,10,,,,,,
+4-mercaptobenzoic acid,10,,,,,,
+CoCl2,10,,,,,,
+Tween-20,10,,,,,,
+cobalt,10,,,,,,
+FeCl2,10,,,,,,
+Se,9,,,,,,
+CPC,9,,,,,,
+KBr,9,,,,,,
+sodium nitrate,9,,,,,,
+potassium bromide,9,,,,,,
+GA,9,,,,,,
+H3PO4,9,,,,,,
+4-nitrophenol,9,,,,,,
+potassium nitrate,9,,,,,,
+magnesium chloride hexahydrate,9,,,,,,
+NaH2PO4,9,,,,,,
+potassium hydroxide,9,,,,,,
+dodecylamine,8,,,,,,
+K2PtCl4,8,,,,,,
+APS,8,,,,,,
+mercaptoacetic acid,8,,,,,,
+nitrogen,8,,,,,,
+Au NCs,8,,,,,,
+Tris,8,,,,,,
+auric acid,8,,,,,,
+HAuC14,8,,,,,,
+potassium persulfate,8,,,,,,
+dopamine,8,,,,,,
+DMAP,8,,,,,,
+CALNN,8,,,,,,
+streptomycin,8,,,,,,
+AgNCs,8,,,,,,
+mercaptosuccinic acid,8,,,,,,
+16-mercaptohexadecanoic acid,8,,,,,,
+dihydrate,8,,,,,,
+fluorescein isothiocyanate,8,,,,,,
+DT,8,,,,,,
+TGA,8,,,,,,
+sodium nitrite,8,,,,,,
+titanium isopropoxide,8,,,,,,
+HgCl2,8,,,,,,
+aniline,8,,,,,,
+n-hexane,8,,,,,,
+GNR,8,,,,,,
+sodium salicylate,8,,,,,,
+L-cysteine,8,,,,,,
+Au chloride,8,,,,,,
+Au NC,8,,,,,,
+Na2S·9H2O,7,,,,,,
+C16TAB,7,,,,,,
+PNIPAM,7,,,,,,
+didodecyldimethylammonium bromide,7,,,,,,
+H2PdCl4,7,,,,,,
+PdCl2,7,,,,,,
+CuSO4,7,,,,,,
+octadecylamine,7,,,,,,
+anatase,7,,,,,,
+citrate sodium,7,,,,,,
+AOT,7,,,,,,
+(3-aminopropyl)trimethoxysilane,7,,,,,,
+sodium azide,7,,,,,,
+lysozyme,7,,,,,,
+K3Fe(CN)6,7,,,,,,
+NaHTe,7,,,,,,
+sodium phosphate,7,,,,,,
+triethylamine,7,,,,,,
+benzyldimethylhexadecylammonium chloride,7,,,,,,
+cadmium chloride,7,,,,,,
+cysteine,7,,,,,,
+AuNS,7,,,,,,
+TCEP,7,,,,,,
+PP,7,,,,,,
+TBA,7,,,,,,
+folic acid,7,,,,,,
+thiophenol,7,,,,,,
+HDA,7,,,,,,
+Pt,7,,,,,,
+zinc acetate dihydrate,7,,,,,,
+ZnO,7,,,,,,
+cobalt chloride hexahydrate,7,,,,,,
+sulfur,6,,,,,,
+Au3+,6,,,,,,
+trisodium,6,,,,,,
+luminol,6,,,,,,
+zinc acetate,6,,,,,,
+rutile,6,,,,,,
+Cd(NO3)2·4H2O,6,,,,,,
+HPLC,6,,,,,,
+regia,6,,,,,,
+magnesium chloride,6,,,,,,
+poly,6,,,,,,
+lead(II) nitrate,6,,,,,,
+methylene blue,6,,,,,,
+OA,6,,,,,,
+iron(III) chloride,6,,,,,,
+ACROS,6,,,,,,
+sodium phosphate dibasic,6,,,,,,
+CF3COOAg,6,,,,,,
+Pb(NO3)2,6,,,,,,
+ethanolamine,6,,,,,,organic solvent
+stearic acid,6,,,,,,
+dithiothreitol,6,,,,,,
+SA,6,,,,,,
+GNRs,6,,,,,,
+ferric chloride,6,,,,,,
+TritonX-100,6,,,,,,
+IgG,6,,,,,,
+copper,6,,,,,,
+ssDNA,6,,,,,,
+p-nitrophenol,6,,,,,,
+dopamine hydrochloride,6,,,,,,
+ammonium persulfate,6,,,,,,
+gelatin,6,,,,,,
+NADH,6,,,,,,
+ZnCl2,6,,,,,,
+PC30,6,,,,,,
+hexadecylamine,6,,,,,,
+Vc,6,,,,,,
+MBA,6,,,,,,
+Tween 80,6,,,,,,
+polystyrene,6,,,,,,
+CuCl2·2H2O,6,,,,,,
+ATP,5,,,,,,
+Au@Ag,5,,,,,,
+H2,5,,,,,,
+n-hexanol,5,,,,,,
+thioacetamide,5,,,,,,
+N-isopropylacrylamide,5,,,,,,
+tetrahydrofuran,5,,,,,,
+HMT,5,,,,,,
+hydrogen tetrachloroaureate,5,,,,,,
+KOH,5,,,,,,
+thiol,5,,,,,,
+Na2TeO3,5,,,,,,
+zinc nitrate hexahydrate,5,,,,,,
+”,5,,,,,,
+tris(hydroxymethyl)aminomethane,5,,,,,,
+glucose oxidase,5,,,,,,
+streptavidin,5,,,,,,
+ethylenediaminetetraacetic acid,5,,,,,,
+sodium bicarbonate,5,,,,,,
+AuNSs,5,,,,,,
+tellurium,5,,,,,,
+BSPP,5,,,,,,
+disodium hydrogen phosphate,5,,,,,,
+glycine,5,,,,,,
+C2H5OH,5,,,,,,
+P25,5,,,,,,
+Ferric chloride,5,,,,,,
+SC,5,,,,,,
+dichloromethane,5,,,,,,
+potassium dichromate,5,,,,,,
+HA,5,,,,,,
+MgCl2,5,,,,,,
+l-AA,5,,,,,,
+CoCl2·6H2O,5,,,,,,
+phosphate buffer saline,5,,,,,,
+HQ,5,,,,,,
+thioctic acid,5,,,,,,
+BPEI,5,,,,,,
+THF,5,,,,,,
+KNO3,5,,,,,,
+CaCl2,5,,,,,,
+ethylenediamine,5,,,,,,
+ODE,5,,,,,,
+glutamic acid,5,,,,,,
+formic acid,5,,,,,,
+3-aminopropyltrimethoxysilane,5,,,,,,
+K[AuCl4],5,,,,,,
+8-hydroxyquinoline,5,,,,,,
+triethanolamine,5,,,,,,organic solvent
+TC,5,,,,,,
+platinum,5,,,,,,
+sodium tetrachloropalladate(II),5,,,,,,
+salicylic acid,5,,,,,,
+lipoic acid,5,,,,,,
+1-octadecene,5,,,,,,
+4-Mercaptobenzoic acid,5,,,,,,
+TDSP,5,,,,,,
+tetramethylammonium hydroxide,5,,,,,,
+cetylpyridinium chloride,5,,,,,,
+iron(III) nitrate nonahydrate,5,,,,,,
+PGMA@PAH,5,,,,,,
+Na2PdCl4,4,,,,,,
+iron pentacarbonyl,4,,,,,,
+manganese acetate,4,,,,,,
+Vulcan XC-72R carbon,4,,,,,,
+diethyl ether,4,,,,,,
+NiCl2,4,,,,,,
+DMSO,4,,,,,,
+decanoic acid,4,,,,,,
+titanium tetraisopropoxide,4,,,,,,
+MWCNTs,4,,,,,,
+1-propanol,4,,,,,,
+ODT,4,,,,,,
+tetrabutyl titanate,4,,,,,,
+propidium iodide,4,,,,,,
+iron chloride,4,,,,,,
+Na2SO3,4,,,,,,
+cadmium nitrate,4,,,,,,
+C,4,,,,,,
+BPE,4,,,,,,
+NaHB4,4,,,,,,
+antibody,4,,,,,,
+DA,4,,,,,,
+DMSA,4,,,,,,
+fibrinogen,4,,,,,,
+gold(III),4,,,,,,
+mercuric chloride,4,,,,,,
+sodium dihydrogen phosphate,4,,,,,,
+tris(hydroxymethyl) aminomethane,4,,,,,,
+1-ethyl-3-(3-dimethylaminopropyl) carbodiimide hydrochloride,4,,,,,,
+chloroplatinic acid hydrate,4,,,,,,
+oxalic acid,4,,,,,,
+sodium sulfite,4,,,,,,
+zinc sulphate,4,,,,,,
+AFP,4,,,,,,
+(NH4)2HPO4,4,,,,,,
+poly(ethyleneimine),4,,,,,,
+thioglycolic acid,4,,,,,,
+N-(3-dimethylaminopropyl)-N′-ethylcarbodiimide hydrochloride,4,,,,,,
+CALNNGK(biotin)G,4,,,,,,
+argon,4,,,,,,

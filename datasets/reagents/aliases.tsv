@@ -11,8 +11,8 @@ NaAuCl4	gold_precursor	sodium tetrachloroaurate(III)	NaAuCl4·2H2O				naaucl4|so
 KAuCl4	gold_precursor	potassium tetrachloroaurate(III)	KAuCl4				kaucl4|potassiumtetrachloroaurate|potassiumtetrachloroaurate(iii)|potassiumgoldchloride		kaucl4|potassium\s*tetrachloroaurate
 AgNO3	additive	silver nitrate	AgNO3				agno3|silvernitrate		agno3|silver\s*nitrate	Aditivo de crescimento anisotrópico (bastões).
 NaBH4	reductant	sodium borohydride	NaBH4	4311764			nabh4|sodiumborohydride|sodiumtetrahydroborate|sodiumtetrahydridoborate		nabh4|sodium\s*(boro|tetrahydro)hydr	
-ascorbic_acid	reductant	L-ascorbic acid	C6H8O6	54670067			ascorbicacid|l-ascorbicacid|lascorbicacid|vitaminc|l(+)-ascorbicacid|sodiumascorbate	AA	ascorbic|vitamin\s*c
-trisodium_citrate	reductant_stabilizer	trisodium citrate	Na3C6H5O7·xH2O	6224			sodiumcitrate|trisodiumcitrate|tri-sodiumcitrate|trisodiumcitratedihydrate|sodiumcitratedihydrate|sodiumcitratetribasic|sodiumcitratetribasicdihydrate|tribasicdihydrate|tribasic|citrate|na3c6h5o7|na3ct|trisodiumcitrate(tsc)|sodiumcitrate,tribasic|citricacidtrisodium|citricacidtrisodiumsalt|citricacidtrisodiumsaltdihydrate|na3-citrate|na3cit|na-cit|sodiumcitratetribasichydrate	TSC|Na3Ct	sodium\s*citrate|tri\s*-?\s*sodium\s*citrate|na3c6h5o7	"tribasic dihydrate" aparece recortado de "sodium citrate tribasic dihydrate".
+ascorbic_acid	reductant	L-ascorbic acid	C6H8O6	54670067			ascorbicacid|l-ascorbicacid|lascorbicacid|vitaminc|l(+)-ascorbicacid|sodiumascorbate|c6h8o6	AA	ascorbic|vitamin\s*c
+trisodium_citrate	reductant_stabilizer	trisodium citrate	Na3C6H5O7·xH2O	6224			sodiumcitrate|trisodiumcitrate|tri-sodiumcitrate|trisodiumcitratedihydrate|sodiumcitratedihydrate|sodiumcitratetribasic|sodiumcitratetribasicdihydrate|tribasicdihydrate|tribasic|citrate|na3c6h5o7|na3ct|trisodiumcitrate(tsc)|sodiumcitrate,tribasic|citricacidtrisodium|citricacidtrisodiumsalt|citricacidtrisodiumsaltdihydrate|na3-citrate|na3cit|na-cit|sodiumcitratetribasichydrate|c6h5na3o7|nacitrate|na-citrate	TSC|Na3Ct	sodium\s*citrate|tri\s*-?\s*sodium\s*citrate|na3c6h5o7	"tribasic dihydrate" aparece recortado de "sodium citrate tribasic dihydrate".
 citric_acid	reductant	citric acid	C6H8O7	311			citricacid|citricacidmonohydrate		citric\s*acid	Só existe a estrutura 2D/3D local (sem ficha completa).
 CTAB	surfactant	hexadecyltrimethylammonium bromide	C19H42BrN	5974	2681		ctab|cetyltrimethylammoniumbromide|hexadecyltrimethylammoniumbromide|cetrimoniumbromide|cetyltrimethylammonium|hexadecyl(trimethyl)ammoniumbromide	CTAB	\bctab\b|cetyl\s*-?\s*trimethyl\s*-?\s*ammonium\s*bromide|hexadecyl\s*-?\s*trimethyl\s*-?\s*ammonium\s*bromide	CID 2681 = cátion cetrimônio (só estrutura local).
 CTAC	surfactant	hexadecyltrimethylammonium chloride	C19H42ClN				ctac|cetyltrimethylammoniumchloride|hexadecyltrimethylammoniumchloride|cetrimoniumchloride	CTAC	\bctac\b|trimethyl\s*-?\s*ammonium\s*chloride
@@ -23,7 +23,7 @@ hydroxylamine_HCl	reductant	hydroxylamine hydrochloride	NH2OH·HCl				hydroxylam
 THPC	reductant	tetrakis(hydroxymethyl)phosphonium chloride	C4H12ClO4P				thpc|tetrakis(hydroxymethyl)phosphoniumchloride	THPC	\bthpc\b|tetrakis\s*\(\s*hydroxymethyl
 glucose	reductant	D-glucose	C6H12O6				glucose|d-glucose|dextrose		glucose(?!\s*oxidase)	
 H2O2	reductant_oxidant	hydrogen peroxide	H2O2				h2o2|hydrogenperoxide		hydrogen\s*peroxide|\bh2o2\b
-TOAB	phase_transfer	tetraoctylammonium bromide	C32H68BrN				toab|tetraoctylammoniumbromide|tetra-n-octylammoniumbromide|tri-n-octylammoniumbromide	TOAB	\btoab\b|octylammonium\s*bromide	Síntese de Brust–Schiffrin.
+TOAB	phase_transfer	tetraoctylammonium bromide	C32H68BrN				toab|tetraoctylammoniumbromide|tetra-n-octylammoniumbromide|tri-n-octylammoniumbromide|toabr|tetraoctylammoniumbromide(toabr)	TOAB	\btoab\b|octylammonium\s*bromide	Síntese de Brust–Schiffrin.
 oleylamine	capping_agent	oleylamine	C18H37N				oleylamine|oam	OAm	oleylamine
 oleic_acid	capping_agent	oleic acid	C18H34O2				oleicacid|sodiumoleate|naol	NaOL	(?<![a-z])oleic\s*acid|sodium\s*oleate	
 dodecanethiol	capping_agent	1-dodecanethiol	C12H26S				dodecanethiol|1-dodecanethiol|ddt	DDT	dodecane\s*-?\s*thiol
@@ -55,6 +55,9 @@ cysteamine	capping_agent	cysteamine	C2H7NS				cysteamine|2-aminoethanethiol|cyst
 PEI	polyelectrolyte	polyethylenimine	polymer				pei|polyethylenimine|polyethyleneimine|branchedpei	PEI	polyethylene?\s*imine	
 PSS	polyelectrolyte	poly(sodium 4-styrenesulfonate)	polymer				pss|poly(sodium4-styrenesulfonate)|poly(styrenesulfonate)|sodiumpolystyrenesulfonate	PSS	styrene\s*sulfonate	
 PAH	polyelectrolyte	poly(allylamine hydrochloride)	polymer				pah|poly(allylaminehydrochloride)|polyallylaminehydrochloride	PAH	poly\s*\(?\s*allylamine	
+aqua_regia	cleaning	aqua regia (HCl:HNO3 3:1)	HCl/HNO3				aquaregia		aqua\s*regia	Limpeza de vidraria; não entra na síntese.
+PAA	polyelectrolyte	poly(acrylic acid)	polymer				paa|poly(acrylicacid)|polyacrylicacid|sodiumpolyacrylate	PAA	poly\s*\(?\s*acrylic	O regex de Cruse (rsc/) rotula PAA como ácido ascórbico (\w*AA); aqui é o polieletrólito.
+PVA	capping_agent	poly(vinyl alcohol)	polymer				pva|polyvinylalcohol|poly(vinylalcohol)	PVA	poly\s*\(?\s*vinyl\s*alcohol	
 water	solvent	water	H2O	962			water|h2o|deionizedwater|diwater|milli-qwater|milliqwater|ultrapurewater|distilledwater|doublydistilledwater|bidistilledwater|nanopurewater|dih2o	DI	water
 ethanol	solvent	ethanol	C2H6O	702			ethanol|etoh|ethylalcohol|absoluteethanol		(?<![a-z])ethanol(?![a-z])	
 methanol	solvent	methanol	CH4O				methanol|meoh		methanol

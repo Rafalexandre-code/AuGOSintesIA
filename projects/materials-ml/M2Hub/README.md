@@ -43,7 +43,7 @@ python scripts/download_data.py --task TASK --property PROPERTY --split SPLIT --
 
 Please check [DATASETS.md](DATASETS.md) for details, splits include [random|composition|system|time].
 
-For more details about each dataset, please check [DOCUMENTS.md](DOCUMENTS.md).
+For more details about each dataset, please check [DOCUMENTS.md](DOUCUMENTS.md) (arquivo original com o nome grafado `DOUCUMENTS.md`).
 
 ### Model Training
 

@@ -19,8 +19,10 @@ if __name__ == "__main__":
     files = os.listdir(raw_dir)
     
     # assert that each file is contained in the directory
+    # the bandgap raw file was never published with the repository: skip missing inputs instead of aborting
     for target_file in TARGET_FILES:
-        assert target_file in files, f"{target_file} is not in the raw directory"
+        if target_file not in files:
+            print(f"warning: {target_file} is not in the raw directory; skipping it")
 
     # loop through each file and transform it to the corresponding benchmark structure
     for file in files:

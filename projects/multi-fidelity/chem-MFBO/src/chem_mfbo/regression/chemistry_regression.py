@@ -73,6 +73,11 @@ HIGHFID = 0.666666
 LOWFID = 0.333333
 
 SAVE_PATH = "plots/regression"
+# data/clean/ do repositório chem-MFBO (src/chem_mfbo/regression -> 3 níveis acima); sobrescreva com CHEM_MFBO_DATA_DIR
+DATA_DIR = os.environ.get(
+    "CHEM_MFBO_DATA_DIR",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "data", "clean"),
+)
 
 if __name__ == "__main__":
     
@@ -83,7 +88,10 @@ if __name__ == "__main__":
     # load data
     for dataset in DATASETS:
 
-        file_path = f"/home/sabanza/Documents/chem-MFBO/data/clean/{dataset}.csv"
+        file_path = os.path.join(DATA_DIR, f"{dataset}.csv")
+        if not os.path.exists(file_path):  # e.g. bandgap: raw data not published with the repository
+            print(f"skipping {dataset}: {file_path} not found")
+            continue
 
         if dataset == "cofs" or dataset == "bandgap":
             data_type = "material"
