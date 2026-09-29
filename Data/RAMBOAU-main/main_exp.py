@@ -142,7 +142,10 @@ def run_experiment(args, framework_args):
     args.n_var, args.n_obj = problem.n_var, problem.n_obj
 
     ref_point_handler = RefPoint(
-        args.problem, args.n_var, args.n_obj, n_init_sample=args.n_init_sample
+        Y_init=Y_init,
+        rho_init=rho_init,
+        alpha=framework_args["problem_args"]["alpha"],
+        problem=problem,
     )
 
     args.ref_point = ref_point_handler.get_ref_point(is_botorch=False)

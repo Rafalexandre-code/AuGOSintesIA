@@ -24,7 +24,7 @@ class RefPoint:
                 self.ref_point_pymoo = problem.ref_point
                 return
             
-        mvar = calculate_var(Y_init, variance=rho_init, alpha=self.solver.alpha)
+        mvar = calculate_var(Y_init, variance=rho_init, alpha=alpha)
         mvar_pfront, mvar_pidx = find_pareto_front(mvar, return_index=True)
     
         self.ref_point_botroch = infer_reference_point(torch.tensor(-mvar_pfront)).numpy().tolist()

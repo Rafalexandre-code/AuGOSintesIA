@@ -5,6 +5,7 @@ sys.path.append('.')
 from .problem import RiskyProblem
 import pandas as pd
 import pathlib
+import os
 
 
 class Experiment4D(RiskyProblem):
@@ -16,9 +17,19 @@ class Experiment4D(RiskyProblem):
         self.bounds = np.array([[0.5, 0.1, 4.0, 1.0], 
                                 [3.5, 1.0, 10.0, 2.5]])
         self.dim = 4
+        self.ref_point = None  # inferred from the initial data (utils.RefPoint)
         self.num_objectives = 3
         
-        all_batches_paths = list(pathlib.Path("./problems/data/MT-KBH-004/").rglob("XRD+synthsis_data_b*.xlsx"))
+        # Folder with the batch spreadsheets. The original ZnO campaign data (MT-KBH-004) is not public;
+        # set RAMBOAU_EXP_DATA to your own folder, or generate a synthetic example with
+        #   python problems/data/make_synthetic_experiment.py   (writes problems/data/SYNTHETIC-EXAMPLE/)
+        data_dir = pathlib.Path(os.environ.get(
+            "RAMBOAU_EXP_DATA", pathlib.Path(__file__).resolve().parent / "data" / "MT-KBH-004"))
+        all_batches_paths = list(data_dir.rglob("XRD+synthsis_data_b*.xlsx"))
+        if not all_batches_paths:
+            raise FileNotFoundError(
+                f"No 'XRD+synthsis_data_b<N>.xlsx' files in {data_dir}. The original experimental data is not "
+                "published; set RAMBOAU_EXP_DATA or run problems/data/make_synthetic_experiment.py.")
         # sort based on batch number (can be multi digit)
         all_batches_paths.sort(key=lambda x: int(x.stem.split("_")[-1][1:]))
         df = pd.read_excel(all_batches_paths[-1])
