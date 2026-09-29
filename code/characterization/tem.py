@@ -24,8 +24,7 @@ import numpy as np
 def load_image(path: str) -> tuple[np.ndarray, float | None]:
     """-> (imagem 2D float, nm por pixel ou None)."""
     if path.lower().endswith((".dm3", ".dm4", ".emd", ".ser", ".mrc")):
-        from rsciio import IO_PLUGINS  # noqa: F401  (RosettaSciIO)
-        import importlib
+        import importlib  # leitores do RosettaSciIO (ambiente core)
         ext = path.lower().rsplit(".", 1)[1]
         mod = {"dm3": "rsciio.digitalmicrograph", "dm4": "rsciio.digitalmicrograph", "emd": "rsciio.emd",
                "ser": "rsciio.tia", "mrc": "rsciio.mrc"}[ext]
@@ -33,8 +32,14 @@ def load_image(path: str) -> tuple[np.ndarray, float | None]:
         ax = d["axes"][-1]
         scale = ax.get("scale")
         unit = str(ax.get("units", "nm"))
-        nm = scale * {"nm": 1, "µm": 1000, "um": 1000, "Å": 0.1, "A": 0.1}.get(unit, 1) if scale else None
-        return np.asarray(d["data"], float), nm
+        factor = {"nm": 1, "µm": 1000, "μm": 1000, "um": 1000, "Å": 0.1, "A": 0.1, "pm": 1e-3}
+        if scale and unit not in factor:
+            raise ValueError(f"{path}: unidade de escala desconhecida {unit!r}; informe --nm-per-px")
+        nm = scale * factor[unit] if scale else None
+        data = np.asarray(d["data"], float)
+        if data.ndim == 3:            # série/pilha: usa a média dos quadros
+            data = data.mean(axis=0)
+        return data, nm
     from skimage import io
     img = io.imread(path)
     if img.ndim == 3:

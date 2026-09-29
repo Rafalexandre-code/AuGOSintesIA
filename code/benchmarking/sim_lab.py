@@ -74,8 +74,10 @@ def run_syntheses(lab: str, syn: pd.DataFrame, rng: np.random.Generator) -> pd.D
     for c, v in (("gold_precursor_lot_id", "LOT-HAuCl4-SIM"), ("hardware", "hot_plate"), ("status", "done")):
         if c not in syn or syn[c].isna().all() or (syn[c].astype(str) == "").all():
             syn[c] = v
-    if "reductant_lot_id" not in syn or (syn["reductant_lot_id"].astype(str).isin(["", "nan"])).any():
-        syn["reductant_lot_id"] = [rng.choice(list(sim.REAGENT_LOTS)) for _ in range(len(syn))]
+    if "reductant_lot_id" not in syn:
+        syn["reductant_lot_id"] = ""
+    missing = syn["reductant_lot_id"].astype(str).isin(["", "nan"])   # só preenche o que falta
+    syn.loc[missing, "reductant_lot_id"] = [rng.choice(list(sim.REAGENT_LOTS)) for _ in range(int(missing.sum()))]
     n_sp = len(pd.read_csv(os.path.join(lab, "spectra.csv"))) if os.path.exists(os.path.join(lab, "spectra.csv")) else 0
     spectra, char, outc, res = [], [], [], []
     for _, s in syn.iterrows():

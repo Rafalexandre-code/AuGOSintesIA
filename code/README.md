@@ -3,11 +3,11 @@
 Código próprio da proposta, organizado pelas seções do projeto FAPESP. `tools/data_sources/build_deposit.py` copia
 estas pastas para o depósito [`GO-AuNP-Autonomous-Design`](../deposit/GO-AuNP-Autonomous-Design/README.md).
 Ambiente: `tools/setup_env.sh core && source .venvs/core/bin/activate`. Testes: `python -m pytest code/tests -q`
-(17 testes; sinais com parâmetros conhecidos + laço completo simulado).
+(21 testes; sinais com parâmetros conhecidos, laço completo simulado e regressões dos bugs corrigidos).
 
 | Pasta | Seção | O que faz |
 |---|---|---|
-| [`spectral/`](spectral) | §4.4, §4.6 | `uvvis.py`: branco, diluição e caminho óptico; λ_LSPR, A_LSPR, FWHM, A_LSPR/A450; diâmetro pelas relações de Haiss et al. (2007); **perda espectral J da Eq. (1)** e log(J + ε). `mie.py`: espectros de AuNP/AgNP por Mie com as constantes ópticas de Johnson & Christy (`datasets/optical-constants/`), correção de amortecimento por tamanho e população log-normal |
+| [`spectral/`](spectral) | §4.4, §4.6 | `uvvis.py` (lê CSV com `,`/`;`/TAB/espaços e vírgula decimal): branco, diluição e caminho óptico; λ_LSPR, A_LSPR, FWHM, A_LSPR/A450; diâmetro pelas relações de Haiss et al. (2007); **perda espectral J da Eq. (1)** e log(J + ε). `mie.py`: espectros de AuNP/AgNP por Mie com as constantes ópticas de Johnson & Christy (`datasets/optical-constants/`), correção de amortecimento por tamanho e população log-normal |
 | [`characterization/`](characterization) | §4.2, §4.12 | `raman.py`: bandas D/G (e D*, D'', D') com **larguras** e ID/IG com incerteza; fundo linear ajustado junto (linhas de base flexíveis subestimam as larguras do GO). `xps.py`: Shirley + C 1s (C–C, C–O, C=O, O–C=O) e C/O pelo survey com RSF. `tem.py`: distribuição de tamanho por limiar + watershed (lê .dm3/.dm4/.emd com RosettaSciIO). Todos geram linhas no formato das tabelas de caracterização |
 | [`go_navigator/`](go_navigator/batch_descriptors.py) | §4.2 | descritores por **lote de GO** (média ± sd, desvio entre lotes) e contexto padronizado para o GP |
 | [`aunp_designer/`](aunp_designer/designer.py) | §4.5, §4.7, §4.13, §4.17, §4.18 | **AuNP Designer**: GP Matérn-5/2 + ARD por objetivo; os **4 braços** da proposta (`recipe`, `batch` = GP multitarefa com o lote como tarefa, `go` = descritores do GO, `go+impurities` = + impurezas dos reagentes); qLogNEHVI ou qNEHVI; incerteza medida como ruído heteroscedástico; log(J + ε); seleção **novelty-aware** (w·a + (1−w)·n); **leave-one-batch-out** (RMSE, cobertura do IC 95 %); **SHAP** com estabilidade por bootstrap; propostas com bloco e ordem aleatorizada; `run_metadata.json` com commit, pacotes, semente e hash das tabelas |

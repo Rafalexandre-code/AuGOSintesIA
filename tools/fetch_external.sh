@@ -35,6 +35,7 @@ tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 newlock="$tmp/lock.tsv"; head -1 "$LOCK" > "$newlock"
 
 grep -v '^#' "$LOCK" | while IFS=$'\t' read -r cat name repo branch commit date; do
+  # shellcheck disable=SC2076  # comparação literal intencional
   if [ "${#names[@]}" -gt 0 ] && [[ ! " ${names[*]} " =~ " $name " ]]; then
     printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$cat" "$name" "$repo" "$branch" "$commit" "$date" >> "$newlock"; continue
   fi
@@ -79,7 +80,7 @@ grep -v '^#' "$LOCK" | while IFS=$'\t' read -r cat name repo branch commit date;
       rm -f "$ptr"
     done <<< "$ptrs"
   fi
-  rm -rf "$src/.git" "$DEST/$cat/$name"; mkdir -p "$DEST/$cat"; mv "$src" "$DEST/$cat/$name"
+  rm -rf "$src/.git" "${DEST:?}/${cat:?}/${name:?}"; mkdir -p "$DEST/$cat"; mv "$src" "$DEST/$cat/$name"
   printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$cat" "$name" "$repo" "$branch" "$commit" "$date" >> "$newlock"
 done
 

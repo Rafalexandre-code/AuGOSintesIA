@@ -861,6 +861,31 @@ Verificação com `tools/check_repo.py` (estrutura) e `tools/smoke_test.sh` (exe
 | `M2Hub/tutorials/tutorial.ipynb` | `get_data(property=qmof:bandgap, task=jarvis, split=random…)` — erro de sintaxe (faltam aspas) | argumentos entre aspas | célula compila ✓ |
 | `M2Hub/README.md` | link para `DOCUMENTS.md`; o arquivo original se chama `DOUCUMENTS.md` | link corrigido | `check_repo.py` ✓ |
 
+### 7.8 Revisão arquivo por arquivo (2026-09-29, 2ª rodada)
+Varredura com `ruff` (erros fatais: nomes indefinidos, sintaxe), `shellcheck`, `check_repo.py --regen`, os testes de
+`code/tests` e leitura manual de todo o código próprio (`code/`, `tools/`):
+
+| Onde | Problema | Correção | Verificação |
+|---|---|---|---|
+| `M2Hub/.../equiformer/expnorm_rbf.py` | `nn` indefinido → `NameError` com `trainable=True` | `import torch.nn as nn` | ruff F821 ✓ |
+| `M2Hub/.../trainers/base_trainer.py` | `radius_graph` usado sem import (grafo não periódico `otf_graph`) | import de `torch_geometric.nn` | ruff F821 ✓ |
+| `M2Hub/.../relaxation/ml_relaxation.py` | `raise e` fora do `except` (Python 3 apaga `e`) → `NameError` no lugar do erro real | guarda a exceção em `oom_error` | ruff F821 ✓ |
+| `tools/fetch_external.sh` | `rm -rf "$DEST/$cat/$name"` sem proteção contra variável vazia | `${DEST:?}/${cat:?}/${name:?}` | shellcheck ✓ |
+| `code/spectral/uvvis.py` `read_spectrum` | CSV brasileiro (`;` + vírgula decimal) lido **errado em silêncio** (`510,5;0,431` → 510,0 / 5,0); também usado por Raman e XPS | separador e vírgula decimal detectados; erro se < 3 pontos | teste ✓ |
+| `uvvis.lspr` | supunha comprimentos de onda crescentes; janela vazia dava erro obscuro | ordena; mensagem clara | teste ✓ |
+| `designer.py` braço `batch` | com lote não sintetizado (ou sem `--batch`) otimizava a "tarefa" como variável contínua | erro explícito indicando os braços `go`/`go+impurities` | teste ✓ |
+| `designer.py` braços `go*` | sem `--batch`, ou com lote sem descritores, o contexto ficava livre (propostas para um "lote fictício") | erro explícito | teste ✓ |
+| `designer.py` impurezas | escala de padronização dos lotes da próxima rodada incluía sínteses falhas/planejadas; `sd` NaN não tratado | mesma população do modelo (`usable_syntheses`); `sd` NaN → 1 | teste ✓ |
+| `designer.py` SHAP | fundo por `shap.kmeans` gerava índices de tarefa fracionários → falha no braço `batch` | fundo com amostras reais | executado ✓ |
+| `designer.py` entradas | `target` sem `target_value`, `--log-objectives` com nome errado ou y+ε ≤ 0 davam NaN silencioso; `--novelty-w` fora de [0, 1]; `--lot` sem `=`; `--out` em pasta inexistente | mensagens de erro / cria a pasta | teste ✓ |
+| `batch_descriptors.py --write` | sobrescrevia `go_descriptors.csv` curado à mão | exige `--force` | — |
+| `sim_lab.run_syntheses` | se faltava um lote de redutor, sorteava **todos** (apagava os informados) | preenche só os que faltam | teste ✓ |
+| `characterization/tem.py` | unidade de escala desconhecida virava nm em silêncio; pilhas 3D não tratadas | erro com instrução; média dos quadros | — |
+| `characterization/xps.py` | fundo de Shirley ancorado em 1 ponto de cada lado (sensível a ruído) | média de 5 pontos | teste ✓ |
+| `characterization/raman.py` | divisão por zero em ID/IG; IDs repetidos entre execuções | proteção; `--start` | — |
+| `causal_analysis.py` | coluna existente mas toda vazia (ex.: lote sem análises) derrubava todas as linhas | tratada como ausente; erro se < 10 sínteses | — |
+| `lab_data_model.py validate` | inteiros `3.0` recusados; CSV com `;` gerava "colunas ausentes" sem explicação; datas não conferidas; chaves repetidas sem dizer quais | aceita `3.0`; explica o `;`; valida AAAA-MM-DD; lista as repetidas; sugere ponto decimal | teste ✓ |
+
 ### 7.6 Arquivos supérfluos (não removidos, por serem parte das cópias originais)
 `.DS_Store`, `__pycache__/*.pyc`, `.ipynb_checkpoints/`, `.idea/` aninhados; `datasets/pubchem/REFCHEM_RefChemID_4004.json`
 (Peisleyite, fora do tema). Um `.gitignore` na raiz agora evita novos `__pycache__/` e `.venvs/`.
@@ -1038,7 +1063,7 @@ SMOKE_FULL=1 tools/smoke_test.sh qubot-scripts   # inclui a análise completa de
 ```
 
 Resultado em 2026-09-29: `check_repo.py --regen` → 0 problemas; `smoke_test.sh` → 11/11 ambientes OK
-(no `core`: os 17 testes de `code/tests`; nos demais: SDL, Bgolearn, RAMBOAU, chem-MFBO, BOCoDe/AgNP, GO-MACE-23, notebook de Cruse,
+(no `core`: os 21 testes de `code/tests`; nos demais: SDL, Bgolearn, RAMBOAU, chem-MFBO, BOCoDe/AgNP, GO-MACE-23, notebook de Cruse,
 Qubot, cINN do MatDesINNe com localização, clientes de dados).
 
 ---

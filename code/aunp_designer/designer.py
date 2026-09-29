@@ -71,6 +71,16 @@ def _read(lab: str, table: str) -> pd.DataFrame | None:
 
 # ---------------------------------------------------------------------------------------------- dados
 
+def usable_syntheses(lab: str) -> pd.DataFrame:
+    """Sínteses que entram no modelo: sem as falhas/planejadas e sem os brancos de GO (sem Au)."""
+    syn = pd.read_csv(os.path.join(lab, "aunp_syntheses.csv"))
+    if "status" in syn:
+        syn = syn[~syn["status"].astype(str).isin(["failed", "planned"])]
+    if "is_control" in syn:
+        syn = syn[syn["is_control"].astype(str) != "GO_blank"]
+    return syn.reset_index(drop=True)
+
+
 def impurity_context(lab: str, syn: pd.DataFrame) -> pd.DataFrame:
     """Descritores de impurezas por síntese: para cada papel de lote (ouro, redutor, estabilizante), o valor de cada
     analito medido naquele lote (reagent_analyses), padronizado. Índice = synthesis_id."""
@@ -96,9 +106,9 @@ def impurity_context(lab: str, syn: pd.DataFrame) -> pd.DataFrame:
 def impurity_values_for_lots(lab: str, lots: dict[str, str], ref: pd.DataFrame) -> dict[str, float]:
     """Valores padronizados (mesma escala de impurity_context) para os lotes que serão usados na próxima rodada."""
     ra = _read(lab, "reagent_analyses")
-    syn = _read(lab, "aunp_syntheses")
-    if ra is None or syn is None:
+    if ra is None or not os.path.exists(os.path.join(lab, "aunp_syntheses.csv")):
         return {}
+    syn = usable_syntheses(lab)       # mesma população usada em impurity_context (mesma escala)
     per_lot = ra.pivot_table(index="lot_id", columns="analyte", values="value", aggfunc="mean")
     per_lot.index = per_lot.index.astype(str)
     raw = {}
@@ -111,7 +121,8 @@ def impurity_values_for_lots(lab: str, lots: dict[str, str], ref: pd.DataFrame) 
         for a in per_lot.columns:
             name = f"imp_{role}_{a}"
             if name in ref.columns:
-                mu, sd = m[a].mean(), m[a].std(ddof=0) or 1.0
+                mu, sd = m[a].mean(), m[a].std(ddof=0)
+                sd = sd if np.isfinite(sd) and sd > 0 else 1.0
                 v = per_lot.loc[lots[role], a] if role in lots and lots[role] in per_lot.index else mu
                 raw[name] = float((v - mu) / sd)
     return raw
@@ -145,15 +156,18 @@ class Campaign:
 
 def load_campaign(lab: str, space: dict, representation: str = "go", log_objectives=(), eps: float = 1e-3,
                   use_noise: bool = True) -> Campaign:
-    syn = pd.read_csv(os.path.join(lab, "aunp_syntheses.csv"))
-    if "status" in syn:
-        syn = syn[~syn["status"].astype(str).isin(["failed", "planned"])]
-    if "is_control" in syn:
-        syn = syn[syn["is_control"].astype(str) != "GO_blank"]
+    syn = usable_syntheses(lab)
     out = pd.read_csv(os.path.join(lab, "outcomes.csv"))
     objs = out.drop_duplicates("objective").set_index("objective")[["direction", "target_value"]]
     objs = objs[objs["direction"] != "constraint"]
     names = list(objs.index)
+    bad_target = [n for n in names if objs.loc[n, "direction"] == "target" and not np.isfinite(
+        pd.to_numeric(objs.loc[n, "target_value"], errors="coerce"))]
+    if bad_target:
+        raise ValueError(f"objetivo(s) 'target' sem target_value em outcomes.csv: {bad_target}")
+    unknown = [n for n in log_objectives if n not in names]
+    if unknown:
+        raise ValueError(f"--log-objectives cita objetivos inexistentes: {unknown} (disponíveis: {names})")
     val = out.pivot_table(index="synthesis_id", columns="objective", values="value")[names]
     unc = out.pivot_table(index="synthesis_id", columns="objective", values="uncertainty") \
         if "uncertainty" in out else pd.DataFrame(index=val.index)
@@ -183,6 +197,8 @@ def load_campaign(lab: str, space: dict, representation: str = "go", log_objecti
             if np.isfinite(u).all():
                 var = np.maximum(u ** 2, 1e-12)
         if name in log_objectives:
+            if np.any(v + eps <= 0):
+                raise ValueError(f"log(y + ε) indefinido para {name}: há valores ≤ −ε ({v.min():g})")
             if var is not None:
                 var = var / (v + eps) ** 2
             v = np.log(v + eps)
@@ -282,6 +298,10 @@ def propose(camp: Campaign, space: dict, q: int = 4, fixed: dict | None = None, 
     af, ref = _acq(model, tx, ty, acq)
     cols = list(camp.X.columns)
     fixed_idx = {cols.index(k): float(v) for k, v in (fixed or {}).items() if k in cols}
+    if camp.task_col and cols.index(camp.task_col) not in fixed_idx:
+        raise ValueError("braço 'batch': a tarefa (lote) precisa ser fixada — use fixed_context(..., batch=...)")
+    if novelty_w is not None and not 0.0 <= novelty_w <= 1.0:
+        raise ValueError("novelty_w deve estar entre 0 e 1")
     def pool_select(w: float) -> "torch.Tensor":
         """Seleção sobre 2048 candidatos Sobol: escore = w·a + (1−w)·n (novelty-aware, Aqeeli et al. 2026)."""
         pool = bounds[0] + (bounds[1] - bounds[0]) * SobolEngine(len(cols), scramble=True, seed=seed).draw(2048).double()
@@ -363,13 +383,21 @@ def proposals_to_syntheses(cands: pd.DataFrame, space: dict, batch: str | None, 
 
 
 def fixed_context(lab: str, camp: Campaign, batch: str | None, lots: dict | None) -> dict:
+    """Valores de contexto fixos na otimização (lote-alvo, lotes de reagente). Erros explícitos quando o braço não
+    consegue representar o lote pedido — senão a aquisição otimizaria um "lote fictício"."""
     fixed = {}
-    if camp.representation == "batch" and batch in camp.task_map:
+    if camp.representation == "batch":
+        if batch not in camp.task_map:
+            raise ValueError(f"braço 'batch' (identidade do lote) só propõe para lotes já sintetizados "
+                             f"{sorted(camp.task_map)}; para um lote novo ({batch!r}) use 'go' ou 'go+impurities'")
         fixed["task"] = camp.task_map[batch]
-    if camp.representation in ("go", "go+impurities") and batch:
+    ctx_cols = [c for c in camp.X.columns if c.startswith("ctx_")]
+    if ctx_cols:
         z = standardized_context(lab)
-        if batch in z.index:
-            fixed.update({f"ctx_{c}": float(v) for c, v in z.loc[batch].items()})
+        if not batch or batch not in z.index:
+            raise ValueError(f"informe --batch com um lote que tenha descritores ({sorted(z.index)}); "
+                             f"recebido {batch!r}")
+        fixed.update({f"ctx_{c}": float(v) for c, v in z.loc[batch].items() if f"ctx_{c}" in camp.X.columns})
     if camp.representation == "go+impurities":
         imp_cols = [c for c in camp.X.columns if c.startswith("imp_")]
         fixed.update(impurity_values_for_lots(lab, lots or {}, camp.X[imp_cols]))
@@ -430,7 +458,7 @@ def explain(lab: str, space: dict, representation: str = "go", n_boot: int = 5, 
         out = {}
         for i, name in enumerate(camp.objs.index):
             f = lambda z, i=i: model.models[i].posterior(torch.tensor(z, dtype=torch.double)).mean.detach().numpy().ravel()  # noqa: E731
-            bg = shap.kmeans(X[rows], min(10, len(rows)))
+            bg = shap.sample(X[rows], min(10, len(rows)), random_state=seed)   # amostras reais (tarefa inteira)
             sv = shap.KernelExplainer(f, bg).shap_values(X[rows], nsamples=200, silent=True)
             out[name] = np.abs(sv).mean(0)
         return out
@@ -595,7 +623,12 @@ def main() -> None:
         print(res.sort_values(["objective", "mean_abs_shap"], ascending=[True, False]).to_string(index=False))
         print(f"-> {os.path.relpath(path, ROOT)}")
     else:
-        lots = dict(x.split("=", 1) for x in a.lot)
+        lots = {}
+        for x in a.lot:
+            role, sep, lot = x.partition("=")
+            if not sep or role not in LOT_ROLES:
+                ap.error(f"--lot {x!r}: use papel=lote, papel ∈ {sorted(LOT_ROLES)}")
+            lots[role] = lot
         camp = load_campaign(a.lab_dir, space, a.representation, a.log_objectives, a.eps)
         print(f"{len(camp.X)} sínteses; objetivos: {dict(camp.objs['direction'])}; entradas: {list(camp.X.columns)}; "
               f"ruído medido: {[n for n, v in zip(camp.objs.index, camp.Yvar) if v is not None] or 'nenhum'}")
@@ -603,6 +636,7 @@ def main() -> None:
         cands = propose(camp, space, q=a.q, fixed=fixed, acq=a.acq, novelty_w=a.novelty_w, seed=a.seed)
         syn = proposals_to_syntheses(cands, space, a.batch, a.campaign, a.iteration, lots=lots, seed=a.seed)
         out = a.out or os.path.join(outdir, f"proposals_{date.today()}.csv")
+        os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
         syn.to_csv(out, index=False)
         json.dump(run_metadata(vars(a), a.lab_dir), open(os.path.splitext(out)[0] + "_run_metadata.json", "w"), indent=1)
         print(pd.concat([syn[["synthesis_id", "run_order"] + list(space)],

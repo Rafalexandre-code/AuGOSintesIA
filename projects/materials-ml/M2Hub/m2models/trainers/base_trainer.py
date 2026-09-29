@@ -20,6 +20,7 @@ import torch.optim as optim
 import yaml
 from torch.nn.parallel.distributed import DistributedDataParallel
 from torch.utils.data import DataLoader
+from torch_geometric.nn import radius_graph
 from tqdm import tqdm
 
 import m2models
