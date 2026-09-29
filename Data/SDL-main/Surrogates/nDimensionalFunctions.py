@@ -218,9 +218,8 @@ def levy(X, noise=0, normY=True):
     xx = [xrange[0] + x * (xrange[1] - xrange[0]) for x in X]
     d = len(xx)
 
-    w = np.zeros((d, 1))
-    for ii in range(d):
-        w[ii] = 1 + (xx[ii] - 1) / 4
+    # 1-D array of floats (math.sin on 1-element arrays fails on recent NumPy)
+    w = 1 + (np.asarray(xx, dtype=float) - 1) / 4
 
     term1 = (math.sin(math.pi * w[0])) ** 2
     term3 = (w[d-1] - 1) ** 2 * (1 + (math.sin(2 * math.pi * w[d-1])) ** 2)
@@ -231,8 +230,7 @@ def levy(X, noise=0, normY=True):
         new = (wi - 1) ** 2 * (1 + 10 * (math.sin(math.pi * wi + 1)) ** 2)
         S = S + new
 
-    y = term1 + S + term3
-    y = y[0]
+    y = float(term1 + S + term3)
     y = -y
 
     if normY:

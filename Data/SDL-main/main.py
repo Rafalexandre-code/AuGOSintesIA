@@ -4,6 +4,10 @@ from time import time
 import os
 
 folderpath = os.getcwd()
+os.makedirs('./save data', exist_ok=True)
+
+# Belief model: 'GPR' or 'BRMLPR_EGS' (main_plot.py reads the same SDL_BELIEF_MODEL)
+beliefmodeltype = os.environ.get('SDL_BELIEF_MODEL', 'BRMLPR_EGS')
 
 ndSurrogateList = ['ackley', 'griewank', 'levy', 'rastrigin', 'michalewicz', ]
 
@@ -22,8 +26,6 @@ for i in range(len(ndSurrogateList)):
             for l in range(len(dimensions2)):
                 dimensions = dimensions2[l]
                 for rep in range(nreps):
-                    beliefmodeltype = 'BRMLPR_EGS'
-                    # beliefmodeltype = 'GPR'
                     BO2 = BO.run(modeltype=beliefmodeltype, policy='UCB', surrogate=surrogatename, noise = noise,  runlength = 20,
                                  folderpath=folderpath,startRandSamples = startRandSamples,
                                  dimensions=dimensions).singleOptimization()
