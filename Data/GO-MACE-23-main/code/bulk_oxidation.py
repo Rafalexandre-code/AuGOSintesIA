@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import utilities
 from ase import Atom
@@ -332,7 +333,11 @@ def add_hydroxyl_group(
                 print(
                     "WARNING: Structure is getting large and will be out of range of DFT. Do you want to continue?"
                 )
-                user_input = input("Enter y to continue, anything else to stop: ")
+                # GO_ALLOW_LARGE=1 answers "y" automatically (batch / non-interactive runs)
+                if os.environ.get("GO_ALLOW_LARGE") == "1":
+                    user_input = "y"
+                else:
+                    user_input = input("Enter y to continue, anything else to stop: ")
                 if user_input == "y":
                     user_asked = True  # Set the flag to True, so it won't ask again
                 else:

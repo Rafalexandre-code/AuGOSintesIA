@@ -36,7 +36,7 @@ coleção de datasets + repositórios de terceiros descompactados em `Data/`.
 - Cada subprojeto tem dependências conflitantes (torch 1.7 … 2.14, Python 3.8 … 3.12): use
   `tools/setup_env.sh <nome>` (cria `.venvs/<nome>`, ignorado pelo git).
 - Caminhos devem ser relativos ao script ou vir de variável de ambiente (já corrigidos: `QUBOT_DATA_DIR`,
-  `QWEN_*`, `RAMBOAU_EXP_DATA`, `GO_AMORPHOUS_DB`, `SDL_BELIEF_MODEL`, `MACE_RUN_TRAIN`, `GAUGE_PORT`…).
+  `QWEN_*`, `RAMBOAU_EXP_DATA`, `GO_AMORPHOUS_DB`, `GO_ALLOW_LARGE`, `SDL_BELIEF_MODEL`, `MACE_RUN_TRAIN`, `GAUGE_PORT`…).
 - Dados sintéticos/substitutos: `GO-MACE-23-main/structures/aG_p6_surrogate.xyz` (gerado por
   `code/make_amorphous_db.py`) e `RAMBOAU-main/problems/data/make_synthetic_experiment.py` NÃO são dados medidos.
 - Não versionar cópias em `Data/external/` com `.git` aninhado nem ponteiros LFS de terceiros (use o script).

@@ -309,6 +309,8 @@ print(atoms.get_potential_energy())
 
 **Novidades nesta cópia:** `code/make_amorphous_db.py` gera o banco de grafeno amorfo exigido por
 `run_amorphpus.py` (substituto do `aG_p6.xyz` não publicado — §7.2); os `train.sh` usam `mace_run_train`.
+`bulk_oxidation.py` pergunta (via `input`) se deve continuar quando a estrutura passa de 300 átomos;
+`GO_ALLOW_LARGE=1` responde "sim" automaticamente (execuções em lote, como `run_amorphpus.py`).
 Testado: `go-mace-23.pt` carrega no `mace-torch` 0.3.16 e reproduz as energias DFT do conjunto de teste com
 erro médio de 1,7 meV/átomo.
 
@@ -537,6 +539,7 @@ Estrutura derivada do DGEMO. Baseado em BoTorch + pymoo 0.4.2.2.
   C_NaOH/C_ZnCl, C_ZnCl, Q_AC, Q_Air; 3 objetivos: razão de picos XRD, razão de aspecto, produção N_ZnO) —
   Os dados reais (`MT-KBH-004`) não são públicos: use `RAMBOAU_EXP_DATA=<pasta>` com seus dados, ou gere
   um exemplo **sintético** no mesmo formato com `python problems/data/make_synthetic_experiment.py`.
+  Ex.: `RAMBOAU_EXP_DATA=problems/data/SYNTHETIC-EXAMPLE WANDB_MODE=disabled python main_exp.py --pop-size 40 --n-gen 5`.
 - `main.py` (uma execução), `run.py` (várias seeds/algoritmos em paralelo), `main_exp.py` (modo
   experimento real: propõe lote de 6), `visualization/*.py` (hipervolume, frentes de Pareto),
   `nbout/Analysis/*.ipynb` (figuras do paper), `install_help/` (conda env, script SLURM).
@@ -794,7 +797,7 @@ git clone https://github.com/Rafalexandre-code/AuGOSintesIA   # já baixa os LFS
 | Item | Situação | O que foi feito |
 |---|---|---|
 | chem-MFBO `data/clean/*.csv` | ✅ | Restaurados do repositório original (Atinary-technologies/chem-MFBO): `cofs.csv` (608 COFs Xe/Kr), `polarizability.csv`, `freesolv.csv`, `BH_dataset.csv`, além de `notebooks/` e `fig1.png` que também faltavam. |
-| GO-MACE `structures/aG_p6.xyz` | ⚠ substituto | O banco original não é público (nem no GitHub do autor). Criado `code/make_amorphous_db.py`, que gera um banco **substituto** de grafeno amorfo (trocas Stone–Wales/WWW + relaxação por molas, `info["p6"]` = fração de anéis de 6), salvo em `structures/aG_p6_surrogate.xyz`. `run_amorphpus.py` usa `GO_AMORPHOUS_DB`, depois `aG_p6.xyz` e, na falta dele, o substituto; `select_disordered` passou a usar a estrutura de p6 mais próximo quando a faixa do histograma está vazia. |
+| GO-MACE `structures/aG_p6.xyz` | ⚠ substituto | O banco original não é público (nem no GitHub do autor). Criado `code/make_amorphous_db.py`, que gera um banco **substituto** de grafeno amorfo (trocas Stone–Wales/WWW + relaxação por molas, `info["p6"]` = fração de anéis de 6), salvo em `structures/aG_p6_surrogate.xyz` (223 estruturas × 336 C, p6 0,98→0,29 em 3 trajetórias, ligações 1,28–1,65 Å, anéis de 5–8). ⚠ A geometria vem de um modelo de molas: o GO-MACE ainda vê forças de até ~7 eV/Å — para energias/MD, relaxe antes (`--mace-steps` ou ASE+MACE). Serve para gerar configurações iniciais de GO desordenado, como no artigo. `run_amorphpus.py` usa `GO_AMORPHOUS_DB`, depois `aG_p6.xyz` e, na falta dele, o substituto; `select_disordered` passou a usar a estrutura de p6 mais próximo quando a faixa do histograma está vazia. |
 | RAMBOAU `problems/data/MT-KBH-004/*.xlsx` | ⚠ não público | O repositório original (Queimo/RAMBOAU) também não publica os dados do ZnO. `problems/exp.py` agora lê a pasta de `RAMBOAU_EXP_DATA` e explica o problema se não achar nada; `problems/data/make_synthetic_experiment.py` gera planilhas **sintéticas** no mesmo formato (útil também como molde para os dados GO–AuNP). |
 | Qubot *Liquid Formulations Dataset* | ⚠ baixar à parte | Figshare (Chitre et al. 2024) — bloqueado neste ambiente; `formulation_selection.py` agora explica onde baixar. |
 | Qwen3-14B + adaptador LoRA | ⚠ baixar à parte | HuggingFace (`Qwen/Qwen3-14B`, `Kai-gu/Qwen3-14B-finetune`); caminhos configuráveis (§7.3). |
@@ -824,7 +827,7 @@ Os dois apontados antes e os demais encontrados ao executar o código:
 | `SDL-main` `main.py`/`main_plot.py` | modelos diferentes (`BRMLPR_EGS` × `GPR`) → gráficos não achavam os arquivos | ambos leem `SDL_BELIEF_MODEL` | pipeline completo ✓ |
 | `scripts/electrolytes/data_analysis.py` | `math.phase` (não existe); `load_df(df, instrument=…)`+`.df` (assinatura errada); glob do EIS montava caminho inválido; `log` recebia o caminho inteiro; `segments` indefinida; colunas inexistentes na agregação final; `chi_squared_eis` fazia `if Series != None` (todo ajuste virava "Fail"); `impedance==1.7.1` + NumPy 2 quebra o `eval` do Lin-KK | `cmath.phase`; classe `EISData`; `os.path.join`; `directory.name`; `segments = {}`; nomes corretos; `is not None`; `np.set_printoptions(legacy='1.25')`; modo `EIS_INTERACTIVE=0` | reproduz o `summary.csv` publicado: massas, espessuras e erros de transferência 96/96, χ² 74/96 (os outros 22 foram reajustados à mão pelos autores no modo interativo) ✓ |
 | `scripts/shampoo/data_analysis.py` | só funcionava no Windows | caminhos portáveis | reproduz **exatamente** o `summary.csv` publicado ✓ |
-| RAMBOAU `utils.RefPoint` / `main_exp.py` | `self.solver.alpha` inexistente; `RefPoint(...)` chamado com argumentos errados; `Experiment4D` sem `ref_point` | `alpha`; mesma chamada do `main.py`; `self.ref_point = None` | `main.py` ✓; `main_exp.py` com dados sintéticos (§7.2) |
+| RAMBOAU `utils.RefPoint` / `main_exp.py` | `self.solver.alpha` inexistente; `RefPoint(...)` chamado com argumentos errados; `Experiment4D` sem `ref_point` | `alpha`; mesma chamada do `main.py`; `self.ref_point = None` | `main.py` ✓; `main_exp.py` com os dados sintéticos ✓ (em CPU use `--pop-size 40 --n-gen 5`; o padrão 500×100 do NSGA-II leva >20 min por passo) |
 
 Observação sobre os dados Qubot: em 3 das 96 linhas, os valores de `Coincell_digestion.xlsx` diferem dos
 que aparecem no `summary.csv` publicado (o código só lê a planilha) — inconsistência dos dados originais.
