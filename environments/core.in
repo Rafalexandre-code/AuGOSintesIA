@@ -1,0 +1,25 @@
+# Ambiente principal do projeto GO–AuNP (AuNP Designer, MISO, causalidade, caracterização)
+botorch
+gpytorch
+ax-platform
+baybe
+bofire
+optuna
+Bgolearn
+shap
+dowhy
+econml
+lmfit
+pyFAI
+fabio
+sasmodels
+miepython
+PyMieScatt
+ramanspy
+ase
+pandas
+openpyxl
+scikit-learn
+matplotlib
+seaborn
+jupyterlab

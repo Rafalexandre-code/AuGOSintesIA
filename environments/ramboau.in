@@ -1,0 +1,15 @@
+# RAMBOAU (espelha install_help/env_man.yml sem conda)
+autograd
+pandas
+openpyxl
+plotly
+pymoo==0.4.2.2
+scikit-learn
+scipy
+numpy<2
+wandb
+ray
+torch
+botorch
+Cython
+pyyaml
