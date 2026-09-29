@@ -1,2 +1,2 @@
 # BOCoDe (pacote + extras leves; ver pyproject.toml para mujoco, truss, tabpfn...)
--e ../Data/BOCoDe-main[hpo,viz]
+-e ../projects/bayesian-optimization/BOCoDe[hpo,viz]

@@ -4,7 +4,7 @@ absl-py==2.5.0
     # via tensorboard
 accelerate==1.11.0
     # via
-    #   -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    #   -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
     #   llamafactory
     #   peft
     #   trl
@@ -35,9 +35,9 @@ attrs==26.1.0
 av==16.0.0
     # via llamafactory
 bitsandbytes==0.50.2
-    # via -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    # via -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
 black==26.5.1
-    # via -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    # via -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
 brotli==1.2.0
     # via gradio
 certifi==2026.7.22
@@ -74,7 +74,7 @@ cycler==0.12.1
     # via matplotlib
 datasets==4.0.0
     # via
-    #   -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    #   -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
     #   llamafactory
     #   trl
 decorator==5.3.1
@@ -93,7 +93,7 @@ einops==0.8.2
     #   llamafactory
 fastapi==0.141.1
     # via
-    #   -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    #   -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
     #   gradio
     #   llamafactory
 ffmpy==1.0.0
@@ -108,7 +108,7 @@ filelock==4.0.6
 fire==0.7.1
     # via llamafactory
 flash-attn==2.8.3.post1
-    # via -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    # via -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
 fonttools==4.66.0
     # via matplotlib
 frozenlist==1.8.0
@@ -176,11 +176,11 @@ kiwisolver==1.5.1
 lazy-loader==0.6
     # via librosa
 librosa==1.0.0
-    # via -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    # via -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
 liger-kernel==0.8.3
-    # via -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    # via -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
 llamafactory==0.9.5
-    # via -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    # via -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
 llvmlite==0.49.0
     # via numba
 markdown==3.11
@@ -217,12 +217,12 @@ narwhals==2.26.0
 networkx==3.7
     # via torch
 nltk==3.10.3
-    # via -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    # via -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
 numba==0.67.0
     # via librosa
 numpy==2.5.3
     # via
-    #   -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    #   -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
     #   accelerate
     #   bitsandbytes
     #   contourpy
@@ -285,7 +285,7 @@ nvidia-nvtx==13.0.85
     # via cuda-toolkit
 omegaconf==2.3.1
     # via
-    #   -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    #   -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
     #   llamafactory
 opentelemetry-api==1.45.0
     # via
@@ -335,7 +335,7 @@ packaging==26.3
     #   wandb
 pandas==2.3.3
     # via
-    #   -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    #   -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
     #   datasets
     #   gradio
     #   llamafactory
@@ -343,7 +343,7 @@ pathspec==1.1.1
     # via black
 peft==0.18.1
     # via
-    #   -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    #   -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
     #   llamafactory
 pillow==11.3.0
     # via
@@ -375,7 +375,7 @@ psutil==7.2.2
     #   peft
 pyarrow==25.0.1
     # via
-    #   -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    #   -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
     #   datasets
 pycparser==3.0
     # via cffi
@@ -399,7 +399,7 @@ python-dateutil==2.9.0.post0
     #   pandas
 python-multipart==0.0.32
     # via
-    #   -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    #   -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
     #   gradio
 pytokens==0.4.1
     # via black
@@ -407,7 +407,7 @@ pytz==2026.4
     # via pandas
 pyyaml==6.0.3
     # via
-    #   -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    #   -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
     #   accelerate
     #   datasets
     #   gradio
@@ -433,14 +433,14 @@ requests==2.34.2
     #   wandb
 rich==15.0.0
     # via
-    #   -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    #   -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
     #   typer
     #   tyro
 rouge-chinese==1.0.3
-    # via -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    # via -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
 ruff==0.16.9
     # via
-    #   -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    #   -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
     #   gradio
 safehttpx==0.1.7
     # via gradio
@@ -452,7 +452,7 @@ safetensors==0.8.0
     #   transformers
 scikit-learn==1.9.1
     # via
-    #   -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    #   -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
     #   librosa
 scipy==1.18.1
     # via
@@ -478,7 +478,7 @@ six==1.17.0
     #   rouge-chinese
 soundfile==0.14.0
     # via
-    #   -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    #   -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
     #   librosa
 soxr==1.1.0
     # via librosa
@@ -486,14 +486,14 @@ sse-starlette==3.5.0
     # via llamafactory
 starlette==0.52.1
     # via
-    #   -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    #   -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
     #   fastapi
     #   gradio
     #   sse-starlette
 sympy==1.14.0
     # via torch
 tensorboard==2.21.0
-    # via -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    # via -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
 tensorboard-data-server==0.7.2
     # via tensorboard
 termcolor==3.3.0
@@ -504,13 +504,13 @@ tiktoken==0.14.0
     # via llamafactory
 tokenizers==0.22.2
     # via
-    #   -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    #   -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
     #   transformers
 tomlkit==0.13.3
     # via gradio
 torch==2.14.0
     # via
-    #   -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    #   -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
     #   accelerate
     #   bitsandbytes
     #   flash-attn
@@ -526,11 +526,11 @@ torchdata==0.11.0
     # via llamafactory
 torchvision==0.29.0
     # via
-    #   -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    #   -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
     #   llamafactory
 tqdm==4.70.1
     # via
-    #   -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    #   -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
     #   datasets
     #   huggingface-hub
     #   modelscope
@@ -540,7 +540,7 @@ tqdm==4.70.1
     #   transformers
 transformers==5.6.0
     # via
-    #   -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    #   -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
     #   llamafactory
     #   peft
     #   trl
@@ -550,11 +550,11 @@ triton==3.8.0
     #   torch
 trl==0.24.0
     # via
-    #   -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    #   -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
     #   llamafactory
 typer==0.27.2
     # via
-    #   -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    #   -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
     #   gradio
     #   transformers
 typing-extensions==4.16.0
@@ -585,7 +585,7 @@ typing-inspection==0.4.4
     #   pydantic
 tyro==0.8.14
     # via
-    #   -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    #   -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
     #   llamafactory
 tzdata==2026.4
     # via pandas
@@ -598,17 +598,17 @@ urllib3==2.8.0
     #   torchdata
 uvicorn==0.54.0
     # via
-    #   -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    #   -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
     #   gradio
     #   llamafactory
 wandb==0.30.0
-    # via -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    # via -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
 websockets==15.0.1
     # via gradio-client
 werkzeug==3.1.9
     # via tensorboard
 xformers==0.0.35
-    # via -r ../Data/Synthesis-Properties-Database-for-Nanomaterials-main/requirements.txt
+    # via -r ../projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials/requirements.txt
 xxhash==4.0.1
     # via
     #   datasets

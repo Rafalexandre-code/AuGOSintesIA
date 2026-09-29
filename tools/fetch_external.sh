@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Clona/atualiza os repositórios de Data/external a partir de tools/external_repos.lock.tsv.
+# Clona/atualiza os repositórios de external a partir de tools/external_repos.lock.tsv.
 #
 # Uso:
 #   tools/fetch_external.sh                 # reclona todos na versão fixada (coluna "commit")
@@ -15,7 +15,7 @@ export GIT_LFS_SKIP_SMUDGE=1   # objetos LFS de terceiros não são baixados (ve
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOCK="$ROOT/tools/external_repos.lock.tsv"
-DEST="$ROOT/Data/external"
+DEST="$ROOT/external"
 
 latest=0; full=0; list=0; names=()
 for a in "$@"; do

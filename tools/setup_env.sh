@@ -25,7 +25,7 @@ name="$1"; latest=0; [ "${2:-}" = "--latest" ] && latest=1
 line="$(grep -v '^#' "$TABLE" | awk -F'\t' -v n="$name" '$1==n')"
 [ -n "$line" ] || { echo "Ambiente desconhecido: $name (veja --list)"; exit 1; }
 IFS=$'\t' read -r _ typ py spec desc <<< "$line"
-cd "$ENVDIR"   # caminhos relativos (-r/-e ../Data/...) são resolvidos a partir daqui
+cd "$ENVDIR"   # caminhos relativos (-r/-e ../projects/...) são resolvidos a partir daqui
 
 if [ "$typ" = "conda" ]; then
   tool="$(command -v mamba || command -v micromamba || command -v conda || true)"
