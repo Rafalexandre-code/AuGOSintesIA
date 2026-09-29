@@ -20,11 +20,12 @@ def select_disordered(p6, graphene):
         for i in range(len(graphene))
         if bin_edges[bin_index] <= p6_store[i] < bin_edges[bin_index + 1]
     ]
-    # If there are no structures in the selected bin, return None or raise an exception
+    # If the selected bin is empty, fall back to the structures whose p6 is closest to the target
     if not structures_in_bin:
-        # print(structures_in_bin)
-        raise ValueError("No structures found in the selected bin.")
-        # or you can return None or any other value to indicate that no structure was found
+        closest = np.min(abs(p6_store - p6))
+        structures_in_bin = [
+            graphene[i] for i in range(len(graphene)) if abs(p6_store[i] - p6) == closest
+        ]
     # If there are multiple structures with the same p6 value within the selected bin, randomly choose one
     selected_index = np.random.randint(0, len(structures_in_bin))
     selected_structure = structures_in_bin[selected_index]

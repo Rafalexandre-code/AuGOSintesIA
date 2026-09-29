@@ -1,5 +1,6 @@
 # main_script.py
 
+import os
 import time
 from math import cos, pi, sin
 
@@ -106,7 +107,12 @@ vacuum = 10
 
 if disorder:
     # Path to input structure
-    input_strucuture = "../structures/aG_p6.xyz"
+    # The paper's database (../structures/aG_p6.xyz) is not distributed. Set GO_AMORPHOUS_DB to your own
+    # file, or build a surrogate with `python make_amorphous_db.py` (-> ../structures/aG_p6_surrogate.xyz).
+    input_strucuture = os.environ.get("GO_AMORPHOUS_DB", "../structures/aG_p6.xyz")
+    if not os.path.exists(input_strucuture) and os.path.exists("../structures/aG_p6_surrogate.xyz"):
+        print("aG_p6.xyz not found: using the SURROGATE database ../structures/aG_p6_surrogate.xyz")
+        input_strucuture = "../structures/aG_p6_surrogate.xyz"
     print("Reading amorphous database")
     graphene_init = read(input_strucuture, index=":")
     graphene = graphene_init.copy()
@@ -135,6 +141,7 @@ for j in range(20):
                     output_structure = f"../inital_configs/p1-p4/batch-{j}/GO-{O_content:.2f}-{p6:.2f}.xyz".format(
                         O_content, OH_fraction
                     )
+                    os.makedirs(os.path.dirname(output_structure), exist_ok=True)
                     # Run the functionalization process
                     run_functionalization(
                         graphene,
