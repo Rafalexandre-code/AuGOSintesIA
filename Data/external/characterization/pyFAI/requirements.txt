@@ -1,0 +1,23 @@
+wheel
+meson-python
+ninja
+numpy >= 1.10
+cython >=3
+fabio
+scipy
+matplotlib
+numexpr != 2.8.6
+h5py
+silx >= 2
+PyOpenGL
+PySide6; python_version < '3.14'
+pyqt6; python_version >= '3.14'
+qtawesome
+hdf5plugin
+myst-nb
+pydata-sphinx-theme
+sphinxcontrib.programoutput
+coverage
+pytest
+pytest-cov
+pytest-xdist

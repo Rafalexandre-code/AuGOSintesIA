@@ -1,0 +1,142 @@
+[project]
+name = 'fabio'
+dynamic = ['version',]
+license = {file = 'copyright'}
+requires-python = '>=3.11'
+readme = 'README.rst'
+description = 'FabIO is an I/O library for images produced by 2D X-ray detectors and written in Python'
+#keyword = ['image', 'detector']
+authors = [
+  { name = 'Henning Sorensen', email = 'osho@fysik.dtu.dk' },
+  { name = 'Erik Knudsen' },
+  { name = 'Jonathan P. Wright', email= 'wright@esrf.fr'},
+  { name = 'Regis Perdreau'},
+  { name = 'Jérôme Kieffer', email = 'jerome.kieffer@esrf.fr'},
+  { name = 'Gael Goret'},
+  { name = 'Brian Pauw'},
+  { name = 'Valentin Valls', email = 'valentin.valls@esrf.fr'},
+]
+classifiers = [
+    'Development Status :: 5 - Production/Stable',
+    'Environment :: Console',
+    'Intended Audience :: End Users/Desktop',
+    'Intended Audience :: Developers',
+    'Intended Audience :: Science/Research',
+    "License :: OSI Approved :: MIT License",
+    'Operating System :: MacOS :: MacOS X',
+    'Operating System :: Microsoft :: Windows',
+    'Operating System :: POSIX',
+    'Programming Language :: C',
+    'Programming Language :: Cython',
+    'Programming Language :: Python',
+    'Programming Language :: Python :: 3',
+    'Programming Language :: Python :: Implementation :: CPython',
+    'Topic :: Scientific/Engineering :: Chemistry',
+    'Topic :: Scientific/Engineering :: Bio-Informatics',
+    'Topic :: Scientific/Engineering :: Physics',
+    'Topic :: Scientific/Engineering :: Visualization',
+    'Topic :: Software Development :: Libraries :: Python Modules',
+]
+
+dependencies = [
+   'numpy',
+   'h5py',
+   'hdf5plugin',
+   'lxml',
+   'pillow',
+   'filelock'
+]
+
+[build-system]
+build-backend = 'mesonpy'
+requires = [
+    'meson-python>=0.11',
+    "meson>=0.64; platform_system=='Windows'",
+    "meson; platform_system!='Windows'",
+    'ninja',
+    'wheel',
+    'Cython>=3.1',
+    'pyproject-metadata>=0.5.0',
+]
+[project.optional-dependencies]
+gui = [ "qtpy", "pyside6", "matplotlib", "packaging" ]
+all = [ "qtpy", "pyside6", "matplotlib", "packaging" ]
+
+[project.urls]
+homepage = 'http://www.silx.org'
+documentation = 'http://www.silx.org/doc/fabio/latest/'
+source = 'https://github.com/silx-kit/fabio'
+download = 'https://github.com/silx-kit/fabio/releases'
+tracker = 'https://github.com/silx-kit/fabio/issues'
+
+[project.scripts]
+densify_Bragg = 'fabio.app.densify:main'
+eiger2cbf = 'fabio.app.eiger2cbf:main'
+eiger2crysalis = 'fabio.app.eiger2crysalis:main'
+fabio-convert = 'fabio.app.convert:main'
+hdf2neggia = 'fabio.app.hdf2neggia:main'
+#[project.gui-scripts]
+fabio_viewer = 'fabio.app.viewer:main'
+
+[tool.cibuildwheel]
+test-requires = ["qtpy", "matplotlib"]
+# Skip 32-bit builds and PyPy
+skip = ["*-win32", "*-manylinux_i686", "pp*", "*musllinux*"]
+
+[tool.coverage.run]
+branch = true
+
+[tool.coverage.report]
+ignore_errors = true
+
+[tool.coverage.html]
+directory = "coverage_html_report"
+
+[tool.ruff]
+line-length = 127
+target-version = "py311"
+extend-exclude = [
+    "build",
+    "doc/source/tutorials",  # notebooks rely on IPython magics (%%cython, %pylab, ...)
+    "sandbox",               # playground scripts, excluded from releases (see .gitattributes)
+]
+
+[tool.ruff.lint]
+# Explicit rule list: only rules the code base actually complies with are
+# enforced, so `ruff check` stays green and meaningful in CI.
+select = [
+    "E4", "E7", "E9",        # pycodestyle errors (ruff defaults)
+    "F",                     # pyflakes
+    "UP028",                 # yield from
+    "UP031",                 # printf-style %-formatting
+    "UP036",                 # outdated python version blocks
+    "C4",                    # flake8-comprehensions (literals over calls)
+    "SIM102", "SIM103",      # collapsible if / needless bool
+    "SIM113",                # use enumerate
+    "SIM115",                # open() without context manager (deliberate cases carry noqa)
+    "SIM117",                # collapsible with
+    "SIM118", "SIM401",      # dict .keys() / .get() idioms
+    "PIE810",                # startswith called with a tuple
+    "LOG015",                # no call on the root logger
+    "G201", "G202",          # logger.exception over error(exc_info=True)
+    "EXE",                   # shebang and executable-bit consistency (see ignore)
+    "PLE",                   # pylint errors (format-string and raise misuse)
+    "TRY201", "TRY203",      # bare raise to re-raise
+    "RUF012",                # mutable class attributes need ClassVar
+    "RUF046", "RUF059",      # useless int() cast / unused unpacked variable
+]
+ignore = [
+    "EXE001",  # many library modules keep a historical shebang without exec bit
+]
+# Rules considered and deliberately NOT enabled:
+# - BLE001 (blind except): catching Exception is intentional in the format
+#   probing and best-effort decoding paths.
+# - TRY002/TRY003 (custom exception classes, message style): historical API,
+#   callers rely on the current exception types.
+# - N999 (module naming): GEimage, OXDimage, TiffIO... are public API names.
+# - S1xx (bandit): exec() in bootstrap.py and try/except/pass are deliberate.
+# - DTZ (naive datetimes): detector timestamps carry no timezone information.
+
+[tool.ruff.lint.per-file-ignores]
+# Re-exports forming the public API
+"src/fabio/__init__.py" = ["F401"]

@@ -1,0 +1,19 @@
+
+#List of dependencies used.
+# PIP installs them from pre-compiled wheels, optimized for Github-CI Python environment.
+--find-links http://www.edna-site.org/pub/wheelhouse
+
+meson
+ninja
+meson-python
+wheel
+numpy
+h5py
+cython
+Pillow
+lxml>=6.1.3
+qtpy
+pyqt6
+matplotlib
+hdf5plugin
+filelock

@@ -1,0 +1,106 @@
+
+"""
+Check we can read all the test images
+"""
+
+import bz2
+import glob
+import gzip
+import os
+import pstats
+import sys
+import time
+
+import fabio.openimage
+
+try:
+    import cProfile
+except ImportError:
+    import profile as cProfile
+
+times = {}
+images = []
+
+for fname in glob.glob(os.path.join("testimages", "*")):
+    if fname.find("header_only") == -1:
+        images.append(fname)
+
+images.sort()
+
+
+def shellbench(cmd, imname):
+    """
+    The shell appears to be lying about it's performance. It claims
+    zero time to gunzip a file when it actually takes 200 ms. This is
+    cheating via a cache I suspect. We shall try to avoid this problem
+    """
+    if sys.platform != "win32":
+        os.system("touch " + imname)
+    astart = time.time()
+    dummy_file = os.popen(cmd + " " + imname, "rb").read()
+    return time.time() - astart
+
+if __name__ == "__main__":
+    print("I/O 1  : Time to read the image")
+    print("I/O 2  : Time to read the image (repeat")
+    print("Fabio  : Time for fabio to read the image")
+    print("Shell  : Time for shell to do decompression")
+    print("Python : Time for python to do decompression\n")
+    
+    print("I/O 1  I/O 2  Fabio  Shell  Python   Size/MB")
+    for im in images:
+        # Network/disk io time first
+        start = time.perf_counter()
+        with open(im, "rb") as f:
+            the_file = f.read()
+        times[im] = [time.perf_counter() - start]
+        start = time.perf_counter()
+        # Network/disk should be cached
+        with open(im, "rb") as f:
+            the_file = f.read()
+        times[im].append(time.perf_counter() - start)
+        start = time.perf_counter()
+        try:
+            fim = fabio.openimage.openimage(im)
+        except KeyboardInterrupt:
+            raise
+        except Exception:
+            print(f"Problem with image {im}")
+            continue
+        times[im].append(time.perf_counter() - start)
+        nt = 3
+        ns = 2
+        # Now check for a fabio slowdown effect
+        if im[-3:] == '.gz':
+            times[im].append(shellbench("gzip -cd ", im))
+            nt += 1
+            ns -= 1
+            start = time.perf_counter()
+            the_file = gzip.GzipFile(im, "rb").read()
+            times[im].append(time.perf_counter() - start)
+            nt += 1
+            ns -= 1
+        if im[-4:] == '.bz2':
+            times[im].append(shellbench("bzip2 -cd ", im))
+            nt += 1
+            ns -= 1
+            start = time.perf_counter()
+            the_file = bz2.BZ2File(im, "rb").read()
+            times[im].append(time.perf_counter() - start)
+            nt += 1
+            ns -= 1
+        # Speed ratings in megabytes per second (for fabio)
+        MB = len(the_file) / 1024.0 / 1024.0
+        try:
+            print(("%.4f " * nt + " " * 7 * ns) % tuple(times[im]), f"{MB:8.3f}", im)
+        except Exception:
+            print(times[im], MB, im)
+            raise
+    
+        cProfile.run("fabio.openimage.openimage(im)", "stats")
+        p = pstats.Stats("stats")
+        s = sys.stdout
+        with open("profile.txt", "a") as profile_file:
+            sys.stdout = profile_file
+            p.strip_dirs().sort_stats(-1).print_stats()
+        sys.stdout = s

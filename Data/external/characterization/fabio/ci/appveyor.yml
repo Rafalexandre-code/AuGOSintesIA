@@ -1,0 +1,82 @@
+# AppVeyor.com is a Continuous Integration service to build and run tests under
+# Windows
+# https://ci.appveyor.com/project/ESRF/fabio
+version: 2026.3.{build}
+
+#shallow_clone: true
+clone_depth: 1
+build: false
+
+notifications:
+- provider: Email
+  to:
+  - silx-ci@edna-site.org
+  subject: '[CI] appveyor'
+  on_build_success: false
+  on_build_failure: false
+  on_build_status_changed: true
+
+os:
+    - Visual Studio 2019
+
+cache:
+    - '%LOCALAPPDATA%\pip\Cache'
+
+image: Visual Studio 2022
+
+environment:
+    global:
+        WIN_SDK_ROOT: "C:\\Program Files\\Microsoft SDKs\\Windows"
+        VENV_BUILD_DIR: "venv_build"
+        VENV_TEST_DIR: "venv_test"
+
+    matrix:
+        # # Python 3.10
+        # - PYTHON_DIR: "C:\\Python310-x64"
+        #   PYTHON_ARCH: "64"
+
+        # Python 3.11
+        - PYTHON_DIR: "C:\\Python311-x64"
+          PYTHON_ARCH: "64"
+
+        # Python 3.12
+        - PYTHON_DIR: "C:\\Python312-x64"
+          PYTHON_ARCH: "64"
+
+        # Python 3.13
+        - PYTHON_DIR: "C:\\Python313-x64"
+          PYTHON_ARCH: "64"
+
+install:
+  # Add Python to PATH
+  - "SET PATH=%PYTHON_DIR%;%PYTHON_DIR%\\Scripts;%PATH%"
+
+  # Check that we have the expected version and architecture for Python
+  - "python --version"
+  - "python -c \"print(tuple.__itemsize__*8)\""
+
+  # Upgrade/install distribution modules
+  - "python -m pip install --upgrade pip"
+
+  # Install the build and runtime dependencies of the project.
+  - "pip install --trusted-host www.silx.org -r ci\\requirements_appveyor.txt"
+
+build_script:
+  - "meson --version"
+  - "python run_tests.py"
+  - "python -m build --wheel"
+  - ps: "ls dist"
+  # Install the generated wheel package to test it
+  - "pip install --pre --find-links dist/  --no-cache-dir --no-index fabio"
+
+test_script:
+  # Test the installed package using the project script
+  - "python run_tests.py --installed"
+
+  # Move back to the project folder
+  - "cd .."
+
+artifacts:
+  # Archive the generated wheel package in the ci.appveyor.com build report.
+  - path: dist\*
+

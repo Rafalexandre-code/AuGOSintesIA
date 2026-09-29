@@ -1,0 +1,67 @@
+exclude: 'doc/conf.py'
+
+repos:
+-   repo: https://github.com/asottile/pyupgrade
+    rev: v3.21.2
+    hooks:
+    -   id: pyupgrade
+        args: [--py310-plus]
+
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+    -   id: check-ast
+    -   id: check-builtin-literals
+    -   id: check-docstring-first
+    -   id: check-case-conflict
+    -   id: check-merge-conflict
+    -   id: check-toml
+    -   id: check-yaml
+    -   id: debug-statements
+    -   id: end-of-file-fixer
+    -   id: mixed-line-ending
+    -   id: trailing-whitespace
+
+-   repo: https://github.com/PyCQA/flake8
+    rev: 7.3.0
+    hooks:
+    -   id: flake8
+        additional_dependencies: [flake8-deprecated, flake8-mutable, Flake8-pyproject]
+
+-   repo: https://github.com/PyCQA/isort/
+    rev: 8.0.1
+    hooks:
+    -   id: isort
+
+-   repo: local
+    hooks:
+    -   id: rstcheck
+        name: rstcheck
+        entry: rstcheck --report-level WARNING
+        files: '.rst'
+        language: python
+        additional_dependencies: [rstcheck, sphinx]
+
+-   repo: https://github.com/pre-commit/pygrep-hooks
+    rev: v1.10.0
+    hooks:
+    -   id: rst-backticks
+    -   id: rst-directive-colons
+    -   id: rst-inline-touching-normal
+    -   id: python-check-blanket-noqa
+
+-   repo: https://github.com/codespell-project/codespell
+    rev: v2.4.2
+    hooks:
+    -   id: codespell
+        files: '.py|.rst'
+        exclude: 'doc/doc_examples_to_gallery.py|.ipynb'
+        # escaped characters currently do not work correctly
+        # so \nnumber is considered a spelling error....
+        args: ["-L nnumber", "-L mone", "-L assertIn", "-L efine", "-L indx",]
+
+-   repo: https://github.com/asottile/yesqa
+    rev: v1.5.0
+    hooks:
+    -   id: yesqa
+        additional_dependencies: [flake8-deprecated, flake8-mutable, Flake8-pyproject]
