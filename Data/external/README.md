@@ -84,9 +84,9 @@ checar com os autores.
 | `LLaMA-Factory` | hiyouga | Apache-2.0 | treino/inferência do LoRA Qwen3 (`Synthesis-Properties…`) |
 |---|---|---|---|
 | `lematerial-llm-synthesis` | LeMaterial | Apache-2.0 | LeMat-Synth: extração multimodal de sínteses (2025) |
-| `MatEntityRecognition` | CederGroupHub | MIT (setup.py) | submódulo do text-mined AuNP — ⚠ modelos (2×780 MB) são ponteiros LFS |
+| `MatEntityRecognition` | CederGroupHub | MIT (setup.py) | submódulo do text-mined AuNP — ⚠ modelos (2×780 MB) não incluídos |
 | `MaterialParser` | CederGroupHub | MIT | submódulo do text-mined AuNP |
-| `MaterialAmountExtractor` ⚠ | CederGroupHub | — | submódulo — ⚠ Stanford Parser (833 MB) são ponteiros LFS |
+| `MaterialAmountExtractor` ⚠ | CederGroupHub | — | submódulo — ⚠ Stanford Parser (833 MB) não incluído |
 
 ### `self-driving-lab/` — extensão SDL (§4.16)
 | `Robochem_Flex` | Noel-Research-Group | Apache-2.0 | SDL de ~US$ 5 mil: software, firmware, CAD (Pilon 2026) |
@@ -101,10 +101,11 @@ checar com os autores.
 | `BespokeSynthesisPlatform/Result/1_Chemistry_discovery/AI_decision_process/{513,573,667}nm.gif` | 96–97 MB cada | animações; os dados numéricos permanecem |
 | `mace/mace/calculators/foundations_models/mace-mpa-0-medium.model` | 76 MB | baixado automaticamente por `mace_mp(model="medium-mpa-0")` |
 
-## Ponteiros LFS que permanecem (grandes demais para versionar aqui)
-- `literature-llm/MatEntityRecognition/**/cp.ckpt.data-*` (2 × ~780 MB)
-- `literature-llm/MaterialAmountExtractor/**/stanfordParser/**` (118 arquivos, 833 MB)
+## Arquivos LFS não incluídos (grandes demais para versionar aqui)
+- `literature-llm/MatEntityRecognition`: 8 arquivos (2 checkpoints de ~780 MB)
+- `literature-llm/MaterialAmountExtractor`: 118 arquivos do Stanford Parser (833 MB)
 
+A lista exata (caminho, tamanho, sha256) está em `LFS_OBJECTS_NOT_INCLUDED.txt` dentro de cada pasta.
 Para obtê-los: `git clone https://github.com/CederGroupHub/<repo> && cd <repo> && git lfs pull`.
 
 ## Trabalhos citados sem código no GitHub

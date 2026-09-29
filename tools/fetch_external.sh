@@ -11,6 +11,7 @@
 # olympus/__dev_, shap/docs, shap/data. Os .gitattributes aninhados com LFS são renomeados
 # para .gitattributes.upstream para não quebrar o clone deste repositório.
 set -euo pipefail
+export GIT_LFS_SKIP_SMUDGE=1   # objetos LFS de terceiros não são baixados (ver LFS_OBJECTS_NOT_INCLUDED.txt)
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOCK="$ROOT/tools/external_repos.lock.tsv"
@@ -55,8 +56,19 @@ grep -v '^#' "$LOCK" | while IFS=$'\t' read -r cat name repo branch commit date;
     find "$src" -path "$src/.git" -prune -o -type f -size +50M -print -exec rm -f {} +
   fi
   find "$src" -path "$src/.git" -prune -o -name .gitattributes -print | while read -r ga; do
-    grep -q lfs "$ga" && mv "$ga" "$ga.upstream"
+    if grep -q lfs "$ga"; then mv "$ga" "$ga.upstream"; fi
   done
+  ptrs="$(grep -rl --exclude-dir=.git "^version https://git-lfs" "$src" 2>/dev/null | sort || true)"
+  if [ -n "$ptrs" ]; then
+    list="$src/LFS_OBJECTS_NOT_INCLUDED.txt"
+    { echo "# Arquivos Git LFS do repositório original NÃO incluídos aqui (grandes demais)."
+      echo "# Para obtê-los: git clone https://github.com/$repo && cd $(basename "$repo") && git lfs pull"
+      echo "# caminho<TAB>tamanho_bytes<TAB>oid_sha256"; } > "$list"
+    while read -r ptr; do
+      printf '%s\t%s\t%s\n' "${ptr#$src/}" "$(grep '^size' "$ptr" | cut -d' ' -f2)" "$(grep '^oid' "$ptr" | cut -d: -f2)" >> "$list"
+      rm -f "$ptr"
+    done <<< "$ptrs"
+  fi
   rm -rf "$src/.git" "$DEST/$cat/$name"; mkdir -p "$DEST/$cat"; mv "$src" "$DEST/$cat/$name"
   printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$cat" "$name" "$repo" "$branch" "$commit" "$date" >> "$newlock"
 done
