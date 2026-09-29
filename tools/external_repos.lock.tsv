@@ -47,3 +47,13 @@ literature-llm	MaterialAmountExtractor	CederGroupHub/MaterialAmountExtractor	def
 literature-llm	lematerial-llm-synthesis	LeMaterial/lematerial-llm-synthesis	default	e4bacbcbac084544ca68d48242336c2e36f6ee15	2026-09-10
 self-driving-lab	Robochem_Flex	Noel-Research-Group/Robochem_Flex	default	672240f184846af3e2014802aea29645de562fb2	2026-03-24
 self-driving-lab	Octopus	KIST-CSRC/Octopus	default	a5df2454194602dbf90c66901e7b03bf94e2528c	2024-10-25
+data-access	pyalex	J535D165/pyalex	default	875c708cbb6e449feebc46d2a7a26af8ed8b2fdd	2026-02-23
+data-access	habanero	sckott/habanero	default	784b797a5a4283240ee4fadc74089a1e312bd33a	2026-09-25
+data-access	unpywall	unpywall/unpywall	default	7909fde0a069289226239266ec9c1d7ab30c77ae	2024-02-19
+data-access	PubChemPy	mcs07/PubChemPy	default	9935a14e7fdb4a88d27a99fedce69ca99f004698	2025-09-08
+data-access	zenodo_get	dvolgyes/zenodo_get	default	00a53c264c8752852e85d591202b2745b9b87056	2026-08-18
+data-access	foundry	MLMI2-CSSI/foundry	default	1ba21bea97e84707a9c0ab7ab07fc0912435690c	2026-01-22
+data-access	optimade-python-tools	Materials-Consortia/optimade-python-tools	default	5ad3b5d0b6664d088ba8d190895e58aea949f2c8	2026-08-06
+data-access	mp-api	materialsproject/api	default	ca3d6bcefff7ad57692c708c1f78013557401f13	2026-09-08
+data-access	jarvis-tools	usnistgov/jarvis	default	3b0c9d0f0c15759135de857dbc93e010db01eb29	2025-08-25
+data-access	pynanomapper	ideaconsult/pynanomapper	default	ddd89c537d621ee8d4006f64d6656b75c18f5dc6	2026-09-04

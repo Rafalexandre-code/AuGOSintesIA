@@ -1,0 +1,169 @@
+import warnings
+
+import httpx2
+
+from .exceptions import RequestError
+from .facets import validate_facets
+from .field_queries import validate_field_queries
+from .filterhandler import filter_handler
+from .habanero_utils import (
+    check_json,
+    filter_dict,
+    ifelsestr,
+    is_json,
+    make_ua,
+    parse_json_err,
+    rename_query_filters,
+)
+from .request_class import Request
+from .select import validate_select
+from .sort import validate_sort
+
+
+def request(
+    cr,
+    path,
+    ids=None,
+    query=None,
+    filters=None,
+    offset=None,
+    limit=None,
+    sample=None,
+    sort=None,
+    order=None,
+    facet=None,
+    select=None,
+    works=None,
+    cursor=None,
+    cursor_max=5000,
+    agency=False,
+    progress_bar=False,
+    should_warn=False,
+    **kwargs,
+):
+    """HTTP request helper."""
+    warning_thrown = False
+    url = cr.base_url + path
+
+    if cursor_max and not isinstance(cursor_max, int):
+        raise ValueError("cursor_max must be of class int")
+
+    filt = filter_handler(filters)
+    if isinstance(select, list):
+        select = ",".join(select)
+
+    validate_facets(facet)
+    validate_sort(sort)
+    validate_select(select)
+    fq_keys = [
+        k.replace("query_", "query.", 1).replace("_", "-") for k in filter_dict(kwargs)
+    ]
+    validate_field_queries(fq_keys if fq_keys else None)
+
+    payload = {
+        "query": query,
+        "filter": filt,
+        "offset": offset,
+        "rows": limit,
+        "sample": sample,
+        "sort": sort,
+        "order": order,
+        "facet": facet,
+        "select": select,
+        "cursor": cursor,
+    }
+    # convert limit/offset to str before removing None
+    # b/c 0 (zero) is falsey, so that param gets dropped
+    payload["offset"] = ifelsestr(payload["offset"])
+    payload["rows"] = ifelsestr(payload["rows"])
+    # remove params with value None
+    payload = {k: v for k, v in payload.items() if v}
+    # add field queries
+    payload.update(filter_dict(kwargs))
+    # rename field queries
+    payload = rename_query_filters(payload)
+
+    if ids is None:
+        url = url.strip("/")
+        try:
+            r = httpx2.get(
+                url,
+                params=payload,
+                headers=make_ua(cr.mailto, cr.ua_string),
+                timeout=cr.timeout,
+            )
+            r.raise_for_status()
+        except httpx2.HTTPStatusError as e:
+            if is_json(r):
+                raise RequestError(r.status_code, parse_json_err(r)) from e
+            else:
+                r.raise_for_status()
+        except httpx2.HTTPError as e:
+            raise RuntimeError(f"HTTP Exception for {e.request.url} - {e}") from e
+            # raise RuntimeError(e)
+        else:
+            if not r:
+                raise RuntimeError("An unknown problem occurred with an HTTP request")
+
+            check_json(r)
+            coll = r.json()
+    else:
+        if isinstance(ids, str):
+            ids = ids.split()
+        if isinstance(ids, int):
+            ids = [ids]
+
+        coll = []
+        for i in range(len(ids)):
+            if works:
+                res = Request(
+                    cr.mailto,
+                    cr.ua_string,
+                    cr.timeout,
+                    url,
+                    str(ids[i]) + "/works",
+                    query,
+                    filters,
+                    offset,
+                    limit,
+                    sample,
+                    sort,
+                    order,
+                    facet,
+                    select,
+                    cursor,
+                    cursor_max,
+                    None,
+                    progress_bar,
+                    **kwargs,
+                ).do_request(should_warn=should_warn)
+                coll.append(res)
+            else:
+                endpt = url + str(ids[i]) + "/agency" if agency else url + str(ids[i])
+                endpt = endpt.strip("/")
+                r = httpx2.get(
+                    endpt,
+                    params=payload,
+                    headers=make_ua(cr.mailto, cr.ua_string),
+                    timeout=cr.timeout,
+                )
+                if r.status_code > 201 and should_warn:
+                    warning_thrown = True
+                    mssg = f"{r.status_code} on {ids[i]}: {r.reason_phrase}"
+                    warnings.warn(mssg, stacklevel=2)
+                else:
+                    r.raise_for_status()
+
+                if warning_thrown:
+                    coll.append(None)
+                else:
+                    check_json(r)
+                    js = r.json()
+                    coll.append(js)
+
+                warning_thrown = False
+
+        if len(coll) == 1:
+            coll = coll[0]
+
+    return coll

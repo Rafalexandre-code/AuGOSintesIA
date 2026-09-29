@@ -1,0 +1,9 @@
+[run]
+omit =
+  *tests*
+  setup.py
+
+[report]
+skip_empty = True
+exclude_lines =
+    if __name__ == .__main__.:

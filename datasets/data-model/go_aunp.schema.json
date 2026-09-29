@@ -1,0 +1,874 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Rafalexandre-code/AuGOSintesIA/datasets/data-model/go_aunp.schema.json",
+  "title": "GO–AuNP laboratory record",
+  "type": "object",
+  "properties": {
+    "protocols": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/protocols"
+      }
+    },
+    "reagent_lots": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/reagent_lots"
+      }
+    },
+    "go_batches": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/go_batches"
+      }
+    },
+    "go_samples": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/go_samples"
+      }
+    },
+    "go_characterization": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/go_characterization"
+      }
+    },
+    "go_descriptors": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/go_descriptors"
+      }
+    },
+    "aunp_syntheses": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/aunp_syntheses"
+      }
+    },
+    "aunp_characterization": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/aunp_characterization"
+      }
+    },
+    "outcomes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/outcomes"
+      }
+    }
+  },
+  "$defs": {
+    "protocols": {
+      "type": "object",
+      "description": "Procedimentos operacionais (SOPs) versionados em protocols/.",
+      "properties": {
+        "protocol_id": {
+          "type": "string",
+          "description": "ex.: SOP-GO-DISP-01"
+        },
+        "title": {
+          "type": "string",
+          "description": ""
+        },
+        "version": {
+          "type": "string",
+          "description": ""
+        },
+        "file": {
+          "type": "string",
+          "description": "caminho em protocols/"
+        },
+        "doi": {
+          "type": "string",
+          "description": "DOI (protocols.io/Zenodo)"
+        },
+        "description": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "required": [
+        "protocol_id",
+        "title",
+        "version"
+      ]
+    },
+    "reagent_lots": {
+      "type": "object",
+      "description": "Frascos/lotes de reagente, normalizados pelo dicionário PubChem.",
+      "properties": {
+        "lot_id": {
+          "type": "string",
+          "description": "ex.: LOT-HAuCl4-2026-01"
+        },
+        "entity_id": {
+          "type": "string",
+          "description": "entidade de datasets/reagents/reagent_dictionary.csv",
+          "x-foreign-key": "reagent_dictionary"
+        },
+        "chemical_name": {
+          "type": "string",
+          "description": "nome como no rótulo (ex.: Gold(III) chloride trihydrate)"
+        },
+        "canonical_name": {
+          "type": "string",
+          "description": "nome canônico (copiado do dicionário)"
+        },
+        "pubchem_cid": {
+          "type": "integer",
+          "description": "CID PubChem"
+        },
+        "smiles": {
+          "type": "string",
+          "description": ""
+        },
+        "inchi": {
+          "type": "string",
+          "description": ""
+        },
+        "supplier": {
+          "type": "string",
+          "description": "fornecedor"
+        },
+        "catalog_number": {
+          "type": "string",
+          "description": ""
+        },
+        "lot_number": {
+          "type": "string",
+          "description": "lote do fabricante"
+        },
+        "purity": {
+          "type": "number",
+          "description": "pureza declarada",
+          "x-unit": "%"
+        },
+        "purity_basis": {
+          "type": "string",
+          "description": "ex.: trace metals basis, ACS reagent"
+        },
+        "hydrate_form": {
+          "type": "string",
+          "description": "forma",
+          "enum": [
+            "anhydrous",
+            "monohydrate",
+            "dihydrate",
+            "trihydrate",
+            "tetrahydrate",
+            "hydrate",
+            "solution",
+            ""
+          ]
+        },
+        "received_date": {
+          "type": "string",
+          "description": "",
+          "format": "date"
+        },
+        "opened_date": {
+          "type": "string",
+          "description": "",
+          "format": "date"
+        },
+        "storage": {
+          "type": "string",
+          "description": "ex.: 4 °C, escuro, dessecador"
+        },
+        "coa_file": {
+          "type": "string",
+          "description": "certificado de análise (metadata/)"
+        },
+        "notes": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "required": [
+        "lot_id",
+        "entity_id",
+        "chemical_name",
+        "supplier",
+        "lot_number"
+      ]
+    },
+    "go_batches": {
+      "type": "object",
+      "description": "Lote de óxido de grafeno (comercial ou sintetizado) — a fonte de variabilidade.",
+      "properties": {
+        "go_batch_id": {
+          "type": "string",
+          "description": "ex.: GO-B01"
+        },
+        "source_type": {
+          "type": "string",
+          "description": "origem",
+          "enum": [
+            "commercial",
+            "lab_synthesized"
+          ]
+        },
+        "supplier": {
+          "type": "string",
+          "description": "fornecedor (se comercial)"
+        },
+        "product_code": {
+          "type": "string",
+          "description": ""
+        },
+        "lot_number": {
+          "type": "string",
+          "description": ""
+        },
+        "synthesis_method": {
+          "type": "string",
+          "description": "rota de oxidação",
+          "enum": [
+            "Hummers",
+            "modified_Hummers",
+            "improved_Hummers_Tour",
+            "Brodie",
+            "Staudenmaier",
+            "electrochemical",
+            "other",
+            ""
+          ]
+        },
+        "graphite_lot_id": {
+          "type": "string",
+          "description": "lote do grafite precursor",
+          "x-foreign-key": "reagent_lots"
+        },
+        "oxidant_to_graphite_ratio": {
+          "type": "number",
+          "description": "KMnO4:grafite (m/m)",
+          "x-unit": "g/g"
+        },
+        "oxidation_time_h": {
+          "type": "number",
+          "description": "",
+          "x-unit": "h"
+        },
+        "oxidation_temperature_C": {
+          "type": "number",
+          "description": "",
+          "x-unit": "°C"
+        },
+        "purification": {
+          "type": "string",
+          "description": "lavagens, diálise, centrifugação"
+        },
+        "stock_concentration_mg_mL": {
+          "type": "number",
+          "description": "concentração do estoque",
+          "x-unit": "mg/mL"
+        },
+        "dispersion_medium": {
+          "type": "string",
+          "description": ""
+        },
+        "date_prepared": {
+          "type": "string",
+          "description": "",
+          "format": "date"
+        },
+        "operator": {
+          "type": "string",
+          "description": ""
+        },
+        "protocol_id": {
+          "type": "string",
+          "description": "",
+          "x-foreign-key": "protocols"
+        },
+        "notes": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "required": [
+        "go_batch_id",
+        "source_type"
+      ]
+    },
+    "go_samples": {
+      "type": "object",
+      "description": "Preparo da amostra de GO usada na caracterização e/ou na síntese.",
+      "properties": {
+        "go_sample_id": {
+          "type": "string",
+          "description": "ex.: GO-B01-S03"
+        },
+        "go_batch_id": {
+          "type": "string",
+          "description": "",
+          "x-foreign-key": "go_batches"
+        },
+        "prep_type": {
+          "type": "string",
+          "description": "forma da amostra",
+          "enum": [
+            "dispersion",
+            "film_dropcast",
+            "film_spincoat",
+            "powder",
+            "freeze_dried",
+            "on_substrate",
+            "other"
+          ]
+        },
+        "concentration_mg_mL": {
+          "type": "number",
+          "description": "",
+          "x-unit": "mg/mL"
+        },
+        "sonication_time_min": {
+          "type": "number",
+          "description": "",
+          "x-unit": "min"
+        },
+        "sonication_power_W": {
+          "type": "number",
+          "description": "",
+          "x-unit": "W"
+        },
+        "centrifugation_rcf_g": {
+          "type": "number",
+          "description": "",
+          "x-unit": "g"
+        },
+        "centrifugation_time_min": {
+          "type": "number",
+          "description": "",
+          "x-unit": "min"
+        },
+        "pH": {
+          "type": "number",
+          "description": ""
+        },
+        "substrate": {
+          "type": "string",
+          "description": "Si/SiO2, mica, grade de TEM…"
+        },
+        "age_days": {
+          "type": "number",
+          "description": "idade da dispersão no uso",
+          "x-unit": "d"
+        },
+        "date": {
+          "type": "string",
+          "description": "",
+          "format": "date"
+        },
+        "operator": {
+          "type": "string",
+          "description": ""
+        },
+        "protocol_id": {
+          "type": "string",
+          "description": "",
+          "x-foreign-key": "protocols"
+        },
+        "notes": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "required": [
+        "go_sample_id",
+        "go_batch_id",
+        "prep_type"
+      ]
+    },
+    "go_characterization": {
+      "type": "object",
+      "description": "Medidas do GO (uma linha por grandeza medida).",
+      "properties": {
+        "measurement_id": {
+          "type": "string",
+          "description": "ex.: M-GO-0001"
+        },
+        "go_sample_id": {
+          "type": "string",
+          "description": "",
+          "x-foreign-key": "go_samples"
+        },
+        "technique": {
+          "type": "string",
+          "description": "técnica",
+          "enum": [
+            "XPS",
+            "Raman",
+            "AFM",
+            "UV-Vis",
+            "FTIR",
+            "TGA",
+            "XRD",
+            "DLS",
+            "zeta",
+            "elemental_analysis",
+            "SEM",
+            "TEM",
+            "other"
+          ]
+        },
+        "quantity": {
+          "type": "string",
+          "description": "C_O_ratio, sp2_fraction, C-O_fraction, C=O_fraction, O-C=O_fraction, ID_IG, I2D_IG, La_nm, thickness_nm, lateral_size_um, n_layers, abs_230nm …"
+        },
+        "value": {
+          "type": "number",
+          "description": "valor medido/derivado"
+        },
+        "uncertainty": {
+          "type": "number",
+          "description": "incerteza do valor (mesma unidade)"
+        },
+        "uncertainty_type": {
+          "type": "string",
+          "description": "tipo de incerteza",
+          "enum": [
+            "sd",
+            "sem",
+            "ci95",
+            "range",
+            "instrument",
+            "none"
+          ]
+        },
+        "n_replicates": {
+          "type": "integer",
+          "description": "nº de réplicas/regiões/partículas usadas"
+        },
+        "unit": {
+          "type": "string",
+          "description": "unidade (UO/SI): nm, eV, %, at%, mg/mL, mV, a.u. …"
+        },
+        "instrument": {
+          "type": "string",
+          "description": "equipamento/modelo"
+        },
+        "method_details": {
+          "type": "string",
+          "description": "modelo de ajuste, fonte de excitação, faixa, deconvolução…"
+        },
+        "raw_data_file": {
+          "type": "string",
+          "description": "caminho relativo em dataset/raw_data/"
+        },
+        "date": {
+          "type": "string",
+          "description": "AAAA-MM-DD",
+          "format": "date"
+        },
+        "operator": {
+          "type": "string",
+          "description": "quem mediu"
+        },
+        "protocol_id": {
+          "type": "string",
+          "description": "protocolo (SOP) usado",
+          "x-foreign-key": "protocols"
+        },
+        "ontology_term": {
+          "type": "string",
+          "description": "termo de ontologia (eNanoMapper/CHMO/BAO) para a técnica ou grandeza"
+        },
+        "notes": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "required": [
+        "measurement_id",
+        "go_sample_id",
+        "technique",
+        "quantity",
+        "value",
+        "unit"
+      ]
+    },
+    "go_descriptors": {
+      "type": "object",
+      "description": "Descritores por lote com incerteza (entrada do GO Navigator / transferência entre lotes).",
+      "properties": {
+        "go_batch_id": {
+          "type": "string",
+          "description": "",
+          "x-foreign-key": "go_batches"
+        },
+        "descriptor": {
+          "type": "string",
+          "description": "mesmo nome de go_characterization.quantity"
+        },
+        "mean": {
+          "type": "number",
+          "description": "estimativa do lote"
+        },
+        "sd": {
+          "type": "number",
+          "description": "desvio dentro do lote"
+        },
+        "n": {
+          "type": "integer",
+          "description": "nº de medidas agregadas"
+        },
+        "unit": {
+          "type": "string",
+          "description": ""
+        },
+        "method": {
+          "type": "string",
+          "description": "como foi agregado",
+          "enum": [
+            "pooled",
+            "hierarchical_bayes",
+            "bootstrap",
+            "single"
+          ]
+        },
+        "between_batch_sd": {
+          "type": "number",
+          "description": "desvio entre lotes (efeito de lote), se estimado"
+        },
+        "source_measurements": {
+          "type": "string",
+          "description": "measurement_id separados por |"
+        },
+        "notes": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "required": [
+        "go_batch_id",
+        "descriptor",
+        "mean"
+      ]
+    },
+    "aunp_syntheses": {
+      "type": "object",
+      "description": "Síntese de AuNP (com ou sem GO): condições = variáveis de projeto do otimizador.",
+      "properties": {
+        "synthesis_id": {
+          "type": "string",
+          "description": "ex.: SYN-0001"
+        },
+        "go_batch_id": {
+          "type": "string",
+          "description": "vazio = controle sem GO",
+          "x-foreign-key": "go_batches"
+        },
+        "go_sample_id": {
+          "type": "string",
+          "description": "",
+          "x-foreign-key": "go_samples"
+        },
+        "gold_precursor_lot_id": {
+          "type": "string",
+          "description": "lote de HAuCl4",
+          "x-foreign-key": "reagent_lots"
+        },
+        "reductant_lot_id": {
+          "type": "string",
+          "description": "",
+          "x-foreign-key": "reagent_lots"
+        },
+        "stabilizer_lot_id": {
+          "type": "string",
+          "description": "",
+          "x-foreign-key": "reagent_lots"
+        },
+        "method": {
+          "type": "string",
+          "description": "rota",
+          "enum": [
+            "in_situ_reduction_on_GO",
+            "ex_situ_assembly",
+            "one_pot",
+            "seed_mediated",
+            "other"
+          ]
+        },
+        "HAuCl4_mM": {
+          "type": "number",
+          "description": "concentração final de Au(III)",
+          "x-unit": "mM"
+        },
+        "reductant_mM": {
+          "type": "number",
+          "description": "",
+          "x-unit": "mM"
+        },
+        "reductant_to_Au_ratio": {
+          "type": "number",
+          "description": "",
+          "x-unit": "mol/mol"
+        },
+        "stabilizer_mM": {
+          "type": "number",
+          "description": "",
+          "x-unit": "mM"
+        },
+        "GO_mg_mL": {
+          "type": "number",
+          "description": "",
+          "x-unit": "mg/mL"
+        },
+        "pH": {
+          "type": "number",
+          "description": ""
+        },
+        "temperature_C": {
+          "type": "number",
+          "description": "",
+          "x-unit": "°C"
+        },
+        "time_min": {
+          "type": "number",
+          "description": "",
+          "x-unit": "min"
+        },
+        "addition_order": {
+          "type": "string",
+          "description": "ex.: GO>HAuCl4>NaBH4"
+        },
+        "addition_rate_mL_min": {
+          "type": "number",
+          "description": "",
+          "x-unit": "mL/min"
+        },
+        "stirring_rpm": {
+          "type": "number",
+          "description": "",
+          "x-unit": "rpm"
+        },
+        "total_volume_mL": {
+          "type": "number",
+          "description": "",
+          "x-unit": "mL"
+        },
+        "campaign_id": {
+          "type": "string",
+          "description": "campanha de otimização"
+        },
+        "design_id": {
+          "type": "string",
+          "description": "id do candidato proposto pelo otimizador (iteração/lote)"
+        },
+        "fidelity": {
+          "type": "string",
+          "description": "fidelidade (MISO/multi-fidelidade)",
+          "enum": [
+            "high",
+            "low",
+            "simulation",
+            ""
+          ]
+        },
+        "platform": {
+          "type": "string",
+          "description": "",
+          "enum": [
+            "manual",
+            "robot",
+            "flow",
+            ""
+          ]
+        },
+        "date": {
+          "type": "string",
+          "description": "",
+          "format": "date"
+        },
+        "operator": {
+          "type": "string",
+          "description": ""
+        },
+        "protocol_id": {
+          "type": "string",
+          "description": "",
+          "x-foreign-key": "protocols"
+        },
+        "notes": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "required": [
+        "synthesis_id",
+        "gold_precursor_lot_id",
+        "method",
+        "HAuCl4_mM"
+      ]
+    },
+    "aunp_characterization": {
+      "type": "object",
+      "description": "Medidas do produto (UV-Vis, TEM, DLS, zeta, XRD, XPS, ICP…).",
+      "properties": {
+        "measurement_id": {
+          "type": "string",
+          "description": "ex.: M-AU-0001"
+        },
+        "synthesis_id": {
+          "type": "string",
+          "description": "",
+          "x-foreign-key": "aunp_syntheses"
+        },
+        "technique": {
+          "type": "string",
+          "description": "técnica",
+          "enum": [
+            "UV-Vis",
+            "TEM",
+            "SEM",
+            "DLS",
+            "zeta",
+            "XRD",
+            "XPS",
+            "ICP-OES",
+            "ICP-MS",
+            "SERS",
+            "catalysis",
+            "other"
+          ]
+        },
+        "quantity": {
+          "type": "string",
+          "description": "LSPR_nm, LSPR_FWHM_nm, A_LSPR, A400, size_mean_nm, size_sd_nm, n_particles, aspect_ratio, hydrodynamic_nm, PDI, zeta_mV, Au_loading_wt, yield_pct, k_app_s-1 …"
+        },
+        "value": {
+          "type": "number",
+          "description": "valor medido/derivado"
+        },
+        "uncertainty": {
+          "type": "number",
+          "description": "incerteza do valor (mesma unidade)"
+        },
+        "uncertainty_type": {
+          "type": "string",
+          "description": "tipo de incerteza",
+          "enum": [
+            "sd",
+            "sem",
+            "ci95",
+            "range",
+            "instrument",
+            "none"
+          ]
+        },
+        "n_replicates": {
+          "type": "integer",
+          "description": "nº de réplicas/regiões/partículas usadas"
+        },
+        "unit": {
+          "type": "string",
+          "description": "unidade (UO/SI): nm, eV, %, at%, mg/mL, mV, a.u. …"
+        },
+        "instrument": {
+          "type": "string",
+          "description": "equipamento/modelo"
+        },
+        "method_details": {
+          "type": "string",
+          "description": "modelo de ajuste, fonte de excitação, faixa, deconvolução…"
+        },
+        "raw_data_file": {
+          "type": "string",
+          "description": "caminho relativo em dataset/raw_data/"
+        },
+        "date": {
+          "type": "string",
+          "description": "AAAA-MM-DD",
+          "format": "date"
+        },
+        "operator": {
+          "type": "string",
+          "description": "quem mediu"
+        },
+        "protocol_id": {
+          "type": "string",
+          "description": "protocolo (SOP) usado",
+          "x-foreign-key": "protocols"
+        },
+        "ontology_term": {
+          "type": "string",
+          "description": "termo de ontologia (eNanoMapper/CHMO/BAO) para a técnica ou grandeza"
+        },
+        "notes": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "required": [
+        "measurement_id",
+        "synthesis_id",
+        "technique",
+        "quantity",
+        "value",
+        "unit"
+      ]
+    },
+    "outcomes": {
+      "type": "object",
+      "description": "Objetivos/restrições usados pelo otimizador (derivados das medidas).",
+      "properties": {
+        "synthesis_id": {
+          "type": "string",
+          "description": "",
+          "x-foreign-key": "aunp_syntheses"
+        },
+        "objective": {
+          "type": "string",
+          "description": "ex.: LSPR_nm, size_sd_nm, yield_pct, k_app"
+        },
+        "value": {
+          "type": "number",
+          "description": ""
+        },
+        "uncertainty": {
+          "type": "number",
+          "description": ""
+        },
+        "direction": {
+          "type": "string",
+          "description": "",
+          "enum": [
+            "maximize",
+            "minimize",
+            "target",
+            "constraint"
+          ]
+        },
+        "target_value": {
+          "type": "number",
+          "description": "alvo ou limite"
+        },
+        "feasible": {
+          "type": "integer",
+          "description": "1/0 (restrições satisfeitas)"
+        },
+        "derived_from": {
+          "type": "string",
+          "description": "measurement_id separados por |"
+        },
+        "model_version": {
+          "type": "string",
+          "description": "versão do modelo/otimizador que usou o dado"
+        },
+        "notes": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "required": [
+        "synthesis_id",
+        "objective",
+        "value",
+        "direction"
+      ]
+    }
+  }
+}

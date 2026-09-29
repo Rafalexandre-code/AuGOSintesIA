@@ -1,0 +1,1 @@
+go_batch_id,source_type,supplier,product_code,lot_number,synthesis_method,graphite_lot_id,oxidant_to_graphite_ratio,oxidation_time_h,oxidation_temperature_C,purification,stock_concentration_mg_mL,dispersion_medium,date_prepared,operator,protocol_id,notes

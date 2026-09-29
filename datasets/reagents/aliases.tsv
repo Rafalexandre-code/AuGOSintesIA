@@ -1,0 +1,71 @@
+# Dicionário curado de reagentes (editar à mão). Colunas separadas por TAB; listas separadas por "|".
+# aliases: nomes comparados após normalização (minúsculas, sem espaços/hífens, sem água de hidratação).
+# abbrev: siglas comparadas com diferenciação de maiúsculas e como palavra inteira (ex.: GO, AA, TSC).
+# patterns: UMA expressão regular (Python; alternativas com "|") procurada no nome normalizado e em texto livre (minúsculas).
+# pubchem_cid/refchem_ids: preenchidos apenas quando a ficha está em datasets/pubchem/; os vazios são resolvidos com
+#   python tools/data_sources/reagents.py build --online   (PUG REST, pelo canonical_name).
+entity_id	role	canonical_name	formula	pubchem_cid	related_cids	refchem_ids	aliases	abbrev	patterns	notes
+HAuCl4	gold_precursor	hydrogen tetrachloroaurate(III)	HAuCl4·xH2O	28133	122706823|57481028|10925836|173060718|19994376|23619392	922420	haucl4|hydrogentetrachloroaurate|hydrogentetrachloroaurate(iii)|hydrogentetrachloroaurate(iii)hydrate|chloroauricacid|chlorauricacid|chloroauric(iii)acid|tetrachloroauricacid|tetrachloroauric(iii)acid|tetrachloroauricacidhydrate|goldchloride|gold(iii)chloride|gold(iii)chloridehydrate|goldtrichloridehydrochloride|auricchloridehydrochloride|aurochloricacid|browngoldchloride|goldtetrachloride,acid|hydrogentetrachloroaurate(iii)hydrate|goldchlorideacid|tetrachlorogold(1-)|hydron;tetrachlorogold(1-)|aucl3hcl|aucl4|aucl4-|[aucl4]-|aucl4−|tetrachloroaurate|tetrachloroaurate(iii)|hydrochloroauricacid|hydroaurochloricacid		haucl4|h\[aucl4\]|chloro\s*-?\s*auric|chlor\s*auric|(?<!sodium)(?<!sodium )(?<!potassium)(?<!potassium )tetra\s*-?\s*chloro\s*-?\s*aur(ic|ate)|gold\s*\(\s*iii\s*\)\s*chloride|gold\s*chloride|auric\s*chloride|aurochloric	Todas as formas (anidro, 3H2O, 4H2O, "gold(III) chloride trihydrate" comercial) viram uma entidade; a hidratação vai para a coluna form. CID canônico 28133 (CAS 16903-35-8; 4H2O: 1303-50-0). CIDs 19994376 e 23619392 são registros de Au(I) gerados automaticamente (artefatos). "gold chloride" pode, a rigor, ser AuCl3: marcado como ambíguo.
+AuCl3	gold_precursor	gold(III) chloride (anhydrous, Au2Cl6)	AuCl3						aucl3|au2cl6	Só quando a fórmula AuCl3 aparece explicitamente; "gold(III) chloride" por extenso fica em HAuCl4 (uso comercial).
+NaAuCl4	gold_precursor	sodium tetrachloroaurate(III)	NaAuCl4·2H2O				naaucl4|sodiumtetrachloroaurate|sodiumtetrachloroaurate(iii)|sodiumgoldchloride		naaucl4|sodium\s*tetrachloroaurate
+KAuCl4	gold_precursor	potassium tetrachloroaurate(III)	KAuCl4				kaucl4|potassiumtetrachloroaurate|potassiumtetrachloroaurate(iii)|potassiumgoldchloride		kaucl4|potassium\s*tetrachloroaurate
+AgNO3	additive	silver nitrate	AgNO3				agno3|silvernitrate		agno3|silver\s*nitrate	Aditivo de crescimento anisotrópico (bastões).
+NaBH4	reductant	sodium borohydride	NaBH4	4311764			nabh4|sodiumborohydride|sodiumtetrahydroborate|sodiumtetrahydridoborate		nabh4|sodium\s*(boro|tetrahydro)hydr	
+ascorbic_acid	reductant	L-ascorbic acid	C6H8O6	54670067			ascorbicacid|l-ascorbicacid|lascorbicacid|vitaminc|l(+)-ascorbicacid|sodiumascorbate	AA	ascorbic|vitamin\s*c
+trisodium_citrate	reductant_stabilizer	trisodium citrate	Na3C6H5O7·xH2O	6224			sodiumcitrate|trisodiumcitrate|tri-sodiumcitrate|trisodiumcitratedihydrate|sodiumcitratedihydrate|sodiumcitratetribasic|sodiumcitratetribasicdihydrate|tribasicdihydrate|tribasic|citrate|na3c6h5o7|na3ct|trisodiumcitrate(tsc)|sodiumcitrate,tribasic|citricacidtrisodium|citricacidtrisodiumsalt|citricacidtrisodiumsaltdihydrate|na3-citrate|na3cit|na-cit|sodiumcitratetribasichydrate	TSC|Na3Ct	sodium\s*citrate|tri\s*-?\s*sodium\s*citrate|na3c6h5o7	"tribasic dihydrate" aparece recortado de "sodium citrate tribasic dihydrate".
+citric_acid	reductant	citric acid	C6H8O7	311			citricacid|citricacidmonohydrate		citric\s*acid	Só existe a estrutura 2D/3D local (sem ficha completa).
+CTAB	surfactant	hexadecyltrimethylammonium bromide	C19H42BrN	5974	2681		ctab|cetyltrimethylammoniumbromide|hexadecyltrimethylammoniumbromide|cetrimoniumbromide|cetyltrimethylammonium|hexadecyl(trimethyl)ammoniumbromide	CTAB	\bctab\b|cetyl\s*-?\s*trimethyl\s*-?\s*ammonium\s*bromide|hexadecyl\s*-?\s*trimethyl\s*-?\s*ammonium\s*bromide	CID 2681 = cátion cetrimônio (só estrutura local).
+CTAC	surfactant	hexadecyltrimethylammonium chloride	C19H42ClN				ctac|cetyltrimethylammoniumchloride|hexadecyltrimethylammoniumchloride|cetrimoniumchloride	CTAC	\bctac\b|trimethyl\s*-?\s*ammonium\s*chloride
+PVP	capping_agent	polyvinylpyrrolidone	(C6H9NO)n	6917			pvp|polyvinylpyrrolidone|poly(vinylpyrrolidone)|poly(n-vinylpyrrolidone)|poly(n-vinyl-2-pyrrolidone)|polyvinylpyrrolidinone|povidone|n-vinyl-2-pyrrolidone|n-vinylpyrrolidone	PVP	\bpvp\b|poly\s*\(?\s*(n-)?vinyl\s*-?\s*(2-)?pyrrolid	CID 6917 é o monômero (NVP); o polímero não tem CID único (informar a massa molar, ex.: PVP K30/55 kDa).
+tannic_acid	reductant_stabilizer	tannic acid	C76H52O46				tannicacid		tannic\s*acid
+hydroquinone	reductant	hydroquinone	C6H6O2				hydroquinone|benzene-1,4-diol		hydroquinone
+hydroxylamine_HCl	reductant	hydroxylamine hydrochloride	NH2OH·HCl				hydroxylaminehydrochloride|nh2oh·hcl|nh2ohhcl|hydroxylammoniumchloride|hydroxylamine		hydroxylamine\s*hydrochloride|nh2oh	
+THPC	reductant	tetrakis(hydroxymethyl)phosphonium chloride	C4H12ClO4P				thpc|tetrakis(hydroxymethyl)phosphoniumchloride	THPC	\bthpc\b|tetrakis\s*\(\s*hydroxymethyl
+glucose	reductant	D-glucose	C6H12O6				glucose|d-glucose|dextrose		glucose(?!\s*oxidase)	
+H2O2	reductant_oxidant	hydrogen peroxide	H2O2				h2o2|hydrogenperoxide		hydrogen\s*peroxide|\bh2o2\b
+TOAB	phase_transfer	tetraoctylammonium bromide	C32H68BrN				toab|tetraoctylammoniumbromide|tetra-n-octylammoniumbromide|tri-n-octylammoniumbromide	TOAB	\btoab\b|octylammonium\s*bromide	Síntese de Brust–Schiffrin.
+oleylamine	capping_agent	oleylamine	C18H37N				oleylamine|oam	OAm	oleylamine
+oleic_acid	capping_agent	oleic acid	C18H34O2				oleicacid|sodiumoleate|naol	NaOL	(?<![a-z])oleic\s*acid|sodium\s*oleate	
+dodecanethiol	capping_agent	1-dodecanethiol	C12H26S				dodecanethiol|1-dodecanethiol|ddt	DDT	dodecane\s*-?\s*thiol
+GSH	capping_agent	glutathione (reduced)	C10H17N3O6S				gsh|glutathione|l-glutathione|reducedglutathione	GSH	glutathione
+BSA	capping_agent	bovine serum albumin	protein				bsa|bovineserumalbumin|serumalbumin	BSA	serum\s*albumin
+chitosan	capping_agent	chitosan	polymer				chitosan		chitosan
+PDDA	polyelectrolyte	poly(diallyldimethylammonium chloride)	polymer				pdda|poly(diallyldimethylammoniumchloride)	PDDA	\bpdda\b|diallyldimethylammonium
+SDS	surfactant	sodium dodecyl sulfate	C12H25NaO4S				sds|sodiumdodecylsulfate|sodiumdodecylsulphate|sodiumlaurylsulfate	SDS	dodecyl\s*sul(f|ph)ate
+quaternium_15	other	Quaternium-15	C9H16Cl2N4	20011	20012		quaternium15|quaternium-15		quaternium	Ficha presente em datasets/pubchem/ sem uso claro no projeto.
+NaOH	pH_adjuster	sodium hydroxide	NaOH	14798			naoh|sodiumhydroxide|causticsoda		sodium\s*hydroxide|\bnaoh\b
+HCl	pH_adjuster	hydrochloric acid	HCl	313			hcl|hydrochloricacid|hydrogenchloride		hydrochloric\s*acid
+HNO3	pH_adjuster	nitric acid	HNO3				hno3|nitricacid		nitric\s*acid
+H2SO4	pH_adjuster	sulfuric acid	H2SO4				h2so4|sulfuricacid|sulphuricacid		sul(f|ph)uric\s*acid
+ammonia	pH_adjuster	ammonia / ammonium hydroxide	NH3(aq)				ammonia|ammoniumhydroxide|nh3|nh4oh|aqueousammonia		(?<![a-z])ammonia|(?<![a-z])ammonium\s*hydroxide	
+K2CO3	pH_adjuster	potassium carbonate	K2CO3				k2co3|potassiumcarbonate		potassium\s*carbonate
+NaCl	salt	sodium chloride	NaCl				nacl|sodiumchloride		sodium\s*chloride
+KCl	salt	potassium chloride	KCl				kcl|potassiumchloride		potassium\s*chloride
+KI	salt	potassium iodide	KI				ki|potassiumiodide		potassium\s*iodide
+PEG	capping_agent	poly(ethylene glycol)	(C2H4O)n				peg|polyethyleneglycol|poly(ethyleneglycol)|mpeg|peg-sh|mpeg-sh|thiolatedpeg	PEG	poly\s*-?\s*\(?\s*ethylene\s*glycol|polyethyleneglycol|\bm?peg\b	Informar massa molar e grupo terminal (ex.: mPEG-SH 5 kDa).
+hydrazine	reductant	hydrazine	N2H4				hydrazine|hydrazinehydrate|n2h4|hydrazinemonohydrate		hydrazine	
+KBH4	reductant	potassium borohydride	KBH4				kbh4|potassiumborohydride		kbh4|potassium\s*borohydride	
+formaldehyde	reductant	formaldehyde	CH2O				formaldehyde|formalin|hcho		formaldehyde|formalin	
+acetic_acid	pH_adjuster	acetic acid	C2H4O2				aceticacid|glacialaceticacid		(?<![a-z\]])acetic\s*acid	
+isopropanol	solvent	2-propanol	C3H8O				isopropanol|2-propanol|isopropylalcohol|ipa		isopropanol|2-propanol|isopropyl\s*alcohol	
+chloroform	solvent	chloroform	CHCl3				chloroform|chcl3		chloroform	
+MUA	capping_agent	11-mercaptoundecanoic acid	C11H22O2S				mua|11-mercaptoundecanoicacid|mercaptoundecanoicacid	MUA	mercaptoundecanoic	
+MPA	capping_agent	3-mercaptopropionic acid	C3H6O2S				mpa|3-mercaptopropionicacid|mercaptopropionicacid	MPA	mercaptopropionic	
+cysteamine	capping_agent	cysteamine	C2H7NS				cysteamine|2-aminoethanethiol|cysteaminehydrochloride		cysteamine	
+PEI	polyelectrolyte	polyethylenimine	polymer				pei|polyethylenimine|polyethyleneimine|branchedpei	PEI	polyethylene?\s*imine	
+PSS	polyelectrolyte	poly(sodium 4-styrenesulfonate)	polymer				pss|poly(sodium4-styrenesulfonate)|poly(styrenesulfonate)|sodiumpolystyrenesulfonate	PSS	styrene\s*sulfonate	
+PAH	polyelectrolyte	poly(allylamine hydrochloride)	polymer				pah|poly(allylaminehydrochloride)|polyallylaminehydrochloride	PAH	poly\s*\(?\s*allylamine	
+water	solvent	water	H2O	962			water|h2o|deionizedwater|diwater|milli-qwater|milliqwater|ultrapurewater|distilledwater|doublydistilledwater|bidistilledwater|nanopurewater|dih2o	DI	water
+ethanol	solvent	ethanol	C2H6O	702			ethanol|etoh|ethylalcohol|absoluteethanol		(?<![a-z])ethanol(?![a-z])	
+methanol	solvent	methanol	CH4O				methanol|meoh		methanol
+ethylene_glycol	solvent	ethylene glycol	C2H6O2				ethyleneglycol|eg		(?<![a-z(])ethylene\s*glycol	
+toluene	solvent	toluene	C7H8				toluene		(?<![a-z])toluene(?![a-z])	
+acetone	solvent	acetone	C3H6O				acetone		(?<![a-z])acetone	
+DMF	solvent	N,N-dimethylformamide	C3H7NO				dmf|n,n-dimethylformamide|dimethylformamide	DMF	dimethylformamide
+graphene_oxide	support	graphene oxide	C/O/H (variável)			782691	grapheneoxide|go|grapheneoxide(go)|grapheneoxidenanosheets|goaqueousdispersion|grapheneoxidedispersion|singlelayergrapheneoxide|graphiteoxide	GO	graphene\s*oxide|graphite\s*oxide	Sem CID (substância de composição variável); RefChem 782691, EC 942-699-3. O lote real (C/O, defeitos) vai em go_batches.
+reduced_graphene_oxide	support	reduced graphene oxide	C/O/H (variável)				reducedgrapheneoxide|rgo	rGO	reduced\s*graph(ene|ite)\s*oxide	
+graphite	support_precursor	graphite	C				graphite|graphitepowder|graphiteflakes|naturalgraphiteflakes		graphite(?!\s*oxide)	Precursor do GO (Hummers).
+TEOS	silica_precursor	tetraethyl orthosilicate	C8H20O4Si				teos|tetraethylorthosilicate|tetraethoxysilane	TEOS	orthosilicate|tetraethoxysilane
+Au	product_or_element	gold (metal / nanoparticle product)	Au				au|gold|aunps|aunp|gnps|gnp|aunp(s)|goldnanoparticles|goldnanoparticle|aunrs|aunr|goldnanorods|goldseeds|auseeds|gold(0)|goldfoil	AuNPs|AuNP|GNPs|AuNRs	gold\s*nano|\bau\s*n(p|r)s?\b	Não é reagente: produto ou elemento citado na lista de materiais.
+Ag	product_or_element	silver (metal)	Ag				ag|silver|agnps|silvernanoparticles		silver\s*nano
+peisleyite	irrelevant	peisleyite (mineral)	—			4004			peisleyite	Ficha RefChem 4004 em datasets/pubchem/ não tem relação com o projeto (provável download equivocado).

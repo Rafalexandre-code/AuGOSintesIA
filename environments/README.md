@@ -26,6 +26,7 @@ O script usa [uv](https://docs.astral.sh/uv/) (instala até a versão de Python 
 | `ramboau` | 3.9 | `projects/bayesian-optimization/RAMBOAU` (espelha `install_help/env_man.yml`) | `ramboau.*` | instalado e executado ✓ |
 | `matdesinne` | 3.8 | `projects/inverse-design/MatDesINNe` (torch 1.7.1, FrEIA do commit do artigo) | `matdesinne.*` | resolve ✓ |
 | `qwen-llm` | 3.12 | `projects/literature-llm/Synthesis-Properties-…` (LLaMA-Factory; **GPU ≥ 24 GB**) | `qwen-llm.*` | resolve ✓ |
+| `data-sources` | 3.12 | `tools/data_sources/` — clientes OPTIMADE, mp-api, jarvis-tools, pyalex, habanero, unpywall, PubChemPy, zenodo_get, huggingface_hub, foundry-ml, pynanomapper | `data-sources.*` | instalado; filtros/esquema testados ✓ (APIs exigem rede) |
 | `m2hub` | 3.9 | `projects/materials-ml/M2Hub` (PyG/DGL via conda) | `../projects/materials-ml/M2Hub/environment.yml` | — (conda) |
 | `ambergo` | 3.11 | `projects/atomistic/AmberGO` (AmberTools; VMD e Discovery Studio à parte) | `ambergo.yml` | — (conda) |
 

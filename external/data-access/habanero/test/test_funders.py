@@ -1,0 +1,132 @@
+from typing import no_type_check
+
+import pytest
+from httpx2 import HTTPError
+
+from habanero import Crossref, exceptions
+
+cr = Crossref()
+
+
+@pytest.mark.vcr
+def test_funders():
+    """funders - basic test"""
+    res = cr.funders(limit=2)
+    assert isinstance(res, dict)
+    assert isinstance(res["message"], dict)
+    assert res["message"]["items-per-page"] == 2
+
+
+@pytest.mark.vcr
+def test_funders_query():
+    """funders - param: query"""
+    res = cr.funders(query="NSF", limit=2)
+    assert isinstance(res, dict)
+    assert isinstance(res["message"], dict)
+    assert res["message"]["items-per-page"] == 2
+
+
+@pytest.mark.vcr
+def test_funders_sample_err():
+    with pytest.raises(exceptions.RequestError):
+        cr.funders(sample=2)
+
+
+@pytest.mark.vcr
+def test_funders_filter_fails_noidsworks():
+    with pytest.raises(exceptions.RequestError):
+        cr.funders(filters={"from_pub_date": "2014-03-03"})
+
+
+@pytest.mark.vcr
+def test_funders_filter_fails_noids():
+    with pytest.raises(exceptions.RequestError):
+        cr.funders(works=True, filters={"has_assertion": True})
+
+
+@pytest.mark.vcr
+def test_funders_filter_works():
+    """funders - filter works when used with id and works=True"""
+    res = cr.funders(
+        ids="10.13039/100000001", works=True, filters={"has_assertion": True}
+    )
+    assert isinstance(res, dict)
+    assert res["message"]["items-per-page"] == 20
+
+
+@no_type_check
+@pytest.mark.vcr
+def test_funders_fail_limit():
+    with pytest.raises(exceptions.RequestError):
+        cr.funders(limit="things")
+
+
+@pytest.mark.vcr
+def test_funders_fail_sort():
+    with pytest.raises(ValueError, match="Invalid sort name: things"):
+        cr.funders(sort="things")
+
+
+@pytest.mark.vcr
+def test_funders_field_queries():
+    """funders - param: kwargs - field queries work as expected"""
+    res = cr.funders(
+        ids="10.13039/100000001",
+        works=True,
+        query_container_title="engineering",
+        filters={"type": "journal-article"},
+        limit=100,
+    )
+    titles = [x.get("title") for x in res["message"]["items"]]
+    assert isinstance(res, dict)
+    assert len(res["message"]) == 5
+    assert isinstance(titles, list)
+    assert len(titles) == 100
+
+
+@pytest.mark.vcr
+def test_funders_query_filters_not_allowed_with_dois():
+    with pytest.raises(HTTPError):
+        cr.funders(ids="10.13039/100000001", query_container_title="engineering")
+
+
+@pytest.mark.vcr
+def test_funders_bad_id_warn():
+    """funders - param: warn"""
+    with pytest.warns(UserWarning):
+        out = cr.funders(ids="10.13039/notarealdoi", warn=True)
+    assert out is None
+
+
+@pytest.mark.vcr
+def test_funders_mixed_ids_warn():
+    """funders - param: warn"""
+    with pytest.warns(UserWarning):
+        out = cr.funders(ids=["10.13039/100000001", "10.13039/notarealdoi"], warn=True)
+    assert len(out) == 2
+    assert isinstance(out[0], dict)
+    assert out[1] is None
+
+
+@pytest.mark.vcr
+def test_funders_bad_id_works_warn():
+    """funders - param: warn"""
+    with pytest.warns(UserWarning):
+        out = cr.funders(ids="10.13039/notarealdoi", works=True, warn=True)
+    assert out is None
+
+
+@pytest.mark.vcr
+def test_funders_mixed_ids_works_warn():
+    """""funders - param: warn""" ""
+    with pytest.warns(UserWarning):
+        out = cr.funders(
+            ids=["10.13039/100000001", "10.13039/notarealdoi", "10.13039/100000005"],
+            works=True,
+            warn=True,
+        )
+    assert len(out) == 3
+    assert len([x for x in out if x]) == 2
+    assert isinstance(out[0], dict)
+    assert isinstance(out[2], dict)
+    assert out[1] is None

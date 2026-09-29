@@ -1,0 +1,145 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mp-api"
+authors = [
+  { name = "The Materials Project", email = "feedback@materialsproject.org" },
+]
+description = "API Client for the Materials Project"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "BSD-3-Clause-LBNL"
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "Intended Audience :: Information Technology",
+  "Operating System :: OS Independent",
+  "Topic :: Scientific/Engineering",
+]
+dependencies = [
+  "pymatgen>2024.2.20",
+  "typing-extensions>=3.7.4.1",
+  "requests>=2.23.0",
+  "monty>=2024.12.10",
+  "emmet-core>=0.87.1",
+  "boto3",
+  "orjson >= 3.10,<4",
+  "pyarrow >= 20.0.0",
+  "deltalake>=1.4.0,<1.6.0",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+mcp = ["fastmcp"]
+server = ["flask"]
+contribs = [
+  "boltons",
+  "bravado",
+  "filetype",
+  "ipython",
+  "json2html",
+  "pint>=0.25.0",
+  "pyIsEmail",
+  "requests-futures",
+  "swagger-spec-validator",
+  "cachetools",
+  "pymongo",
+]
+all = [
+  "custodian",
+  "emmet-core[all]>=0.87.1",
+  "fastmcp",
+  "flask",
+]
+test = [
+  "pre-commit",
+  "pytest",
+  "pytest-asyncio",
+  "pytest-cov",
+  "pytest-mock",
+  "pytest-xdist",
+  "flake8",
+  "pycodestyle",
+  "mypy",
+  "mypy-extensions",
+  "typing-extensions",
+  "types-setuptools",
+  "types-requests",
+  "types-tqdm"
+]
+docs = ["sphinx"]
+
+[project.scripts]
+mpmcp = "mp_api.mcp.server:_run_mp_mcp_server"
+
+[tool.setuptools.packages.find]
+include = ["mp_api*"]
+namespaces = true
+
+[tool.setuptools_scm]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config"]
+xfail_strict = true
+filterwarnings = ["default"]
+log_cli_level = "info"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+  "B",   # flake8-bugbear
+  "D",   # pydocstyle
+  "E",   # pycodestyle
+  "F",   # pyflakes
+  "I",   # isort
+  "PLE", # pylint error
+  "PLW", # pylint warning
+  "PYI", # flakes8-pyi
+  "Q",   # flake8-quotes
+  "SIM", # flake8-simplify
+  "TID", # tidy imports
+  "UP",  # pyupgrade
+  "W",   # pycodestyle
+  "YTT", # flake8-2020
+]
+ignore = [
+  "B019",    # Use of functools.lru_cache or functools.cache on methods can lead to memory leaks
+  "B028",    # No explicit stacklevel keyword argument found
+  "B904",    # Within an except clause, raise exceptions with raise ... from err
+  "D100",    # Missing docstring in public module
+  "D104",    # Missing docstring in public package
+  "D101",    # Missing docstring in public class
+  "D102",    # Missing docstring in public method
+  "D105",    # Missing docstring in magic method
+  "D106",    # Missing docstring in public nested class
+  "D205",    # 1 blank line required between summary line and description
+  "PLW2901", # Outer for loop variable overwritten by inner assignment target
+  "SIM105",  # Use contextlib.suppress(FileNotFoundError) instead of try-except-pass
+  "SIM115",  # Use context handler for opening files,
+  "E501",
+]
+exclude = ["docs", ".ruff_cache", "requirements", "test*", "settings.py"]
+pydocstyle.convention = "google"
+flake8-unused-arguments.ignore-variadic-names = true
+isort.required-imports = ["from __future__ import annotations"]
+
+[tool.ruff.lint.per-file-ignores]
+"*/__init__.py" = ["F401"] # F401: imported but unused
+
+[tool.mypy]
+namespace_packages = true
+ignore_missing_imports = true
+follow_untyped_imports = true
+
+[tool.coverage.report]
+exclude_also = [
+  # A pragma comment that excludes an entire file:
+  '\A(?s:.*# pragma: exclude file.*)\Z',
+]

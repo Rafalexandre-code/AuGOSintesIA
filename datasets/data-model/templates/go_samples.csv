@@ -1,0 +1,1 @@
+go_sample_id,go_batch_id,prep_type,concentration_mg_mL,sonication_time_min,sonication_power_W,centrifugation_rcf_g,centrifugation_time_min,pH,substrate,age_days,date,operator,protocol_id,notes

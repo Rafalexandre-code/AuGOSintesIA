@@ -5,6 +5,7 @@ nanocompósitos GO–AuNP sob variabilidade multi-fonte de matéria-prima". Não
 coleção de documentos, datasets e repositórios de terceiros.
 
 **Análise completa (o que cada pasta faz, como usar, pegadinhas): [docs/ANALISE_REPOSITORIO.md](docs/ANALISE_REPOSITORIO.md).**
+**Fontes de dados (auditoria + integração): [docs/FONTES_DE_DADOS.md](docs/FONTES_DE_DADOS.md); registro `tools/data_sources/sources.tsv`.**
 Cada pasta de primeiro nível tem um `README.md` com o seu índice.
 
 ## Mapa
@@ -14,7 +15,9 @@ Cada pasta de primeiro nível tem um `README.md` com o seu índice.
   `relatorio.{csv,json}` (CSV com `;`).
 - `datasets/` — `aunc-fluorescence/` (CSV `;`, latin-1), `nanocrystal-synthesis-db/` (Gu et al., LFS),
   `aunp-text-mined/` (LFS), `cofs-methane/`, `pressure-vessel/`, `pubchem/`, `xrd-ceo2-calibration/`
-  (.ge3: 5 frames 2048×2048 uint16, offset 8192).
+  (.ge3: 5 frames 2048×2048 uint16, offset 8192). Gerados por `tools/data_sources/` (regeráveis): `reagents/`
+  (dicionário PubChem; editar só `aliases.tsv`), `literature-seed/` (Cruse+NSP+AuNCs; `go_aunp_subset.csv`),
+  `data-model/` (9 tabelas + validador). `lab/` = dados medidos (a preencher; validar com `lab_data_model.py validate`).
 - `projects/<módulo>/` — 13 subprojetos base (modificados aqui: caminhos portáveis, bugs corrigidos):
   - `atomistic/GO-MACE-23` (gerador de GO em `code/`, potencial `models/fitting/potential/iter-12-final-model/go-mace-23.pt`,
     C/H/O, sem Au), `atomistic/AmberGO` (GO 5–68 % para AMBER/GAFF; depende do HierGO)
@@ -23,9 +26,12 @@ Cada pasta de primeiro nível tem um `README.md` com o seu índice.
   - `bayesian-optimization/{SDL,Bgolearn,RAMBOAU,BOCoDe}` (BOCoDe: **maximização**, restrição viável `g<=0`)
   - `multi-fidelity/chem-MFBO`, `inverse-design/MatDesINNe`, `materials-ml/M2Hub`
   - `self-driving-lab/qubot/{hardware,data,scripts,README.pdf}` — `data/` e `scripts/` devem ficar lado a lado
-- `external/<módulo>/` — 48 repositórios de referência, cópias sem `.git` (manifesto `external/README.md`;
+- `external/<módulo>/` — 58 repositórios de referência (`data-access/` = clientes OpenAlex/Crossref/Unpaywall/PubChem/
+  OPTIMADE/MP/JARVIS/MDF/eNanoMapper), cópias sem `.git` (manifesto `external/README.md`;
   commits `tools/external_repos.lock.tsv`; atualizar com `tools/fetch_external.sh --latest`). Não editar à mão.
-- `environments/` + `tools/setup_env.sh <nome>` — um ambiente por subprojeto (`--list`); `core` = projeto GO–AuNP.
+- `environments/` + `tools/setup_env.sh <nome>` — um ambiente por subprojeto (`--list`); `core` = projeto GO–AuNP;
+  `data-sources` = clientes de API.
+- `deposit/GO-AuNP-Autonomous-Design/` — esqueleto do depósito Zenodo/MDF; montar com `tools/data_sources/build_deposit.py`.
 
 ## Cuidados
 - 13 arquivos usam **Git LFS** (caminhos exatos em `.gitattributes`; ao mover um deles, atualize o
@@ -37,5 +43,8 @@ Cada pasta de primeiro nível tem um `README.md` com o seu índice.
 - Dados sintéticos/substitutos, NÃO medidos: `projects/atomistic/GO-MACE-23/structures/aG_p6_surrogate.xyz`
   (de `code/make_amorphous_db.py`) e o gerador `projects/bayesian-optimization/RAMBOAU/problems/data/make_synthetic_experiment.py`.
 - Não versionar `.git` aninhado nem ponteiros LFS de terceiros em `external/` (use o script).
-- Rodar código gera `__pycache__/`, `result/`, `Bgolearn/`, `outputs/` etc.; não commitar esses artefatos.
+- Rodar código gera `__pycache__/`, `result/`, `Bgolearn/`, `outputs/` etc.; não commitar esses artefatos
+  (`/outputs/` está no `.gitignore`; os scripts de rede de `tools/data_sources/` gravam lá).
+- Rede do contêiner de nuvem: só GitHub e PyPI. Zenodo/HF/figshare/OpenAlex/PubChem etc. ficam bloqueados; os scripts
+  de `tools/data_sources/` que usam rede devem rodar localmente.
 - `qubot/data/*/summary.csv` são regravados pelas análises; teste com `QUBOT_DATA_DIR=<cópia>`.
