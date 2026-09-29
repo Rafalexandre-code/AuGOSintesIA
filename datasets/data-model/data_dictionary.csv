@@ -1,0 +1,138 @@
+table,column,type,required,unit,allowed_values,description
+protocols,protocol_id,id,1,,,ex.: SOP-GO-DISP-01
+protocols,title,str,1,,,
+protocols,version,str,1,,,
+protocols,file,str,0,,,caminho em protocols/
+protocols,doi,str,0,,,DOI (protocols.io/Zenodo)
+protocols,description,str,0,,,
+reagent_lots,lot_id,id,1,,,ex.: LOT-HAuCl4-2026-01
+reagent_lots,entity_id,fk:reagent_dictionary,1,,,entidade de datasets/reagents/reagent_dictionary.csv
+reagent_lots,chemical_name,str,1,,,nome como no rótulo (ex.: Gold(III) chloride trihydrate)
+reagent_lots,canonical_name,str,0,,,nome canônico (copiado do dicionário)
+reagent_lots,pubchem_cid,int,0,,,CID PubChem
+reagent_lots,smiles,str,0,,,
+reagent_lots,inchi,str,0,,,
+reagent_lots,supplier,str,1,,,fornecedor
+reagent_lots,catalog_number,str,0,,,
+reagent_lots,lot_number,str,1,,,lote do fabricante
+reagent_lots,purity,float,0,%,,pureza declarada
+reagent_lots,purity_basis,str,0,,,"ex.: trace metals basis, ACS reagent"
+reagent_lots,hydrate_form,enum,0,,anhydrous|monohydrate|dihydrate|trihydrate|tetrahydrate|hydrate|solution,forma
+reagent_lots,received_date,date,0,,,
+reagent_lots,opened_date,date,0,,,
+reagent_lots,storage,str,0,,,"ex.: 4 °C, escuro, dessecador"
+reagent_lots,coa_file,str,0,,,certificado de análise (metadata/)
+reagent_lots,notes,str,0,,,
+go_batches,go_batch_id,id,1,,,ex.: GO-B01
+go_batches,source_type,enum,1,,commercial|lab_synthesized,origem
+go_batches,supplier,str,0,,,fornecedor (se comercial)
+go_batches,product_code,str,0,,,
+go_batches,lot_number,str,0,,,
+go_batches,synthesis_method,enum,0,,Hummers|modified_Hummers|improved_Hummers_Tour|Brodie|Staudenmaier|electrochemical|other,rota de oxidação
+go_batches,graphite_lot_id,fk:reagent_lots,0,,,lote do grafite precursor
+go_batches,oxidant_to_graphite_ratio,float,0,g/g,,KMnO4:grafite (m/m)
+go_batches,oxidation_time_h,float,0,h,,
+go_batches,oxidation_temperature_C,float,0,°C,,
+go_batches,purification,str,0,,,"lavagens, diálise, centrifugação"
+go_batches,stock_concentration_mg_mL,float,0,mg/mL,,concentração do estoque
+go_batches,dispersion_medium,str,0,,,
+go_batches,date_prepared,date,0,,,
+go_batches,operator,str,0,,,
+go_batches,protocol_id,fk:protocols,0,,,
+go_batches,notes,str,0,,,
+go_samples,go_sample_id,id,1,,,ex.: GO-B01-S03
+go_samples,go_batch_id,fk:go_batches,1,,,
+go_samples,prep_type,enum,1,,dispersion|film_dropcast|film_spincoat|powder|freeze_dried|on_substrate|other,forma da amostra
+go_samples,concentration_mg_mL,float,0,mg/mL,,
+go_samples,sonication_time_min,float,0,min,,
+go_samples,sonication_power_W,float,0,W,,
+go_samples,centrifugation_rcf_g,float,0,g,,
+go_samples,centrifugation_time_min,float,0,min,,
+go_samples,pH,float,0,,,
+go_samples,substrate,str,0,,,"Si/SiO2, mica, grade de TEM…"
+go_samples,age_days,float,0,d,,idade da dispersão no uso
+go_samples,date,date,0,,,
+go_samples,operator,str,0,,,
+go_samples,protocol_id,fk:protocols,0,,,
+go_samples,notes,str,0,,,
+go_characterization,measurement_id,id,1,,,ex.: M-GO-0001
+go_characterization,go_sample_id,fk:go_samples,1,,,
+go_characterization,technique,enum,1,,XPS|Raman|AFM|UV-Vis|FTIR|TGA|XRD|DLS|zeta|elemental_analysis|SEM|TEM|other,técnica
+go_characterization,quantity,str,1,,,"C_O_ratio, sp2_fraction, C-O_fraction, C=O_fraction, O-C=O_fraction, ID_IG, I2D_IG, La_nm, thickness_nm, lateral_size_um, n_layers, abs_230nm …"
+go_characterization,value,float,1,,,valor medido/derivado
+go_characterization,uncertainty,float,0,,,incerteza do valor (mesma unidade)
+go_characterization,uncertainty_type,enum,0,,sd|sem|ci95|range|instrument|none,tipo de incerteza
+go_characterization,n_replicates,int,0,,,nº de réplicas/regiões/partículas usadas
+go_characterization,unit,str,1,,,"unidade (UO/SI): nm, eV, %, at%, mg/mL, mV, a.u. …"
+go_characterization,instrument,str,0,,,equipamento/modelo
+go_characterization,method_details,str,0,,,"modelo de ajuste, fonte de excitação, faixa, deconvolução…"
+go_characterization,raw_data_file,str,0,,,caminho relativo em dataset/raw_data/
+go_characterization,date,date,0,,,AAAA-MM-DD
+go_characterization,operator,str,0,,,quem mediu
+go_characterization,protocol_id,fk:protocols,0,,,protocolo (SOP) usado
+go_characterization,ontology_term,str,0,,,termo de ontologia (eNanoMapper/CHMO/BAO) para a técnica ou grandeza
+go_characterization,notes,str,0,,,
+go_descriptors,go_batch_id,fk:go_batches,1,,,
+go_descriptors,descriptor,str,1,,,mesmo nome de go_characterization.quantity
+go_descriptors,mean,float,1,,,estimativa do lote
+go_descriptors,sd,float,0,,,desvio dentro do lote
+go_descriptors,n,int,0,,,nº de medidas agregadas
+go_descriptors,unit,str,0,,,
+go_descriptors,method,enum,0,,pooled|hierarchical_bayes|bootstrap|single,como foi agregado
+go_descriptors,between_batch_sd,float,0,,,"desvio entre lotes (efeito de lote), se estimado"
+go_descriptors,source_measurements,list,0,,,measurement_id separados por |
+go_descriptors,notes,str,0,,,
+aunp_syntheses,synthesis_id,id,1,,,ex.: SYN-0001
+aunp_syntheses,go_batch_id,fk:go_batches,0,,,vazio = controle sem GO
+aunp_syntheses,go_sample_id,fk:go_samples,0,,,
+aunp_syntheses,gold_precursor_lot_id,fk:reagent_lots,1,,,lote de HAuCl4
+aunp_syntheses,reductant_lot_id,fk:reagent_lots,0,,,
+aunp_syntheses,stabilizer_lot_id,fk:reagent_lots,0,,,
+aunp_syntheses,method,enum,1,,in_situ_reduction_on_GO|ex_situ_assembly|one_pot|seed_mediated|other,rota
+aunp_syntheses,HAuCl4_mM,float,1,mM,,concentração final de Au(III)
+aunp_syntheses,reductant_mM,float,0,mM,,
+aunp_syntheses,reductant_to_Au_ratio,float,0,mol/mol,,
+aunp_syntheses,stabilizer_mM,float,0,mM,,
+aunp_syntheses,GO_mg_mL,float,0,mg/mL,,
+aunp_syntheses,pH,float,0,,,
+aunp_syntheses,temperature_C,float,0,°C,,
+aunp_syntheses,time_min,float,0,min,,
+aunp_syntheses,addition_order,str,0,,,ex.: GO>HAuCl4>NaBH4
+aunp_syntheses,addition_rate_mL_min,float,0,mL/min,,
+aunp_syntheses,stirring_rpm,float,0,rpm,,
+aunp_syntheses,total_volume_mL,float,0,mL,,
+aunp_syntheses,campaign_id,str,0,,,campanha de otimização
+aunp_syntheses,design_id,str,0,,,id do candidato proposto pelo otimizador (iteração/lote)
+aunp_syntheses,fidelity,enum,0,,high|low|simulation,fidelidade (MISO/multi-fidelidade)
+aunp_syntheses,platform,enum,0,,manual|robot|flow,
+aunp_syntheses,date,date,0,,,
+aunp_syntheses,operator,str,0,,,
+aunp_syntheses,protocol_id,fk:protocols,0,,,
+aunp_syntheses,notes,str,0,,,
+aunp_characterization,measurement_id,id,1,,,ex.: M-AU-0001
+aunp_characterization,synthesis_id,fk:aunp_syntheses,1,,,
+aunp_characterization,technique,enum,1,,UV-Vis|TEM|SEM|DLS|zeta|XRD|XPS|ICP-OES|ICP-MS|SERS|catalysis|other,técnica
+aunp_characterization,quantity,str,1,,,"LSPR_nm, LSPR_FWHM_nm, A_LSPR, A400, size_mean_nm, size_sd_nm, n_particles, aspect_ratio, hydrodynamic_nm, PDI, zeta_mV, Au_loading_wt, yield_pct, k_app_s-1 …"
+aunp_characterization,value,float,1,,,valor medido/derivado
+aunp_characterization,uncertainty,float,0,,,incerteza do valor (mesma unidade)
+aunp_characterization,uncertainty_type,enum,0,,sd|sem|ci95|range|instrument|none,tipo de incerteza
+aunp_characterization,n_replicates,int,0,,,nº de réplicas/regiões/partículas usadas
+aunp_characterization,unit,str,1,,,"unidade (UO/SI): nm, eV, %, at%, mg/mL, mV, a.u. …"
+aunp_characterization,instrument,str,0,,,equipamento/modelo
+aunp_characterization,method_details,str,0,,,"modelo de ajuste, fonte de excitação, faixa, deconvolução…"
+aunp_characterization,raw_data_file,str,0,,,caminho relativo em dataset/raw_data/
+aunp_characterization,date,date,0,,,AAAA-MM-DD
+aunp_characterization,operator,str,0,,,quem mediu
+aunp_characterization,protocol_id,fk:protocols,0,,,protocolo (SOP) usado
+aunp_characterization,ontology_term,str,0,,,termo de ontologia (eNanoMapper/CHMO/BAO) para a técnica ou grandeza
+aunp_characterization,notes,str,0,,,
+outcomes,synthesis_id,fk:aunp_syntheses,1,,,
+outcomes,objective,str,1,,,"ex.: LSPR_nm, size_sd_nm, yield_pct, k_app"
+outcomes,value,float,1,,,
+outcomes,uncertainty,float,0,,,
+outcomes,direction,enum,1,,maximize|minimize|target|constraint,
+outcomes,target_value,float,0,,,alvo ou limite
+outcomes,feasible,int,0,,,1/0 (restrições satisfeitas)
+outcomes,derived_from,list,0,,,measurement_id separados por |
+outcomes,model_version,str,0,,,versão do modelo/otimizador que usou o dado
+outcomes,notes,str,0,,,

@@ -1,0 +1,24 @@
+{
+  "title": "GO-AuNP-Autonomous-Design: dataset and code for active-learning design of graphene oxide–gold nanoparticle nanocomposites under multi-source feedstock variability",
+  "upload_type": "dataset",
+  "description": "<p>Literature seed (text-mined AuNP syntheses normalized with PubChem identifiers), laboratory records of graphene oxide batches (XPS, Raman, AFM with uncertainty), AuNP syntheses on GO (UV-Vis, TEM) and optimization outcomes, protocols, models and code (GO Navigator, AuNP Designer, transfer learning, benchmarking). FAPESP undergraduate research project, UNESP – Institute of Chemistry, Araraquara.</p>",
+  "creators": [
+    {"name": "Lopes, Rafael", "affiliation": "Universidade Estadual Paulista (UNESP), Instituto de Química, Araraquara"}
+  ],
+  "keywords": ["graphene oxide", "gold nanoparticles", "nanocomposites", "Bayesian optimization", "active learning",
+               "multi-objective optimization", "batch variability", "self-driving laboratory", "FAIR data"],
+  "license": "cc-by-4.0",
+  "access_right": "open",
+  "language": "eng",
+  "related_identifiers": [
+    {"identifier": "https://github.com/Rafalexandre-code/AuGOSintesIA", "relation": "isSupplementTo", "scheme": "url"},
+    {"identifier": "10.6084/m9.figshare.16614262", "relation": "isDerivedFrom", "scheme": "doi"},
+    {"identifier": "10.1038/s41597-022-01321-6", "relation": "references", "scheme": "doi"},
+    {"identifier": "10.1021/acsnano.6c03070", "relation": "references", "scheme": "doi"},
+    {"identifier": "10.5281/zenodo.15739032", "relation": "isDerivedFrom", "scheme": "doi"},
+    {"identifier": "10.5281/zenodo.14066557", "relation": "references", "scheme": "doi"},
+    {"identifier": "10.5281/zenodo.17863270", "relation": "references", "scheme": "doi"},
+    {"identifier": "10.5281/zenodo.21389978", "relation": "references", "scheme": "doi"},
+    {"identifier": "10.5281/zenodo.21530328", "relation": "references", "scheme": "doi"}
+  ]
+}

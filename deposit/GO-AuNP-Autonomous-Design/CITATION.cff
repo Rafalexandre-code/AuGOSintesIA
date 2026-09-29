@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "Se usar estes dados ou código, cite-os como abaixo (e as fontes listadas em references)."
+title: "GO-AuNP-Autonomous-Design"
+type: dataset
+authors:
+  - family-names: "Lopes"
+    given-names: "Rafael"
+    affiliation: "Universidade Estadual Paulista (UNESP), Instituto de Química, Araraquara"
+    # orcid: "https://orcid.org/0000-0000-0000-0000"   # completar
+license: CC-BY-4.0
+repository-code: "https://github.com/Rafalexandre-code/AuGOSintesIA"
+# doi: 10.5281/zenodo.XXXXXXX     # concept DOI, preenchido após a primeira publicação no Zenodo
+keywords: [graphene oxide, gold nanoparticles, Bayesian optimization, active learning, FAIR data]
+references:
+  - type: data
+    title: "Text-mined dataset of gold nanoparticle synthesis procedures, morphologies, and size entities"
+    authors: [{family-names: Cruse, given-names: Kevin}, {name: "et al."}]
+    doi: "10.6084/m9.figshare.16614262"
+  - type: article
+    title: "A Large-Scale Nanocrystal Database with Aligned Synthesis and Properties, Enabling Generative Inverse Design"
+    authors: [{family-names: Gu, given-names: Kai}, {name: "et al."}]
+    doi: "10.1021/acsnano.6c03070"
+  - type: data
+    title: "Thiolate-Capped Gold Nanoclusters: Optical Properties and Synthetic Parameters"
+    authors: [{name: "Zenodo record 15739032"}]
+    doi: "10.5281/zenodo.15739032"

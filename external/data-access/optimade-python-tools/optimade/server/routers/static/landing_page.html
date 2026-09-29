@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>{{ provider.name }}</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="keywords" content="optimade,materials,crystals,database">
+
+    <style>
+        html {
+          margin: 2em;
+          font-family: Inter, system-ui, sans-serif;
+         }
+
+        h4, p { margin-left: 2em; }
+        span.version {background-color: lightgrey; font-weight: bold; font-family: monospace; padding: 0.1em 0.5em 0.1em 0.5em; border-radius: 1em;}
+    </style>
+    </head>
+    <body>
+        <img id="logo" width="100" src="https://matsci.org/uploads/default/original/2X/b/bd2f59b3bf14fb046b74538750699d7da4c19ac1.svg"></img>
+        <h3>This is an <a href="https://www.optimade.org">OPTIMADE</a> base URL which can be queried with an OPTIMADE client.</h3>
+        <h3>OPTIMADE version:</h3>
+        <h3><span class="version">{{ api_version }}</span></h3>
+        <h3>Provider:</h3>
+        <h4>{{ provider.name }}</h4>
+        <p> Prefix: <span class="version">{{ provider.prefix }}</span></p>
+        <p> {{ provider.description }} </p>
+        <p><a href={{ provider.homepage }}>{{ provider.homepage }}</a></p>
+        <h3>Implementation:</h3>
+        <h4>{{ implementation.name }}</h4>
+        <p>Version: <span class="version">{{ implementation.version }}</span></p>
+        <p><a href={{ implementation.source_url }}>{{ implementation.source_url }}</a></p>
+        <h3>Available endpoints:</h3>
+        <ul>
+        {% ENDPOINTS %}
+        </ul>
+        {% INDEX_BASE_URL %}
+    </body>
+    <footer>
+        <div class="footer_text">
+            <ul style="list-style-type: none; margin: 0; padding:0; overflow: hidden">
+                <li style="padding-top: 5px;">Compliant with the <a href="https://github.com/Materials-Consortia/OPTIMADE">
+                    <img src="https://cdn.simpleicons.org/github/000000" width="16" height="16" alt="GitHub">
+                        OPTIMADE SPECIFICATION
+                    </a>
+                <li style="padding-top: 5px;">Powered by
+                    <a href="https://www.github.com/Materials-Consortia/optimade-python-tools">
+                        <img src="https://cdn.simpleicons.org/github/000000" width="16" height="16" alt="GitHub">
+                        Materials-Consortia/optimade-python-tools
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </footer>
+</html>

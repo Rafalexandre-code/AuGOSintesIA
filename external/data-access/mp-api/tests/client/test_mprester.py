@@ -1,0 +1,890 @@
+import importlib
+import itertools
+import os
+import random
+import warnings
+from collections import defaultdict
+from tempfile import NamedTemporaryFile
+
+import numpy as np
+import pytest
+import requests
+from emmet.core.mpid import MPID, AlphaID
+from emmet.core.phonon import PhononBS, PhononDOS
+from emmet.core.tasks import TaskDoc
+from emmet.core.types.enums import ThermoType
+from emmet.core.vasp.calc_types import CalcType
+from pymatgen.analysis.phase_diagram import PhaseDiagram
+from pymatgen.analysis.pourbaix_diagram import IonEntry, PourbaixDiagram, PourbaixEntry
+from pymatgen.analysis.wulff import WulffShape
+from pymatgen.core import SETTINGS
+from pymatgen.core.composition import Composition
+from pymatgen.core.ion import Ion
+from pymatgen.core.periodic_table import Element
+from pymatgen.electronic_structure.bandstructure import (
+    BandStructure,
+    BandStructureSymmLine,
+)
+from pymatgen.electronic_structure.dos import CompleteDos, Dos
+from pymatgen.entries.compatibility import (
+    MaterialsProject2020Compatibility,
+    MaterialsProjectAqueousCompatibility,
+)
+from pymatgen.entries.computed_entries import (
+    ComputedEntry,
+    ConstantEnergyAdjustment,
+    GibbsComputedStructureEntry,
+)
+from pymatgen.entries.mixing_scheme import MaterialsProjectDFTMixingScheme
+from pymatgen.io.cif import CifParser
+from pymatgen.io.vasp import Chgcar
+
+from mp_api._test_utils import requires_api_key
+from mp_api.client import MPRester
+from mp_api.client.core import MPRestError, MPRestWarning
+from mp_api.client.core.settings import _DEFAULT_ENDPOINT
+
+try:
+    from mp_api.client.contribs import ContribsClient as contribs_client
+except ImportError:
+    contribs_client = None
+
+
+@pytest.fixture()
+def mpr():
+    rester = MPRester()
+    yield rester
+    rester.session.close()
+
+
+@requires_api_key
+class TestMPRester:
+    fake_mp_api_key = "12345678901234567890123456789012"  # 32 chars
+    default_endpoint = _DEFAULT_ENDPOINT + (
+        "/" if not _DEFAULT_ENDPOINT.endswith("/") else ""
+    )
+
+    def test_get_structure_by_material_id(self, mpr):
+        s0 = mpr.get_structure_by_material_id("mp-149")
+        assert s0.formula == "Si2"
+
+        s1 = mpr.get_structure_by_material_id("mp-4163", conventional_unit_cell=True)
+        assert s1.formula == "Ca12 Ti8 O28"
+
+        s2 = mpr.get_structure_by_material_id("mp-149", final=False)
+        assert {s.formula for s in s2} == {"Si2"}
+
+    def test_get_database_version(self, mpr):
+        db_version = mpr.db_version
+        assert db_version is not None
+
+        with pytest.warns(
+            MPRestWarning, match="`get_database_version` has been deprecated"
+        ):
+            assert db_version == mpr.get_database_version()
+
+    def test_get_material_id_from_task_id(self, mpr):
+        assert mpr.get_material_id_from_task_id("mp-540081") == "mp-19017"
+
+    def test_get_task_ids_associated_with_material_id(self, mpr):
+        results = mpr.get_task_ids_associated_with_material_id(
+            "mp-149", calc_types=[CalcType.GGA_Static, CalcType.GGA_U_Static]
+        )
+        assert len(results) > 0
+
+    def test_get_material_id_references(self, mpr):
+        assert len(mpr.get_material_id_references("mp-123")) > 0
+
+    def test_get_material_id_doc(self, mpr):
+        mp_ids = mpr.get_material_ids("Al2O3")
+        random.shuffle(mp_ids)
+        doc = mpr.materials.search(material_ids=mp_ids.pop(0))[0]
+        assert doc.formula_pretty == "Al2O3"
+
+        mp_ids = mpr.get_material_ids("Al-O")
+        random.shuffle(mp_ids)
+        doc = mpr.materials.search(material_ids=mp_ids.pop(0))[0]
+        assert doc.chemsys == "Al-O"
+
+    def test_get_structures(self, mpr):
+        structs = mpr.get_structures("Mn3O4")
+        assert len(structs) > 0
+
+        structs = mpr.get_structures("Mn-O", final=False)
+        assert len(structs) > 0
+
+    def test_find_structure(
+        self,
+    ):
+        cif_str = """# mp-111
+data_Ne
+_symmetry_space_group_name_H-M   'P 1'
+_cell_length_a   2.96632550
+_cell_length_b   2.96632684
+_cell_length_c   2.96632748
+_cell_angle_alpha   60.00001414
+_cell_angle_beta   59.99999919
+_cell_angle_gamma   60.00001422
+_symmetry_Int_Tables_number   1
+_chemical_formula_structural   Ne
+_chemical_formula_sum   Ne1
+_cell_volume   18.45618751
+_cell_formula_units_Z   1
+loop_
+ _symmetry_equiv_pos_site_id
+ _symmetry_equiv_pos_as_xyz
+  1  'x, y, z'
+loop_
+ _atom_site_type_symbol
+ _atom_site_label
+ _atom_site_symmetry_multiplicity
+ _atom_site_fract_x
+ _atom_site_fract_y
+ _atom_site_fract_z
+ _atom_site_occupancy
+  Ne  Ne0  1  0.00000000  0.00000000  -0.00000000  1
+"""
+        struct_from_cif = CifParser.from_str(cif_str).parse_structures(primitive=True)[
+            0
+        ]
+        temp_file = NamedTemporaryFile(suffix=".cif")
+        with open(temp_file.name, "wt") as f:
+            f.write(cif_str)
+            f.seek(0)
+
+        for struct_or_path, use_document_model in [
+            (temp_file.name, True),
+            (struct_from_cif, False),
+        ]:
+            with MPRester(use_document_model=use_document_model) as mpr:
+                data = mpr.find_structure(struct_or_path)
+            assert isinstance(data, str) and data == "mp-111"
+
+        f.close()
+
+        with pytest.raises(MPRestError, match="Provide filename or Structure object."):
+            mpr.find_structure(struct_from_cif.as_dict())
+
+        with pytest.raises(MPRestError, match="`allow_multiple_results` must be a"):
+            mpr.find_structure(struct_from_cif, allow_multiple_results=1.0)
+
+        assert (
+            len(
+                mpr.find_structure(
+                    struct_from_cif.copy().replace_species({"Ne": "K"}),
+                    allow_multiple_results=2,
+                )
+            )
+            <= 2
+        )
+
+    def test_get_bandstructure_by_material_id(self, mpr):
+        bs = mpr.get_bandstructure_by_material_id("mp-149")
+        assert isinstance(bs, BandStructureSymmLine)
+        bs_uniform = mpr.get_bandstructure_by_material_id("mp-149", line_mode=False)
+        assert isinstance(bs_uniform, BandStructure)
+        assert not isinstance(bs_uniform, BandStructureSymmLine)
+
+    def test_get_dos_by_id(self, mpr):
+        dos = mpr.get_dos_by_material_id("mp-149")
+        assert isinstance(dos, Dos)
+        complete_dos = mpr.get_dos_by_material_id("mp-149", load_projections=True)
+        assert isinstance(complete_dos, CompleteDos)
+
+    def test_get_entry_by_material_id(self, mpr):
+        e = mpr.get_entry_by_material_id("mp-19017")
+        assert isinstance(e[0], ComputedEntry)
+        assert e[0].composition.reduced_formula == "LiFePO4"
+
+    def test_get_entries(self, mpr):
+
+        # Avoiding "golden test data": freshly retrieve 5 thermo docs and
+        # perform entry querying based off those entries
+        thermo_docs = mpr.materials.thermo.search(
+            num_chunks=1,
+            chunk_size=5,
+            num_elements=(2, 3),
+            energy_above_hull=(0.05, 0.5),
+        )
+
+        syms = ["Li", "Fe", "O"]
+        chemsys = "Li-Fe-O"
+        with pytest.warns(
+            DeprecationWarning, match="The `inc_structure` argument is deprecated"
+        ):
+            entries = mpr.get_entries(thermo_docs[0].chemsys, inc_structure=False)
+
+        assert all(isinstance(e, ComputedEntry) for e in entries)
+        assert all(
+            set(e.composition.elements).issubset(thermo_docs[0].elements)
+            for e in entries
+        )
+
+        # Formula
+        entries = mpr.get_entries(thermo_docs[1].formula_pretty)
+        assert all(isinstance(e, ComputedEntry) for e in entries)
+
+        # Property data
+        entries = mpr.get_entries(
+            thermo_docs[2].formula_pretty, property_data=["energy_above_hull"]
+        )
+
+        assert all(e.data.get("energy_above_hull", None) is not None for e in entries)
+
+        # Conventional structure
+        as_conv = mpr.get_entry_by_material_id(
+            thermo_docs[3].material_id, conventional_unit_cell=True
+        )
+        assert all(e.structure == e.structure.to_conventional() for e in as_conv)
+
+        # Ensure energy per atom is same
+        non_standardized = mpr.get_entry_by_material_id(
+            thermo_docs[3].material_id, conventional_unit_cell=False
+        )
+        for e in as_conv:
+            ref = next(f for f in non_standardized if f.entry_id == e.entry_id)
+            assert e.uncorrected_energy_per_atom == pytest.approx(
+                ref.uncorrected_energy_per_atom
+            )
+            # corrected too: every adjustment must scale with the cell, including
+            # extensive ones with no ``n_atoms``, e.g. the r2SCAN mixing correction
+            assert e.energy_per_atom == pytest.approx(ref.energy_per_atom)
+
+        # Additional criteria
+        entry = mpr.get_entries(
+            thermo_docs[4].material_id,
+            additional_criteria={
+                "energy_above_hull": (0.0, 2 * thermo_docs[4].energy_above_hull)
+            },
+            property_data=["energy_above_hull"],
+        )[0]
+
+        assert "energy_above_hull" in entry.data
+
+        # Test out of range
+        entries = mpr.get_entries(
+            thermo_docs[4].material_id,
+            additional_criteria={
+                "energy_above_hull": (
+                    1.5 * thermo_docs[4].energy_above_hull,
+                    2 * thermo_docs[4].energy_above_hull,
+                )
+            },
+            property_data=["energy_above_hull"],
+        )
+
+        assert len(entries) == 0
+
+    def test_get_entries_in_chemsys(self, mpr):
+        syms = ["Li", "Fe", "O"]
+        syms2 = "Li-Fe-O"
+        with pytest.warns(
+            MPRestWarning, match="The default thermo type when retrieving entries"
+        ):
+            entries = mpr.get_entries_in_chemsys(syms)
+        entries2 = mpr.get_entries_in_chemsys(syms2)
+        elements = {Element(sym) for sym in syms}
+        for e in entries:
+            assert isinstance(e, ComputedEntry)
+            assert set(e.composition.elements).issubset(elements)
+
+        e1 = {i.entry_id for i in entries}
+        e2 = {i.entry_id for i in entries2}
+        assert e1 == e2
+
+        gibbs_entries = mpr.get_entries_in_chemsys(syms2, use_gibbs=500)
+        for e in gibbs_entries:
+            assert isinstance(e, GibbsComputedStructureEntry)
+
+        with pytest.raises(
+            MPRestError, match="Please specify fewer elements to query by"
+        ):
+            mpr.get_entries_in_chemsys([Element.from_Z(1 + i).name for i in range(10)])
+
+    def test_get_entries_in_chemsys_mixed_hull(self, mpr):
+        """Mixed GGA(+U)/r2SCAN entries must all sit on one energy scale (issue #1104).
+
+        The mixing correction served with an entry is referenced to the hull of the single
+        chemical system that entry's thermo doc was built for, so pooling the served entries
+        across subsystems put Cs2TiI6 ~4.6 eV/atom above the hull instead of on it.
+        """
+        entries = mpr.get_entries_in_chemsys("Cs-Ti-I")
+        phase_diagram = PhaseDiagram(entries)
+        host = next(e for e in entries if e.composition.reduced_formula == "Cs2TiI6")
+        assert phase_diagram.get_e_above_hull(host) == pytest.approx(0.0, abs=1e-6)
+
+        # extra criteria narrow the served (common-scale) entries, with MP's own semantics
+        with warnings.catch_warnings(record=True) as record:
+            stable = mpr.get_entries_in_chemsys(
+                "Cs-Ti-I", additional_criteria={"is_stable": True}
+            )
+        assert not [w for w in record if issubclass(w.category, MPRestWarning)]
+        assert 0 < len(stable) < len(entries)
+        assert {str(e.data["material_id"]) for e in stable} == {
+            str(e.data["material_id"])
+            for e in entries
+            if phase_diagram.get_e_above_hull(e) == pytest.approx(0.0, abs=1e-6)
+        }
+
+        # hull distances must match the ones MP serves, and no material may go missing --
+        # both fail if this silently falls through to re-applying the mixing scheme here
+        docs = mpr.materials.thermo.search(
+            chemsys=["H-O"],
+            thermo_types=[ThermoType.GGA_GGA_U_R2SCAN],
+            all_fields=False,
+            fields=["material_id", "energy_above_hull"],
+        )
+        entries = mpr.get_entries_in_chemsys("H-O")
+        phase_diagram = PhaseDiagram(entries)
+        by_mpid = defaultdict(list)
+        for entry in entries:
+            by_mpid[str(entry.data["material_id"])].append(entry)
+        for doc in docs:
+            hull_entries = by_mpid[str(doc.material_id)]
+            assert hull_entries, f"{doc.material_id} missing from the returned entries"
+            # a material can have one entry per run type; the served hull distance is the one
+            # for whichever entry MP blessed
+            assert any(
+                phase_diagram.get_e_above_hull(e)
+                == pytest.approx(doc.energy_above_hull, abs=1e-4)
+                for e in hull_entries
+            )
+
+        # uncorrected mixed entries cannot be placed on a common scale, so a warning is thrown:
+        with pytest.warns(MPRestWarning, match="common energy scale"):
+            mpr.get_entries_in_chemsys("Cs-Ti-I", compatible_only=False)
+
+    def test_get_entries_in_chemsys_decorated_served_pd(self, mpr):
+        """
+        ``property_data`` / ``conventional_unit_cell`` requests are also served from
+        the pre-built phase diagram (and decorated post-hoc), rather than falling back
+        to re-applying the mixing scheme locally (which can differ from MP's hull).
+        """
+        entries = mpr.get_entries_in_chemsys("H-O")
+        decorated = mpr.get_entries_in_chemsys(
+            "H-O", property_data=["energy_above_hull"], conventional_unit_cell=True
+        )
+        served = {
+            str(e.entry_id): (
+                e.energy_per_atom,
+                len(e.structure),
+                e.composition.reduced_formula,
+            )
+            for e in entries
+        }
+
+        # same served entry set, same energy scale, and the reshaping is not a no-op
+        assert {str(e.entry_id) for e in decorated} == set(served)
+        assert any(len(e.structure) != served[str(e.entry_id)][1] for e in decorated)
+        # not vacuous: served r2SCAN entries carry their mixing correction as an
+        # extensive ``ConstantEnergyAdjustment``, which has no ``n_atoms`` to scale
+        assert any(
+            isinstance(adj, ConstantEnergyAdjustment)
+            for e in entries
+            for adj in e.energy_adjustments
+        )
+
+        for entry in decorated:
+            energy, _, formula = served[str(entry.entry_id)]
+            assert entry.data["energy_above_hull"] >= 0
+            # conventional reshaping must preserve per-atom corrected energies (including
+            # the extensive mixing-scheme adjustments on r2SCAN entries) and stoichiometry:
+            assert entry.energy_per_atom == pytest.approx(energy, abs=1e-8)
+            assert entry.composition.reduced_formula == formula
+
+    @pytest.mark.skipif(
+        contribs_client is None,
+        reason="`pip install 'mp-api[contribs]'` to use pourbaix functionality.",
+    )
+    def test_get_pourbaix_entries(self, mpr):
+        # test input chemsys as a list of elements, chemsys, wiith and without kwargs
+        for chemsys, kwargs in [
+            [["Fe", "Cr"], {}],
+            ["Fe-Cr", {}],
+            ["Li-O", {"use_gibbs": 300}],
+        ]:
+            pbx_entries = mpr.get_pourbaix_entries(chemsys, **kwargs)
+            assert all(
+                isinstance(pbx_entry, PourbaixEntry) for pbx_entry in pbx_entries
+            )
+
+        # test solid_compat kwarg
+        with pytest.raises(ValueError, match="Solid compatibility can only be"):
+            mpr.get_pourbaix_entries("Ti-O", solid_compat="None")
+
+        # test removal of extra elements from reference solids
+        # Li-Zn-S has Na in reference solids
+        pbx_entries = mpr.get_pourbaix_entries("Li-Zn-S")
+        assert not any(e for e in pbx_entries if "Na" in e.composition)
+
+        # Ensure entries are pourbaix compatible
+        _ = PourbaixDiagram(pbx_entries)
+
+        # TODO - old tests copied from pymatgen with specific energy values. Update or delete
+        # fe_two_plus = [e for e in pbx_entries if e.entry_id == "ion-0"][0]
+        # self.assertAlmostEqual(fe_two_plus.energy, -1.12369, places=3)
+        #
+        # feo2 = [e for e in pbx_entries if e.entry_id == "mp-25332"][0]
+        # self.assertAlmostEqual(feo2.energy, 3.56356, places=3)
+        #
+        # # Test S, which has Na in reference solids
+        # pbx_entries = self.rester.get_pourbaix_entries(["S"])
+        # so4_two_minus = pbx_entries[9]
+        # self.assertAlmostEqual(so4_two_minus.energy, 0.301511, places=3)
+
+    @pytest.mark.skipif(
+        contribs_client is None,
+        reason="`pip install 'mp-api[contribs]'` to use pourbaix functionality.",
+    )
+    def test_get_ion_entries(self, mpr):
+        entries = mpr.get_entries_in_chemsys(
+            "Ti-O-H", additional_criteria={"thermo_types": ["GGA_GGA+U"]}
+        )
+        pd = PhaseDiagram(entries)
+        ion_entry_data = mpr.get_ion_reference_data_for_chemsys("Ti-O-H")
+        ion_entries = mpr.get_ion_entries(pd, ion_entry_data)
+        assert len(ion_entries) == 5
+        assert all([isinstance(i, IonEntry) for i in ion_entries])
+        bi_v_entry_data = mpr.get_ion_reference_data_for_chemsys("Bi-V")
+        bi_data = mpr.get_ion_reference_data_for_chemsys("Bi")
+        v_data = mpr.get_ion_reference_data_for_chemsys("V")
+        assert len(bi_v_entry_data) == len(bi_data + v_data)
+
+        # test an incomplete phase diagram
+        entries = mpr.get_entries_in_chemsys(
+            "Ti-O", additional_criteria={"thermo_types": ["GGA_GGA+U"]}
+        )
+        pd = PhaseDiagram(entries)
+        with pytest.raises(ValueError, match="The phase diagram chemical system"):
+            mpr.get_ion_entries(pd)
+
+        # test ion energy calculation
+        ion_data = mpr.get_ion_reference_data_for_chemsys("S")
+        ion_ref_comps = [
+            Ion.from_formula(d["data"]["RefSolid"]).composition for d in ion_data
+        ]
+        ion_ref_elts = set(
+            itertools.chain.from_iterable(i.elements for i in ion_ref_comps)
+        )
+        ion_ref_entries = mpr.get_entries_in_chemsys(
+            [*map(str, ion_ref_elts), "O", "H"],
+            additional_criteria={"thermo_types": ["GGA_GGA+U"]},
+        )
+        mpc = MaterialsProjectAqueousCompatibility()
+        ion_ref_entries = mpc.process_entries(ion_ref_entries)
+        ion_ref_pd = PhaseDiagram(ion_ref_entries)
+        ion_entries = mpr.get_ion_entries(ion_ref_pd, ion_ref_data=ion_data)
+
+        # In ion ref data, SO4-2 is -744.27 kJ/mol; ref solid is -1,279.0 kJ/mol
+        # so the ion entry should have an energy (-744.27 +1279) = 534.73 kJ/mol
+        # or 5.542 eV/f.u. above the energy of Na2SO4
+        so4_two_minus = [e for e in ion_entries if e.ion.reduced_formula == "SO4[-2]"][
+            0
+        ]
+
+        # the ref solid is Na2SO4, ground state mp-4770
+        # the rf factor correction is necessary to make sure the composition
+        # of the reference solid is normalized to a single formula unit
+        ref_solid_entry = next(
+            e for e in ion_ref_entries if str(e.entry_id).startswith("mp-4770")
+        )
+        rf = ref_solid_entry.composition.get_reduced_composition_and_factor()[1]
+        solid_energy = ion_ref_pd.get_form_energy(ref_solid_entry) / rf
+
+        assert np.allclose(so4_two_minus.energy, solid_energy + 5.542, atol=1e-3)
+
+    def test_get_phonon_data_by_material_id(self, mpr):
+        bs = mpr.get_phonon_bandstructure_by_material_id("mp-2172")
+        assert isinstance(bs, PhononBS)
+
+        dos = mpr.get_phonon_dos_by_material_id("mp-2172")
+        assert isinstance(dos, PhononDOS)
+
+    def test_get_charge_density_from_material_id(self, mpr):
+        chgcar = mpr.get_charge_density_from_material_id("mp-149")
+        assert isinstance(chgcar, Chgcar)
+
+        chgcar, task_doc = mpr.get_charge_density_from_material_id(
+            "mp-149", inc_task_doc=True
+        )
+        assert isinstance(chgcar, Chgcar)
+        assert isinstance(TaskDoc.model_validate(task_doc.model_dump()), TaskDoc)
+
+        assert mpr.get_charge_density_from_material_id("mp-0") is None
+
+    def test_get_charge_density_from_task_id(self, mpr):
+        chgcar = mpr.get_charge_density_from_task_id("mp-2246557")
+        assert isinstance(chgcar, Chgcar)
+
+        chgcar, task_doc = mpr.get_charge_density_from_task_id(
+            "mp-2246557", inc_task_doc=True
+        )
+        assert isinstance(chgcar, Chgcar)
+        assert isinstance(TaskDoc.model_validate(task_doc.model_dump()), TaskDoc)
+
+    def test_get_wulff_shape(self, mpr):
+        ws = mpr.get_wulff_shape("mp-126")
+        assert isinstance(ws, WulffShape)
+
+    def test_large_list(self, mpr):
+        num_chunks = 10
+        chunk_size = 500
+        mpids = [
+            str(doc.material_id)
+            for doc in mpr.materials.summary.search(
+                chunk_size=chunk_size, num_chunks=num_chunks, fields=["material_id"]
+            )
+        ]
+        docs = mpr.materials.summary.search(material_ids=mpids, fields=["material_id"])
+        assert len(docs) == chunk_size * num_chunks
+
+    def test_get_api_key_endpoint_from_env_var(self, monkeypatch: pytest.MonkeyPatch):
+        """Ensure the MP_API_KEY and MP_API_ENDPOINT from environment variable
+        is retrieved at runtime, not import time.
+        """
+        # Mock an invalid key and endpoint set before import MPRester
+        import mp_api.client
+
+        monkeypatch.setenv("MP_API_ENDPOINT", "INVALID ENDPOINT")
+        monkeypatch.setenv("MP_API_KEY", "INVALID KEY")
+
+        importlib.reload(mp_api.client)
+        from mp_api.client import MPRester
+
+        monkeypatch.setenv("MP_API_KEY", self.fake_mp_api_key)
+        monkeypatch.setenv("MP_API_ENDPOINT", self.default_endpoint)
+        assert MPRester().api_key == self.fake_mp_api_key
+        assert MPRester().endpoint == self.default_endpoint
+
+        monkeypatch.setenv("MP_API_ENDPOINT", self.default_endpoint[:-1])
+        assert MPRester().endpoint.endswith("/")
+
+    def test_get_api_key_endpoint_from_settings(self, monkeypatch: pytest.MonkeyPatch):
+        """Test environment variable "MP_API_KEY" is not set and
+        get "PMG_MAPI_KEY" from "SETTINGS".
+        """
+        monkeypatch.delenv("MP_API_KEY", raising=False)
+
+        # patch pymatgen.core.SETTINGS to contain PMG_MAPI_KEY
+        monkeypatch.setitem(SETTINGS, "PMG_MAPI_KEY", self.fake_mp_api_key)
+
+        assert MPRester().api_key == self.fake_mp_api_key
+
+    def test_get_default_api_key_endpoint(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.delenv("MP_API_ENDPOINT", raising=False)
+        assert MPRester().endpoint == self.default_endpoint
+
+        monkeypatch.delenv("MP_API_KEY", raising=False)
+        monkeypatch.delenv("PMG_MAPI_KEY", raising=False)
+        monkeypatch.setitem(SETTINGS, "PMG_MAPI_KEY", None)
+        with pytest.warns(MPRestWarning, match="No API key found"):
+            MPRester()
+
+    def test_invalid_api_key(self, monkeypatch):
+        monkeypatch.setenv("MP_API_KEY", "INVALID")
+        with pytest.raises(MPRestError, match="Valid API keys are 32 characters"):
+            MPRester().get_structure_by_material_id("mp-149")
+
+    def test_get_cohesive_energy_per_atom_utility(self):
+        composition = {
+            "H": 5,
+            "V": 2,
+            "P": 3,
+        }
+        toten_per_atom = -2.0e3
+        atomic_energies = {"H": -13.6, "V": -7.2, "P": -0.1}
+
+        by_hand_e_coh = toten_per_atom - sum(
+            atomic_energies[k] * v for k, v in composition.items()
+        ) / sum(composition.values())
+
+        assert MPRester._get_cohesive_energy(
+            composition, toten_per_atom, atomic_energies
+        ) == pytest.approx(by_hand_e_coh)
+
+    @pytest.mark.skipif(
+        contribs_client is None,
+        reason="`pip install 'mp-api[contribs]'` to use cohesive energy functionality.",
+    )
+    def test_get_atom_references(self, mpr):
+        ae = mpr.get_atom_reference_data(funcs=("PBE",))
+        assert list(ae) == ["PBE"]
+        assert len(ae["PBE"]) == 89
+        assert all(isinstance(v, float) for v in ae["PBE"].values())
+
+        ae = mpr.get_atom_reference_data()
+        assert set(ae) == {"PBE", "r2SCAN", "SCAN"}
+        assert all(len(entries) == 89 for entries in ae.values())
+        assert all(
+            isinstance(v, float) for entries in ae.values() for v in entries.values()
+        )
+
+    @pytest.mark.skipif(
+        contribs_client is None,
+        reason="`pip install 'mp-api[contribs]'` to use cohesive energy functionality.",
+    )
+    def test_get_cohesive_energy(self):
+        ref_e_coh = {
+            "atom": {
+                "mp-123": -4.029208982500002,
+                "mp-149": -4.669184594999999,
+                "mp-4163": -6.351402620416668,
+                "mp-19017": -4.933409960714286,
+            },
+            "formula_unit": {
+                "mp-123": -4.029208982500002,
+                "mp-149": -4.669184594999999,
+                "mp-4163": -76.21683144500001,
+                "mp-19017": -34.533869725,
+            },
+        }
+        e_coh = {}
+        for use_document_model in (True, False):
+            with MPRester(
+                use_document_model=use_document_model,
+            ) as _mpr:
+                for norm, refs in ref_e_coh.items():
+                    _e_coh = _mpr.get_cohesive_energy(list(refs), normalization=norm)
+                    if norm == "atom":
+                        e_coh["serial" if use_document_model else "noserial"] = (
+                            _e_coh.copy()
+                        )
+
+                    # Ensure energies match reference data
+                    assert all(v == pytest.approx(refs[k]) for k, v in _e_coh.items())
+
+        # Ensure energies are the same regardless of serialization
+        assert all(
+            v == pytest.approx(e_coh["noserial"][k]) for k, v in e_coh["serial"].items()
+        )
+
+        with pytest.raises(MPRestError, match="Input material IDs"):
+            with MPRester() as mpr:
+                mpr.get_cohesive_energy("mp-1")
+
+    # SOMETHING IS OFF HERE FOR THE MIXING SCHEME
+    # MIXING SCHEME TEST IS FLAKY, PASSES ROUGHLY 20% OF THE TIME
+    @pytest.mark.parametrize(
+        "thermo_type", ["GGA_GGA+U", ThermoType.GGA_GGA_U_R2SCAN, "r2SCAN"]
+    )
+    def test_get_stability(self, thermo_type):
+        """
+        This test is adapted from the pymatgen one - the scope is broadened
+        to include more diverse chemical environments and thermo types which
+        reflect the scope of the current MP database.
+        """
+        if (
+            isinstance(thermo_type, ThermoType)
+            and thermo_type == ThermoType.GGA_GGA_U_R2SCAN
+        ):
+            pytest.skip("See comments about flakiness for mixing scheme")
+
+        with MPRester() as mpr:
+
+            # No golden test data. Always test on fetched thermo data
+            chemsys_to_test: set[str] = {
+                doc.chemsys
+                for doc in mpr.materials.thermo.search(
+                    thermo_types=[thermo_type],
+                    num_elements=2,
+                    num_chunks=1,
+                    chunk_size=4,
+                    fields=["chemsys"],
+                )
+            }
+
+            for chemsys in chemsys_to_test:
+
+                # RETURN ORDER NOT DETERMINISTIC
+                entries = mpr.get_entries_in_chemsys(
+                    chemsys, additional_criteria={"thermo_types": [thermo_type]}
+                )
+
+                modified_entries = [
+                    ComputedEntry(
+                        entry.composition,
+                        entry.uncorrected_energy + 0.01,
+                        parameters=entry.parameters,
+                        entry_id=f"mod_{entry.entry_id}",
+                    )
+                    for entry in entries
+                    # MIXING SCHEME - ONLY PASSES IF A "GOOD" ENTRY IS RETURNED FIRST??
+                    if entry.entry_id == entries[0].entry_id
+                ]
+
+                if (
+                    all(len(entry.composition.elements) == 1 for entry in entries)
+                    and chemsys.count("-") > 0
+                ):
+                    # For a multi-element chemsys with no multinaries, only elementals,
+                    # there should be no phase diagram data available.
+                    with pytest.warns(
+                        MPRestWarning, match="No phase diagram data available"
+                    ):
+                        mpr.get_stability(modified_entries, thermo_type=thermo_type)
+                    return
+
+                else:
+                    rester_ehulls = mpr.get_stability(
+                        modified_entries, thermo_type=thermo_type
+                    )
+
+            all_entries = entries + modified_entries
+
+            compat = None
+            if thermo_type == "GGA_GGA+U":
+                compat = MaterialsProject2020Compatibility()
+            elif thermo_type == "GGA_GGA+U_R2SCAN":
+                compat = MaterialsProjectDFTMixingScheme(run_type_2="r2SCAN")
+
+            if compat:
+                all_entries = compat.process_entries(all_entries)
+
+            pd = PhaseDiagram(all_entries)
+            for entry in all_entries:
+                if str(entry.entry_id).startswith("mod"):
+                    for dct in rester_ehulls:
+                        if dct["entry_id"] == entry.entry_id:
+                            data = dct
+                            break
+                    assert pd.get_e_above_hull(entry) == pytest.approx(
+                        data["e_above_hull"]
+                    )
+
+    @pytest.mark.parametrize(
+        "mpid, working_ion, thermo_type",
+        [
+            ("mp-1248282", "Al", ThermoType.GGA_GGA_U),
+            (MPID("mp-1248282"), Element.Al, "R2SCAN"),
+            (AlphaID("mp-1248282"), "Al", ThermoType.GGA_GGA_U_R2SCAN),
+        ],
+    )
+    def test_oxygen_evolution(self, mpid, working_ion, thermo_type, mpr):
+        # Ensure oxygen evolution data has the anticipated schema
+        # and is robust to different permutations of input
+
+        oxy_evo = mpr.get_oxygen_evolution(mpid, working_ion, thermo_type=thermo_type)
+        assert all(
+            isinstance(entry.get(k), np.ndarray)
+            for entry in oxy_evo.values()
+            for k in ("mu", "evolution", "temperature", "reaction")
+        )
+        assert all(Composition(k).formula == k for k in oxy_evo)
+
+    def test_oxygen_evolution_bad_input(self, mpr):
+        # Ensure oxygen evolution fails gracefully if no O present
+        # or no insertion electrode data
+        with pytest.raises(ValueError, match="No oxygen in the host"):
+            _ = mpr.get_oxygen_evolution("mp-2207", Element.K)
+
+        with pytest.raises(ValueError, match="No available insertion electrode data"):
+            _ = mpr.get_oxygen_evolution("mp-2207", "Al")
+
+    @pytest.mark.skipif(
+        os.environ.get("GITHUB_ACTIONS") != "true",
+        reason="Slow - don't want to impede local dev",
+    )
+    @pytest.mark.xfail(
+        raises=requests.exceptions.ConnectionError,
+        reason="upstream known to timeout",
+        strict=False,
+    )
+    def test_nomad_integration(self, mpr):
+        # No particular reason for this MPID other than that it exists in NOMAD.
+        target_mpid = "mp-10018"
+        with (
+            pytest.warns(
+                MPRestWarning, match="Full downloads of raw data are being transitioned"
+            ),
+            pytest.warns(
+                MPRestWarning, match="the following ids are not found on NOMAD"
+            ),
+        ):
+            calc_type_map, nomad_urls = mpr.get_download_info(
+                target_mpid,
+                file_patterns=["POSCAR.gz"],
+                calc_types=["GGA Static"],
+            )
+            assert all(
+                isinstance(entry["task_id_as_alpha"], AlphaID)
+                and isinstance(entry["calc_type"], CalcType)
+                for entry in calc_type_map[target_mpid]
+            )
+            assert all(
+                url.startswith("https://nomad-lab.eu/prod/v1/api/v1/entries/raw")
+                and "glob_pattern=POSCAR" in url
+                for url in nomad_urls
+            )
+
+            calc_type_map, nomad_urls = mpr.get_download_info(
+                target_mpid,
+                file_patterns=["POSCAR", "OUTCAR"],
+                calc_types=["GGA Static"],
+            )
+            assert all(
+                isinstance(entry["task_id_as_alpha"], AlphaID)
+                and isinstance(entry["calc_type"], CalcType)
+                for entry in calc_type_map[target_mpid]
+            )
+            assert all(
+                url.startswith(
+                    "https://nomad-lab.eu/prod/v1/api/v1/entries/raw?json_query="
+                )
+                and "re_pattern=POSCAR%7COUTCAR" in url
+                for url in nomad_urls
+            )
+
+    def test_db_warning(self, monkeypatch: pytest.MonkeyPatch):
+        from pathlib import Path
+
+        import yaml
+
+        from mp_api.client.core.settings import MAPI_CLIENT_SETTINGS
+
+        with NamedTemporaryFile(suffix=".yaml") as tmp_log:
+            monkeypatch.setattr(MAPI_CLIENT_SETTINGS, "LOG_FILE", Path(tmp_log.name))
+
+            with MPRester(notify_db_version=True) as mpr:
+                db_version = mpr.db_version
+
+            parsed_db_ver = yaml.safe_load(Path(tmp_log.name).read_text()).get(
+                "MAPI_DB_VERSION"
+            )
+            assert parsed_db_ver == db_version
+            assert isinstance(parsed_db_ver, str)
+
+    def test_warnings_exceptions(self):
+        # Generic warnings/exceptions tests, nothji
+        with pytest.warns(MPRestWarning, match="Ignoring `monty_decode`"):
+            MPRester(monty_decode=False)
+
+        with MPRester() as mpr:
+            with pytest.raises(
+                NotImplementedError,
+                match="The MPRester\(\).query method has been replaced",
+            ):
+                mpr.query(some_field=1.0)
+
+            with pytest.warns(
+                MPRestWarning, match="No material found containing task mp-0"
+            ):
+                assert mpr.get_material_id_from_task_id("mp-0") is None
+
+            for attr in mpr._deprecated_attributes:
+                with pytest.warns(
+                    DeprecationWarning, match="Accessing.*data through MPRester\..*"
+                ):
+                    getattr(mpr, attr, None)
+
+    def test_min_emmet_warning(self, monkeypatch: pytest.MonkeyPatch):
+        from mp_api.client.core.settings import MAPI_CLIENT_SETTINGS
+
+        with MPRester() as mpr:
+            emmet_ver = mpr.get_emmet_version(mpr.endpoint)
+            monkeypatch.setattr(
+                MAPI_CLIENT_SETTINGS, "MIN_EMMET_VERSION", f"{emmet_ver.major + 1}.0.0"
+            )
+            with pytest.warns(
+                MPRestWarning, match="The installed version of the mp-api"
+            ):
+                MPRester()

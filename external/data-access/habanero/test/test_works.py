@@ -1,0 +1,155 @@
+import pytest
+from httpx2 import HTTPError
+
+from habanero import Crossref
+
+cr = Crossref()
+
+a = '{"status":"ok","message-type":"work","message-version":"1.0.0","message":{"indexed":{"date-parts":[[2015,6,9]],"timestamp":1433817308344},"reference-count":0,"publisher":"Public Library of Science (PLoS)","issue":"3","DOI":"10.1371\\/journal.pone.0033693","type":"journal-article","page":"e33693","update-policy":"http:\\/\\/dx.doi.org\\/10.1371\\/journal.pone.corrections_policy","source":"CrossRef","title":["Methylphenidate Exposure Induces Dopamine Neuron Loss and Activation of Microglia in the Basal Ganglia of Mice"],"prefix":"http:\\/\\/id.crossref.org\\/prefix\\/10.1371","volume":"7","author":[{"affiliation":[],"family":"Sadasivan","given":"Shankar"},{"affiliation":[],"family":"Pond","given":"Brooks B."},{"affiliation":[],"family":"Pani","given":"Amar K."},{"affiliation":[],"family":"Qu","given":"Chunxu"},{"affiliation":[],"family":"Jiao","given":"Yun"},{"affiliation":[],"family":"Smeyne","given":"Richard J."}],"member":"http:\\/\\/id.crossref.org\\/member\\/340","container-title":["PLoS ONE"],"deposited":{"date-parts":[[2014,3,5]],"timestamp":1393977600000},"score":1.0,"subtitle":[],"editor":[{"affiliation":[],"family":"Borlongan","given":"Cesario V."}],"issued":{"date-parts":[[2012,3,21]]},"URL":"http:\\/\\/dx.doi.org\\/10.1371\\/journal.pone.0033693","ISSN":["1932-6203"],"subject":["Agricultural and Biological Sciences(all)","Medicine(all)","Biochemistry, Genetics and Molecular Biology(all)"]}}'
+
+
+@pytest.mark.vcr
+def test_works_with_one_id():
+    """works - param: ids, one DOI"""
+    res = cr.works(ids="10.1371/journal.pone.0033693")
+    assert isinstance(res, dict)
+    assert len(res) == 4
+    assert res["message-type"] == "work"
+
+
+@pytest.mark.vcr
+def test_works_with_many_ids():
+    """works - param: ids, many DOIs"""
+    dois = [
+        "10.1016/j.neurobiolaging.2010.03.024",
+        "10.1002/jor.1100150407",
+        "10.1038/srep16696",
+        "10.1109/icdcsw.2003.1203662",
+        "10.3892/ijo_00000353",
+    ]
+    res = cr.works(ids=dois)
+    assert isinstance(res, list)
+    assert len(res) == 5
+    assert [len(x) for x in res] == [4, 4, 4, 4, 4]
+    assert next(x["message-type"] for x in res) == "work"
+    assert dois[0] == res[0]["message"]["DOI"]
+
+
+# def test_works_doesnt_allow_cursor_with_ids_input():
+#     """works - param: ids, cursor not supported with DOIs"""
+#     res1 = cr.works(ids = '10.1016/j.neurobiolaging.2010.03.024', cursor = "*")
+#     res2 = cr.works(ids = '10.1016/j.neurobiolaging.2010.03.024')
+#     assert res1 == res2
+
+
+@pytest.mark.vcr
+def test_works_no_id_withlimit():
+    """works - param: limit, no other inputs"""
+    res = cr.works(limit=2)
+    assert isinstance(res, dict)
+    assert len(res["message"]) == 5
+    assert len(res["message"]["items"]) == 2
+
+
+@pytest.mark.vcr
+def test_works_query():
+    """works - param: query"""
+    res = cr.works(query="ecology", limit=2)
+    assert isinstance(res, dict)
+    assert len(res["message"]) == 5
+
+
+@pytest.mark.vcr
+def test_works_sample():
+    """works - param: sample"""
+    res = cr.works(sample=2)
+    assert isinstance(res, dict)
+    assert len(res["message"]) == 5
+
+
+# FIXME: this is constantly failing for unknown reason
+# def test_works_filter():
+#     """works - param: filter"""
+#     res = cr.works(filters = {'has_full_text': True}, limit = 3)
+#     assert isinstance(res, dict)
+#     assert 5 == len(res['message'])
+
+
+@pytest.mark.vcr
+def test_works_field_queries():
+    """works - param: kwargs - field queries work as expected"""
+    res = cr.works(query="ecology", query_author="carl boettiger")
+    assert isinstance(res, dict)
+    auths = [x["author"][0]["family"] for x in res["message"]["items"]]
+    assert len(res["message"]) == 5
+    assert "Boettiger" in auths
+
+
+@pytest.mark.vcr
+def test_works_field_query_with_none_value_is_dropped():
+    """works - param: kwargs - field queries work as expected
+
+    See https://github.com/sckott/habanero/issues/232
+    """
+    with_fq_none = cr.works(query="ecology", query_author=None, limit=0)
+    without_fq_none = cr.works(query="ecology", limit=0)
+    assert isinstance(with_fq_none, dict)
+    assert isinstance(without_fq_none, dict)
+    assert (
+        with_fq_none["message"]["total-results"]
+        == without_fq_none["message"]["total-results"]
+    )
+
+
+@pytest.mark.vcr
+def test_works_query_filters_not_allowed_with_dois():
+    """works - param: kwargs - query filters not allowed on works/DOI/ route"""
+    with pytest.raises(HTTPError):
+        cr.works(ids="10.1371/journal.pone.0033693", query_author="carl boettiger")
+
+
+# specifically test bug report https://github.com/sckott/habanero/issues/150
+@pytest.mark.vcr
+def test_works_field_query_publisher_name():
+    """works - param: kwargs - field query query_publisher_name works as expected"""
+    publisher_name = "Universidade Federal de Santa Maria"
+    res = cr.works(query_publisher_name=publisher_name)
+    assert isinstance(res, dict)
+    publishers = [x["publisher"] for x in res["message"]["items"]]
+    for pub in publishers:
+        assert publisher_name == pub
+
+
+@pytest.mark.vcr
+def test_works_with_select_param():
+    """works - param: select"""
+    res1 = cr.works(query="ecology", select="DOI,title")
+    assert isinstance(res1, dict)
+    assert list(res1["message"]["items"][0].keys()) == ["DOI", "title"]
+
+
+@pytest.mark.vcr
+def test_works_bad_id_warn():
+    """works - param: warn"""
+    with pytest.warns(UserWarning):
+        out = cr.works(ids="10.1371/notarealdoi", warn=True)
+    assert out is None
+
+
+@pytest.mark.vcr
+def test_works_mixed_ids_warn():
+    """works - param: warn"""
+    with pytest.warns(UserWarning):
+        out = cr.works(
+            ids=[
+                "10.1371/journal.pone.0033693",
+                "10.1371/notarealdoi",
+                "10.1371/journal.pone.0020476",
+            ],
+            warn=True,
+        )
+    assert len(out) == 3
+    assert len([x for x in out if x]) == 2
+    assert isinstance(out[0], dict)
+    assert isinstance(out[2], dict)
+    assert out[1] is None

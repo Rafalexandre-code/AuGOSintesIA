@@ -1,6 +1,6 @@
 # external — repositórios de referência para a proposta FAPESP GO–AuNP
 
-Cópias *shallow* (sem `.git`) de 48 repositórios do GitHub, clonadas em 2026-09-29.
+Cópias *shallow* (sem `.git`) de 58 repositórios do GitHub, clonadas em 2026-09-29.
 Commit exato de cada um: [`tools/external_repos.lock.tsv`](../tools/external_repos.lock.tsv).
 
 ```bash
@@ -93,6 +93,22 @@ checar com os autores.
 |---|---|---|---|
 | `Octopus` ⚠ | KIST-CSRC | — | orquestração de tarefas de laboratório autônomo |
 
+### `data-access/` — clientes das fontes de dados (curadoria §4.1, camada computacional, depósito)
+Usados por `tools/data_sources/` (ambiente `data-sources`); o inventário das fontes está em
+[`docs/FONTES_DE_DADOS.md`](../docs/FONTES_DE_DADOS.md).
+| Pasta | Origem | Licença | Para quê |
+|---|---|---|---|
+| `pyalex` | J535D165/pyalex | MIT | OpenAlex (busca bibliográfica, filtros, paginação por cursor) |
+| `habanero` | sckott/habanero | MIT | Crossref (metadados por DOI, deduplicação) |
+| `unpywall` | unpywall/unpywall | MIT | Unpaywall (localizar PDF de acesso aberto) |
+| `PubChemPy` | mcs07/PubChemPy | MIT | PubChem (CID, SMILES, InChI, sinônimos) |
+| `zenodo_get` | dvolgyes/zenodo_get | AGPL-3.0 | baixar registros inteiros do Zenodo |
+| `foundry` | MLMI2-CSSI/foundry | MIT-like (U. Chicago) | Materials Data Facility / Foundry-ML (publicar e ler datasets prontos para ML) |
+| `optimade-python-tools` | Materials-Consortia | MIT | cliente OPTIMADE: NOMAD, Materials Cloud, Materials Project, OQMD, AFLOW, JARVIS numa só consulta |
+| `mp-api` | materialsproject/api | BSD-3 (LBNL) | Materials Project nativo (exige `MP_API_KEY`) |
+| `jarvis-tools` | usnistgov/jarvis | NIST (termos de uso) | JARVIS-DFT/ML; baixa os conjuntos sob demanda — podado (sem `jarvis/tests`, `jarvis/examples`) |
+| `pynanomapper` | ideaconsult/pynanomapper | MIT | eNanoMapper / NanoCommons (modelo substância→protocolo→medida) |
+
 ## O que foi podado (recuperável com `--full`)
 | Caminho | Tamanho | Motivo |
 |---|---|---|
@@ -100,6 +116,7 @@ checar com os autores.
 | `shap/docs`, `shap/data` | 188 MB + 57 MB | apresentações/datasets de exemplo (baixados por `shap.datasets`) |
 | `BespokeSynthesisPlatform/Result/1_Chemistry_discovery/AI_decision_process/{513,573,667}nm.gif` | 96–97 MB cada | animações; os dados numéricos permanecem |
 | `mace/mace/calculators/foundations_models/mace-mpa-0-medium.model` | 76 MB | baixado automaticamente por `mace_mp(model="medium-mpa-0")` |
+| `jarvis-tools/jarvis/tests`, `jarvis-tools/jarvis/examples` | 198 MB + 30 MB | arquivos de teste VASP/Wannier e exemplos; o pacote fica completo |
 
 ## Arquivos LFS não incluídos (grandes demais para versionar aqui)
 - `literature-llm/MatEntityRecognition`: 8 arquivos (2 checkpoints de ~780 MB)

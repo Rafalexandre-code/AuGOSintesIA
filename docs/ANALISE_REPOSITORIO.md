@@ -5,10 +5,13 @@
 > nanocompósitos GO–AuNP sob variabilidade multi-fonte de matéria-prima"*.
 >
 > Análise feita em 2026-09-29 sobre o commit `e18986f` (2 commits, ~2 870 arquivos, ~1,7 GB em disco).
-> **Atualizado no mesmo dia:** 48 repositórios externos em `external/` (§10), ambientes por
+> **Atualizado no mesmo dia:** 48 (depois 58) repositórios externos em `external/` (§10), ambientes por
 > subprojeto em `environments/` (§11) e correção dos problemas listados antes (§7).
 > **Reorganizado:** a antiga pasta `Data/` foi dividida em `datasets/`, `projects/<módulo>/` e `external/`;
 > `Articles/` virou `literature/` (§12). Os nomes antigos (`Data/…-main`) aparecem só no histórico do git.
+> **Auditoria das fontes (2026-09-29):** as 16 fontes da proposta foram conferidas contra os originais, e as
+> infraestruturas de dados foram integradas (dicionário PubChem, semente GO–AuNP, modelo de dados, pipeline
+> OpenAlex→Crossref→Unpaywall, OPTIMADE, depósito Zenodo) — §13 e [`FONTES_DE_DADOS.md`](FONTES_DE_DADOS.md).
 
 ---
 
@@ -39,6 +42,7 @@
 10. [Repositórios externos (external)](#10-repositórios-externos-external)
 11. [Ambientes isolados (environments/)](#11-ambientes-isolados-environments)
 12. [`literature/` — corpus dos artigos citados](#12-literature--corpus-dos-artigos-citados)
+13. [Fontes de dados, curadoria e depósito](#13-fontes-de-dados-curadoria-e-depósito)
 
 ---
 
@@ -46,7 +50,8 @@
 
 O repositório **não é um software único**: é uma coleção curada de (a) o projeto de pesquisa, (b) o corpus
 de artigos citados, (c) datasets, (d) **13 subprojetos de terceiros** (código + dados, já corrigidos para
-rodar em qualquer SO) e (e) **48 repositórios de referência** clonados (§10). Cada subprojeto tem
+rodar em qualquer SO), (e) **58 repositórios de referência** clonados (§10) e (f) a camada de fontes de dados
+(§13). Cada subprojeto tem
 dependências próprias e **deve ser usado em ambiente virtual separado** (`tools/setup_env.sh`, §11).
 
 ```
@@ -54,6 +59,7 @@ AuGOSintesIA/
 ├── README.md, CLAUDE.md, LICENSE, .gitattributes (Git LFS), .gitignore, .idea/ (PyCharm)
 ├── docs/
 │   ├── ANALISE_REPOSITORIO.md          # este documento
+│   ├── FONTES_DE_DADOS.md              # auditoria das fontes + integração (§13)
 │   └── projeto/Projeto_FAPESP_Iniciação_Rafael_Lopes.docx
 ├── literature/                         # 65 artigos em texto: .md combinado, chunks.jsonl (RAG), relatório (§12)
 ├── datasets/                           # dados avulsos (catálogo em datasets/README.md)
@@ -63,6 +69,10 @@ AuGOSintesIA/
 │   ├── cofs-methane/                   # 69 839 COFs (armazenamento de CH4)
 │   ├── pressure-vessel/                # 52 272 laminados compósitos
 │   ├── pubchem/                        # 53 fichas de reagentes (Au, CTAB, citrato, NaBH4, GO…)
+│   ├── reagents/                       # dicionário de reagentes normalizado (PubChem) (§13)
+│   ├── literature-seed/                # semente GO–AuNP: Cruse + NSP + AuNCs normalizados (§13)
+│   ├── data-model/                     # modelo de dados do laboratório (NanoCommons/eNanoMapper) (§13)
+│   ├── lab/                            # dados experimentais (a preencher)
 │   └── xrd-ceo2-calibration/           # 4 imagens de detector GE (.ge3): CeO2 e dark
 ├── projects/                           # 13 subprojetos base, por módulo (índice em projects/README.md)
 │   ├── atomistic/            GO-MACE-23, AmberGO
@@ -72,9 +82,10 @@ AuGOSintesIA/
 │   ├── inverse-design/       MatDesINNe
 │   ├── materials-ml/         M2Hub
 │   └── self-driving-lab/qubot/  hardware/ (CAD, BOM), data/, scripts/, README.pdf
-├── external/                           # 48 repositórios de referência, mesmas categorias (§10)
+├── external/                           # 58 repositórios de referência (+ data-access/: clientes de API) (§10)
 ├── environments/                       # um ambiente por subprojeto (§11)
-└── tools/                              # setup_env.sh, fetch_external.sh, external_repos.lock.tsv
+├── deposit/GO-AuNP-Autonomous-Design/  # estrutura do depósito Zenodo/MDF (§13)
+└── tools/                              # setup_env.sh, fetch_external.sh, external_repos.lock.tsv, data_sources/ (§13)
 ```
 
 ### Mapa rápido: componente → papel no projeto
@@ -899,7 +910,7 @@ Execução: bancada manual  →  (opcional) Qubot/control-lab-ly  ;  SAXS/WAXS: 
 
 ## 10. Repositórios externos (external)
 
-48 repositórios do GitHub clonados para cobrir o que faltava à proposta (lista completa, licenças, o que foi
+58 repositórios do GitHub clonados para cobrir o que faltava à proposta (lista completa, licenças, o que foi
 podado e por quê: [`external/README.md`](../external/README.md); commit exato de cada um:
 [`tools/external_repos.lock.tsv`](../tools/external_repos.lock.tsv)). Organizados por módulo do projeto:
 
@@ -914,6 +925,7 @@ podado e por quê: [`external/README.md`](../external/README.md); commit exato d
 | `characterization/` | pyFAI, fabio, sasmodels, lmfit, RamanSPy | SAXS/WAXS, XPS, Raman |
 | `literature-llm/` | LLaMA-Factory, LeMat-Synth, submódulos CederGroupHub | curadoria |
 | `self-driving-lab/` | RoboChem-Flex, Octopus | SDL |
+| `data-access/` | pyalex (OpenAlex), habanero (Crossref), unpywall, PubChemPy, zenodo_get, foundry (MDF), optimade-python-tools, mp-api, jarvis-tools, pynanomapper (eNanoMapper) | fontes de dados (§13) |
 
 Para manter tudo atualizado: `tools/fetch_external.sh --latest` (reclona e atualiza o lock).
 A maior parte das bibliotecas também está no ambiente `core` (§11), instalada pelo PyPI.
@@ -950,3 +962,29 @@ Detalhes e o que foi testado: [`environments/README.md`](../environments/README.
 **Uso:** consultar a literatura sem os PDFs; alimentar um assistente de leitura (embeddings de
 `contexto + texto`, recuperar os trechos mais próximos e citar `titulo` + `paginas`); cruzar com
 `external/` (vários desses artigos têm o código clonado lá: HEAD/Vaddi, SPACESHIP, Yoo/KIST, Aqeeli, Pilon…).
+
+---
+
+## 13. Fontes de dados, curadoria e depósito
+
+Auditoria completa, fonte por fonte: [`FONTES_DE_DADOS.md`](FONTES_DE_DADOS.md). Registro legível por máquina:
+`tools/data_sources/sources.tsv` (37 fontes). Resumo:
+
+- **As 16 fontes da proposta estão no repositório, exceto as duas que só existem como plataforma web**
+  (2DMat.ChemDX, nanoPharos/EUON). Os repositórios do GitHub foram reclonados e comparados arquivo a arquivo:
+  todos batem com o original, fora as correções documentadas no §7. Faltava `BOCoDe/…/mujoco/mujoco_policies/`,
+  que foi restaurada. Os registros do Zenodo, HF e figshare conferem nas contagens (NSP limpo: 159 939 rotas; Cruse:
+  5 154 artigos; AuNCs: 207; vaso de pressão: 52 272). Ficam pendentes duas conferências que exigem rede:
+  1 COF (69 839 × 69 840) e os arquivos do Zenodo do GO-MACE que não estão no GitHub (`fetch_records.py check`).
+- **Integração offline** (scripts em `tools/data_sources/`, só biblioteca padrão):
+  - `reagents.py` → `datasets/reagents/`: dicionário PubChem com 64 entidades; HAuCl4 junta 244 grafias num CID;
+    78,5 % das menções de materiais de Cruse normalizadas.
+  - `build_literature_seed.py` → `datasets/literature-seed/`: 15 928 sínteses de Au; 312 citam GO/rGO.
+  - `lab_data_model.py` → `datasets/data-model/`: 9 tabelas, com validador, para a cadeia lote de GO → caracterização
+    com incerteza → síntese → UV-Vis/TEM → desfecho.
+  - `build_deposit.py` → `deposit/GO-AuNP-Autonomous-Design/`: estrutura do depósito, `.zenodo.json`,
+    `CITATION.cff`, MANIFEST com sha256.
+- **Com rede** (rodar localmente): `fetch_records.py` (Zenodo/Figshare/HF), `literature_pipeline.py`
+  (OpenAlex → Crossref → Unpaywall → PMC → fila para o extrator LLM), `optimade_query.py` (NOMAD, Materials Cloud,
+  MP, OQMD, AFLOW, JARVIS — só camada computacional). Clientes em `external/data-access/`; ambiente `data-sources`.
+

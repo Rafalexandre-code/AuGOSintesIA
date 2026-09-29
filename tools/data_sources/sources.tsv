@@ -1,0 +1,39 @@
+# Registro das fontes de dados/código do projeto (lido por fetch_records.py; explicado em docs/FONTES_DE_DADOS.md).
+# tipo: zenodo | figshare | hf | github | web | api.  caminho_local: pastas separadas por "|" ("-" = sem cópia local).
+id	nome	tipo	identificador	url	caminho_local	status	papel
+nsp-hf	NSP Database (Gu et al., ACS Nano 2026)	hf	Kai-gu/Synthesis-Properties-Database-for-Nanomaterials	https://huggingface.co/datasets/Kai-gu/Synthesis-Properties-Database-for-Nanomaterials	datasets/nanocrystal-synthesis-db	presente	base síntese→propriedade (~160 mil rotas); semente da curadoria
+nsp-code	NanoExtractor / NanoDesigner (código do NSP)	github	ime1452/Synthesis-Properties-Database-for-Nanomaterials	https://github.com/ime1452/Synthesis-Properties-Database-for-Nanomaterials	projects/literature-llm/Synthesis-Properties-Database-for-Nanomaterials	presente	extração de receitas com LLM (LoRA Qwen3-14B) e design inverso
+cruse-figshare	Text-mined AuNP dataset (Cruse et al., Sci. Data 2022)	figshare	16614262	https://doi.org/10.6084/m9.figshare.16614262	datasets/aunp-text-mined|projects/literature-llm/text-mined-aunp-synthesis	presente	semente de receitas de AuNP (5 154 artigos)
+cruse-code	text-mined-aunp-synthesis_public (CederGroupHub)	github	CederGroupHub/text-mined-aunp-synthesis_public	https://github.com/CederGroupHub/text-mined-aunp-synthesis_public	projects/literature-llm/text-mined-aunp-synthesis|external/literature-llm/MatEntityRecognition|external/literature-llm/MaterialParser|external/literature-llm/MaterialAmountExtractor	presente	pipeline NLP (submódulos em external/literature-llm)
+aunc-zenodo	Thiolate-Capped Gold Nanoclusters (207 entradas)	zenodo	15739032	https://zenodo.org/records/15739032	datasets/aunc-fluorescence	presente	propriedades ópticas × condições de síntese de AuNCs
+gomace-zenodo	GO-MACE-23 research data (Angew. Chem. 2024)	zenodo	14066557	https://zenodo.org/records/14066557	projects/atomistic/GO-MACE-23	presente (via GitHub)	potencial MACE C/H/O, gerador de GO, estruturas recozidas 900/1200/1500 K
+gomace-code	GO-MACE-23 (GitHub)	github	zakmachachi/GO-MACE-23	https://github.com/zakmachachi/GO-MACE-23	projects/atomistic/GO-MACE-23	presente	idem
+ambergo-zenodo	Highly oxidized GO models (15 estruturas .mol2, 0–68 %)	zenodo	17863270	https://doi.org/10.5281/zenodo.17863270	projects/atomistic/AmberGO	presente	modelos de GO 20×20 nm² para AMBER/GAFF
+ambergo-code	AmberGO (GitHub)	github	yingling-group/AmberGO	https://github.com/yingling-group/AmberGO	projects/atomistic/AmberGO	presente	idem
+2dmat	2DMat.ChemDX.org	web	-	https://2DMat.ChemDX.org	-	plataforma web	dados experimentais de materiais 2D (RHEED, PL, Raman); referência de modelo de dados/Raman de grafeno
+mobo-benchmark-zenodo	Benchmark datasets for AL-guided search-space reduction + MOBO	zenodo	21389978	https://zenodo.org/records/21389978	datasets/pressure-vessel|datasets/cofs-methane	presente	benchmarks tabulares de MOBO (vaso de pressão 52 272; COFs 69 839)
+bocode	BOCoDe	github	rosenyu304/BOCoDe	https://github.com/rosenyu304/BOCoDe	projects/bayesian-optimization/BOCoDe	presente	307 problemas de benchmark de BO restrita (maximização, g<=0)
+chem-mfbo	chem-MFBO	github	Atinary-technologies/chem-MFBO	https://github.com/Atinary-technologies/chem-MFBO	projects/multi-fidelity/chem-MFBO	presente	BO multi-fidelidade com custo (base do MISO)
+nanopharos	nanoPharos (Pharos ecosystem) / EUON (ECHA)	web	-	https://euon.echa.europa.eu	-	plataforma web	dados FAIR de nanomateriais (físico-química, toxicidade); referência de metadados
+zenodo-figshare	Zenodo / Figshare (genérico)	api	-	https://zenodo.org	tools/data_sources/fetch_records.py	ferramenta	baixar/conferir qualquer registro; depósito final
+qubot-zenodo	Qubots (Open-source modular lab robots)	zenodo	21530328	https://zenodo.org/records/21530328	projects/self-driving-lab/qubot	presente	hardware + dados + scripts do Qubot (Qubot-Publication)
+qubot-code	Qubot (hardware)	github	mat-fox/qubot	https://github.com/mat-fox/qubot	projects/self-driving-lab/qubot/hardware	presente	CAD/STL/manuais (idênticos)
+sdl	AbolhasaniLab/SDL	github	AbolhasaniLab/SDL	https://github.com/AbolhasaniLab/SDL	projects/bayesian-optimization/SDL	presente	laço de BO didático com ruído
+m2hub	M²Hub	github	yuanqidu/M2Hub	https://github.com/yuanqidu/M2Hub	projects/materials-ml/M2Hub	presente	GNNs de propriedades; usa tarefas do JARVIS
+jarvis	JARVIS (NIST)	api	-	https://jarvis.nist.gov	external/data-access/jarvis-tools	cliente	DFT/ML de materiais (camada computacional; jarvis-tools baixa os dados sob demanda)
+matdesinne	MatDesINNe	github	jxzhangjhu/MatDesINNe	https://github.com/jxzhangjhu/MatDesINNe	projects/inverse-design/MatDesINNe	presente	design inverso com redes invertíveis
+nanocommons	NanoCommons KnowledgeBase / eNanoMapper / ACEnano	web	-	https://search.data.enanomapper.net	datasets/data-model|external/data-access/pynanomapper	modelo adotado	modelo de dados (substância→protocolo→medida com incerteza)
+nist-mdr	NIST Materials Data Repository	web	-	https://materialsdata.nist.gov	-	depósito	repositório para depositar o dataset final (DSpace/CDCS)
+mdf	Materials Data Facility	api	-	https://materialsdatafacility.org	external/data-access/foundry	depósito/cliente	publicação do dataset final; Foundry-ML para dados prontos para ML
+zenodo-deposit	Zenodo — depósito GO-AuNP-Autonomous-Design	zenodo	-	https://zenodo.org	deposit/GO-AuNP-Autonomous-Design	estrutura pronta	DOI por versão do dataset+código
+pubchem	PubChem	api	-	https://pubchem.ncbi.nlm.nih.gov	datasets/pubchem|datasets/reagents|external/data-access/PubChemPy	presente	identidade química dos reagentes (CID, SMILES, InChI)
+pmc	PubMed Central	api	-	https://www.ncbi.nlm.nih.gov/pmc	tools/data_sources/literature_pipeline.py	ferramenta	texto integral OA em XML (JATS)
+openalex	OpenAlex	api	-	https://openalex.org	tools/data_sources/literature_pipeline.py|external/data-access/pyalex	ferramenta	busca bibliográfica com filtros (ano, citações, OA)
+crossref	Crossref	api	-	https://api.crossref.org	tools/data_sources/literature_pipeline.py|external/data-access/habanero	ferramenta	metadados por DOI, deduplicação
+unpaywall	Unpaywall	api	-	https://unpaywall.org	tools/data_sources/literature_pipeline.py|external/data-access/unpywall	ferramenta	localizar PDF/HTML de acesso aberto
+nomad	NOMAD	api	-	https://nomad-lab.eu	tools/data_sources/optimade_query.py|external/data-access/optimade-python-tools	camada computacional	cálculos DFT (via OPTIMADE)
+materialscloud	Materials Cloud (AiiDA)	api	-	https://www.materialscloud.org	tools/data_sources/optimade_query.py	camada computacional	estruturas/propriedades com proveniência AiiDA (via OPTIMADE)
+materialsproject	Materials Project	api	-	https://next-gen.materialsproject.org	tools/data_sources/optimade_query.py|external/data-access/mp-api	camada computacional	propriedades DFT (Au, óxidos, carbono); mp-api exige MP_API_KEY
+oqmd	OQMD	api	-	https://oqmd.org	tools/data_sources/optimade_query.py	camada computacional	energias de formação (via OPTIMADE)
+aflow	AFLOW	api	-	https://aflow.org	tools/data_sources/optimade_query.py	camada computacional	propriedades de alta vazão (via OPTIMADE)
+re3data	re3data	api	-	https://www.re3data.org	-	mapa	catálogo de repositórios de dados (escolha do depósito)

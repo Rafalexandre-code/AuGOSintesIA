@@ -1,0 +1,6 @@
+*/build/*
+*.DS_STORE
+*.pyc
+*.idea
+*/foundry_ml.egg-info/*
+globus_creds

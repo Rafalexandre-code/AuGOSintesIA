@@ -1,0 +1,14 @@
+# Clientes das fontes de dados (tools/data_sources/*; repositórios de referência em external/data-access/)
+optimade[http-client]   # NOMAD, Materials Cloud, Materials Project, OQMD, AFLOW, JARVIS via OPTIMADE
+mp-api                  # Materials Project nativo (exige MP_API_KEY)
+jarvis-tools            # JARVIS-DFT/ML (baixa os conjuntos do figshare sob demanda)
+pyalex                  # OpenAlex
+habanero                # Crossref
+unpywall                # Unpaywall
+pubchempy               # PubChem
+zenodo_get              # Zenodo
+huggingface_hub         # Hugging Face (NSP Database)
+foundry-ml              # Materials Data Facility / Foundry
+pynanomapper            # eNanoMapper / NanoCommons
+pandas
+jsonschema
