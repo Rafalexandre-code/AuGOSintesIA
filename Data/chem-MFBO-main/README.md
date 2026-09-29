@@ -46,14 +46,14 @@ python src/chem_mfbo/benchmark/benchmark.py --config-name=synthetic_sweep.yaml
 The benchmarks for chemistry and materials design can be reproduced using the corresponding `.sh` file
 
 ```
-./chemistry_benchmarks.sh
+./chemistry_benchmark.sh
 ```
 
 ### 📈 Plotting and metrics
 To plot the benchmarks results, include the corresponding results path in the `path` option of the corresponding plotting config file included in `config_plots/` and run the associated plotting script. As an example, the synthetic functions benchmark can be run with:
 
 ```
-python src/chem_mfbo/benchmark/plot_synthetic.py
+python src/chem_mfbo/metrics/plot_synthetic.py
 ```
 
 
