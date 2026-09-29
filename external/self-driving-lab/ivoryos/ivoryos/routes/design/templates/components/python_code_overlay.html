@@ -1,0 +1,63 @@
+{# Python code overlay component - Pure HTML #}
+<style>
+.code-overlay {
+    position: fixed;
+    right: 0;
+    top: 180px;
+    height: calc(100vh - 180px);
+    width: 400px;
+    z-index: 1000;
+    transition: transform 0.3s ease;
+    transform: translateX(100%);
+    display: flex;
+    flex-direction: column;
+
+}
+.overlay-content {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.code-overlay.show {
+    transform: translateX(0);
+}
+</style>
+
+{% if session.get('show_code') %}
+<div id="pythonCodeOverlay" class="code-overlay bg-light border-start show">
+{% else %}
+<div id="pythonCodeOverlay" class="code-overlay bg-light border-start">
+{% endif %}
+    <div class="overlay-header d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+        <strong>Python Code</strong>
+        <button class="btn btn-sm btn-outline-secondary" onclick="toggleCodeOverlay()">
+            <i class="bi bi-x-lg"></i>
+        </button>
+    </div>
+    <div class="overlay-content p-3">
+        <!-- Top toggles (Single / Batch) -->
+        <div class="btn-group mb-3">
+            <button type="button" class="btn btn-outline-teal mode-toggle active" data-mode="single">Single</button>
+            <button type="button" class="btn btn-outline-teal mode-toggle" data-mode="batch">Batch</button>
+        </div>
+
+{#        <!-- Secondary toggles (By Sample / By Step) TODO -->#}
+{#        <div class="btn-group mb-3" id="batch-options" style="display: none;">#}
+{#            <button type="button" class="btn btn-outline-secondary batch-toggle active" data-batch="sample">By Sample</button>#}
+{#            <button type="button" class="btn btn-outline-secondary batch-toggle" data-batch="step">By Step</button>#}
+{#        </div>#}
+
+        <!-- Code display -->
+        <pre><code id="python-code" class="language-python">Loading...</code></pre>
+
+        <!-- Action buttons -->
+        <div class="mt-2">
+            <button type="button" id="copy-code" class="btn btn-sm btn-outline-teal">
+                <i class="bi bi-clipboard"></i> Copy
+            </button>
+            <button type="button" id="download-code" class="btn btn-sm btn-outline-teal">
+                <i class="bi bi-download"></i> Download
+            </button>
+        </div>
+    </div>
+</div>

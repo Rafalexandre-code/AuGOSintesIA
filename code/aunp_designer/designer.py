@@ -1,38 +1,51 @@
 #!/usr/bin/env python3
-"""AuNP Designer — próxima rodada de sínteses GO–AuNP por otimização bayesiana multiobjetivo.
+"""AuNP Designer — próxima rodada de sínteses GO–AuNP por otimização bayesiana multiobjetivo (§4.5, §4.7, §4.18).
 
-Modelo da proposta: um GP por objetivo com kernel Matérn-5/2 + ARD (BoTorch), aquisição qLogNEHVI. A transferência
-entre lotes de GO é feita por **contexto**: os descritores padronizados de cada lote (C/O, ID/IG… — GO Navigator,
-code/go_navigator) entram como entradas do GP e ficam fixos no lote-alvo durante a otimização da aquisição.
+Modelo: um GP por objetivo com kernel **Matérn-5/2 + ARD** (BoTorch). Quatro representações (os "braços" da
+proposta), com a mesma inicialização, alvos e orçamento:
+  recipe          só a receita
+  batch           receita + identidade do lote (GP multitarefa/ICM, o lote como tarefa)
+  go              receita + descritores do GO com incerteza (GO Navigator), padronizados — transferência entre lotes
+  go+impurities   + descritores de impurezas dos lotes de reagentes (tabela reagent_analyses — §4.3)
+Aquisição: qLogNEHVI (padrão) ou qNEHVI (--acq qnehvi). Nota técnica: o qLogNEHVI (Ament et al., NeurIPS 2023) é a
+versão numericamente estável do qNEHVI (Daulton, Balandat & Bakshy, NeurIPS 2021) — mesmo alvo, gradientes que não
+se anulam; não é uma escolha ligada a ruído heteroscedástico. Ruído heteroscedástico é tratado no MODELO: quando
+outcomes.csv traz `uncertainty` para todas as linhas de um objetivo, ela entra como variância de observação fixa.
+Objetivos de outcomes.csv (maximize/minimize/target); --log-objectives aplica log(y + ε) (ex.: perda espectral J).
+Seleção novelty-aware opcional: escore = w·a + (1 − w)·n (a = aquisição, n = novidade; ambos normalizados).
 
-Entrada e saída usam o modelo de dados do laboratório (datasets/data-model/): lê aunp_syntheses.csv + outcomes.csv
-(+ go_descriptors / go_characterization) de uma pasta como datasets/lab/ e grava as propostas no formato de
-aunp_syntheses.csv (com campaign_id/design_id), prontas para o operador completar os lotes de reagentes.
-
-Uso:
-    python code/aunp_designer/designer.py propose datasets/lab --batch GO-B02 --q 4            # próxima rodada
-    python code/aunp_designer/designer.py propose datasets/lab --space espaco.json            # espaço de busca próprio
-    python code/aunp_designer/designer.py literature                                           # faixas da literatura (semente)
-    python code/aunp_designer/designer.py demo                                                 # laço completo SIMULADO
+Subcomandos:
+    propose  datasets/lab --batch L2 --representation go --q 4 [--acq qnehvi] [--novelty-w 0.7] [--lot reductant=RED-A]
+    validate datasets/lab                     # leave-one-batch-out (LBO) dos 4 braços: RMSE, cobertura do IC 95 %
+    explain  datasets/lab --representation go # SHAP sobre a média do GP + estabilidade por bootstrap (§4.13)
+    literature                                # faixas de condições na semente da literatura
+    demo                                      # laço completo com o laboratório SIMULADO (code/benchmarking)
+Cada execução grava run_metadata.json (commit, pacotes, semente, argumentos, hash das tabelas) — §4.17.
 Ambiente: tools/setup_env.sh core && source .venvs/core/bin/activate
 """
 from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
-from datetime import date
+import warnings
+from dataclasses import dataclass, field
+from datetime import date, datetime
 
 import numpy as np
 import pandas as pd
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-sys.path.insert(0, os.path.join(ROOT, "code", "go_navigator"))
-sys.path.insert(0, os.path.join(ROOT, "tools", "data_sources"))
+for sub in ("code/go_navigator", "tools/data_sources", "code/benchmarking", "code/spectral"):
+    sys.path.insert(0, os.path.join(ROOT, sub))
 from batch_descriptors import standardized_context  # noqa: E402
+
+warnings.filterwarnings("ignore", message=".*torch.jit.script.*")
 
 # variáveis de projeto (colunas de aunp_syntheses.csv) e limites padrão; troque com --space arquivo.json
 DEFAULT_SPACE = {
@@ -42,7 +55,8 @@ DEFAULT_SPACE = {
     "pH": [3.0, 11.0],
     "temperature_C": [20.0, 90.0],
 }
-SYN_COLUMNS = None  # carregado do modelo de dados
+REPRESENTATIONS = ("recipe", "batch", "go", "go+impurities")
+LOT_ROLES = {"gold": "gold_precursor_lot_id", "reductant": "reductant_lot_id", "stabilizer": "stabilizer_lot_id"}
 
 
 def _syn_columns() -> list[str]:
@@ -50,33 +64,273 @@ def _syn_columns() -> list[str]:
         return next(csv.reader(fh))
 
 
+def _read(lab: str, table: str) -> pd.DataFrame | None:
+    p = os.path.join(lab, f"{table}.csv")
+    return pd.read_csv(p) if os.path.exists(p) else None
+
+
 # ---------------------------------------------------------------------------------------------- dados
 
-def load_campaign(lab_dir: str, space: dict, context: bool = True):
-    """-> X (DataFrame: variáveis + contexto), Y (n×m, convenção de maximização), nomes/direções dos objetivos, colunas de contexto."""
-    syn = pd.read_csv(os.path.join(lab_dir, "aunp_syntheses.csv"))
-    out = pd.read_csv(os.path.join(lab_dir, "outcomes.csv"))
+def impurity_context(lab: str, syn: pd.DataFrame) -> pd.DataFrame:
+    """Descritores de impurezas por síntese: para cada papel de lote (ouro, redutor, estabilizante), o valor de cada
+    analito medido naquele lote (reagent_analyses), padronizado. Índice = synthesis_id."""
+    ra = _read(lab, "reagent_analyses")
+    if ra is None or ra.empty:
+        return pd.DataFrame(index=syn["synthesis_id"])
+    per_lot = ra.pivot_table(index="lot_id", columns="analyte", values="value", aggfunc="mean")
+    per_lot.index = per_lot.index.astype(str)
+    cols = {}
+    for role, col in LOT_ROLES.items():
+        if col not in syn:
+            continue
+        s = syn[["synthesis_id", col]].copy()
+        s[col] = s[col].astype(str)
+        m = s.merge(per_lot, left_on=col, right_index=True, how="left").set_index("synthesis_id")
+        for a in per_lot.columns:
+            cols[f"imp_{role}_{a}"] = m[a]
+    df = pd.DataFrame(cols)
+    df = df.loc[:, df.notna().any() & (df.std(ddof=0).fillna(0) > 0)]
+    return ((df - df.mean()) / df.std(ddof=0)).fillna(0.0)
+
+
+def impurity_values_for_lots(lab: str, lots: dict[str, str], ref: pd.DataFrame) -> dict[str, float]:
+    """Valores padronizados (mesma escala de impurity_context) para os lotes que serão usados na próxima rodada."""
+    ra = _read(lab, "reagent_analyses")
+    syn = _read(lab, "aunp_syntheses")
+    if ra is None or syn is None:
+        return {}
+    per_lot = ra.pivot_table(index="lot_id", columns="analyte", values="value", aggfunc="mean")
+    per_lot.index = per_lot.index.astype(str)
+    raw = {}
+    for role, col in LOT_ROLES.items():
+        if col not in syn:
+            continue
+        s = syn[["synthesis_id", col]].copy()
+        s[col] = s[col].astype(str)
+        m = s.merge(per_lot, left_on=col, right_index=True, how="left")
+        for a in per_lot.columns:
+            name = f"imp_{role}_{a}"
+            if name in ref.columns:
+                mu, sd = m[a].mean(), m[a].std(ddof=0) or 1.0
+                v = per_lot.loc[lots[role], a] if role in lots and lots[role] in per_lot.index else mu
+                raw[name] = float((v - mu) / sd)
+    return raw
+
+
+@dataclass
+class Campaign:
+    X: pd.DataFrame
+    Y: np.ndarray                      # convenção de maximização, após transformações
+    Yvar: list                         # por objetivo: np.ndarray (variância) ou None
+    objs: pd.DataFrame
+    representation: str
+    batches: pd.Series
+    task_col: str | None = None
+    task_map: dict = field(default_factory=dict)
+    logs: tuple = ()
+    eps: float = 1e-3
+
+    def to_original(self, name: str, mu: np.ndarray, sd: np.ndarray) -> tuple[str, np.ndarray, np.ndarray]:
+        """Converte a previsão da escala do modelo (maximização, log) para as unidades do objetivo."""
+        d = self.objs.loc[name, "direction"]
+        if d == "maximize":
+            return f"pred_{name}", mu, sd
+        if d == "target":
+            return f"pred_dev_{name}", -mu, sd          # distância prevista até o alvo
+        v = -mu
+        if name in self.logs:
+            return f"pred_{name}", np.exp(v) - self.eps, np.exp(v) * sd
+        return f"pred_{name}", v, sd
+
+
+def load_campaign(lab: str, space: dict, representation: str = "go", log_objectives=(), eps: float = 1e-3,
+                  use_noise: bool = True) -> Campaign:
+    syn = pd.read_csv(os.path.join(lab, "aunp_syntheses.csv"))
+    if "status" in syn:
+        syn = syn[~syn["status"].astype(str).isin(["failed", "planned"])]
+    if "is_control" in syn:
+        syn = syn[syn["is_control"].astype(str) != "GO_blank"]
+    out = pd.read_csv(os.path.join(lab, "outcomes.csv"))
     objs = out.drop_duplicates("objective").set_index("objective")[["direction", "target_value"]]
     objs = objs[objs["direction"] != "constraint"]
-    wide = out.pivot_table(index="synthesis_id", columns="objective", values="value")[list(objs.index)]
-    df = syn.set_index("synthesis_id").join(wide, how="inner").dropna(subset=list(space) + list(objs.index))
-    ctx_cols: list[str] = []
-    if context:
-        z = standardized_context(lab_dir)
+    names = list(objs.index)
+    val = out.pivot_table(index="synthesis_id", columns="objective", values="value")[names]
+    unc = out.pivot_table(index="synthesis_id", columns="objective", values="uncertainty") \
+        if "uncertainty" in out else pd.DataFrame(index=val.index)
+    df = syn.set_index("synthesis_id").join(val, how="inner").dropna(subset=list(space) + names)
+    feats = df[list(space)].astype(float).copy()
+    task_col, task_map = None, {}
+    if representation == "batch":
+        ids = sorted(df["go_batch_id"].fillna("none").astype(str).unique())
+        task_map = {b: i for i, b in enumerate(ids)}
+        feats["task"] = df["go_batch_id"].fillna("none").astype(str).map(task_map).astype(float)
+        task_col = "task"
+    if representation in ("go", "go+impurities"):
+        z = standardized_context(lab)
         if not z.empty and z.shape[0] > 1:
-            ctx_cols = [f"ctx_{c}" for c in z.columns]
-            zc = z.add_prefix("ctx_")
-            df = df.join(zc, on="go_batch_id")
-            df[ctx_cols] = df[ctx_cols].fillna(0.0)
-    Y = []
+            ctx = df[["go_batch_id"]].join(z.add_prefix("ctx_"), on="go_batch_id").drop(columns="go_batch_id")
+            feats = feats.join(ctx.fillna(0.0))
+    if representation == "go+impurities":
+        imp = impurity_context(lab, syn.reset_index(drop=True))
+        if not imp.empty:
+            feats = feats.join(imp, how="left").fillna(0.0)
+    Y, Yvar = [], []
     for name, row in objs.iterrows():
         v = df[name].to_numpy(float)
+        var = None
+        if use_noise and name in unc.columns:
+            u = unc.reindex(df.index)[name].to_numpy(float)
+            if np.isfinite(u).all():
+                var = np.maximum(u ** 2, 1e-12)
+        if name in log_objectives:
+            if var is not None:
+                var = var / (v + eps) ** 2
+            v = np.log(v + eps)
         if row["direction"] == "minimize":
             v = -v
         elif row["direction"] == "target":
             v = -np.abs(v - float(row["target_value"]))
         Y.append(v)
-    return df[list(space) + ctx_cols], np.column_stack(Y), objs, ctx_cols
+        Yvar.append(var)
+    return Campaign(feats, np.column_stack(Y), Yvar, objs, representation, df["go_batch_id"].fillna("none"),
+                    task_col, task_map, tuple(log_objectives), eps)
+
+
+# ---------------------------------------------------------------------------------------------- modelo
+
+def _bounds(camp: Campaign, space: dict):
+    import torch
+    lo, hi = [], []
+    for c in camp.X.columns:
+        if c in space:
+            lo.append(space[c][0]); hi.append(space[c][1])
+        elif c == camp.task_col:
+            lo.append(0.0); hi.append(float(max(camp.task_map.values(), default=0)))
+        else:
+            lo.append(float(camp.X[c].min()) - 1.0); hi.append(float(camp.X[c].max()) + 1.0)
+    return torch.tensor([lo, hi], dtype=torch.double)
+
+
+def _fit(model, tries: int = 6) -> bool:
+    """Ajuste de hiperparâmetros robusto: o fit_gpytorch_mll pode falhar dependendo do estado aleatório; tenta de
+    novo com sementes independentes (sem alterar o gerador global) e, em último caso, mantém os valores iniciais."""
+    import torch
+    from botorch.exceptions.errors import ModelFittingError
+    from botorch.fit import fit_gpytorch_mll
+    from gpytorch.mlls import ExactMarginalLogLikelihood
+    mll = ExactMarginalLogLikelihood(model.likelihood, model)
+    for k in range(tries):
+        try:
+            with torch.random.fork_rng():
+                torch.manual_seed(7919 * (k + 1))
+                fit_gpytorch_mll(mll)
+            return True
+        except ModelFittingError:
+            continue
+    warnings.warn("ajuste do GP falhou em todas as tentativas; usando hiperparâmetros iniciais")
+    mll.eval()
+    return False
+
+
+def build_model(camp: Campaign, space: dict, rows=None):
+    import torch
+    from botorch.models import ModelListGP, MultiTaskGP, SingleTaskGP
+    from botorch.models.transforms import Normalize, Standardize
+    from gpytorch.kernels import MaternKernel, ScaleKernel
+
+    idx = np.arange(len(camp.X)) if rows is None else np.asarray(rows)
+    tx = torch.tensor(camp.X.to_numpy(float)[idx], dtype=torch.double)
+    ty = torch.tensor(camp.Y[idx], dtype=torch.double)
+    bounds = _bounds(camp, space)
+    d = tx.shape[1]
+    models = []
+    for i in range(ty.shape[1]):
+        yv = None if camp.Yvar[i] is None else torch.tensor(camp.Yvar[i][idx], dtype=torch.double).unsqueeze(-1)
+        if camp.task_col:
+            t = list(camp.X.columns).index(camp.task_col)
+            base = [j for j in range(d) if j != t]
+            m = MultiTaskGP(tx, ty[:, i:i + 1], task_feature=t, train_Yvar=yv,
+                            covar_module=MaternKernel(nu=2.5, ard_num_dims=d - 1),
+                            input_transform=Normalize(d, indices=base, bounds=bounds),
+                            outcome_transform=Standardize(1), all_tasks=list(camp.task_map.values()))
+        else:
+            m = SingleTaskGP(tx, ty[:, i:i + 1], train_Yvar=yv,
+                             covar_module=ScaleKernel(MaternKernel(nu=2.5, ard_num_dims=d)),     # Matérn-5/2 + ARD
+                             input_transform=Normalize(d, bounds=bounds), outcome_transform=Standardize(1))
+        _fit(m)
+        models.append(m)
+    return ModelListGP(*models), tx, ty, bounds
+
+
+def _acq(model, tx, ty, name: str):
+    from botorch.acquisition.multi_objective import qNoisyExpectedHypervolumeImprovement
+    from botorch.acquisition.multi_objective.logei import qLogNoisyExpectedHypervolumeImprovement
+    span = (ty.max(0).values - ty.min(0).values).clamp_min(1e-6)
+    ref = ty.min(0).values - 0.1 * span
+    cls = qNoisyExpectedHypervolumeImprovement if name == "qnehvi" else qLogNoisyExpectedHypervolumeImprovement
+    return cls(model, ref_point=ref, X_baseline=tx, prune_baseline=True), ref
+
+
+def propose(camp: Campaign, space: dict, q: int = 4, fixed: dict | None = None, acq: str = "qlognehvi",
+            novelty_w: float | None = None, seed: int = 0) -> pd.DataFrame:
+    import torch
+    from botorch.optim import optimize_acqf
+    from torch.quasirandom import SobolEngine
+
+    torch.manual_seed(seed)
+    model, tx, ty, bounds = build_model(camp, space)
+    af, ref = _acq(model, tx, ty, acq)
+    cols = list(camp.X.columns)
+    fixed_idx = {cols.index(k): float(v) for k, v in (fixed or {}).items() if k in cols}
+    def pool_select(w: float) -> "torch.Tensor":
+        """Seleção sobre 2048 candidatos Sobol: escore = w·a + (1−w)·n (novelty-aware, Aqeeli et al. 2026)."""
+        pool = bounds[0] + (bounds[1] - bounds[0]) * SobolEngine(len(cols), scramble=True, seed=seed).draw(2048).double()
+        for j, v in fixed_idx.items():
+            pool[:, j] = v
+        with torch.no_grad():
+            a = torch.cat([af(pool[i:i + 256].unsqueeze(1)) for i in range(0, len(pool), 256)])
+        a = torch.nan_to_num(a, nan=-1e9)
+        free = [j for j in range(len(cols)) if j not in fixed_idx]
+        scale = (bounds[1] - bounds[0]).clamp_min(1e-9)
+        norm = lambda z: ((z - bounds[0]) / scale)[:, free]          # noqa: E731
+        ref_pts, chosen = norm(tx), []
+        a_n = (a - a.min()) / (a.max() - a.min() + 1e-12)
+        for _ in range(q):
+            nov = torch.cdist(norm(pool), ref_pts).min(1).values
+            n_n = (nov - nov.min()) / (nov.max() - nov.min() + 1e-12)
+            score = w * a_n + (1 - w) * n_n
+            if chosen:
+                score[chosen] = -np.inf
+            k = int(torch.argmax(score))
+            chosen.append(k)
+            ref_pts = torch.cat([ref_pts, norm(pool[k:k + 1])])
+        return pool[chosen]
+
+    if novelty_w is not None:
+        cand = pool_select(novelty_w)
+    else:
+        cand = None
+        for attempt in range(3):   # gradientes NaN ocasionais na otimização da aquisição: tenta de novo
+            try:
+                with torch.random.fork_rng():
+                    torch.manual_seed(seed + 101 * attempt)
+                    cand, _ = optimize_acqf(af, bounds, q=q, num_restarts=8 + 4 * attempt, raw_samples=256,
+                                            fixed_features=fixed_idx or None, sequential=True)
+                break
+            except (RuntimeError, ValueError) as exc:   # OptimizationGradientError é RuntimeError
+                warnings.warn(f"otimização da aquisição falhou ({type(exc).__name__}); nova tentativa")
+        if cand is None:
+            warnings.warn("usando seleção sobre conjunto Sobol (sem gradiente)")
+            cand = pool_select(0.95)
+    with torch.no_grad():
+        post = model.posterior(cand)
+    res = pd.DataFrame(cand.numpy(), columns=cols)
+    for i, name in enumerate(camp.objs.index):
+        col, mu, sd = camp.to_original(name, post.mean[:, i].numpy(), post.variance[:, i].clamp_min(0).sqrt().numpy())
+        res[col] = mu
+        res[col.replace("pred_", "pred_sd_", 1)] = sd
+    res.attrs["ref_point"] = ref.numpy()
+    return res
 
 
 def hypervolume(Y: np.ndarray, ref: np.ndarray) -> float:
@@ -86,62 +340,135 @@ def hypervolume(Y: np.ndarray, ref: np.ndarray) -> float:
     return float(bd.compute_hypervolume())
 
 
-# ---------------------------------------------------------------------------------------------- modelo + aquisição
-
-def propose(X: pd.DataFrame, Y: np.ndarray, space: dict, q: int = 4, context_values: dict | None = None,
-            seed: int = 0) -> pd.DataFrame:
-    import torch
-    from botorch.acquisition.multi_objective.logei import qLogNoisyExpectedHypervolumeImprovement
-    from botorch.fit import fit_gpytorch_mll
-    from botorch.models import ModelListGP, SingleTaskGP
-    from botorch.models.transforms import Normalize, Standardize
-    from botorch.optim import optimize_acqf
-    from gpytorch.kernels import MaternKernel, ScaleKernel
-    from gpytorch.mlls import SumMarginalLogLikelihood
-
-    torch.manual_seed(seed)
-    cols = list(X.columns)
-    d = len(cols)
-    lo = [space[c][0] if c in space else float(X[c].min()) - 1.0 for c in cols]
-    hi = [space[c][1] if c in space else float(X[c].max()) + 1.0 for c in cols]
-    bounds = torch.tensor([lo, hi], dtype=torch.double)
-    tx = torch.tensor(X.to_numpy(float), dtype=torch.double)
-    ty = torch.tensor(Y, dtype=torch.double)
-    models = [SingleTaskGP(tx, ty[:, i:i + 1],
-                           covar_module=ScaleKernel(MaternKernel(nu=2.5, ard_num_dims=d)),   # Matérn-5/2 + ARD
-                           input_transform=Normalize(d, bounds=bounds), outcome_transform=Standardize(1))
-              for i in range(ty.shape[1])]
-    model = ModelListGP(*models)
-    fit_gpytorch_mll(SumMarginalLogLikelihood(model.likelihood, model))
-    span = (ty.max(0).values - ty.min(0).values).clamp_min(1e-6)
-    ref = ty.min(0).values - 0.1 * span
-    acq = qLogNoisyExpectedHypervolumeImprovement(model, ref_point=ref, X_baseline=tx, prune_baseline=True)
-    fixed = {cols.index(k): float(v) for k, v in (context_values or {}).items() if k in cols}
-    cand, _ = optimize_acqf(acq, bounds, q=q, num_restarts=8, raw_samples=256, fixed_features=fixed or None,
-                            sequential=True)
-    with torch.no_grad():
-        post = model.posterior(cand)
-    res = pd.DataFrame(cand.numpy(), columns=cols)
-    for i in range(ty.shape[1]):
-        res[f"pred_{i}"] = post.mean[:, i].numpy()
-        res[f"pred_sd_{i}"] = post.variance[:, i].clamp_min(0).sqrt().numpy()
-    res.attrs["ref_point"] = ref.numpy()
-    return res
-
-
 def proposals_to_syntheses(cands: pd.DataFrame, space: dict, batch: str | None, campaign: str, iteration: int,
-                           method: str = "in_situ_reduction_on_GO") -> pd.DataFrame:
+                           method: str = "in_situ_reduction_on_GO", lots: dict | None = None, seed: int = 0,
+                           hardware: str = "") -> pd.DataFrame:
+    """Linhas de aunp_syntheses; ordem de execução aleatorizada dentro do bloco da rodada (§4.11)."""
     cols = _syn_columns()
+    order = np.random.default_rng(seed + iteration).permutation(len(cands)) + 1
     rows = []
     for k, r in cands.reset_index(drop=True).iterrows():
         row = {c: "" for c in cols}
         row.update({"synthesis_id": f"{campaign}-it{iteration:02d}-{k + 1:02d}", "go_batch_id": batch or "",
                     "method": method, "campaign_id": campaign, "design_id": f"it{iteration:02d}-q{k + 1}",
-                    "fidelity": "high", "notes": "proposta do AuNP Designer (qLogNEHVI)"})
+                    "fidelity": "high", "block": f"{campaign}-it{iteration:02d}", "run_order": int(order[k]),
+                    "status": "planned", "hardware": hardware, "notes": "proposta do AuNP Designer"})
+        for role, lot in (lots or {}).items():
+            if role in LOT_ROLES:
+                row[LOT_ROLES[role]] = lot
         for v in space:
             row[v] = round(float(r[v]), 4)
         rows.append(row)
     return pd.DataFrame(rows, columns=cols)
+
+
+def fixed_context(lab: str, camp: Campaign, batch: str | None, lots: dict | None) -> dict:
+    fixed = {}
+    if camp.representation == "batch" and batch in camp.task_map:
+        fixed["task"] = camp.task_map[batch]
+    if camp.representation in ("go", "go+impurities") and batch:
+        z = standardized_context(lab)
+        if batch in z.index:
+            fixed.update({f"ctx_{c}": float(v) for c, v in z.loc[batch].items()})
+    if camp.representation == "go+impurities":
+        imp_cols = [c for c in camp.X.columns if c.startswith("imp_")]
+        fixed.update(impurity_values_for_lots(lab, lots or {}, camp.X[imp_cols]))
+    return fixed
+
+
+# ---------------------------------------------------------------------------------------------- validação LBO
+
+def validate_lbo(lab: str, space: dict, representations=REPRESENTATIONS, log_objectives=(), eps=1e-3) -> pd.DataFrame:
+    """Leave-one-batch-out: treina sem um lote e prevê as sínteses dele (generalização para lote novo)."""
+    import torch
+    rows = []
+    for rep in representations:
+        camp = load_campaign(lab, space, rep, log_objectives, eps)
+        for b in sorted(camp.batches.unique()):
+            test = np.where(camp.batches.to_numpy() == b)[0]
+            train = np.where(camp.batches.to_numpy() != b)[0]
+            if len(test) < 2 or len(train) < 4:
+                continue
+            if rep == "batch":
+                rows.append({"representation": rep, "held_out_batch": b, "objective": "*", "n": len(test),
+                             "rmse": np.nan, "coverage95": np.nan,
+                             "note": "identidade do lote não generaliza para lote não visto"})
+                continue
+            model, *_ = build_model(camp, space, rows=train)
+            tx = torch.tensor(camp.X.to_numpy(float)[test], dtype=torch.double)
+            with torch.no_grad():
+                post = model.posterior(tx)
+            for i, name in enumerate(camp.objs.index):
+                y = camp.Y[test, i]
+                mu = post.mean[:, i].numpy()
+                sd = post.variance[:, i].clamp_min(0).sqrt().numpy()
+                if camp.Yvar[i] is None:   # ruído inferido: está na escala padronizada do GP
+                    m_i = model.models[i]
+                    noise = float(m_i.likelihood.noise.detach().mean()) * float(m_i.outcome_transform.stdvs.detach() ** 2)
+                else:                      # ruído medido: já na escala do objetivo
+                    noise = camp.Yvar[i][test]
+                sd_obs = np.sqrt(sd ** 2 + noise)
+                rows.append({"representation": rep, "held_out_batch": b, "objective": name, "n": len(test),
+                             "rmse": float(np.sqrt(np.mean((y - mu) ** 2))),
+                             "coverage95": float(np.mean(np.abs(y - mu) <= 1.96 * sd_obs)), "note": ""})
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------------------------- SHAP
+
+def explain(lab: str, space: dict, representation: str = "go", n_boot: int = 5, log_objectives=(), seed: int = 0):
+    """Importância SHAP (média de |SHAP| sobre a média posterior do GP) e estabilidade por bootstrap (Spearman)."""
+    import shap
+    import torch
+    from scipy.stats import spearmanr
+    camp = load_campaign(lab, space, representation, log_objectives)
+    rng = np.random.default_rng(seed)
+    X = camp.X.to_numpy(float)
+
+    def importances(rows):
+        model, *_ = build_model(camp, space, rows=rows)
+        out = {}
+        for i, name in enumerate(camp.objs.index):
+            f = lambda z, i=i: model.models[i].posterior(torch.tensor(z, dtype=torch.double)).mean.detach().numpy().ravel()  # noqa: E731
+            bg = shap.kmeans(X[rows], min(10, len(rows)))
+            sv = shap.KernelExplainer(f, bg).shap_values(X[rows], nsamples=200, silent=True)
+            out[name] = np.abs(sv).mean(0)
+        return out
+    full = importances(np.arange(len(X)))
+    stab = {name: [] for name in full}
+    for _ in range(n_boot):
+        rows = rng.choice(len(X), len(X), replace=True)
+        for name, imp in importances(np.unique(rows)).items():
+            stab[name].append(spearmanr(full[name], imp).statistic)
+    table = []
+    for name, imp in full.items():
+        for c, v in zip(camp.X.columns, imp):
+            table.append({"objective": name, "feature": c, "mean_abs_shap": float(v)})
+        table.append({"objective": name, "feature": "_estabilidade_spearman_bootstrap",
+                      "mean_abs_shap": float(np.nanmean(stab[name])) if stab[name] else np.nan})
+    return pd.DataFrame(table)
+
+
+# ---------------------------------------------------------------------------------------------- proveniência
+
+def run_metadata(args: dict, lab: str | None) -> dict:
+    def git(*a):
+        try:
+            return subprocess.run(["git", *a], cwd=ROOT, capture_output=True, text=True, timeout=20).stdout.strip()
+        except Exception:  # noqa: BLE001
+            return ""
+    meta = {"timestamp": datetime.now().isoformat(timespec="seconds"), "git_commit": git("rev-parse", "HEAD"),
+            "git_dirty": bool(git("status", "--porcelain", "--", "code", "tools")), "args": args,
+            "python": sys.version.split()[0]}
+    for pkg in ("torch", "botorch", "gpytorch", "numpy", "pandas"):
+        try:
+            meta[pkg] = __import__(pkg).__version__
+        except Exception:  # noqa: BLE001
+            pass
+    if lab and os.path.isdir(lab):
+        meta["input_sha256"] = {f: hashlib.sha256(open(os.path.join(lab, f), "rb").read()).hexdigest()
+                                for f in sorted(os.listdir(lab)) if f.endswith(".csv")}
+    return meta
 
 
 # ---------------------------------------------------------------------------------------------- literatura
@@ -161,118 +488,49 @@ def literature_summary() -> None:
         print("  redutores mais comuns:", red[red != ""].value_counts().head(5).to_dict())
 
 
-# ---------------------------------------------------------------------------------------------- demonstração (SIMULADA)
+# ---------------------------------------------------------------------------------------------- demonstração
 
-DEMO_BATCHES = {"GO-B01": {"C_O_ratio": 2.1, "ID_IG": 0.95}, "GO-B02": {"C_O_ratio": 1.6, "ID_IG": 1.10}}
-
-
-def simulate(cond: dict, batch: str, rng: np.random.Generator) -> dict:
-    """Simulador de brinquedo (NÃO é química medida): tamanho por nucleação, LSPR pela relação empírica de
-    Haiss et al. (Anal. Chem. 2007, λ = 512 + 6,53·exp(0,0216·d)) e rendimento com ótimo de pH dependente do lote."""
-    co = DEMO_BATCHES[batch]["C_O_ratio"]
-    sites = np.tanh(4 * cond["GO_mg_mL"]) * (2.6 - co)                      # GO mais oxidado nucleia mais
-    d = 6 + 45 * np.exp(-0.3 * cond["reductant_to_Au_ratio"]) * (1 + 0.6 * cond["HAuCl4_mM"]) \
-        * (1 - 0.35 * sites) * (1 - 0.004 * (cond["temperature_C"] - 20))
-    d = float(np.clip(d * rng.lognormal(0, 0.05), 3, 150))
-    lspr = 512 + 6.53 * np.exp(0.0216 * d) + 3 * cond["GO_mg_mL"] + rng.normal(0, 0.8)
-    ph_opt = 6.0 + 1.5 * (co - 1.6)
-    y = 100 * (1 - np.exp(-cond["reductant_to_Au_ratio"] / 2.5)) * np.exp(-((cond["pH"] - ph_opt) / 3.0) ** 2) \
-        * (0.85 + 0.3 * sites / 2) + rng.normal(0, 2)
-    return {"size_mean_nm": d, "LSPR_nm": float(lspr), "yield_pct": float(np.clip(y, 0, 100))}
-
-
-def _append(lab: str, table: str, rows: list[dict]) -> None:
-    path = os.path.join(lab, f"{table}.csv")
-    new = pd.DataFrame(rows)
-    if os.path.exists(path):
-        new = pd.concat([pd.read_csv(path), new], ignore_index=True)
-    new.to_csv(path, index=False)
-
-
-def _run_and_record(lab: str, syn: pd.DataFrame, rng, target_lspr: float) -> None:
-    char, outc = [], []
-    n0 = len(pd.read_csv(os.path.join(lab, "aunp_characterization.csv"))) if os.path.exists(
-        os.path.join(lab, "aunp_characterization.csv")) else 0
-    for _, s in syn.iterrows():
-        r = simulate({v: float(s[v]) for v in DEFAULT_SPACE}, s["go_batch_id"], rng)
-        for tech, qty, unit in (("UV-Vis", "LSPR_nm", "nm"), ("TEM", "size_mean_nm", "nm"), ("ICP-OES", "yield_pct", "%")):
-            n0 += 1
-            char.append({"measurement_id": f"M-AU-{n0:04d}", "synthesis_id": s["synthesis_id"], "technique": tech,
-                         "quantity": qty, "value": round(r[qty], 3), "unit": unit, "notes": "SIMULADO"})
-        outc += [{"synthesis_id": s["synthesis_id"], "objective": "yield_pct", "value": round(r["yield_pct"], 3),
-                  "direction": "maximize", "target_value": "", "notes": "SIMULADO"},
-                 {"synthesis_id": s["synthesis_id"], "objective": "LSPR_nm", "value": round(r["LSPR_nm"], 3),
-                  "direction": "target", "target_value": target_lspr, "notes": "SIMULADO"}]
-    syn = syn.copy()
-    syn["gold_precursor_lot_id"] = "LOT-HAuCl4-DEMO"
-    syn["reductant_lot_id"] = "LOT-CIT-DEMO"
-    _append(lab, "aunp_syntheses", syn.to_dict("records"))
-    _append(lab, "aunp_characterization", char)
-    _append(lab, "outcomes", outc)
-
-
-def demo(out_dir: str, iterations: int, q: int, seed: int, target_lspr: float = 525.0) -> None:
+def demo(out_dir: str, iterations: int, q: int, seed: int, representation: str = "go+impurities",
+         acq: str = "qlognehvi") -> dict:
+    """Laço completo com o laboratório SIMULADO: 12 sínteses iniciais (4 receitas × L1–L3, como na proposta) e
+    rodadas adaptativas alternando o lote-alvo. Dados SIMULADOS, gravados em out_dir/lab."""
+    from scipy.stats import qmc
+    import sim_lab
     rng = np.random.default_rng(seed)
     lab = os.path.join(out_dir, "lab")
-    if os.path.exists(lab):
-        for f in os.listdir(lab):
-            os.remove(os.path.join(lab, f))
-    os.makedirs(lab, exist_ok=True)
-    print(f"DEMONSTRAÇÃO com dados SIMULADOS (não medidos) em {os.path.relpath(lab, ROOT)}")
-    pd.DataFrame([
-        {"lot_id": "LOT-HAuCl4-DEMO", "entity_id": "HAuCl4", "chemical_name": "Gold(III) chloride trihydrate",
-         "canonical_name": "hydrogen tetrachloroaurate(III)", "pubchem_cid": 28133, "supplier": "DEMO",
-         "lot_number": "SIM-1", "purity": 99.9, "hydrate_form": "trihydrate"},
-        {"lot_id": "LOT-CIT-DEMO", "entity_id": "trisodium_citrate", "chemical_name": "Sodium citrate tribasic dihydrate",
-         "canonical_name": "trisodium citrate", "pubchem_cid": 6224, "supplier": "DEMO", "lot_number": "SIM-2",
-         "purity": 99.0, "hydrate_form": "dihydrate"}]).to_csv(os.path.join(lab, "reagent_lots.csv"), index=False)
-    pd.DataFrame([{"go_batch_id": b, "source_type": "lab_synthesized", "synthesis_method": "modified_Hummers",
-                   "notes": "SIMULADO"} for b in DEMO_BATCHES]).to_csv(os.path.join(lab, "go_batches.csv"), index=False)
-    samples, meas = [], []
-    for b, desc in DEMO_BATCHES.items():
-        sid = f"{b}-S01"
-        samples.append({"go_sample_id": sid, "go_batch_id": b, "prep_type": "film_dropcast"})
-        for qty, tech, sd in (("C_O_ratio", "XPS", 0.08), ("ID_IG", "Raman", 0.03)):
-            for rep in range(3):
-                meas.append({"measurement_id": f"M-GO-{len(meas) + 1:04d}", "go_sample_id": sid, "technique": tech,
-                             "quantity": qty, "value": round(desc[qty] + rng.normal(0, sd), 3),
-                             "uncertainty": sd, "uncertainty_type": "instrument", "unit": "a.u.", "notes": "SIMULADO"})
-    pd.DataFrame(samples).to_csv(os.path.join(lab, "go_samples.csv"), index=False)
-    pd.DataFrame(meas).to_csv(os.path.join(lab, "go_characterization.csv"), index=False)
-    from batch_descriptors import aggregate_from_measurements
-    aggregate_from_measurements(lab).to_csv(os.path.join(lab, "go_descriptors.csv"), index=False)
-
-    # histórico: lote antigo (GO-B01) bem explorado, lote novo (GO-B02) com poucas sínteses
-    from scipy.stats import qmc
+    sim_lab.init_lab(lab, seed=seed)
+    print(f"DEMONSTRAÇÃO com dados SIMULADOS em {os.path.relpath(lab, ROOT)} — braço {representation}, {acq}")
     space = DEFAULT_SPACE
     lo, hi = np.array([v[0] for v in space.values()]), np.array([v[1] for v in space.values()])
-    for batch, n in (("GO-B01", 12), ("GO-B02", 3)):
-        pts = qmc.scale(qmc.LatinHypercube(len(space), seed=seed + n).random(n), lo, hi)
-        syn = proposals_to_syntheses(pd.DataFrame(pts, columns=list(space)), space, batch, f"INIT-{batch}", 0)
-        _run_and_record(lab, syn, rng, target_lspr)
-
-    ctx = standardized_context(lab)
-    target_ctx = {f"ctx_{c}": float(v) for c, v in ctx.loc["GO-B02"].items()}
-    ref = None
+    recipes = pd.DataFrame(qmc.scale(qmc.LatinHypercube(len(space), seed=seed).random(4), lo, hi), columns=list(space))
+    for b in ("L1", "L2", "L3"):
+        sim_lab.run_syntheses(lab, proposals_to_syntheses(recipes, space, b, f"INIT-{b}", 0, seed=seed).assign(
+            status="done"), rng)
+    logs = ("spectral_loss_J",)
+    history = []
     for it in range(1, iterations + 1):
-        X, Y, objs, _ = load_campaign(lab, space)
-        mask = pd.read_csv(os.path.join(lab, "aunp_syntheses.csv")).set_index("synthesis_id").loc[X.index, "go_batch_id"] == "GO-B02"
-        ref = Y.min(0) - 0.1 * (Y.max(0) - Y.min(0)) if ref is None else ref
-        hv = hypervolume(Y[mask.to_numpy()], ref)
-        cands = propose(X, Y, space, q=q, context_values=target_ctx, seed=seed + it)
-        syn = proposals_to_syntheses(cands, space, "GO-B02", "DEMO", it)
-        _run_and_record(lab, syn, rng, target_lspr)
-        best = Y[mask.to_numpy()]
-        print(f"  iteração {it}: {mask.sum():2d} sínteses no GO-B02 | hipervolume {hv:8.2f} | melhor rendimento "
-              f"{best[:, list(objs.index).index('yield_pct')].max():5.1f} % | menor |LSPR-{target_lspr:.0f}| "
-              f"{-best[:, list(objs.index).index('LSPR_nm')].max():5.2f} nm")
-    X, Y, objs, _ = load_campaign(lab, space)
-    mask = pd.read_csv(os.path.join(lab, "aunp_syntheses.csv")).set_index("synthesis_id").loc[X.index, "go_batch_id"] == "GO-B02"
-    print(f"  final: hipervolume no GO-B02 = {hypervolume(Y[mask.to_numpy()], ref):.2f}")
+        target = ("L1", "L2", "L3")[(it - 1) % 3]
+        camp = load_campaign(lab, space, representation, logs)
+        lots = {"reductant": "RED-A"}
+        cands = propose(camp, space, q=q, fixed=fixed_context(lab, camp, target, lots), acq=acq, seed=seed + it)
+        syn = proposals_to_syntheses(cands, space, target, "DEMO", it, lots=lots, seed=seed).assign(status="done")
+        res = sim_lab.run_syntheses(lab, syn, rng)
+        allres = pd.read_csv(os.path.join(lab, "outcomes.csv")).pivot_table(index="synthesis_id", columns="objective",
+                                                                            values="value")
+        syn_all = pd.read_csv(os.path.join(lab, "aunp_syntheses.csv")).set_index("synthesis_id")["go_batch_id"]
+        per_batch = allres["spectral_loss_J"].groupby(syn_all.reindex(allres.index)).min()
+        history.append({"iteration": it, "target": target, "best_J_target": float(per_batch[target]),
+                        "best_J_mean_batches": float(per_batch.mean()), "new_J": float(res["spectral_loss_J"].min())})
+        print(f"  rodada {it} (lote {target}): melhor J no lote {per_batch[target]:7.3f} | média dos lotes "
+              f"{per_batch.mean():7.3f} | J da rodada {res['spectral_loss_J'].round(2).tolist()} | "
+              f"tamanho {res['size_mean_nm'].round(1).tolist()} nm")
     import lab_data_model
-    rc = lab_data_model.validate(lab)
-    if rc:
+    if lab_data_model.validate(lab):
         raise SystemExit("tabelas geradas não passaram no validador")
+    json.dump(run_metadata({"cmd": "demo", "iterations": iterations, "q": q, "seed": seed,
+                            "representation": representation, "acq": acq}, lab),
+              open(os.path.join(out_dir, "run_metadata.json"), "w"), indent=1)
+    return {"history": history}
 
 
 # ---------------------------------------------------------------------------------------------- CLI
@@ -280,42 +538,77 @@ def demo(out_dir: str, iterations: int, q: int, seed: int, target_lspr: float = 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
+
+    def common(p):
+        p.add_argument("lab_dir")
+        p.add_argument("--space", help="JSON {variável: [mín, máx]} (padrão: DEFAULT_SPACE)")
+        p.add_argument("--log-objectives", nargs="*", default=[], help="objetivos modelados como log(y + ε)")
+        p.add_argument("--eps", type=float, default=1e-3)
     p = sub.add_parser("propose", help="próxima rodada a partir de uma pasta de dados de laboratório")
-    p.add_argument("lab_dir")
-    p.add_argument("--batch", help="lote de GO-alvo (contexto fixo); vazio = sem GO/sem contexto")
+    common(p)
+    p.add_argument("--batch", help="lote de GO-alvo (contexto fixo)")
+    p.add_argument("--representation", choices=REPRESENTATIONS, default="go")
+    p.add_argument("--acq", choices=["qlognehvi", "qnehvi"], default="qlognehvi")
+    p.add_argument("--novelty-w", type=float, help="peso w do escore novelty-aware (0–1); omitido = só aquisição")
+    p.add_argument("--lot", action="append", default=[], help="lote a usar na rodada: papel=lote (gold|reductant|stabilizer)")
     p.add_argument("--q", type=int, default=4)
-    p.add_argument("--space", help="JSON {variável: [mín, máx]} (padrão: DEFAULT_SPACE)")
     p.add_argument("--campaign", default="CAMP")
     p.add_argument("--iteration", type=int, default=1)
-    p.add_argument("--no-context", action="store_true", help="ignora descritores de lote (sem transferência)")
+    p.add_argument("--seed", type=int, default=0)
     p.add_argument("--out", help="CSV de saída (padrão: outputs/aunp_designer/proposals_<data>.csv)")
+    v = sub.add_parser("validate", help="leave-one-batch-out dos braços")
+    common(v)
+    v.add_argument("--representations", nargs="*", default=list(REPRESENTATIONS))
+    e = sub.add_parser("explain", help="SHAP + estabilidade por bootstrap")
+    common(e)
+    e.add_argument("--representation", choices=REPRESENTATIONS, default="go")
+    e.add_argument("--n-boot", type=int, default=5)
     sub.add_parser("literature", help="faixas de condições na semente da literatura")
-    dm = sub.add_parser("demo", help="laço completo com simulador (dados SIMULADOS)")
-    dm.add_argument("--iterations", type=int, default=4)
+    dm = sub.add_parser("demo", help="laço completo com laboratório SIMULADO")
+    dm.add_argument("--iterations", type=int, default=6)
     dm.add_argument("--q", type=int, default=2)
     dm.add_argument("--seed", type=int, default=0)
+    dm.add_argument("--representation", choices=REPRESENTATIONS, default="go+impurities")
+    dm.add_argument("--acq", choices=["qlognehvi", "qnehvi"], default="qlognehvi")
     dm.add_argument("--out", default=os.path.join(ROOT, "outputs", "aunp_designer_demo"))
     a = ap.parse_args()
 
     if a.cmd == "literature":
-        literature_summary()
-    elif a.cmd == "demo":
-        demo(a.out, a.iterations, a.q, a.seed)
+        return literature_summary()
+    if a.cmd == "demo":
+        demo(a.out, a.iterations, a.q, a.seed, a.representation, a.acq)
+        return
+    space = json.load(open(a.space)) if a.space else DEFAULT_SPACE
+    outdir = os.path.join(ROOT, "outputs", "aunp_designer")
+    os.makedirs(outdir, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    if a.cmd == "validate":
+        res = validate_lbo(a.lab_dir, space, a.representations, a.log_objectives, a.eps)
+        path = os.path.join(outdir, f"lbo_{stamp}.csv")
+        res.to_csv(path, index=False)
+        print(res.groupby(["representation", "objective"])[["rmse", "coverage95"]].mean().round(3).to_string())
+        print(f"-> {os.path.relpath(path, ROOT)}")
+    elif a.cmd == "explain":
+        res = explain(a.lab_dir, space, a.representation, a.n_boot, a.log_objectives)
+        path = os.path.join(outdir, f"shap_{stamp}.csv")
+        res.to_csv(path, index=False)
+        print(res.sort_values(["objective", "mean_abs_shap"], ascending=[True, False]).to_string(index=False))
+        print(f"-> {os.path.relpath(path, ROOT)}")
     else:
-        space = json.load(open(a.space)) if a.space else DEFAULT_SPACE
-        X, Y, objs, ctx_cols = load_campaign(a.lab_dir, space, context=not a.no_context)
-        print(f"{len(X)} sínteses com desfecho; objetivos: {dict(objs['direction'])}; contexto: {ctx_cols or 'nenhum'}")
-        ctx_vals = {}
-        if ctx_cols and a.batch:
-            z = standardized_context(a.lab_dir)
-            ctx_vals = {f"ctx_{c}": float(v) for c, v in z.loc[a.batch].items()}
-        cands = propose(X, Y, space, q=a.q, context_values=ctx_vals)
-        syn = proposals_to_syntheses(cands, space, a.batch, a.campaign, a.iteration)
-        out = a.out or os.path.join(ROOT, "outputs", "aunp_designer", f"proposals_{date.today()}.csv")
-        os.makedirs(os.path.dirname(out), exist_ok=True)
+        lots = dict(x.split("=", 1) for x in a.lot)
+        camp = load_campaign(a.lab_dir, space, a.representation, a.log_objectives, a.eps)
+        print(f"{len(camp.X)} sínteses; objetivos: {dict(camp.objs['direction'])}; entradas: {list(camp.X.columns)}; "
+              f"ruído medido: {[n for n, v in zip(camp.objs.index, camp.Yvar) if v is not None] or 'nenhum'}")
+        fixed = fixed_context(a.lab_dir, camp, a.batch, lots)
+        cands = propose(camp, space, q=a.q, fixed=fixed, acq=a.acq, novelty_w=a.novelty_w, seed=a.seed)
+        syn = proposals_to_syntheses(cands, space, a.batch, a.campaign, a.iteration, lots=lots, seed=a.seed)
+        out = a.out or os.path.join(outdir, f"proposals_{date.today()}.csv")
         syn.to_csv(out, index=False)
-        print(syn[["synthesis_id"] + list(space)].to_string(index=False))
-        print(f"-> {os.path.relpath(out, ROOT)} (complete os lotes de reagentes antes de copiar para aunp_syntheses.csv)")
+        json.dump(run_metadata(vars(a), a.lab_dir), open(os.path.splitext(out)[0] + "_run_metadata.json", "w"), indent=1)
+        print(pd.concat([syn[["synthesis_id", "run_order"] + list(space)],
+                         cands.filter(like="pred_").round(3)], axis=1).to_string(index=False))
+        print(f"-> {os.path.relpath(out, ROOT)} (+ _run_metadata.json); complete os lotes antes de copiar para "
+              f"aunp_syntheses.csv")
 
 
 if __name__ == "__main__":

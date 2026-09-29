@@ -1,0 +1,30 @@
+from importlib.metadata import PackageNotFoundError, version
+
+from . import (
+    classification,
+    metrics,
+    regression,
+    utils,
+    risk_control,
+    calibration,
+    subsample,
+    conditional_conformal_prediction,
+)
+
+try:
+    __version__ = version("mapie")
+except PackageNotFoundError:  # pragma: no cover
+    # Fallback for source-only usage without installed metadata.
+    __version__ = "0+unknown"
+
+__all__ = [
+    "regression",
+    "classification",
+    "risk_control",
+    "calibration",
+    "metrics",
+    "utils",
+    "subsample",
+    "conditional_conformal_prediction",
+    "__version__",
+]

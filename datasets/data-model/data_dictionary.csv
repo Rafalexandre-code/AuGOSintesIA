@@ -23,6 +23,37 @@ reagent_lots,opened_date,date,0,,,
 reagent_lots,storage,str,0,,,"ex.: 4 °C, escuro, dessecador"
 reagent_lots,coa_file,str,0,,,certificado de análise (metadata/)
 reagent_lots,notes,str,0,,,
+reagent_analyses,analysis_id,id,1,,,ex.: RA-0001
+reagent_analyses,lot_id,fk:reagent_lots,1,,,lote analisado
+reagent_analyses,analyte,str,1,,,"iodide, Fe, Cu, Ag, water, residual_solvent, assay…"
+reagent_analyses,method,str,0,,,"IC, ICP-MS, ICP-OES, KF, GC, titulação, CoA…"
+reagent_analyses,value,float,1,,,valor medido/derivado
+reagent_analyses,uncertainty,float,0,,,incerteza do valor (mesma unidade)
+reagent_analyses,uncertainty_type,enum,0,,sd|sem|ci95|range|instrument|none,tipo de incerteza
+reagent_analyses,n_replicates,int,0,,,nº de réplicas/regiões/partículas usadas
+reagent_analyses,unit,str,1,,,"unidade (UO/SI): nm, eV, %, at%, mg/mL, mV, a.u. …"
+reagent_analyses,instrument,str,0,,,equipamento/modelo
+reagent_analyses,method_details,str,0,,,"modelo de ajuste, fonte de excitação, faixa, deconvolução…"
+reagent_analyses,raw_data_file,str,0,,,caminho relativo em dataset/raw_data/
+reagent_analyses,date,date,0,,,AAAA-MM-DD
+reagent_analyses,operator,str,0,,,quem mediu
+reagent_analyses,protocol_id,fk:protocols,0,,,protocolo (SOP) usado
+reagent_analyses,ontology_term,str,0,,,termo de ontologia (eNanoMapper/CHMO/BAO) para a técnica ou grandeza
+reagent_analyses,notes,str,0,,,
+spectra,spectrum_id,id,1,,,ex.: UV-0001
+spectra,synthesis_id,fk:aunp_syntheses,0,,,síntese (vazio se for do GO)
+spectra,go_sample_id,fk:go_samples,0,,,"amostra de GO (brancos de GO, Raman/XPS)"
+spectra,technique,enum,1,,UV-Vis|Raman|XPS|FTIR|XRD|DLS|SAXS|other,técnica
+spectra,file,str,1,,,"arquivo bruto em dataset/raw_data/ (CSV: eixo, intensidade)"
+spectra,blank_spectrum_id,fk:spectra,0,,,espectro do branco usado na subtração
+spectra,dilution_factor,float,0,,,fator de diluição (≥ 1)
+spectra,path_length_mm,float,0,mm,,caminho óptico da cubeta
+spectra,time_after_prep_min,float,0,min,,tempo entre o preparo e a leitura
+spectra,instrument,str,0,,,
+spectra,date,date,0,,,
+spectra,operator,str,0,,,
+spectra,protocol_id,fk:protocols,0,,,
+spectra,notes,str,0,,,
 go_batches,go_batch_id,id,1,,,ex.: GO-B01
 go_batches,source_type,enum,1,,commercial|lab_synthesized,origem
 go_batches,supplier,str,0,,,fornecedor (se comercial)
@@ -59,6 +90,7 @@ go_characterization,measurement_id,id,1,,,ex.: M-GO-0001
 go_characterization,go_sample_id,fk:go_samples,1,,,
 go_characterization,technique,enum,1,,XPS|Raman|AFM|UV-Vis|FTIR|TGA|XRD|DLS|zeta|elemental_analysis|SEM|TEM|other,técnica
 go_characterization,quantity,str,1,,,"C_O_ratio, sp2_fraction, C-O_fraction, C=O_fraction, O-C=O_fraction, ID_IG, I2D_IG, La_nm, thickness_nm, lateral_size_um, n_layers, abs_230nm …"
+go_characterization,spectrum_id,fk:spectra,0,,,espectro de origem (proveniência)
 go_characterization,value,float,1,,,valor medido/derivado
 go_characterization,uncertainty,float,0,,,incerteza do valor (mesma unidade)
 go_characterization,uncertainty_type,enum,0,,sd|sem|ci95|range|instrument|none,tipo de incerteza
@@ -105,6 +137,12 @@ aunp_syntheses,campaign_id,str,0,,,campanha de otimização
 aunp_syntheses,design_id,str,0,,,id do candidato proposto pelo otimizador (iteração/lote)
 aunp_syntheses,fidelity,enum,0,,high|low|simulation,fidelidade (MISO/multi-fidelidade)
 aunp_syntheses,platform,enum,0,,manual|robot|flow,
+aunp_syntheses,hardware,str,0,,,"equipamento de aquecimento/mistura (hot plate, banho-maria, reator de fluxo…) — §4.7"
+aunp_syntheses,is_control,enum,0,,none|no_GO|GO_blank|reference,controle: sem GO / branco de GO tratado / réplica de referência (§4.17)
+aunp_syntheses,preparation_id,str,0,,,preparação física (alíquotas da mesma preparação NÃO são sínteses novas)
+aunp_syntheses,block,str,0,,,"bloco de randomização (dia/operador) — §4.9, §4.11"
+aunp_syntheses,run_order,int,0,,,ordem de execução dentro do bloco (randomizada)
+aunp_syntheses,status,enum,0,,done|failed|repeated|planned,resultado da execução (falhas ficam no registro — §4.17)
 aunp_syntheses,date,date,0,,,
 aunp_syntheses,operator,str,0,,,
 aunp_syntheses,protocol_id,fk:protocols,0,,,
@@ -112,7 +150,8 @@ aunp_syntheses,notes,str,0,,,
 aunp_characterization,measurement_id,id,1,,,ex.: M-AU-0001
 aunp_characterization,synthesis_id,fk:aunp_syntheses,1,,,
 aunp_characterization,technique,enum,1,,UV-Vis|TEM|SEM|DLS|zeta|XRD|XPS|ICP-OES|ICP-MS|SERS|catalysis|other,técnica
-aunp_characterization,quantity,str,1,,,"LSPR_nm, LSPR_FWHM_nm, A_LSPR, A400, size_mean_nm, size_sd_nm, n_particles, aspect_ratio, hydrodynamic_nm, PDI, zeta_mV, Au_loading_wt, yield_pct, k_app_s-1 …"
+aunp_characterization,quantity,str,1,,,"LSPR_nm, LSPR_FWHM_nm, A_LSPR, A400, size_mean_nm, size_sd_nm, n_particles, aspect_ratio, hydrodynamic_nm, PDI, zeta_mV, Au_loading_wt, yield_pct, k_app_s-1, spectral_loss_J, GO_associated_fraction …"
+aunp_characterization,spectrum_id,fk:spectra,0,,,espectro de origem (proveniência)
 aunp_characterization,value,float,1,,,valor medido/derivado
 aunp_characterization,uncertainty,float,0,,,incerteza do valor (mesma unidade)
 aunp_characterization,uncertainty_type,enum,0,,sd|sem|ci95|range|instrument|none,tipo de incerteza

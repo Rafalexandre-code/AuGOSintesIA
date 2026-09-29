@@ -8,7 +8,8 @@
 #   tools/fetch_external.sh --list          # só lista o que está no lock
 #
 # Poda padrão (reproduz o que está versionado): arquivos > 50 MB, olympus/case_studies,
-# olympus/__dev_, shap/docs, shap/data, jarvis-tools/jarvis/{tests,examples}. Os .gitattributes aninhados com LFS são renomeados
+# olympus/__dev_, shap/docs, shap/data, jarvis-tools/jarvis/{tests,examples}; docs/testes/tutoriais de
+# causal-learn, MAPIE, ATHENA, pylabrobot, alabos, paper-qa, marker (data/) e ivoryos. Os .gitattributes aninhados com LFS são renomeados
 # para .gitattributes.upstream para não quebrar o clone deste repositório.
 set -euo pipefail
 export GIT_LFS_SKIP_SMUDGE=1   # objetos LFS de terceiros não são baixados (ver LFS_OBJECTS_NOT_INCLUDED.txt)
@@ -53,6 +54,14 @@ grep -v '^#' "$LOCK" | while IFS=$'\t' read -r cat name repo branch commit date;
       olympus) rm -rf "$src/case_studies" "$src/__dev_" ;;
       shap) rm -rf "$src/docs" "$src/data" ;;
       jarvis-tools) rm -rf "$src/jarvis/tests" "$src/jarvis/examples" ;;
+      causal-learn) rm -rf "$src/tests" "$src/docs" ;;
+      MAPIE) rm -rf "$src/notebooks" "$src/doc" ;;
+      ATHENA) rm -rf "$src/tutorials" "$src/docs" "$src/readme" ;;
+      pylabrobot) rm -rf "$src/docs" ;;
+      alabos) rm -rf "$src/tests" "$src/docs" ;;
+      paper-qa) rm -rf "$src/tests" ;;
+      marker) rm -rf "$src/data" ;;
+      ivoryos) rm -rf "$src/docs" ;;
     esac
     find "$src" -path "$src/.git" -prune -o -type f -size +50M -print -exec rm -f {} +
   fi

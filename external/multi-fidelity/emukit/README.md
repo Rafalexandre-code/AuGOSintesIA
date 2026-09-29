@@ -1,0 +1,101 @@
+# Emukit
+
+[![Build Status](https://github.com/emukit/emukit/actions/workflows/tests.yml/badge.svg)](https://github.com/EmuKit/emukit/actions?query=workflow%3ATests) |
+[![Documentation Status](https://readthedocs.org/projects/emukit/badge/?version=latest)](https://emukit.readthedocs.io/en/latest/?badge=latest) |
+[![Tests Coverage](https://codecov.io/gh/emukit/emukit/branch/main/graph/badge.svg)](https://codecov.io/gh/emukit/emukit) |
+[![GitHub License](https://img.shields.io/github/license/emukit/emukit.svg)](https://github.com/emukit/emukit/blob/main/LICENSE)
+
+[Website](https://emukit.github.io/) |
+[Documentation](https://emukit.readthedocs.io/) |
+[Contribution Guide](CONTRIBUTING.md)
+
+Emukit is a highly adaptable Python toolkit for enriching decision making under uncertainty. This is particularly pertinent to complex systems where data is scarce or difficult to acquire. In these scenarios, propagating well-calibrated uncertainty estimates within a design loop or computational pipeline ensures that constrained resources are used effectively.
+
+The main features currently available in Emukit are:
+
+* **Multi-fidelity emulation:** build surrogate models when data is obtained from multiple information sources that have different fidelity and/or cost;
+* **Bayesian optimisation:** optimise physical experiments and tune parameters of machine learning algorithms;
+* **Experimental design/Active learning:** design the most informative experiments and perform active learning with machine learning models;
+* **Sensitivity analysis:** analyse the influence of inputs on the outputs of a given system;
+* **Bayesian quadrature:** efficiently compute the integrals of functions that are expensive to evaluate.
+
+Emukit is agnostic to the underlying modelling framework, which means you can use any tool of your choice in the Python ecosystem to build the machine learning model, and still be able to use Emukit.
+
+## Installation
+
+To install emukit, simply run
+```
+pip install emukit
+```
+
+For other install options, see our [documentation](https://emukit.readthedocs.io/en/latest/installation.html).
+
+### Dependencies / Optional Extras
+Core dependencies are the numerical Python stack (NumPy, SciPy, matplotlib, emcee). Optional groups enable additional features without pulling heavy dependencies into a minimal install:
+
+- `gpy`: Gaussian process wrappers, multi-fidelity models, Bayesian quadrature (adds `GPy`). Also see notice below.
+- `bnn`: Bayesian neural network (Bohamiann) and Profet meta-surrogate examples (adds `pybnn`, `torch`).
+- `sklearn`: scikit-learn model wrapper and examples (adds `scikit-learn`).
+- `docs`: Build documentation locally (adds Sphinx toolchain + GPy to render GP API docs).
+- `tests`: Test tooling.
+- `full`: Convenience meta extra installing all of the above.
+
+Install extras via pip:
+```
+# Core install
+pip install emukit
+
+# Add GPy-based functionality
+pip install emukit[gpy]
+
+# Bohamiann & Profet examples (Bayesian neural nets)
+pip install emukit[bnn]
+
+# scikit-learn model wrapper support
+pip install emukit[sklearn]
+
+# Build documentation (includes GPy + Sphinx toolchain)
+pip install emukit[docs]
+
+# Bundle for running most example scripts (GPy + pybnn + torch + scikit-learn)
+pip install emukit[examples]
+
+# Everything (gpy + bnn + sklearn + examples + docs + test tooling)
+pip install emukit[full]
+```
+Legacy pinned requirement files remain in the `requirements/` directory for reference but extras (above) are the preferred installation mechanism going forward.
+
+### NumPy 2 notice
+Core Emukit functionality works with NumPy 2.0+. However, some parts of Emukit (e.g. most acquisition functions) need GPy, that for the time being is a bit behind. If using GPy is critical for you, consider installing earlier versions of Emukit.
+
+## Getting started
+For examples see our [tutorial notebooks](http://nbviewer.jupyter.org/github/emukit/emukit/blob/main/notebooks/index.ipynb).
+
+## Documentation
+To learn more about Emukit, refer to our [documentation](https://emukit.readthedocs.io).
+
+To learn about emulation as a concept, check out the [Emukit playground](https://github.com/amzn/Emukit-playground) project.
+
+## Citing the library
+
+If you are using emukit, we would appreciate if you could cite our papers about Emukit in your research:
+
+    @inproceedings{emukit2019,
+      author = {Paleyes, Andrei and Pullin, Mark and Mahsereci, Maren and McCollum, Cliff and Lawrence, Neil and González, Javier},
+      title = {Emulation of physical processes with {E}mukit},
+      booktitle = {Second Workshop on Machine Learning and the Physical Sciences, NeurIPS},
+      year = {2019}
+    }
+
+    @article{emukit2023,
+      title={Emukit: A {P}ython toolkit for decision making under uncertainty},
+      author={Andrei Paleyes and Maren Mahsereci and Neil D. Lawrence},
+      journal={Proceedings of the Python in Science Conference},
+      year={2023}
+    }
+
+The papers themselves can be found at these links: [NeurIPS workshop 2019](https://arxiv.org/abs/2110.13293), [SciPy conference 2023](https://conference.scipy.org/proceedings/scipy2023/emukit.html).
+
+## License
+
+Emukit is licensed under Apache 2.0. Please refer to [LICENSE](LICENSE) and [NOTICE](NOTICE) for further license information.

@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}{% endblock %}</title>
+    {#bootstrap#}
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    {#static#}
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    {#for python code displaying#}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css">
+    {#Plotly#}
+    <script src="https://cdn.plot.ly/plotly-2.31.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <script>
+        window.URL_PREFIX = "{{ config.URL_PREFIX if config.URL_PREFIX != '/' else '' }}";
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', (event) => {
+            hljs.highlightAll();
+        });
+    </script>
+    {#drag design#}
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    {#drag card#}
+    <script src="https://code.jquery.com/ui/1.13.3/jquery-ui.min.js"></script>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg fixed-top">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand" href="{{ url_for('main.index') }}">
+                {% if current_user.is_authenticated %}
+                {% if current_user.settings.logo_mode == 'replace' and current_user.settings.logo_filename %}
+                <img src="{{ url_for('static', filename='user_logos/' ~ current_user.settings.logo_filename) }}"
+                    alt="User Logo" height="50">
+                {% else %}
+
+                {% if current_user.settings.logo_mode == 'add' and current_user.settings.logo_filename %}
+                <img src="{{ url_for('static', filename='user_logos/' ~ current_user.settings.logo_filename) }}"
+                    alt="User Logo" height="50" class="ms-2">
+                {% endif %}
+                <img src="{{ url_for('static', filename='ivoryos_logo.png') }}" alt="IvoryOS" height="50">
+                {% endif %}
+                {% else %}
+                <img src="{{ url_for('static', filename='ivoryos_logo.png') }}" alt="IvoryOS" height="50">
+                {% endif %}
+            </a>
+
+
+
+
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarSupportedContent">
+                <ul class="navbar-nav mr-auto align-items-center">
+                    {# ── Home ── #}
+                    <li class="nav-item">
+                        <a class="nav-link {{ 'active' if request.blueprint == 'main' else '' }}"
+                            href="{{ url_for('main.index') }}">Home</a>
+                    </li>
+                    {% if enable_design %}
+                    {# ── Pipeline: Library › Workflow › Execution › Data ── #}
+                    <span class="nav-pipeline-sep mx-2" style="opacity:0.5;">|</span>
+                    <li class="nav-item">
+                        <a class="nav-link {{ 'active' if request.blueprint == 'library' else '' }}"
+                            href="{{ url_for('library.load_from_database') }}">Library</a>
+                    </li>
+                    <span class="nav-pipeline-sep"><i class="bi bi-chevron-right"></i></span>
+                    <li class="nav-item">
+                        <a class="nav-link {{ 'active' if request.blueprint == 'design' else '' }}"
+                            href="{{ url_for('design.experiment_builder') }}">Workflow</a>
+                    </li>
+                    <span class="nav-pipeline-sep"><i class="bi bi-chevron-right"></i></span>
+                    <li class="nav-item">
+                        <a class="nav-link {{ 'active' if request.blueprint == 'execute' else '' }}"
+                            href="{{ url_for('execute.experiment_run') }}">Execution</a>
+                    </li>
+                    <span class="nav-pipeline-sep"><i class="bi bi-chevron-right"></i></span>
+                    <li class="nav-item">
+                        <a class="nav-link {{ 'active' if request.blueprint == 'data' else '' }}"
+                            href="{{ url_for('data.list_workflows') }}">Data</a>
+                    </li>
+                    {# ── Instruments: clearly separated from workflow pipeline ── #}
+                    <span class="nav-pipeline-sep mx-2" style="opacity:0.5;">|</span>
+                    <li class="nav-item">
+                        <a class="nav-link {{ 'active' if request.blueprint == 'control' else '' }}"
+                            href="{{ url_for('control.deck_controllers') }}">Instruments</a>
+                    </li>
+                    {% endif %}
+
+                    {# ── Plugins ── #}
+                    {% if plugins %}
+                        {% set ns = namespace(tab_count=0) %}
+                        {% for p in plugins %}
+                            {% if p.type == 'tab' or p.type is undefined %}
+                                {% set ns.tab_count = ns.tab_count + 1 %}
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if ns.tab_count > 0 %}
+                            <span class="nav-pipeline-sep mx-2" style="opacity:0.5;">|</span>
+                            {% if ns.tab_count <= 2 %}
+                                {% for plugin in plugins %}
+                                    {% if plugin.type == 'tab' or plugin.type is undefined %}
+                                        <li class="nav-item">
+                                            <a class="nav-link {{ 'active' if request.blueprint == plugin.name else '' }}"
+                                                href="{{ url_for(plugin.name+'.main') }}">{{ plugin.name.capitalize() }}</a>
+                                        </li>
+                                    {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                {% set plugin_active = namespace(found=false) %}
+                                {% for plugin in plugins %}
+                                    {% if (plugin.type == 'tab' or plugin.type is undefined) and request.blueprint == plugin.name %}
+                                        {% set plugin_active.found = true %}
+                                    {% endif %}
+                                {% endfor %}
+                                <li class="nav-item dropdown">
+                                    <a class="nav-link dropdown-toggle {{ 'active' if plugin_active.found else '' }}" href="#"
+                                        role="button" id="pluginsDropdown">
+                                        Plugins
+                                    </a>
+                                    <ul class="dropdown-menu">
+                                        {% for plugin in plugins %}
+                                            {% if plugin.type == 'tab' or plugin.type is undefined %}
+                                                <li>
+                                                    <a class="dropdown-item {{ 'active' if request.blueprint == plugin.name else '' }}"
+                                                        href="{{ url_for(plugin.name+'.main') }}">{{ plugin.name.capitalize() }}</a>
+                                                </li>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </ul>
+                                </li>
+                            {% endif %}
+                        {% endif %}
+                    {% endif %}
+                </ul>
+                <ul class="navbar-nav ms-auto align-items-center gap-1">
+                    {% if current_user.is_authenticated %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"
+                            aria-expanded="false" style="cursor: pointer;">
+                            <i class="bi bi-person-circle"></i> {{ current_user.get_id() }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="{{ url_for('auth.change_password') }}">Change Password</a></li>
+                            <li><a class="dropdown-item" data-bs-toggle="modal" data-bs-target="#logoModal">Customize Logo</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">Logout</a></li>
+                        </ul>
+                    </li>
+                    {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('auth.login') }}">Login</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    {% set ns = namespace(left_plugin=none) %}
+    {% if plugins %}
+        {% for p in plugins %}
+            {% if p.type == 'left_panel' and not ns.left_plugin %}
+                {% set ns.left_plugin = p %}
+            {% endif %}
+        {% endfor %}
+    {% endif %}
+
+    {% if ns.left_plugin %}
+    <div class="row m-0" style="width: 100%; flex-wrap: nowrap;">
+        <div class="col-3 p-0 border-end bg-light" style="height: calc(100vh - 80px); position: sticky; top: 80px; align-self: start;">
+            <iframe src="{{ url_for(ns.left_plugin.name+'.widget') }}" width="100%" height="100%" frameBorder="0" style="display: block;"></iframe>
+        </div>
+        <div class="col-9 p-0" style="min-width: 0;">
+            <div class="container-fluid px-2">
+                {% else %}
+                <div class="container">
+                    {% endif %}
+
+                    <div class="flash">
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                {% if category == 'popup' %}
+                                    <!-- Popup Modal Trigger Script -->
+                                    <script>
+                                        document.addEventListener("DOMContentLoaded", function () {
+                                            var flashModal = new bootstrap.Modal(document.getElementById('flashModal'));
+                                            document.getElementById('flashModalBody').innerText = "{{ message }}";
+                                            flashModal.show();
+                                        });
+                                    </script>
+                                {% else %}
+                                <div class="alert alert-warning">
+                                    {{ message|safe }}
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                        {% endwith %}
+                    </div>
+                    {% block body %}{% endblock %}
+
+                    {% if ns.left_plugin %}
+                </div>
+            </div>
+        </div>
+        {% else %}
+    </div>
+    {% endif %}
+
+    <!-- Flash Message Modal -->
+    <div class="modal fade" id="flashModal" tabindex="-1" aria-labelledby="flashModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="flashModalLabel">Notification</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="flashModalBody">
+                    <!-- Message content will be injected here -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModal" aria-hidden="true" >
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="importModal">Import deck by file path</h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="POST" action="{{ url_for('control.temp.import_deck') }}" enctype="multipart/form-data">
+                    <div class="modal-body">
+                        <h5>from connection history</h5>
+                        <div class="form-group">
+                            <select class="form-select" name="filepath">
+                                <option disabled selected value> -- select an option -- </option>
+                                {% for connection in history %}
+                                <option style="overflow-wrap: break-word;" name="filepath" id="filepath" value="{{connection}}">{{connection}}</option>
+                                {% endfor %}
+{#                            <option>clear history</option>#}
+                            </select>
+                        </div>
+                        <h5>input manually</h5>
+                        <div class="input-group mb-3">
+                            <label class="input-group-text" for="filepath">File Path:</label>
+                            <input type="text" class="form-control" name="filepath" id="filepath">
+                        </div>
+                        <div class="input-group mb-3">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="update" name="update" value="update">
+                                <label class="form-check-label" for="update">Update editor config</label>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="dismiss" name="dismiss" value="dismiss">
+                                <label class="form-check-label" for="dismiss">Don't remind me</label>
+                            </div>
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"> Close </button>
+                            <button type="submit" class="btn btn-primary"> Save </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logo Customization Modal -->
+    <div class="modal fade" id="logoModal" tabindex="-1" aria-labelledby="logoModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="logoModalLabel">Customize Navbar Logo</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="POST"
+                    action="{{ url_for('main.customize_logo') }}"
+                    enctype="multipart/form-data">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Upload your logo</label>
+                            <input type="file" name="logo" accept="image/*" class="form-control" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-semibold">Display mode</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="mode" id="add" value="add" checked>
+                                <label class="form-check-label" for="add">
+                                    Add next to IvoryOS logo
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="mode" id="replace" value="replace">
+                                <label class="form-check-label" for="replace">
+                                    Replace IvoryOS logo
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Apply</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+
+    {# Include global error modal #}
+    {% include 'components/error_modal.html' %}
+    {% include 'components/input_modal.html' %}
+
+    {# Floating system status / error restore icon (bottom left) #}
+    <div id="global-status-icon" class="position-fixed shadow"
+        style="bottom: 20px; left: 20px; z-index: 9999; display: flex; cursor: pointer; border-radius: 20px; height: 35px; padding: 0 15px; background-color: #6c757d; align-items: center; justify-content: center; gap: 8px; color: white; font-weight: 500;"
+         title="Platform is idle"
+         onclick="handleGlobalStatusClick()">
+        <span id="global-status-text">Idle</span>
+    </div>
+
+    <!-- Socket.io for global events (like error modals) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.1/socket.io.js"></script>
+    <script src="{{ url_for('static', filename='js/socket_handler.js') }}"></script>
+</body>
+</html>

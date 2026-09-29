@@ -1,0 +1,61 @@
+cff-version: 1.2.0
+message: "Cite as"
+authors:
+  - family-names: Bauer
+    given-names: Daniel
+    orcid: https://orcid.org/0000-0001-9447-460X
+  - family-names: Chadwick
+    given-names: Eli
+    orcid: https://orcid.org/0000-0002-0035-6475
+  - family-names: De Geest
+    given-names: Paul
+    orcid: https://orcid.org/0000-0002-8940-4946
+  - family-names: Droesbeke
+    given-names: Bert
+    orcid: https://orcid.org/0000-0003-0522-5674
+  - family-names: Eguinoa
+    given-names: Ignacio
+    orcid: https://orcid.org/0000-0002-6190-122X
+  - family-names: Gaignard
+    given-names: Alban
+    orcid: https://orcid.org/0000-0002-3597-8557
+  - family-names: Hiraki
+    given-names: Toshiyuki
+    orcid: https://orcid.org/0000-0001-6712-6335
+  - family-names: Hörtenhuber
+    given-names: Matthias
+    orcid: https://orcid.org/0000-0002-5599-5565
+  - family-names: Huber
+    given-names: Sebastiaan
+    orcid: https://orcid.org/0000-0001-5845-8880
+  - family-names: Kinoshita
+    given-names: Bruno
+    orcid: https://orcid.org/0000-0001-8250-4074
+  - family-names: Lenz
+    given-names: Julian
+    orcid: https://orcid.org/0000-0001-5250-0005
+  - family-names: Leo
+    given-names: Simone
+    orcid: https://orcid.org/0000-0001-8271-5429
+  - family-names: Orviz
+    given-names: Pablo
+    orcid: https://orcid.org/0000-0002-2473-6405
+  - family-names: Pireddu
+    given-names: Luca
+    orcid: https://orcid.org/0000-0002-4663-5613
+  - family-names: Rodríguez-Navas
+    given-names: Laura
+    orcid: https://orcid.org/0000-0003-4929-1219
+  - family-names: Sirvent
+    given-names: Raül
+    orcid: https://orcid.org/0000-0003-0606-2512
+  - family-names: Soiland-Reyes
+    given-names: Stian
+    orcid: https://orcid.org/0000-0001-9842-9718
+  - family-names: Thomas
+    given-names: Laurent
+    orcid: https://orcid.org/0000-0001-7686-3249
+title: "ro-crate-py"
+version: 0.15.1
+doi: 10.5281/zenodo.3956493
+date-released: 2026-07-10

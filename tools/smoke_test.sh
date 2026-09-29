@@ -58,9 +58,9 @@ img = fabio.open("datasets/xrd-ceo2-calibration/CeO2_1s_000012.ge3"); assert img
 q = miepython.efficiencies(complex(0.2, 3.3), 40, 0.52)  # AuNP ~40 nm em 520 nm
 print("qLogNEHVI ok:", tuple(cand.shape), "| .ge3 frames:", img.nframes, "| Mie ok")
 EOF
-  # laço GO Navigator -> AuNP Designer -> tabelas do modelo de dados (simulado), numa pasta temporária
-  local t; t="$(mktemp -d)"
-  py code/aunp_designer/designer.py demo --iterations 1 --out "$t" 2>/dev/null | grep "final:"
+  # código do projeto (code/): espectral, caracterização, Designer (4 braços, LBO, novelty), causal, estatística;
+  # inclui o laço completo com o laboratório simulado e as tabelas validadas
+  py -m pytest code/tests -q -p no:cacheprovider -W ignore 2>&1 | tail -1
 }
 
 t_sdl() {

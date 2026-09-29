@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ivoryos"
+dynamic = ["version"]  # or dynamically read version with `dynamic = ["version"]`
+description = "an open-source Python package enabling Self-Driving Labs (SDLs) interoperability"
+readme = "README.md"
+requires-python = ">=3.7"
+license = {text = "MIT"}
+authors = [
+    {name = "Ivory Zhang", email = "ivoryzhang@chem.ubc.ca"}
+]
+dependencies = [
+    "bcrypt",
+    "Flask[async]",
+    "Flask-Login",
+    "Flask-Session",
+    "Flask-SocketIO",
+    "Flask-SQLAlchemy",
+    "Flask-WTF",
+    "python-dotenv",
+    "pandas",
+    "astor; python_version < '3.9'"
+]
+
+[project.optional-dependencies]
+optimizer-ax = ["ax-platform"]
+optimizer-baybe = ["baybe>=0.15.0"]
+optimizer-nimo = ["nimo"]
+db = ["psycopg2-binary"]
+llm = ["openai"]
+
+optimizers = [
+    "ax-platform>=1.1.2",
+    "baybe>=0.15.0",
+    "nimo>=2.0.5"
+]
+doc = [
+    "sphinx<8",
+    "myst-parser>=2,<4",
+    "sphinx-rtd-theme",
+    "sphinxcontrib-httpdomain"
+]
+dev = ["pytest"]
+
+[project.urls]
+Homepage = "https://gitlab.com/heingroup/ivoryos"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+ivoryos = [
+    "static/**/*",
+    "templates/**/*",
+    "routes/**/*"
+]
+[tool.setuptools.packages.find]
+exclude = ["community*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "ivoryos.version.__version__"}
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

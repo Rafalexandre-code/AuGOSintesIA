@@ -1,0 +1,78 @@
+<div class="card mb-2 {{ 'border-danger text-danger bg-light' if phase.run_error else 'border-secondary' }}">
+    <div class="card-body p-2">
+        <small class="text-muted">
+            <i class="fas fa-play-circle me-1"></i> Start: {{ phase.start_time.strftime('%H:%M:%S') if phase.start_time else 'N/A' }}
+            <i class="fas fa-stop-circle ms-2 me-1"></i> End: {{ phase.end_time.strftime('%H:%M:%S') if phase.end_time else 'N/A' }}
+        </small>
+        {% if phase.parameters %}
+        <div class="mt-2">
+            <strong>Parameters: </strong>
+            {% if phase.parameters is mapping %}
+                {% if phase.parameters %}
+                    <div class="mt-2">
+                        <strong>Parameters: </strong>
+                            {% for key, value in phase.parameters.items() %}
+                            <span class="badge bg-secondary me-1">{{ key }}: {{ value }}</span>
+                            {% endfor %}
+                    </div>
+                {% endif %}
+            {% else %}
+                {% for batch in phase.parameters %}
+                    <div class="mt-1">
+                        <span class="badge bg-info text-dark me-1">Batch {{ loop.index }}</span>
+                        {% for key, value in batch.items() %}
+                            <span class="badge bg-secondary me-1">{{ key }}: {{ value }}</span>
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if phase.steps %}
+            <div class="mt-2">
+                <strong>Steps:</strong>
+                <ul class="mb-0">
+                    {% for step in phase.steps %}
+                        <li class="{{ 'text-danger' if step.run_error else '' }}">
+                            {{ step.method_name }}
+                            <small class="text-muted">
+                              ({{ step.start_time.strftime('%H:%M:%S') if step.start_time else 'N/A' }} –
+                              {{ step.end_time.strftime('%H:%M:%S') if step.end_time else 'N/A' }})
+                            </small>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
+        {% if phase.outputs %}
+            <div class="mt-2">
+                <strong>Outputs:</strong>
+
+                {% if phase.outputs is mapping %}
+                    {% for key, value in phase.outputs.items() %}
+                        <span class="badge bg-success me-1">{{ key }}: {{ value }}</span>
+                    {% endfor %}
+
+                {% elif phase.outputs is sequence %}
+                    {% for batch in phase.outputs %}
+                        <div class="mt-1">
+                            <span class="badge bg-info text-dark me-1">Batch {{ loop.index }}</span>
+                            {% if batch is mapping %}
+                                {% for key, value in batch.items() %}
+                                    <span class="badge bg-success me-1">{{ key }}: {{ value }}</span>
+                                {% endfor %}
+                            {% elif batch is sequence %}
+                                {% for kwargs in batch %}
+                                    {% for key, value in kwargs.items() %}
+                                        <span class="badge bg-success me-1">{{ key }}: {{ value }}</span>
+                                    {% endfor %}
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>

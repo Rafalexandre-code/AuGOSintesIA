@@ -1,0 +1,562 @@
+{# Logging panel component for experiment run #}
+<div class="col-lg-6 col-sm-12 logging-panel d-flex flex-column h-100">
+  <div class="d-flex justify-content-between align-items-center flex-shrink-0">
+    <h5>Progress：<span id="iteration-display" class="ms-2 fs-6 text-muted"></span><span id="batch-display" class="ms-2 fs-6 text-secondary"></span></h5>
+    <div class="d-flex gap-2 ms-auto">
+      <button id="view-current-config" class="btn border-0 text-secondary" style="background-color: #e9ecef;" title="View Current Run Configuration">
+        <i class="bi bi-info-circle"></i>
+      </button>
+      <button id="pause-resume" class="btn btn-info text-white">
+        {% if pause_status %}
+        <i class="bi bi-play-circle"></i>
+        {% else %}
+        <i class="bi bi-pause-circle"></i>
+        {% endif %}
+      </button>
+      <button id="abort-current" class="btn btn-danger text-white">
+        <i class="bi bi-stop-circle"></i>
+      </button>
+      <button id="abort-pending" class="btn btn-warning text-white" title="Stop pending tasks">
+        <i class="bi bi-hourglass-split"></i>
+      </button>
+    </div>
+  </div>
+  <small class="text-muted mt-2 flex-shrink-0">
+    <strong>Note:</strong> The current step cannot be paused or stopped until it completes.
+  </small>
+  <div class="progress my-3 flex-shrink-0">
+    <div id="progress-bar-inner" class="progress-bar progress-bar-striped progress-bar-animated"></div>
+  </div>
+  <!-- Tabs -->
+  <ul class="nav nav-tabs flex-shrink-0" id="logPlotTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="log-tab" data-bs-toggle="tab" data-bs-target="#log" type="button"
+        role="tab">Log</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="queue-tab" data-bs-toggle="tab" data-bs-target="#queue" type="button"
+        role="tab">Queue</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="plot-tab" data-bs-toggle="tab" data-bs-target="#plot" type="button"
+        role="tab">Optimizer Plot</button>
+    </li>
+  </ul>
+  <div class="tab-content mt-3 flex-grow-1 d-flex flex-column" id="logPlotTabsContent" style="min-height: 0;">
+    <div class="tab-pane fade show active flex-grow-1 h-100" id="log" role="tabpanel" style="min-height: 0;">
+      <div class="d-flex flex-column h-100">
+        <div id="logging-panel" class="border p-2 bg-light flex-grow-1 overflow-auto"></div>
+      </div>
+    </div>
+    <div class="tab-pane fade flex-grow-1 h-100" id="queue" role="tabpanel" style="overflow-y: auto; min-height: 0;">
+      <div class="d-flex flex-column h-100 justify-content-start">
+        <div id="queue-list" class="list-group w-100">
+          <!-- Queue items will be inserted here -->
+        </div>
+      </div>
+    </div>
+    <div class="tab-pane fade flex-grow-1 h-100" id="plot" role="tabpanel" style="overflow-y: auto;">
+      <div class="d-flex flex-column h-100 justify-content-start">
+        <button class="btn btn-success mb-2" onclick="showPlot()">Refresh Plot</button>
+        <small class="text-muted d-block mt-1" id="plot-info">Interactive plots from your active optimizer.</small>
+        <br>
+        <div id="optimizerPlotsContainer" class="w-100 d-flex flex-column gap-3"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Stop Current Workflow Modal -->
+<div class="modal fade" id="stopWorkflowModal" tabindex="-1" aria-labelledby="stopWorkflowModalLabel"
+  aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger" id="stopWorkflowModalLabel">
+          <i class="bi bi-stop-circle-fill me-2"></i>Stop Workflow
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        <p>This will gracefully stop execution after the current step finishes.</p>
+        <div class="form-check mt-3">
+          <input class="form-check-input" type="checkbox" value="" id="continueQueueCheckbox">
+          <label class="form-check-label" for="continueQueueCheckbox">
+            <strong>Continue execution queue</strong>
+          </label>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="stopWorkflowConfirmBtn">Stop Workflow</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Abort Pending Modal -->
+<div class="modal fade" id="abortPendingModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Stop After This Iteration?</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <p>This will gracefully stop after this iteration finishes.</p>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="cleanup-checkbox">
+          <label class="form-check-label" for="cleanup-checkbox">
+            Proceed to cleanup steps
+          </label>
+        </div>
+        <div class="form-check mt-3">
+          <input class="form-check-input" type="checkbox" id="continueQueuePendingCheckbox">
+          <label class="form-check-label" for="continueQueuePendingCheckbox">
+            <strong>Continue execution queue</strong>
+          </label>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="abortPendingConfirm">
+          Confirm
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Queue Details Modal -->
+<div class="modal fade" id="queueDetailsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Task Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <pre id="queue-details-content" class="bg-light p-3 border rounded"></pre>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+    async function showPlot() {
+        const container = document.getElementById('optimizerPlotsContainer');
+        container.innerHTML = '<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>';
+        
+        try {
+            const response = await fetch("{{ url_for('execute.get_optimizer_plot') }}");
+            if (!response.ok) {
+                container.innerHTML = '<p class="text-danger">No plots found or an error occurred.</p>';
+                return;
+            }
+            
+            // Check content type to see if it's JSON
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                const plots = await response.json();
+                
+                if (plots.error) {
+                    container.innerHTML = `<p class="text-danger">${plots.error}</p>`;
+                    return;
+                }
+                
+                container.innerHTML = ''; // clear loading
+                
+                for (const [plotName, htmlSnippet] of Object.entries(plots)) {
+                    const plotWrapper = document.createElement('div');
+                    plotWrapper.className = "card mb-3";
+                    
+                    const cardHeader = document.createElement('div');
+                    cardHeader.className = "card-header fw-bold";
+                    cardHeader.innerText = plotName;
+                    
+                    const cardBody = document.createElement('div');
+                    cardBody.className = "card-body overflow-auto d-flex";
+                    // Ax figures have fixed widths. Plain centering would push a figure wider
+                    // than the card past its left edge, where it can't be scrolled to;
+                    // "safe" left-aligns it instead (older browsers ignore this and left-align).
+                    cardBody.style.justifyContent = "safe center";
+
+                    // innerHTML doesn't run the snippet's <script>, see below
+                    cardBody.innerHTML = htmlSnippet;
+                    
+                    plotWrapper.appendChild(cardHeader);
+                    plotWrapper.appendChild(cardBody);
+                    container.appendChild(plotWrapper);
+                    
+                    // Force script execution
+                    Array.from(cardBody.querySelectorAll("script")).forEach(oldScript => {
+                        const newScript = document.createElement("script");
+                        Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+                        newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+                        oldScript.parentNode.replaceChild(newScript, oldScript);
+                    });
+                }
+            } else {
+                // Fallback for returning an image (e.g. from NIMO optimizer)
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                container.innerHTML = `<img src="${url}" class="img-fluid rounded shadow-sm d-block mx-auto" style="max-width:100%;">`;
+            }
+        } catch (error) {
+            container.innerHTML = `<p class="text-danger">Error fetching plot: ${error.message}</p>`;
+        }
+    }
+
+  let currentDetailsMsg = null;
+  let currentTaskId = null;
+
+  function renderTaskDetails(details, fullConfig = null) {
+    const content = document.getElementById('queue-details-content');
+    content.innerHTML = '';
+    currentDetailsMsg = details; // Store for reloading
+
+    if (!details) {
+      content.innerText = "No details available.";
+      return;
+    }
+
+    const table = document.createElement('table');
+    table.className = 'table table-striped table-sm';
+    const tbody = document.createElement('tbody');
+
+    for (const [key, value] of Object.entries(details)) {
+      if (key === 'Config Preview (First 5)' || key === 'Full Config') continue;
+
+      const row = document.createElement('tr');
+      const th = document.createElement('th');
+      th.scope = 'row';
+      th.innerText = key;
+      const td = document.createElement('td');
+
+      if (key === 'Task Name') {
+          // Add edit button for name
+          td.innerHTML = `
+              <div class="d-flex align-items-center">
+                  <span id="task-name-display-${currentTaskId}" class="me-2">${value}</span>
+                  <input type="text" id="task-name-input-${currentTaskId}" class="form-control form-control-sm d-none w-auto" value="${value}">
+                  <button class="btn btn-sm btn-outline-primary ms-2" id="edit-task-name-btn-${currentTaskId}" onclick="toggleEditTaskName(${currentTaskId})">
+                      <i class="bi bi-pencil"></i>
+                  </button>
+                  <button class="btn btn-sm btn-success d-none ms-2" id="save-task-name-btn-${currentTaskId}" onclick="saveTaskName(${currentTaskId})">
+                      Save
+                  </button>
+                  <button class="btn btn-sm btn-secondary d-none ms-1" id="cancel-task-name-btn-${currentTaskId}" onclick="cancelEditTaskName(${currentTaskId}, '${value.replace(/'/g, "\\'")}')">
+                      Cancel
+                  </button>
+              </div>
+          `;
+      } else if (typeof value === 'object' && value !== null) {
+        td.innerHTML = `<pre class="m-0" style="max-height: 200px; overflow: auto;">${JSON.stringify(value, null, 2)}</pre>`;
+      } else {
+        td.innerText = value;
+      }
+      row.appendChild(th);
+      row.appendChild(td);
+      tbody.appendChild(row);
+    }
+    table.appendChild(tbody);
+    content.appendChild(table);
+
+    // Handle Config Display
+    if (fullConfig) {
+      const configContainer = document.createElement('div');
+      configContainer.className = 'mt-3';
+      configContainer.innerHTML = `<h6>Full Configuration (${fullConfig.length} entries):</h6>`;
+      const pre = document.createElement('pre');
+      pre.className = 'bg-white p-2 border rounded';
+      pre.style.maxHeight = '400px';
+      pre.style.overflow = 'auto';
+      pre.innerText = JSON.stringify(fullConfig, null, 2);
+      configContainer.appendChild(pre);
+      content.appendChild(configContainer);
+
+    } else if (details['Config Preview (First 5)']) {
+      const configContainer = document.createElement('div');
+      configContainer.className = 'mt-3';
+      configContainer.innerHTML = '<h6>Configuration Preview (First 5):</h6>';
+      const pre = document.createElement('pre');
+      pre.className = 'bg-white p-2 border rounded';
+      pre.innerText = JSON.stringify(details['Config Preview (First 5)'], null, 2);
+      configContainer.appendChild(pre);
+
+      const loadBtn = document.createElement('button');
+      loadBtn.className = 'btn btn-sm btn-primary mt-2';
+      loadBtn.innerText = 'Load Full Config';
+      loadBtn.onclick = () => loadFullConfig(currentTaskId);
+      configContainer.appendChild(loadBtn);
+
+      content.appendChild(configContainer);
+    }
+  }
+
+  function showQueueDetails(details, taskId) {
+    currentTaskId = taskId;
+    renderTaskDetails(details);
+    const modalHeader = document.querySelector('#queueDetailsModal .modal-title');
+    if (modalHeader) {
+        modalHeader.innerText = "Task Details";
+    }
+    const modal = new bootstrap.Modal(document.getElementById('queueDetailsModal'));
+    modal.show();
+  }
+
+  function loadFullConfig(taskId) {
+    if (taskId === null) return;
+    const btn = document.querySelector('#queue-details-content button');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerText = 'Loading...';
+    }
+
+    // Use a dummy ID 0 to generate the base URL, then replace it with the actual taskId
+    const baseUrl = "{{ url_for('execute.get_queue_task_details', task_id=0) }}".slice(0, -1);
+    fetch(`${baseUrl}${taskId}`)
+      .then(response => response.json())
+      .then(data => {
+        if (data && data["Full Config"]) {
+          renderTaskDetails(currentDetailsMsg, data["Full Config"]);
+        } else {
+          alert('Failed to load full configuration.');
+          if (btn) {
+            btn.disabled = false;
+            btn.innerText = 'Load Full Config';
+          }
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        alert('Error loading configuration.');
+        if (btn) {
+          btn.disabled = false;
+          btn.innerText = 'Load Full Config';
+        }
+      });
+  }
+
+  function cancelEditTaskName(id, originalName) {
+      document.getElementById('task-name-display-' + id).classList.remove('d-none');
+      document.getElementById('edit-task-name-btn-' + id).classList.remove('d-none');
+      
+      const input = document.getElementById('task-name-input-' + id);
+      input.classList.add('d-none');
+      input.value = originalName; // reset to original
+      
+      document.getElementById('save-task-name-btn-' + id).classList.add('d-none');
+      document.getElementById('cancel-task-name-btn-' + id).classList.add('d-none');
+  }
+
+  function renameTask(id, newName) {
+    fetch("{{ url_for('execute.rename_queue_task') }}", {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ id: id, new_name: newName })
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === 'ok') {
+            // Update successful, refresh queue and update modal UI
+            document.getElementById('task-name-display-' + id).innerText = newName;
+            document.getElementById('task-name-input-' + id).value = newName;
+            // update original name parameter dynamically
+            document.getElementById('cancel-task-name-btn-' + id).setAttribute("onclick", `cancelEditTaskName(${id}, '${newName.replace(/'/g, "\\'")}')`);
+            
+            cancelEditTaskName(id, newName); // return to non-edit mode using the new name
+            // No need to call updateQueue() here as the server will emit queue_status
+        } else {
+          console.error('Rename failed:', data.error);
+          alert('Failed to rename task: ' + data.error);
+          cancelEditTaskName(id, document.getElementById('task-name-display-' + id).innerText);
+        }
+      })
+      .catch(error => {
+          console.error('Error renaming task:', error);
+          cancelEditTaskName(id, document.getElementById('task-name-display-' + id).innerText);
+      });
+  }
+
+  function toggleEditTaskName(id) {
+      document.getElementById('task-name-display-' + id).classList.add('d-none');
+      document.getElementById('edit-task-name-btn-' + id).classList.add('d-none');
+      document.getElementById('task-name-input-' + id).classList.remove('d-none');
+      document.getElementById('save-task-name-btn-' + id).classList.remove('d-none');
+      document.getElementById('cancel-task-name-btn-' + id).classList.remove('d-none');
+      document.getElementById('task-name-input-' + id).focus();
+  }
+
+  function saveTaskName(id) {
+      const newName = document.getElementById('task-name-input-' + id).value.trim();
+      const oldName = document.getElementById('task-name-display-' + id).innerText;
+      
+      if (!newName || newName === oldName) {
+          cancelEditTaskName(id, oldName); // Do nothing if blank or unchanged
+          return;
+      }
+      
+      const saveBtn = document.getElementById('save-task-name-btn-' + id);
+      saveBtn.disabled = true;
+      saveBtn.innerText = "Saving...";
+      
+      renameTask(id, newName);
+  }
+
+  function renderQueue(data) {
+    const queueList = document.getElementById('queue-list');
+    if (!queueList) return;
+
+    queueList.innerHTML = '';
+    if (data.length === 0) {
+      queueList.innerHTML = '<div class="list-group-item text-center text-muted">No pending tasks</div>';
+      return;
+    }
+    data.forEach((task, index) => {
+      const item = document.createElement('div');
+      item.className = 'list-group-item d-flex justify-content-between align-items-center';
+
+      const infoDiv = document.createElement('div');
+      infoDiv.style.cursor = 'pointer';
+      infoDiv.setAttribute('title', 'Click to view details');
+
+      let batchBadge = '';
+      if (task.details && task.details['Batch Size']) {
+        batchBadge = `<span class="badge bg-info text-dark ms-2">Batch: ${task.details['Batch Size']}</span>`;
+      }
+
+      infoDiv.innerHTML = `
+          <span class="badge bg-secondary me-2">#${index + 1}</span>
+          <span class="fw-bold">${task.name}</span>
+          ${batchBadge}
+          <br>
+          <small class="text-muted ms-4">${task.args}</small>
+      `;
+      infoDiv.onclick = () => showQueueDetails(task.details, index); 
+      item.appendChild(infoDiv);
+
+      const controlsDiv = document.createElement('div');
+      const safeName = task.name.replace(/'/g, "\\'");
+      controlsDiv.innerHTML = `
+          <button class="btn btn-sm btn-outline-primary" onclick="promptRenameTask(${index}, '${safeName}')">
+            <i class="bi bi-pencil"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" onclick="reorderTask(${index}, 'up')" ${index === 0 ? 'disabled' : ''}>
+            <i class="bi bi-arrow-up"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" onclick="reorderTask(${index}, 'down')" ${index === data.length - 1 ? 'disabled' : ''}>
+            <i class="bi bi-arrow-down"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-danger" onclick="deleteTask(${index})">
+            <i class="bi bi-trash"></i>
+          </button>
+      `;
+      item.appendChild(controlsDiv);
+      queueList.appendChild(item);
+    });
+  }
+
+  function updateQueue() {
+    // Initial fetch or manual refresh
+    const timestamp = new Date().getTime();
+    fetch("{{ url_for('execute.get_queue') }}?t=" + timestamp)
+      .then(response => response.json())
+      .then(data => renderQueue(data))
+      .catch(error => console.error('Error fetching queue:', error));
+  }
+
+  function deleteTask(id) {
+    fetch("{{ url_for('execute.delete_queue_task') }}", {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ id: id })
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status !== 'ok') {
+          console.error('Delete failed:', data.error);
+        }
+      })
+      .catch(error => console.error('Error deleting task:', error));
+  }
+
+  function reorderTask(id, direction) {
+    fetch("{{ url_for('execute.reorder_queue_task') }}", {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ id: id, direction: direction })
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status !== 'ok') {
+          console.error('Reorder failed:', data.error);
+        }
+      })
+      .catch(error => console.error('Error reordering task:', error));
+  }
+
+  function promptRenameTask(id, currentName) {
+      const newName = prompt("Enter a new name for this task:", currentName);
+      if (newName !== null && newName.trim() !== '' && newName.trim() !== currentName) {
+          renameTask(id, newName.trim());
+      }
+  }
+
+  // Listen for queue updates via WebSocket
+  document.addEventListener('DOMContentLoaded', () => {
+    const checkSocket = setInterval(() => {
+        if (window.socket) {
+            clearInterval(checkSocket);
+            window.socket.on('queue_status', (data) => {
+                console.log("Queue status update received via socket");
+                renderQueue(data);
+            });
+        }
+    }, 100);
+  });
+  updateQueue(); // Initial call
+  
+  // Current Run Configuration Logic
+  document.getElementById('view-current-config').addEventListener('click', function() {
+    fetch("{{ url_for('execute.get_current_task_details') }}")
+      .then(response => {
+          if (!response.ok) {
+              return response.json().then(data => { throw new Error(data.error || "Failed to fetch current config"); });
+          }
+          return response.json();
+      })
+      .then(data => {
+          if (data.error) {
+              throw new Error(data.error);
+          }
+          // Prepare the modal with 'data'
+          // Using existing renderTaskDetails function meant for queued tasks
+          const fullConfig = data["Full Config"] || null;
+          renderTaskDetails(data, fullConfig);
+          // Update modal title logic
+          const modalHeader = document.querySelector('#queueDetailsModal .modal-title');
+          if (modalHeader) {
+              modalHeader.innerText = "Current Run Details";
+          }
+          const modal = new bootstrap.Modal(document.getElementById('queueDetailsModal'));
+          modal.show();
+      })
+      .catch(error => {
+          alert('Error: ' + error.message);
+      });
+  });
+</script>

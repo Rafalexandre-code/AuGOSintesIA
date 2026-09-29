@@ -16,6 +16,18 @@
         "$ref": "#/$defs/reagent_lots"
       }
     },
+    "reagent_analyses": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/reagent_analyses"
+      }
+    },
+    "spectra": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/spectra"
+      }
+    },
     "go_batches": {
       "type": "array",
       "items": {
@@ -192,6 +204,182 @@
         "chemical_name",
         "supplier",
         "lot_number"
+      ]
+    },
+    "reagent_analyses": {
+      "type": "object",
+      "description": "Módulo de impurezas (§4.3): análises de cada lote de reagente (iodeto no CTAB, metais por ICP-MS, água por KF, solventes residuais…).",
+      "properties": {
+        "analysis_id": {
+          "type": "string",
+          "description": "ex.: RA-0001"
+        },
+        "lot_id": {
+          "type": "string",
+          "description": "lote analisado",
+          "x-foreign-key": "reagent_lots"
+        },
+        "analyte": {
+          "type": "string",
+          "description": "iodide, Fe, Cu, Ag, water, residual_solvent, assay…"
+        },
+        "method": {
+          "type": "string",
+          "description": "IC, ICP-MS, ICP-OES, KF, GC, titulação, CoA…"
+        },
+        "value": {
+          "type": "number",
+          "description": "valor medido/derivado"
+        },
+        "uncertainty": {
+          "type": "number",
+          "description": "incerteza do valor (mesma unidade)"
+        },
+        "uncertainty_type": {
+          "type": "string",
+          "description": "tipo de incerteza",
+          "enum": [
+            "sd",
+            "sem",
+            "ci95",
+            "range",
+            "instrument",
+            "none"
+          ]
+        },
+        "n_replicates": {
+          "type": "integer",
+          "description": "nº de réplicas/regiões/partículas usadas"
+        },
+        "unit": {
+          "type": "string",
+          "description": "unidade (UO/SI): nm, eV, %, at%, mg/mL, mV, a.u. …"
+        },
+        "instrument": {
+          "type": "string",
+          "description": "equipamento/modelo"
+        },
+        "method_details": {
+          "type": "string",
+          "description": "modelo de ajuste, fonte de excitação, faixa, deconvolução…"
+        },
+        "raw_data_file": {
+          "type": "string",
+          "description": "caminho relativo em dataset/raw_data/"
+        },
+        "date": {
+          "type": "string",
+          "description": "AAAA-MM-DD",
+          "format": "date"
+        },
+        "operator": {
+          "type": "string",
+          "description": "quem mediu"
+        },
+        "protocol_id": {
+          "type": "string",
+          "description": "protocolo (SOP) usado",
+          "x-foreign-key": "protocols"
+        },
+        "ontology_term": {
+          "type": "string",
+          "description": "termo de ontologia (eNanoMapper/CHMO/BAO) para a técnica ou grandeza"
+        },
+        "notes": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "required": [
+        "analysis_id",
+        "lot_id",
+        "analyte",
+        "value",
+        "unit"
+      ]
+    },
+    "spectra": {
+      "type": "object",
+      "description": "Espectros brutos e metadados de aquisição padronizados (§4.4/§4.17): diluição, caminho óptico, branco, tempo após o preparo.",
+      "properties": {
+        "spectrum_id": {
+          "type": "string",
+          "description": "ex.: UV-0001"
+        },
+        "synthesis_id": {
+          "type": "string",
+          "description": "síntese (vazio se for do GO)",
+          "x-foreign-key": "aunp_syntheses"
+        },
+        "go_sample_id": {
+          "type": "string",
+          "description": "amostra de GO (brancos de GO, Raman/XPS)",
+          "x-foreign-key": "go_samples"
+        },
+        "technique": {
+          "type": "string",
+          "description": "técnica",
+          "enum": [
+            "UV-Vis",
+            "Raman",
+            "XPS",
+            "FTIR",
+            "XRD",
+            "DLS",
+            "SAXS",
+            "other"
+          ]
+        },
+        "file": {
+          "type": "string",
+          "description": "arquivo bruto em dataset/raw_data/ (CSV: eixo, intensidade)"
+        },
+        "blank_spectrum_id": {
+          "type": "string",
+          "description": "espectro do branco usado na subtração",
+          "x-foreign-key": "spectra"
+        },
+        "dilution_factor": {
+          "type": "number",
+          "description": "fator de diluição (≥ 1)"
+        },
+        "path_length_mm": {
+          "type": "number",
+          "description": "caminho óptico da cubeta",
+          "x-unit": "mm"
+        },
+        "time_after_prep_min": {
+          "type": "number",
+          "description": "tempo entre o preparo e a leitura",
+          "x-unit": "min"
+        },
+        "instrument": {
+          "type": "string",
+          "description": ""
+        },
+        "date": {
+          "type": "string",
+          "description": "",
+          "format": "date"
+        },
+        "operator": {
+          "type": "string",
+          "description": ""
+        },
+        "protocol_id": {
+          "type": "string",
+          "description": "",
+          "x-foreign-key": "protocols"
+        },
+        "notes": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "required": [
+        "spectrum_id",
+        "technique",
+        "file"
       ]
     },
     "go_batches": {
@@ -417,6 +605,11 @@
         "quantity": {
           "type": "string",
           "description": "C_O_ratio, sp2_fraction, C-O_fraction, C=O_fraction, O-C=O_fraction, ID_IG, I2D_IG, La_nm, thickness_nm, lateral_size_um, n_layers, abs_230nm …"
+        },
+        "spectrum_id": {
+          "type": "string",
+          "description": "espectro de origem (proveniência)",
+          "x-foreign-key": "spectra"
         },
         "value": {
           "type": "number",
@@ -678,6 +871,44 @@
             ""
           ]
         },
+        "hardware": {
+          "type": "string",
+          "description": "equipamento de aquecimento/mistura (hot plate, banho-maria, reator de fluxo…) — §4.7"
+        },
+        "is_control": {
+          "type": "string",
+          "description": "controle: sem GO / branco de GO tratado / réplica de referência (§4.17)",
+          "enum": [
+            "none",
+            "no_GO",
+            "GO_blank",
+            "reference",
+            ""
+          ]
+        },
+        "preparation_id": {
+          "type": "string",
+          "description": "preparação física (alíquotas da mesma preparação NÃO são sínteses novas)"
+        },
+        "block": {
+          "type": "string",
+          "description": "bloco de randomização (dia/operador) — §4.9, §4.11"
+        },
+        "run_order": {
+          "type": "integer",
+          "description": "ordem de execução dentro do bloco (randomizada)"
+        },
+        "status": {
+          "type": "string",
+          "description": "resultado da execução (falhas ficam no registro — §4.17)",
+          "enum": [
+            "done",
+            "failed",
+            "repeated",
+            "planned",
+            ""
+          ]
+        },
         "date": {
           "type": "string",
           "description": "",
@@ -737,7 +968,12 @@
         },
         "quantity": {
           "type": "string",
-          "description": "LSPR_nm, LSPR_FWHM_nm, A_LSPR, A400, size_mean_nm, size_sd_nm, n_particles, aspect_ratio, hydrodynamic_nm, PDI, zeta_mV, Au_loading_wt, yield_pct, k_app_s-1 …"
+          "description": "LSPR_nm, LSPR_FWHM_nm, A_LSPR, A400, size_mean_nm, size_sd_nm, n_particles, aspect_ratio, hydrodynamic_nm, PDI, zeta_mV, Au_loading_wt, yield_pct, k_app_s-1, spectral_loss_J, GO_associated_fraction …"
+        },
+        "spectrum_id": {
+          "type": "string",
+          "description": "espectro de origem (proveniência)",
+          "x-foreign-key": "spectra"
         },
         "value": {
           "type": "number",

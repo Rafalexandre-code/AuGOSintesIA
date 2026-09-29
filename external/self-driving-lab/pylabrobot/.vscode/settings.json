@@ -1,0 +1,19 @@
+{
+  "editor.tabSize": 2,
+  "files.trimTrailingWhitespace": true,
+  "python.testing.pytestArgs": ["."],
+  "python.testing.pytestEnabled": true,
+  "editor.rulers": [100],
+  "files.exclude": {
+    "**/__pycache__": true
+  },
+  "[markdown]": {
+    "editor.wordWrap": "bounded",
+    "editor.wordWrapColumn": 100
+  },
+  "[restructuredtext]": {
+    "editor.wordWrap": "bounded",
+    "editor.wordWrapColumn": 100
+  },
+  "mypy.runUsingActiveInterpreter": true
+}

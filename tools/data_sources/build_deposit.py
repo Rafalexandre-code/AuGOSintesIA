@@ -34,10 +34,10 @@ MAPPING = {
     "dataset/literature": ["datasets/literature-seed/*.csv", "datasets/literature-seed/summary.json",
                            "datasets/reagents/reagent_dictionary.csv", "datasets/reagents/cruse_material_normalization.csv",
                            "outputs/literature_pipeline/works.csv", "outputs/literature_pipeline/query.json"],
-    "dataset/go_batches": ["{lab}/reagent_lots.csv", "{lab}/go_batches.csv", "{lab}/go_samples.csv",
-                           "{lab}/go_descriptors.csv"],
+    "dataset/go_batches": ["{lab}/reagent_lots.csv", "{lab}/reagent_analyses.csv", "{lab}/go_batches.csv",
+                           "{lab}/go_samples.csv", "{lab}/go_descriptors.csv"],
     "dataset/synthesis": ["{lab}/aunp_syntheses.csv", "{lab}/outcomes.csv"],
-    "dataset/characterization": ["{lab}/go_characterization.csv", "{lab}/aunp_characterization.csv"],
+    "dataset/characterization": ["{lab}/spectra.csv", "{lab}/go_characterization.csv", "{lab}/aunp_characterization.csv"],
     "dataset/raw_data": ["{lab}/raw_data/**/*"],
     "protocols": ["{lab}/protocols.csv", "{lab}/protocols/**/*"],
     "metadata": ["datasets/data-model/data_dictionary.csv", "datasets/data-model/go_aunp.schema.json",
@@ -48,6 +48,11 @@ MAPPING = {
     "code/aunp_designer": ["{code}/aunp_designer/**/*"],
     "code/transfer_learning": ["{code}/transfer_learning/**/*"],
     "code/benchmarking": ["{code}/benchmarking/**/*"],
+    "code/spectral": ["{code}/spectral/**/*"],
+    "code/characterization": ["{code}/characterization/**/*"],
+    "code/causal": ["{code}/causal/**/*"],
+    "code/sustainability": ["{code}/sustainability/**/*"],
+    "code/tests": ["{code}/tests/**/*"],
     "models": ["{code}/models/**/*"],
 }
 
@@ -60,7 +65,12 @@ FOLDER_DOCS = {
     "code/go_navigator": "Código do GO Navigator (descritores de lote, espaço latente de GO).",
     "code/aunp_designer": "Código do AuNP Designer (GP Matérn-5/2+ARD, qNEHVI, MISO).",
     "code/transfer_learning": "Transferência entre lotes/fontes de GO.",
-    "code/benchmarking": "Benchmarks (BOCoDe, vaso de pressão, COFs) e scripts de avaliação.",
+    "code/benchmarking": "Laboratório simulado, simulação de campanha/poder e estatística de benchmark.",
+    "code/spectral": "UV-Vis, perda espectral J e Mie.",
+    "code/characterization": "Raman, XPS e TEM.",
+    "code/causal": "DAG, DoWhy, E-value.",
+    "code/sustainability": "E-factor, EcoScale, custo por informação útil.",
+    "code/tests": "Testes automatizados do código.",
     "models": "Modelos treinados (GPs, redes) com a versão do código e dos dados usados.",
     "protocols": "SOPs versionados (protocols.csv + PDFs).",
     "metadata": "Dicionário de dados, JSON Schema, registro de fontes, .zenodo.json, CITATION.cff.",
@@ -109,7 +119,8 @@ def main() -> None:
                 rel = os.path.relpath(src, base)
                 # mantém subpastas de raw_data/protocols/code; arquivos avulsos vão direto
                 keep = any(pat.startswith(p) for p in ("raw_data", "protocols/", "go_navigator", "aunp_designer",
-                                                       "transfer_learning", "benchmarking", "models"))
+                                                       "transfer_learning", "benchmarking", "models", "spectral",
+                                                       "characterization", "causal", "sustainability", "tests"))
                 tail = rel.split(os.sep, 1)[1] if keep and os.sep in rel else os.path.basename(src)
                 out = os.path.join(dest, sub, tail)
                 os.makedirs(os.path.dirname(out), exist_ok=True)

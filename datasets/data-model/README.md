@@ -1,13 +1,13 @@
 # data-model — modelo de dados do laboratório GO–AuNP
 
 Inspirado no NanoCommons KnowledgeBase / eNanoMapper / ACEnano (substância → protocolo → medida com incerteza).
-Cadeia: **lote de reagente → lote de GO → preparo da amostra → XPS/Raman/AFM → descritores com incerteza →
+Cadeia: **lote de reagente (+ análises de impurezas) → lote de GO → preparo da amostra → XPS/Raman/AFM → descritores com incerteza →
 síntese de AuNP → UV-Vis/TEM → desfecho**. A fonte única é `tools/data_sources/lab_data_model.py`.
 
 | Arquivo | Conteúdo |
 |---|---|
-| `templates/*.csv` | cabeçalhos das 9 tabelas: `protocols`, `reagent_lots`, `go_batches`, `go_samples`, `go_characterization`, `go_descriptors`, `aunp_syntheses`, `aunp_characterization`, `outcomes` |
-| `data_dictionary.csv` | 137 colunas: tabela, tipo, obrigatória, unidade, valores permitidos, descrição |
+| `templates/*.csv` | cabeçalhos das 11 tabelas: `protocols`, `reagent_lots`, `reagent_analyses` (impurezas por lote — §4.3), `spectra` (arquivo bruto + diluição, caminho óptico, branco, tempo após o preparo — §4.4/§4.17), `go_batches`, `go_samples`, `go_characterization`, `go_descriptors`, `aunp_syntheses` (+ `hardware`, `is_control`, `preparation_id`, `block`, `run_order`, `status`), `aunp_characterization`, `outcomes` |
+| `data_dictionary.csv` | 176 colunas: tabela, tipo, obrigatória, unidade, valores permitidos, descrição |
 | `go_aunp.schema.json` | JSON Schema (draft 2020-12) do registro completo, para exportar a MDF/Zenodo |
 
 Fluxo: copie os modelos para `datasets/lab/`, preencha (uma linha por grandeza medida, sempre com `unit`,

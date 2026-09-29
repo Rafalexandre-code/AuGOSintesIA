@@ -1,0 +1,141 @@
+{# Edit action form component #}
+    <div style="margin-bottom: 1vh;margin-top: 1vh;">
+        <a type="button"
+           data-get-url="{{ url_for('design.get_operation_sidebar') }}"
+           onclick="updateInstrumentPanel(this)">
+            <i class="bi bi-arrow-return-left"></i>
+        </a>
+    </div>
+    {% if action %}
+    <h5> {{ action['action'] | format_name }} </h5>
+    {# Why this step no longer matches the deck, shown where it gets fixed #}
+    {% if issues %}
+        {% set blocking = issues | selectattr('severity', 'equalto', 'error') | list %}
+        <div class="alert {{ 'alert-danger' if blocking else 'alert-warning' }} py-2 px-3 small">
+            <div class="fw-semibold mb-1">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                {{ 'Step will fail' if blocking else 'Step may not run as designed' }}
+            </div>
+            <ul class="mb-0 ps-3">
+                {% for issue in issues %}
+                    <li>{{ issue.message }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+    <form role="form" method='POST' name="{{instrument}}" 
+          action="{{ url_for('design.design_steps.get_step', uuid=action['uuid']) }}"
+          onsubmit="submitEditForm(event); return false;">
+        {% if not action['args'] == None %}
+        <div class="form-group">
+            {% if not action['args'].__class__.__name__ == 'dict' %}
+                <div class="input-group mb-3">
+                    <label class="input-group-text">{{ action['action'] }}</label>
+                    <input class="form-control" type="text" id="arg" name="arg" placeholder="{{ action['arg_types']}}"
+                        value="{{ action['args'] }}" list="variables_datalist" aria-labelledby="variableHelpBlock">
+                </div>
+            {% else %}
+                {{ forms.hidden_tag() }}
+                {% for field in forms %}
+                    {% if field.type not in ['CSRFTokenField'] and field.name != 'return'
+                        and field.name != 'ivoryos_batch_action' %}
+                        <div class="input-group mb-3">
+                            <label class="input-group-text">{{ field.label.text | format_name }}
+                                {% if field.flags.required %}
+                                    <span class="text-danger ms-1">*</span>
+                                {% endif %}
+                            </label>
+                            {% if field.type == "BooleanField" %}
+                                {{ field(class="form-check-input") }}
+                            {% elif field.type in ["FlexibleEnumField", "FlexibleLiteralField"] %}
+                                <input type="text" id="{{ field.id }}" name="{{ field.name }}" value="{{ field._value() }}"
+                                       list="{{ field.id }}_options"
+                                       placeholder="{{ field.render_kw.placeholder if field.render_kw and field.render_kw.placeholder }}"
+                                       class="form-control">
+                                <datalist id="{{ field.id }}_options">
+                                    {% for key in field.choices %}
+                                        <option value="{{ key }}">{{ key }}</option>
+                                    {% endfor %}
+                                </datalist>
+                            {% else %}
+                                {{ field(class="form-control", list="variables_datalist", oninput="updateConsolidateVisibility(this)") }}
+                            {% endif %}
+                        </div>
+                        {% if forms.arg_types and forms.arg_types.get(field.name) == 'list' %}
+                            {% set is_consolidated = field.name in (action.get('consolidate_batch_args') or []) %}
+                            {# Initial visibility calculation #}
+                            {% set is_visible = forms.ivoryos_batch_action and forms.ivoryos_batch_action.data
+                                and field.data is string and field.data.startswith('#') %}
+                            <div class="input-group mb-3 consolidate-wrapper" title="Consolidate batch arguments"
+                                style="display: {{ 'flex' if is_visible else 'none' }}">
+                                <div class="input-group-text">
+                                    <input class="form-check-input mt-0" type="checkbox" name="ivoryos_consolidate_batch_args"
+                                        value="{{ field.name }}" aria-label="Consolidate" {% if is_consolidated %}checked{% endif %}>
+                                    <span class="ms-1 small">Consolidate</span>
+                                </div>
+                            </div>
+                        {% endif %}
+                    {% endif %}
+                {% endfor %}
+            <datalist id="variables_datalist">
+                {% for var_name in script.get_autocomplete_variables(before_id=action.id) %}
+                <option value="{{ var_name }}">{{ var_name }}</option>
+                {% endfor %}
+            </datalist>
+            {% endif %}
+
+            {# Dynamic Arguments Section #}
+            {% set extra_args = [] %}
+            {% set form_fields = [] %}
+            {% for field in forms %}
+                {% set _ = form_fields.append(field.name) %}
+            {% endfor %}
+
+            {% if action['args'] and action['args'] is mapping %}
+                {% for key, value in action['args'].items() %}
+                    {% if key not in form_fields %}
+                        {% set _ = extra_args.append((key, value)) %}
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+
+            {% if forms.has_kwargs or extra_args %}
+{#                <h6 class="mt-3 text-muted">Additional Parameters</h6>#}
+                <div id="dynamic-args-container" class="mb-3 dynamic-args-container">
+                    {% for key, value in extra_args %}
+                    <div class="input-group mb-2 dynamic-arg-row">
+                        <input type="text" class="form-control" name="extra_key[]" value="{{key}}" placeholder="Parameter Name">
+                        <input type="text" class="form-control" name="extra_value[]" value="{{value}}" list="variables_datalist"
+                            placeholder="Value">
+                        <button type="button" class="btn btn-outline-danger" onclick="this.parentElement.remove()">X</button>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                {% if forms.has_kwargs %}
+                    <button type="button" class="btn btn-sm btn-outline-teal mb-3" onclick="addDynamicArg(this)">
+                        <i class="bi bi-plus"></i> Add Parameter
+                    </button>
+                {% endif %}
+            {% endif %}
+
+            {# Manual rendering of batch_action and return #}
+            {% if forms.ivoryos_batch_action %}
+                <div class="input-group mb-3">
+                    <label class="input-group-text">{{ forms.ivoryos_batch_action.label.text | format_name }}</label>
+                    {{ forms.ivoryos_batch_action(class="form-check-input", onchange="handleBatchActionChange(this)") }}
+                </div>
+            {% endif %}
+
+            {% if forms.return %}
+                <div class="input-group mb-3">
+                    <label class="input-group-text">{{ forms.return.label.text | format_name }}</label>
+                    {{ forms.return(class="form-control") }}
+                </div>
+            {% endif %}
+            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="button" class="btn btn-secondary" id="back">Back</button>
+        </div>
+        {% endif %}
+    </form>
+    {% endif %}

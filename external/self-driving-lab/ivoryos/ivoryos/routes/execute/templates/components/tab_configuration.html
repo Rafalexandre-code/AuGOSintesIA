@@ -1,0 +1,605 @@
+{# Configuration tab component #}
+<div class="tab-pane fade {{ 'show active' if config_list else '' }} h-100" id="tab2" role="tabpanel"
+    aria-labelledby="tab2-tab">
+    <div class="row h-100" style="overflow-y: scroll">
+        <!-- Sidebar: File Management -->
+        <div class="col-xl-3 col-lg-4">
+            <div class="border-0 bg-transparent">
+                <div class="d-flex flex-column gap-3">
+                    <!-- File Actions -->
+                    <div class="card shadow-sm">
+                        <div class="card-header py-2">
+                            <h6 class="mb-2 fw-bold"><i class="bi bi-file-earmark-text me-2"></i>File Actions</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-grid gap-3">
+                                <!-- Download Template -->
+                                <a href="{{ url_for('execute.execute_files.download_empty_config', filetype='configure') }}"
+                                    class="btn btn-outline-secondary btn-sm text-start">
+                                    <i class="bi bi-download me-2"></i> Download Template
+                                </a>
+
+                                <hr class="my-1">
+
+                                <!-- Select Existing -->
+                                <form name="filenameForm" id="filenameForm" method="GET"
+                                    action="{{ url_for('execute.experiment_run') }}" enctype="multipart/form-data">
+                                    <label class="form-label small text-muted mb-1">Select Existing</label>
+                                    <div class="input-group input-group-sm">
+                                        <select class="form-select" name="filename" id="filenameSelect"
+                                            onchange="document.getElementById('filenameForm').submit();">
+                                            <option {{ 'selected' if not filename else '' }} value="">-- Select file
+                                                --
+                                            </option>
+                                            {% for config_file in config_file_list %}
+                                            <option {{ 'selected' if filename==config_file else '' }}
+                                                value="{{ config_file }}">{{ config_file }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </form>
+
+                                <!-- Upload New -->
+                                <form method="POST" id="loadFile" name="loadFile"
+                                    action="{{ url_for('execute.execute_files.upload') }}"
+                                    enctype="multipart/form-data">
+                                    <label class="form-label small text-muted mb-1">Upload New (.csv)</label>
+                                    <div class="input-group input-group-sm">
+                                        <input class="form-control" name="file" type="file" accept=".csv"
+                                            required="required"
+                                            onchange="isSwitchingFile=true; document.getElementById('loadFile').submit();">
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Config Status / Info -->
+
+
+                    <!-- Run Settings -->
+                    <div class="card shadow-sm">
+                        <div class="card-header py-2">
+                            <h6 class="mb-0 fw-bold"><i class="bi bi-play-circle me-2"></i>Run Experiment</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label small text-muted">Experiment Name</label>
+                                <input class="form-control" type="text" id="display_name_config" name="display_name" placeholder="{{ script.name if script.name else 'untitled' }}" form="online-config">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small text-muted">Batch Size</label>
+                                <input class="form-control" type="number" id="batch_size" name="batch_size" min="1"
+                                    max="1000" value="1" form="online-config">
+                            </div>
+                            <div class="d-grid">
+                                <button type="submit" name="online-config" class="btn btn-teal shadow-sm"
+                                    form="online-config">
+                                    <i class="bi bi-play-circle-fill me-2"></i> Run
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content: Configuration Table -->
+        <div class="col-xl-9 col-lg-8">
+            {% if config_preview %}
+            <div class="alert alert-info shadow-sm mb-3">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-info-circle fs-4 me-3"></i>
+                    <div>
+                        <small class="d-block fw-bold">Loaded File: {{ filename }}</small>
+                        <small class="text-muted">{{ config_preview|length }} rows loaded</small>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            <div class="card shadow-sm">
+                <div class="card-header py-2 bg-light d-flex justify-content-between align-items-center">
+                    <h6 class="mb-2 fw-bold">Configuration Data</h6>
+
+                    <!-- Status Badges -->
+                    <div>
+                        <span id="saveStatus" class="badge bg-success rounded-pill" style="display: none;">
+                            <i class="bi bi-check-circle me-1"></i> Saved
+                        </span>
+                        <span id="modifiedStatus" class="badge bg-warning text-dark rounded-pill"
+                            style="display: none;">
+                            <i class="bi bi-pencil me-1"></i> Modified
+                        </span>
+                    </div>
+                </div>
+
+                <div class="card-body p-0 d-flex flex-column">
+                    <form method="POST" name="online-config" id="online-config"
+                        action="{{url_for('execute.experiment_run')}}" class="d-flex flex-column h-100">
+
+                        <!-- Table Wrapper with scroll -->
+                        <div class="table-responsive border-bottom" style="width: 100%; overflow-x: auto;">
+                            <table id="dataInputTable"
+                                class="table table-striped table-hover mb-0 table-sm align-middle">
+                                <thead class="table-light sticky-top" style="z-index: 5;">
+                                    <tr>
+                                        <th style="width: 30px;"></th>
+                                        <th style="width: 40px;">#</th>
+                                        {% for column in config_list %}
+                                        <th class="text-nowrap" style="min-width: 100px;">{{ column }}</th>
+                                        {% endfor %}
+                                        <th style="width: 50px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tableBody">
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Footer Actions -->
+                        <div class="card-footer bg-white py-3">
+                            <div class="d-flex gap-3">
+                                <!-- Table Controls -->
+                                <button type="button" class="btn btn-outline-teal btn-sm" onclick="addRow()">
+                                    <i class="bi bi-plus-circle me-1"></i> Add Row
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="clearAllRows()">
+                                    <i class="bi bi-trash me-1"></i> Clear
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="resetToFile()"
+                                    id="resetToFileBtn" style="display: none;">
+                                    <i class="bi bi-arrow-counterclockwise me-1"></i> Reset
+                                </button>
+
+                                <!-- Run Execution -->
+                                <div class="d-flex gap-3 align-items-center">
+                                </div>
+                            </div>
+                        </div>
+
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.7/Sortable.min.js"></script>
+
+<style>
+    .config-drag-handle {
+        cursor: move;
+        color: #999;
+        padding: 0 8px;
+        user-select: none;
+    }
+
+    .config-drag-handle:hover {
+        color: #333;
+    }
+
+    .sortable-ghost {
+        opacity: 0.4;
+        background-color: #f8f9fa;
+    }
+
+    .sortable-drag {
+        opacity: 0.8;
+    }
+
+    /* Custom Scrollbar for Table */
+    .table-responsive::-webkit-scrollbar {
+        height: 12px;
+        /* Height of horizontal scrollbar */
+        width: 12px;
+        /* Width of vertical scrollbar */
+    }
+
+    .table-responsive::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+    }
+
+    .table-responsive::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 4px;
+        border: 2px solid #f1f1f1;
+        /* Padding around thumb */
+    }
+
+    .table-responsive::-webkit-scrollbar-thumb:hover {
+        background: #a8a8a8;
+    }
+</style>
+
+<script>
+    var rowCount = 0;
+    var configColumns = {{ config_list| tojson }};
+    var configTypes = {{ config_type_list| tojson }};
+
+    // State management
+    var originalFileData = null;
+    var isModifiedFromFile = false;
+    var saveTimeout = null;
+    var lastSavedData = null;
+    var sortable = null;
+    var isSwitchingFile = false;
+
+    function addRow(data = null, skipSave = false) {
+        rowCount++;
+        var tableBody = document.getElementById("tableBody");
+        var newRow = tableBody.insertRow(-1);
+
+        // Drag handle cell
+        var dragCell = newRow.insertCell(-1);
+        var hasData = data && configColumns.some(col => data[col] && data[col].toString().trim() !== '');
+        var dragClass = hasData ? 'config-drag-handle' : 'invisible';
+        dragCell.innerHTML = '<span class="handle-wrapper ' + dragClass + '"><i class="bi bi-grip-vertical"></i></span>';
+        dragCell.style.textAlign = 'center';
+
+        // Row number cell
+        var rowNumCell = newRow.insertCell(-1);
+        rowNumCell.innerHTML = '<span class="badge bg-secondary">' + rowCount + '</span>';
+
+        // Data cells
+        configColumns.forEach(function (column, index) {
+            var cell = newRow.insertCell(-1);
+            var value = data && data[column] ? data[column] : '';
+            var configType = configTypes[column] || '';
+
+            if (typeof configType === "string" && (configType.startsWith('Enum:') || configType.startsWith('Literal:'))) {
+                var prefixLen = configType.startsWith('Enum:') ? 5 : 8;
+                var options = configType.substring(prefixLen).split(',');
+                var optionsHtml = '<option value="">Select...</option>';
+                options.forEach(function (opt) {
+                    var selected = (value === opt) ? 'selected' : '';
+                    optionsHtml += '<option value="' + opt + '" ' + selected + '>' + opt + '</option>';
+                });
+
+                cell.innerHTML = '<select class="form-select form-select-sm" name="' +
+                    column + '[' + rowCount + ']" onchange="onInputChange(this)">' +
+                    optionsHtml + '</select>';
+            } else {
+                var placeholder = configTypes[column] || 'value';
+                cell.innerHTML = '<input type="text" class="form-control form-control-sm" name="' +
+                    column + '[' + rowCount + ']" value="' + value + '" placeholder="' + placeholder +
+                    '" oninput="onInputChange(this)" onchange="onInputChange(this)">';
+            }
+        });
+
+        // Action cell
+        var actionCell = newRow.insertCell(-1);
+        actionCell.innerHTML = '<button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRow(this)" title="Remove row">' +
+            '<i class="bi bi-trash"></i></button>';
+
+        if (!skipSave) {
+            markAsModified();
+            debouncedSave();
+        }
+    }
+
+    function removeRow(button) {
+        var row = button.closest('tr');
+        row.remove();
+        updateRowNumbers();
+        markAsModified();
+        debouncedSave();
+    }
+
+    function updateRowNumbers() {
+        var tableBody = document.getElementById("tableBody");
+        var rows = tableBody.getElementsByTagName('tr');
+        for (var i = 0; i < rows.length; i++) {
+            // Update displayed row number badge
+            var badge = rows[i].querySelector('.badge');
+            if (badge) {
+                badge.textContent = i + 1;
+            }
+            // Re-sync input/select name attributes to use the correct 1-based index
+            var inputs = rows[i].querySelectorAll('input[name], select[name], textarea[name]');
+            inputs.forEach(function (input) {
+                var name = input.name;
+                var bracketIdx = name.indexOf('[');
+                if (bracketIdx !== -1) {
+                    var columnName = name.substring(0, bracketIdx);
+                    input.name = columnName + '[' + (i + 1) + ']';
+                }
+            });
+        }
+        // Keep rowCount in sync with the actual number of rows
+        rowCount = rows.length;
+    }
+
+    function clearAllRows() {
+        if (confirm('Are you sure you want to clear all rows?')) {
+            var tableBody = document.getElementById("tableBody");
+            tableBody.innerHTML = '';
+            rowCount = 0;
+            markAsModified();
+            clearSavedData();
+            // Add 5 empty rows by default
+            for (let i = 0; i < 5; i++) {
+                addRow(null, true);
+            }
+            debouncedSave();
+        }
+    }
+
+    function resetToFile() {
+        if (originalFileData && confirm('Reset to original file data? This will lose all manual changes.')) {
+            loadDataFromSource(originalFileData, false);
+            isModifiedFromFile = false;
+            updateStatusIndicators();
+            debouncedSave();
+        }
+    }
+
+    function onInputChange(inputElement) {
+        if (inputElement) {
+            var row = inputElement.closest('tr');
+            var inputs = row.querySelectorAll('input, select, textarea');
+            var hasData = false;
+            for (var i = 0; i < inputs.length; i++) {
+                if (inputs[i].value.trim() !== '') {
+                    hasData = true;
+                    break;
+                }
+            }
+            var handleWrapper = row.querySelector('.handle-wrapper');
+            if (handleWrapper) {
+                if (hasData) {
+                    handleWrapper.classList.add('config-drag-handle');
+                    handleWrapper.classList.remove('invisible');
+                    handleWrapper.style.visibility = ''; // Reset inline style if existing
+                } else {
+                    handleWrapper.classList.remove('config-drag-handle');
+                    handleWrapper.classList.add('invisible');
+                }
+            }
+        }
+        markAsModified();
+        debouncedSave();
+    }
+
+    function markAsModified() {
+        if (originalFileData) {
+            isModifiedFromFile = true;
+            updateStatusIndicators();
+        }
+    }
+
+    function updateStatusIndicators() {
+        var modifiedStatus = document.getElementById('modifiedStatus');
+        var resetBtn = document.getElementById('resetToFileBtn');
+
+        if (isModifiedFromFile && originalFileData) {
+            modifiedStatus.style.display = 'inline-block';
+            resetBtn.style.display = 'inline-block';
+        } else {
+            modifiedStatus.style.display = 'none';
+            resetBtn.style.display = 'none';
+        }
+    }
+
+    function showSaveStatus() {
+        var saveStatus = document.getElementById('saveStatus');
+        saveStatus.style.display = 'inline-block';
+        setTimeout(function () {
+            saveStatus.style.display = 'none';
+        }, 2000);
+    }
+
+    function debouncedSave() {
+        clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(function () {
+            saveFormData();
+            showSaveStatus();
+        }, 1000); // Save 1 second after user stops typing
+    }
+
+    function saveFormData() {
+        var formData = getCurrentFormData();
+        try {
+            sessionStorage.setItem('configFormData', JSON.stringify(formData));
+            sessionStorage.setItem('configModified', isModifiedFromFile.toString());
+            lastSavedData = formData;
+            console.log('Tab2: Saved form data', formData.length, 'rows');
+        } catch (e) {
+            console.warn('Could not save form data to sessionStorage:', e);
+        }
+    }
+
+    function getCurrentFormData() {
+        var tableBody = document.getElementById("tableBody");
+        var rows = tableBody.getElementsByTagName('tr');
+        var data = [];
+
+        for (var i = 0; i < rows.length; i++) {
+            var inputs = rows[i].querySelectorAll('input, select, textarea');
+            var rowData = {};
+            var hasData = false;
+
+            for (var j = 0; j < inputs.length; j++) {
+                var input = inputs[j];
+                var name = input.name;
+                if (name) {
+                    var columnName = name.substring(0, name.indexOf('['));
+                    rowData[columnName] = input.value;
+                    if (input.value.trim() !== '') {
+                        hasData = true;
+                    }
+                }
+            }
+
+            if (hasData) {
+                data.push(rowData);
+            }
+        }
+
+        return data;
+    }
+
+    function loadSavedData() {
+        try {
+            var savedData = sessionStorage.getItem('configFormData');
+            var savedModified = sessionStorage.getItem('configModified');
+
+            if (savedData) {
+                var parsedData = JSON.parse(savedData);
+                isModifiedFromFile = savedModified === 'true';
+                console.log('Tab2: Loaded saved data', parsedData.length, 'rows');
+                return parsedData;
+            }
+        } catch (e) {
+            console.warn('Could not load saved form data:', e);
+        }
+        return null;
+    }
+
+    function clearSavedData() {
+        try {
+            sessionStorage.removeItem('configFormData');
+            sessionStorage.removeItem('configModified');
+            console.log('Tab2: Cleared saved data');
+        } catch (e) {
+            console.warn('Could not clear saved data:', e);
+        }
+    }
+
+    function loadDataFromSource(data, isFromFile = false) {
+        // Clear existing rows
+        var tableBody = document.getElementById("tableBody");
+        tableBody.innerHTML = '';
+        rowCount = 0;
+
+        // Add rows with data
+        data.forEach(function (rowData) {
+            addRow(rowData, true);
+        });
+
+        // Add a few empty rows for additional input
+        for (let i = 0; i < 3; i++) {
+            addRow(null, true);
+        }
+
+        if (isFromFile) {
+            originalFileData = JSON.parse(JSON.stringify(data)); // Deep copy
+            isModifiedFromFile = false;
+            // clearSavedData(); // Keep saved data for persistence across reloads
+        }
+
+        updateStatusIndicators();
+    }
+
+    function initializeSortable() {
+        var tableBody = document.getElementById('tableBody');
+
+        if (sortable) {
+            sortable.destroy();
+        }
+
+        sortable = new Sortable(tableBody, {
+            handle: '.config-drag-handle',
+            animation: 150,
+            ghostClass: 'sortable-ghost',
+            dragClass: 'sortable-drag',
+            onEnd: function (evt) {
+                updateRowNumbers();
+                markAsModified();
+                debouncedSave();
+                console.log('Row moved from index', evt.oldIndex, 'to', evt.newIndex);
+            }
+        });
+    }
+
+    function loadConfigData() {
+        // Check for saved form data first
+        var savedData = loadSavedData();
+
+        {% if config_preview %}
+        var fileData = {{ config_preview | tojson | safe
+    }};
+    originalFileData = JSON.parse(JSON.stringify(fileData)); // Deep copy
+
+    if (savedData && savedData.length > 0) {
+        // Check if saved data matches new file data
+        if (JSON.stringify(savedData) !== JSON.stringify(fileData)) {
+            isModifiedFromFile = true;
+        } else {
+            isModifiedFromFile = false;
+        }
+        // Load saved data if available
+        loadDataFromSource(savedData, false);
+        console.log('Tab2: Loaded saved form data and compared');
+        updateStatusIndicators();
+    } else {
+        // Load from file because no saved data or saved data matches exactly (implicitly handled by treating as new load)
+        // But actually if savedData is null/empty we just load file
+        loadDataFromSource(fileData, true);
+        console.log('Tab2: Loaded file data');
+    }
+    {% else %}
+    if (savedData && savedData.length > 0) {
+        // Load saved data
+        loadDataFromSource(savedData, false);
+        console.log('Tab2: Loaded saved form data');
+    } else {
+        // Add default empty rows
+        var tableBody = document.getElementById("tableBody");
+        var currentRows = tableBody.rows.length;
+        if (currentRows < 5) {
+            for (let i = 0; i < 5; i++) {
+                addRow(null, true);
+            }
+        }
+    }
+    {% endif %}
+
+    // Initialize sortable after loading data
+    initializeSortable();
+    }
+
+    // Handle page unload
+    window.addEventListener('beforeunload', function () {
+        saveFormData();
+    });
+
+    // Initialize table when page loads
+    document.addEventListener("DOMContentLoaded", function () {
+        loadConfigData();
+        
+        var savedBatchSize = localStorage.getItem('ivoryos_batch_size');
+        var batchSizeInputs = document.querySelectorAll('input[name="batch_size"]');
+        if (savedBatchSize && batchSizeInputs.length > 0) {
+            batchSizeInputs.forEach(function(input) {
+                input.value = savedBatchSize;
+            });
+        }
+        batchSizeInputs.forEach(function(input) {
+            input.addEventListener('input', function() {
+                localStorage.setItem('ivoryos_batch_size', this.value);
+                // Sync the value across all tabs
+                var val = this.value;
+                batchSizeInputs.forEach(function(otherInput) {
+                    if (otherInput !== input) {
+                        otherInput.value = val;
+                    }
+                });
+            });
+        });
+    });
+
+    // Add change listener to filename select
+    var filenameSelect = document.getElementById('filenameSelect');
+    if (filenameSelect) {
+        filenameSelect.addEventListener('change', function () {
+            isSwitchingFile = true;
+        });
+    }
+
+    // ============================================
+    // EXPOSE FUNCTIONS GLOBALLY FOR COORDINATION
+    // ============================================
+    window.saveFormData = saveFormData;
+    window.loadConfigData = loadConfigData;
+</script>
