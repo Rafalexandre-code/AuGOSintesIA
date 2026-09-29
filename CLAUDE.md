@@ -26,11 +26,19 @@ coleção de datasets + repositórios de terceiros descompactados em `Data/`.
 - `Data/repo/*.ge3` — frames GE 2048×2048 uint16 (offset 8192) de CeO₂ e dark.
 - Soltos: `DATASET_AuNCs.csv` (`;`, latin-1), `dataset_v1.csv` (69 839 COFs), `pressure_vessel_DS.csv`,
   `Statistics%20of%20Product%20Names.xlsx`.
+- `Data/external/` — 48 repositórios de referência (BoTorch, Ax, BayBE, BoFire, HEAD, SPACESHIP, dados KIST de
+  AuNP, misoKG, DoWhy, SHAP, MACE, fairchem, pyFAI, LLaMA-Factory…). Manifesto: `Data/external/README.md`;
+  commits: `tools/external_repos.lock.tsv`; atualizar: `tools/fetch_external.sh --latest`.
+- `environments/` + `tools/setup_env.sh <nome>` — um ambiente por subprojeto (`--list`); `core` = projeto GO–AuNP.
 
 ## Cuidados
-- 13 arquivos são **ponteiros Git LFS** (ver `.gitattributes`): `Data/dataset*.json`,
-  `Data/aunp-synthesis_dataset_2021-9-14.json`, `Data/repo/dark_after_000413.ge3` e 9 `iter-*-train.xyz`
-  do GO-MACE. Use `git lfs pull` ou as fontes originais (HuggingFace/Zenodo).
-- Cada subprojeto tem dependências conflitantes (torch 1.7 … ≥ 2.8, Python 3.6 … 3.12): um ambiente
-  virtual por subprojeto. Não "consertar" código de terceiros sem necessidade; preferir wrappers novos.
-- Rodar código de `Data/` gera `__pycache__/`; não commitar esses artefatos.
+- 13 arquivos usam **Git LFS** (ver `.gitattributes`): rode `git lfs install && git lfs pull`.
+- Cada subprojeto tem dependências conflitantes (torch 1.7 … 2.14, Python 3.8 … 3.12): use
+  `tools/setup_env.sh <nome>` (cria `.venvs/<nome>`, ignorado pelo git).
+- Caminhos devem ser relativos ao script ou vir de variável de ambiente (já corrigidos: `QUBOT_DATA_DIR`,
+  `QWEN_*`, `RAMBOAU_EXP_DATA`, `GO_AMORPHOUS_DB`, `SDL_BELIEF_MODEL`, `MACE_RUN_TRAIN`, `GAUGE_PORT`…).
+- Dados sintéticos/substitutos: `GO-MACE-23-main/structures/aG_p6_surrogate.xyz` (gerado por
+  `code/make_amorphous_db.py`) e `RAMBOAU-main/problems/data/make_synthetic_experiment.py` NÃO são dados medidos.
+- Não versionar cópias em `Data/external/` com `.git` aninhado nem ponteiros LFS de terceiros (use o script).
+- Rodar código de `Data/` gera `__pycache__/`, `result/`, `Bgolearn/` etc.; não commitar esses artefatos.
+- `data/*/summary.csv` do Qubot são regravados pelas análises; teste com `QUBOT_DATA_DIR=<cópia>`.

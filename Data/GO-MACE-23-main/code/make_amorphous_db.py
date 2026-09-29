@@ -237,9 +237,10 @@ def main():
             print(f"run {run} switch {accepted:4d} (try {it + 1}) p6 = {p6:.3f}", flush=True)
             if p6 < args.p6_min:
                 break
+        # save after every run so partial progress is kept
+        os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
+        write(args.out, frames)
 
-    os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
-    write(args.out, frames)
     p6s = np.array([f.info["p6"] for f in frames])
     print(f"wrote {len(frames)} frames to {args.out}; p6 range {p6s.min():.3f}-{p6s.max():.3f}")
 

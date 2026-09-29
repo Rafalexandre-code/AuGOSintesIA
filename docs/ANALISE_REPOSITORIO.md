@@ -5,6 +5,8 @@
 > nanocompósitos GO–AuNP sob variabilidade multi-fonte de matéria-prima"*.
 >
 > Análise feita em 2026-09-29 sobre o commit `e18986f` (2 commits, ~2 870 arquivos, ~1,7 GB em disco).
+> **Atualizado no mesmo dia:** 48 repositórios externos em `Data/external/` (§10), ambientes por
+> subprojeto em `environments/` (§11) e correção dos problemas listados antes (§7).
 
 ---
 
@@ -29,9 +31,11 @@
    - 6.11 [M2Hub-master — GNNs e benchmarks de materiais](#611-m2hub-master--gnns-e-benchmarks-de-materiais)
    - 6.12 [Qubot: data/, scripts/, qubot/, README.pdf — robô modular de SDL](#612-qubot-data-scripts-qubot-readmepdf--robô-modular-de-laboratório)
    - 6.13 [repo/ — imagens de detector GE (.ge3)](#613-repo--imagens-de-detector-ge-ge3)
-7. [Problemas, lacunas e pegadinhas encontrados](#7-problemas-lacunas-e-pegadinhas-encontrados)
+7. [Problemas encontrados e como foram corrigidos](#7-problemas-encontrados-e-como-foram-corrigidos)
 8. [Como combinar tudo no pipeline GO–AuNP](#8-como-combinar-tudo-no-pipeline-goaunp)
 9. [Receitas rápidas (cola)](#9-receitas-rápidas-cola)
+10. [Repositórios externos (Data/external)](#10-repositórios-externos-dataexternal)
+11. [Ambientes isolados (environments/)](#11-ambientes-isolados-environments)
 
 ---
 
@@ -39,12 +43,17 @@
 
 O repositório **não é um software único**: é uma coleção curada de (a) o projeto de pesquisa em `.docx`,
 (b) fichas PubChem dos reagentes, (c) datasets e (d) **13 repositórios de terceiros** baixados como `.zip`
-do GitHub/Zenodo e descompactados em `Data/` (daí os sufixos `-main`/`-master`). Cada subprojeto tem
-dependências próprias e **deve ser usado em ambiente virtual separado**.
+do GitHub/Zenodo e descompactados em `Data/` (daí os sufixos `-main`/`-master`), mais **48 repositórios de
+referência** em `Data/external/` (§10). Cada subprojeto tem dependências próprias e **deve ser usado em
+ambiente virtual separado** (`tools/setup_env.sh`, §11).
 
 ```
 AuGOSintesIA/
-├── README.md                              # só o título
+├── README.md                              # resumo + link para este documento
+├── CLAUDE.md                              # guia rápido para agentes
+├── docs/ANALISE_REPOSITORIO.md            # este documento
+├── environments/                          # um ambiente por subprojeto (§11)
+├── tools/                                 # setup_env.sh, fetch_external.sh + lock dos externos
 ├── LICENSE                                # MIT, Rafael Alexandre (2026)
 ├── .gitattributes                         # regras Git LFS (13 arquivos grandes)
 ├── .idea/                                 # config do PyCharm (Python 3.13)
@@ -56,7 +65,8 @@ AuGOSintesIA/
     ├── dataset_v1.csv                     # 69 839 COFs (armazenamento de CH4)
     ├── pressure_vessel_DS.csv             # 52 272 laminados compósitos (vaso de pressão)
     ├── Statistics%20of%20Product%20Names.xlsx  # contagem de nomes de produtos (base Gu et al.)
-    ├── dataset.json, dataset_low_conf_skip-clean.json, aunp-synthesis_dataset_2021-9-14.json  # ⚠ ponteiros LFS
+    ├── dataset.json, dataset_low_conf_skip-clean.json, aunp-synthesis_dataset_2021-9-14.json  # Git LFS (git lfs pull)
+    ├── external/                          # 48 repositórios de referência clonados (§10)
     ├── GO-MACE-23-main/                   # potencial MACE p/ GO + gerador de estruturas (1,3 GB)
     ├── AmberGO-main/                      # GO parametrizado p/ AMBER (GAFF/GAFF2)
     ├── text-mined-aunp-synthesis_public-main/  # 5 154 artigos de síntese de AuNP (text mining)
@@ -125,9 +135,11 @@ orientador Prof. Dr. Henrique A. M. Faria; candidato Rafael Alexandre de Pinho L
 
 | Arquivo | Conteúdo | Observações |
 |---|---|---|
-| `README.md` | Apenas `# AuGOSintesIA` | Pode receber um resumo apontando para este documento |
+| `README.md` | Resumo do repositório + link para este documento | |
+| `CLAUDE.md` | Guia rápido para agentes (mapa + cuidados) | |
+| `.gitignore` | ignora `.venvs/` e `__pycache__/` | |
 | `LICENSE` | MIT © 2026 Rafael Alexandre | Os subprojetos em `Data/` mantêm **suas próprias licenças** (MIT, GPL-3 no AmberGO etc.) |
-| `.gitattributes` | 13 caminhos rastreados por **Git LFS** | O clone atual traz só os *ponteiros* desses 13 arquivos (ver §7) |
+| `.gitattributes` | 13 caminhos rastreados por **Git LFS** | Requer `git lfs install` antes do clone (ou `git lfs pull` depois) — §7.1 |
 | `.idea/` | Projeto PyCharm, SDK "Python 3.13" | Sem efeito fora do PyCharm |
 | `Projeto_FAPESP_…docx` | Projeto de pesquisa completo (§2) | Ler com Word/LibreOffice ou `pandoc` |
 
@@ -203,8 +215,11 @@ df = pd.read_csv("Data/DATASET_AuNCs.csv", sep=";", encoding="latin-1")
   (licença MIT, 10k–100k amostras). Descreve `dataset.json` (bruto) e `dataset_low_conf_skip-clean.json`
   (limpo, sem respostas de baixa confiança) com campos `sample_id, title, paragraph, step_number,
   step_content, product_id, product_name, route_sequence, property_name, value`.
-- ⚠ Ambos os JSON estão como **ponteiros LFS** aqui. Baixe do HuggingFace:
-  `huggingface-cli download Kai-gu/Synthesis-Properties-Database-for-Nanomaterials --repo-type dataset`.
+- São arquivos **Git LFS**: rode `git lfs install && git lfs pull` (os objetos estão no GitHub do
+  repositório). `dataset.json` = 100 731 registros (531 MB); `dataset_low_conf_skip-clean.json` = 47 023.
+  O formato real de cada registro é `{sample_id, title, paragraph, extracted_content, confidence}`, com os
+  passos/rotas/propriedades dentro de `extracted_content` (o texto do card lista os campos já "achatados").
+- Fonte alternativa: `huggingface-cli download Kai-gu/Synthesis-Properties-Database-for-Nanomaterials --repo-type dataset`.
 
 ### 5.4 `Data/README.pdf`
 - README da publicação **Qubot** (ver §6.12): explica `data/`, `scripts/`, `qubot/`.
@@ -214,11 +229,11 @@ df = pd.read_csv("Data/DATASET_AuNCs.csv", sep=";", encoding="latin-1")
   (`voidFraction`, `surface_area`, `density`, `largest_incl_sphere`…, parâmetros de célula), composição
   (`num_carbon`…), adsorção GCMC (`highUptake_*` ≈ 65 bar, `lowUptake_*` ≈ 5,8 bar, calores de dessorção)
   e o alvo `del_capacity` (capacidade de entrega de CH₄, v/v; 4,5–217).
-- Corresponde ao conjunto de COFs de Mercado et al. usado como benchmark de BO. **Não é referenciado por
-  nenhum código** do repositório, mas é o "problema COF" do `chem-MFBO` (que espera
-  `data/clean/cofs.csv` com colunas de features + `HF` + `LF`).
-- **Uso:** benchmark de BO multi-fidelidade: p.ex. `HF = del_capacity`, `LF = uma medida barata
-  correlacionada` (a escolha exata do paper deve ser conferida no arXiv 2410.00544).
+- Corresponde ao conjunto de COFs de Mercado et al. (armazenamento de metano). **Não é referenciado por
+  nenhum código** do repositório. (Correção: o "problema COF" do `chem-MFBO` é *outro* conjunto — 608 COFs
+  de separação Xe/Kr, SimonEnsemble — agora restaurado em `chem-MFBO-main/data/clean/cofs.csv`, §6.8.)
+- **Uso:** benchmark grande de BO/triagem virtual (`del_capacity` como alvo); para multi-fidelidade, uma
+  propriedade barata correlacionada (ex.: `surface_area`, `voidFraction`) pode fazer o papel de LF.
 
 ### 5.6 `pressure_vessel_DS.csv` — laminados compósitos
 - 52 272 linhas × 9: `SAngle` (0–175°), `Nrplies` (8–40), `Stepply`, `SymLam` (0/1), `Thickpl` (1–2),
@@ -227,8 +242,9 @@ df = pd.read_csv("Data/DATASET_AuNCs.csv", sep=";", encoding="latin-1")
 - **Uso:** problema discreto grande para testar BO em tabela (tipo "virtual samples" do Bgolearn).
 
 ### 5.7 `aunp-synthesis_dataset_2021-9-14.json`, `dataset.json`, `dataset_low_conf_skip-clean.json`
-- **Ponteiros LFS** (133 bytes). O primeiro existe completo dentro de
-  `text-mined-aunp-synthesis_public-main/aunp-synthesis_dataset_2021-9-14.json.zip` (51 MB descompactado).
+- Arquivos **Git LFS** (antes apareciam como ponteiros de 133 bytes). Com `git lfs pull` vêm completos.
+  O primeiro é idêntico (byte a byte) ao conteúdo de
+  `text-mined-aunp-synthesis_public-main/aunp-synthesis_dataset_2021-9-14.json.zip` (51 MB).
 
 ---
 
@@ -290,6 +306,11 @@ atoms.calc = MACECalculator(model_paths="…/iter-12-final-model/go-mace-23.pt",
 print(atoms.get_potential_energy())
 # depois: ase.optimize.BFGS para relaxar, ase.md.Langevin para MD a 900–1500 K
 ```
+
+**Novidades nesta cópia:** `code/make_amorphous_db.py` gera o banco de grafeno amorfo exigido por
+`run_amorphpus.py` (substituto do `aG_p6.xyz` não publicado — §7.2); os `train.sh` usam `mace_run_train`.
+Testado: `go-mace-23.pt` carrega no `mace-torch` 0.3.16 e reproduz as energias DFT do conjunto de teste com
+erro médio de 1,7 meV/átomo.
 
 **Aplicação no projeto (GO Navigator):** gerar uma biblioteca de GO com O/C e OH:epóxi variando como os
 lotes reais L1–L6; relaxar/anelar com o MACE e extrair descritores simulados (densidade de grupos, fração
@@ -407,8 +428,8 @@ devolver **passos de síntese** (S1, S2…), **rotas** (`product_1 <nome>: S1 �
 1. **Sem treinar:** baixar a base pronta do HuggingFace e filtrar `product_name` por sinônimos de AuNP
    (use `Statistics…xlsx`) e parágrafos que mencionem GO.
 2. **Extrair novos artigos de GO–AuNP:** montar um JSON alpaca com `instruction` = prompt de
-   `test_labels.json` e `input` = parágrafo; ajustar `base_model_path`, `saves_path`, `test_data_path`
-   em `main()` de `test_model_optimized.py`; rodar. Validar amostralmente à mão (projeto §4.1).
+   `test_labels.json` e `input` = parágrafo; rodar
+   `python test_model_optimized.py --base-model Qwen3-14B --saves-path saves --test-data meus.json`. Validar amostralmente à mão (projeto §4.1).
 3. **Design inverso:** o formato de `inverse_design/example_dataset.json` serve de molde para pedir rotas
    com "Target Product: Au NPs on GO", reagentes obrigatórios e propriedades-alvo (λmax, diâmetro).
 
@@ -443,7 +464,9 @@ cd Data/SDL-main
 python -c "from Functions import BayesianOptimization as BO; r=BO.run(modeltype='GPR',surrogate='ackley',noise=0.1,dimensions=2,runlength=20).singleOptimization(); print(max(r.Y))"
 mkdir -p "save data" "save plots" && python main.py && python main_plot.py
 ```
-⚠ `main.py` usa `BRMLPR_EGS` e `main_plot.py` espera `GPR` → troque um dos dois para casar os nomes.
+`main.py` e `main_plot.py` leem o mesmo modelo de `SDL_BELIEF_MODEL` (padrão `BRMLPR_EGS`; ex.:
+`SDL_BELIEF_MODEL=GPR python main.py && SDL_BELIEF_MODEL=GPR python main_plot.py`). As pastas de saída são
+criadas automaticamente.
 
 **Aplicação:** exercício de formação (projeto, "Detalhamento", item 2/4): ver quanto o ruído experimental
 atrapalha e comparar GP × ensemble de MLP antes de ir para BoTorch.
@@ -512,7 +535,8 @@ Estrutura derivada do DGEMO. Baseado em BoTorch + pymoo 0.4.2.2.
   vertical (`bstvert`), horizontal (`bsthorz`) ou diagonal (`bstdiag`).
 - `problems/exp.py`: **problema real** de síntese de ZnO em reator de alto cisalhamento (4 variáveis:
   C_NaOH/C_ZnCl, C_ZnCl, Q_AC, Q_Air; 3 objetivos: razão de picos XRD, razão de aspecto, produção N_ZnO) —
-  ⚠ lê `problems/data/MT-KBH-004/XRD+synthsis_data_b*.xlsx`, **ausente** no repositório.
+  Os dados reais (`MT-KBH-004`) não são públicos: use `RAMBOAU_EXP_DATA=<pasta>` com seus dados, ou gere
+  um exemplo **sintético** no mesmo formato com `python problems/data/make_synthetic_experiment.py`.
 - `main.py` (uma execução), `run.py` (várias seeds/algoritmos em paralelo), `main_exp.py` (modo
   experimento real: propõe lote de 6), `visualization/*.py` (hipervolume, frentes de Pareto),
   `nbout/Analysis/*.ipynb` (figuras do paper), `install_help/` (conda env, script SLURM).
@@ -562,8 +586,10 @@ python src/chem_mfbo/benchmark/benchmark.py                                  # s
 python src/chem_mfbo/benchmark/benchmark.py --config-name=synthetic_sweep.yaml
 python src/chem_mfbo/metrics/plot_synthetic.py        # (README diz benchmark/, o arquivo está em metrics/)
 ```
-Problemas reais precisam de `data/clean/{cofs,…}.csv` (**não incluído**; `data/*` está no `.gitignore`).
-Formato: colunas de features… + `HF` + `LF` (as duas últimas).
+Os problemas reais usam `data/clean/{cofs,polarizability,freesolv,BH_dataset}.csv` — **restaurados** do
+repositório original (a cópia local tinha perdido `data/`). Formato: features… + `HF` + `LF`
+(COFs: 608 estruturas para separação Xe/Kr, de SimonEnsemble/multi-fidelity-BO-of-COFs-for-Xe-Kr-seps).
+Como `data/*` está no `.gitignore` do projeto, versione com `git add -f`.
 
 **Aplicação (MISO, §4.8):** tratar **UV-Vis/DLS como LF** e **TEM/XPS/SAXS como HF**; `cost_ratio` = custo
 relativo real; o `CostMultiFidelityEI` e o `MFKG` decidem *onde* e *em que fidelidade* medir — base direta
@@ -722,9 +748,10 @@ breadboard, gantry), `Manuals/Assembly Guide Qubot Gantry V4.pdf`, `BOM *.xlsx` 
 - `requirements.txt`: impedance 1.7.1, matplotlib, numpy 2.4, pandas 3.0, plotly, scikit-learn 1.8,
   scipy 1.17, control-lab-ly 2.1.0.
 
-**Como usar:** manter `data/` e `scripts/` no mesmo diretório-pai (já está assim em `Data/`), ajustar
-`main_dir`/`PATH2REPO` no topo de cada script e rodar célula a célula (VS Code/Spyder). ⚠ Os scripts usam
-separadores Windows (`r'\summary.csv'`) — em Linux troque por `os.path.join`/`pathlib`.
+**Como usar:** `tools/setup_env.sh qubot-scripts`; rode a partir de `Data/scripts/<pasta>` (ou defina
+`QUBOT_DATA_DIR`) célula a célula ou inteiro (`python data_analysis.py`). Os caminhos agora funcionam em
+Windows/Linux/macOS; `EIS_INTERACTIVE=0` pula a revisão manual dos ajustes de EIS. ⚠ As análises
+regravam `data/*/summary.csv`.
 
 **Aplicação (§4.16):** referência de *SDL de bancada barato* (gantry + pipetagem + balança) para
 automatizar preparo de soluções de HAuCl₄/redutor sobre GO; os protocolos de repetibilidade e os
@@ -751,43 +778,64 @@ img = frames.mean(0) - dark.mean(0)        # depois: pyFAI.AzimuthalIntegrator(.
 
 ---
 
-## 7. Problemas, lacunas e pegadinhas encontrados
+## 7. Problemas encontrados e como foram corrigidos
 
-**Git LFS — 13 arquivos só como ponteiro** (git-lfs não está instalado neste ambiente):
-- `Data/dataset.json`, `Data/dataset_low_conf_skip-clean.json` → baixar do HuggingFace (§5.3).
-- `Data/aunp-synthesis_dataset_2021-9-14.json` → usar o `.zip` do text-mined (§6.3).
-- `Data/repo/dark_after_000413.ge3`.
-- 9 `iter-*-train.xyz` do GO-MACE (iter-6 a iter-12, incluindo `iter-12-train-filtered.xyz`, a base final)
-  → `git lfs install && git lfs pull` ou baixar do Zenodo 10.5281/zenodo.14066557.
+### 7.1 Arquivos Git LFS (13) — ✅ resolvido
+Não estavam faltando: os objetos existem no LFS do GitHub; só faltava o cliente. Com
+`git lfs install && git lfs pull` os 13 arquivos vêm completos (validados: JSONs abrem, `.xyz` do GO-MACE
+lê 3 016 configurações/605 204 átomos, `aunp-synthesis…json` = conteúdo do `.zip`). Em um clone novo:
+```bash
+git lfs install          # uma vez por máquina (https://git-lfs.com)
+git clone https://github.com/Rafalexandre-code/AuGOSintesIA   # já baixa os LFS
+# ou, num clone existente:  git lfs pull
+```
 
-**Dados ausentes para rodar exemplos:**
-- GO-MACE `run_amorphpus.py` precisa de `../structures/aG_p6.xyz` (não incluído).
-- RAMBOAU `problems/exp.py` precisa de `problems/data/MT-KBH-004/*.xlsx`.
-- chem-MFBO problemas reais precisam de `data/clean/*.csv`.
-- Qubot `formulation_selection.py` precisa do *Liquid Formulations Dataset* (figshare).
-- Synthesis-Properties precisa do Qwen3-14B e do adaptador LoRA (HuggingFace).
-- text-mined: submódulos NLP (CederGroupHub) não vêm junto (o dataset já processado vem).
+### 7.2 Dados ausentes
+| Item | Situação | O que foi feito |
+|---|---|---|
+| chem-MFBO `data/clean/*.csv` | ✅ | Restaurados do repositório original (Atinary-technologies/chem-MFBO): `cofs.csv` (608 COFs Xe/Kr), `polarizability.csv`, `freesolv.csv`, `BH_dataset.csv`, além de `notebooks/` e `fig1.png` que também faltavam. |
+| GO-MACE `structures/aG_p6.xyz` | ⚠ substituto | O banco original não é público (nem no GitHub do autor). Criado `code/make_amorphous_db.py`, que gera um banco **substituto** de grafeno amorfo (trocas Stone–Wales/WWW + relaxação por molas, `info["p6"]` = fração de anéis de 6), salvo em `structures/aG_p6_surrogate.xyz`. `run_amorphpus.py` usa `GO_AMORPHOUS_DB`, depois `aG_p6.xyz` e, na falta dele, o substituto; `select_disordered` passou a usar a estrutura de p6 mais próximo quando a faixa do histograma está vazia. |
+| RAMBOAU `problems/data/MT-KBH-004/*.xlsx` | ⚠ não público | O repositório original (Queimo/RAMBOAU) também não publica os dados do ZnO. `problems/exp.py` agora lê a pasta de `RAMBOAU_EXP_DATA` e explica o problema se não achar nada; `problems/data/make_synthetic_experiment.py` gera planilhas **sintéticas** no mesmo formato (útil também como molde para os dados GO–AuNP). |
+| Qubot *Liquid Formulations Dataset* | ⚠ baixar à parte | Figshare (Chitre et al. 2024) — bloqueado neste ambiente; `formulation_selection.py` agora explica onde baixar. |
+| Qwen3-14B + adaptador LoRA | ⚠ baixar à parte | HuggingFace (`Qwen/Qwen3-14B`, `Kai-gu/Qwen3-14B-finetune`); caminhos configuráveis (§7.3). |
+| Submódulos CederGroupHub | ✅ parcial | Clonados em `Data/external/literature-llm/` (sem os modelos de 780 MB/Stanford Parser, listados em `LFS_OBJECTS_NOT_INCLUDED.txt`). |
 
-**Caminhos fixos / SO:**
-- `Synthesis-Properties…/train.py`, `test_model_optimized.py`, `inverse_design/*`: caminhos
-  `/root/autodl-tmp/…` e `/home/ubuntu/project/…`.
-- `SDL-main`: `folderpath + '\\Opt …'` (Windows) e pastas `save data/`, `save plots/` precisam existir;
-  `main.py` usa `BRMLPR_EGS` mas `main_plot.py` lê `GPR`.
-- Qubot scripts: `r'\Summary_transfers.csv'` (Windows); portas COM vazias `''` a preencher.
-- M2Hub README: caminhos `download_data.py`/`configs/` divergem de `scripts/`/`config/`.
+### 7.3 Caminhos fixos — ✅ corrigidos (padrão: relativo à pasta do script; variável de ambiente para sobrescrever)
+| Arquivo(s) | Antes | Agora |
+|---|---|---|
+| `Synthesis-Properties…/train.py`, `train_config.yaml` | `/root/autodl-tmp/…`, conda em `/root/miniconda3` | `Qwen3-14B`, `.`, `saves/…` relativos; `LLAMAFACTORY_CONFIG`, `LLAMAFAC_CONDA_ACTIVATE` (opcional) |
+| `…/test_model_optimized.py` | 5 caminhos `/root/autodl-tmp/…` | flags `--base-model --saves-path --test-data --output-dir` (ou `QWEN_*`); saída em `outputs/` (não sobrescreve `results/` do artigo) |
+| `…/inverse_design/*` | `/home/ubuntu/project/…` | relativos + `dataset_info.json` novo apontando para `example_dataset.json` |
+| `GO-MACE-23-main/models/fitting/potential/*/train.sh` (14) | `python /u/vld/sedm6197/software/mace/scripts/run_train.py` | `${MACE_RUN_TRAIN:-mace_run_train}` (comando do `mace-torch`), `GPU_ID` |
+| `SDL-main` | `folderpath + '\\Opt …'`, pastas precisavam existir | `os.path.join`, `os.makedirs` |
+| `Data/scripts/{electrolytes,shampoo}/*.py` | `r'\…'`, `\Data\…` (só Windows) | `os.path.join`/`pathlib`; `QUBOT_DATA_DIR` opcional |
+| `Data/scripts/nominal_testing/*.py` | portas seriais `''` | `GAUGE_PORT`, `DEVICE_PORT` |
+| `Bgolearn-main/SnIn/*/WPEMsimulation.ipynb` | `/Users/jacob/…` | `pip install PyWPEM` ou `PYWPEM_DIR` |
+| READMEs M2Hub e chem-MFBO | comandos com caminhos errados | corrigidos |
 
-**Bugs pontuais observados:**
-- `scripts/nominal_testing/data_acquisition.py`: cria `df` mas faz `data.loc[...]` em uma lista e depois
-  `data.to_csv` → deveria usar `df`.
-- `SDL-main/Functions/BayesianOptimization.py`: `dimensionScreen` chama `Plotting.saveDimensionLinePlots`,
-  que não existe em `Plotting.py`.
+### 7.4 Bugs — ✅ corrigidos e testados
+Os dois apontados antes e os demais encontrados ao executar o código:
 
-**Ambientes incompatíveis entre si:** MatDesINNe (torch 1.7/Python 3.6–3.8), M2Hub (torch 1.13/Py 3.9),
-RAMBOAU (Py 3.9, pymoo 0.4.2.2), Qwen (torch ≥ 2.8), Qubot scripts (numpy 2.4/pandas 3.0), BOCoDe (Py 3.12).
-Use **um ambiente por subprojeto**.
+| Onde | Bug | Correção | Verificação |
+|---|---|---|---|
+| `scripts/nominal_testing/data_acquisition.py` | `data.loc[...]` numa lista; salvava a lista | acumula linhas numa lista, monta o `DataFrame` e salva; Ctrl+C encerra a captura | revisão (precisa do relógio Mitutoyo) |
+| `SDL-main` `dimensionScreen` | chamava `Plotting.saveDimensionLinePlots` (inexistente) e guardava o mesmo objeto para todas as dimensões | função criada; guarda a curva "melhor até agora" de cada dimensão | executado ✓ |
+| `SDL-main` `levy` | `math.sin` em array de 1 elemento → `TypeError` no NumPy atual (quebrava `main.py`) | vetor 1-D + `float()` | 5 funções × 3 dimensões ✓ |
+| `SDL-main` `main.py`/`main_plot.py` | modelos diferentes (`BRMLPR_EGS` × `GPR`) → gráficos não achavam os arquivos | ambos leem `SDL_BELIEF_MODEL` | pipeline completo ✓ |
+| `scripts/electrolytes/data_analysis.py` | `math.phase` (não existe); `load_df(df, instrument=…)`+`.df` (assinatura errada); glob do EIS montava caminho inválido; `log` recebia o caminho inteiro; `segments` indefinida; colunas inexistentes na agregação final; `chi_squared_eis` fazia `if Series != None` (todo ajuste virava "Fail"); `impedance==1.7.1` + NumPy 2 quebra o `eval` do Lin-KK | `cmath.phase`; classe `EISData`; `os.path.join`; `directory.name`; `segments = {}`; nomes corretos; `is not None`; `np.set_printoptions(legacy='1.25')`; modo `EIS_INTERACTIVE=0` | reproduz o `summary.csv` publicado: massas, espessuras e erros de transferência 96/96, χ² 74/96 (os outros 22 foram reajustados à mão pelos autores no modo interativo) ✓ |
+| `scripts/shampoo/data_analysis.py` | só funcionava no Windows | caminhos portáveis | reproduz **exatamente** o `summary.csv` publicado ✓ |
+| RAMBOAU `utils.RefPoint` / `main_exp.py` | `self.solver.alpha` inexistente; `RefPoint(...)` chamado com argumentos errados; `Experiment4D` sem `ref_point` | `alpha`; mesma chamada do `main.py`; `self.ref_point = None` | `main.py` ✓; `main_exp.py` com dados sintéticos (§7.2) |
 
-**Arquivos supérfluos:** `.DS_Store`, `__pycache__/*.pyc`, `.ipynb_checkpoints/` (cópias), `.idea/`
-aninhados no MatDesINNe; `PubChem/REFCHEM_RefChemID_4004.json` (Peisleyite, fora do tema).
+Observação sobre os dados Qubot: em 3 das 96 linhas, os valores de `Coincell_digestion.xlsx` diferem dos
+que aparecem no `summary.csv` publicado (o código só lê a planilha) — inconsistência dos dados originais.
+
+### 7.5 Ambientes incompatíveis — ✅ um ambiente por subprojeto
+`environments/` + `tools/setup_env.sh` (ver §11). Todas as especificações resolvem; `core`, `sdl`,
+`text-mined`, `bgolearn`, `ramboau`, `qubot-scripts` e `go-mace` foram instalados e executados aqui.
+
+### 7.6 Arquivos supérfluos (não removidos, por serem parte das cópias originais)
+`.DS_Store`, `__pycache__/*.pyc`, `.ipynb_checkpoints/`, `.idea/` aninhados; `PubChem/REFCHEM_RefChemID_4004.json`
+(Peisleyite, fora do tema). Um `.gitignore` na raiz agora evita novos `__pycache__/` e `.venvs/`.
 
 ---
 
@@ -842,4 +890,48 @@ Execução: bancada manual  →  (opcional) Qubot/control-lab-ly  ;  SAXS/WAXS: 
 | Gerar candidatos para uma propriedade-alvo | `MatDesINNe_cINN/generation/generator.py` + `localization/localization.py` |
 | Treinar GNN em propriedades de cristais | `python -u main.py --mode train --config-yml config/jarvis/qmof/bandgap/random/cgcnn.yml` (M2Hub) |
 | Controlar gantry Qubot | `Gantry('COMx', device_type_name='GRBL').home()` (control-lab-ly) |
+| Criar o ambiente de um subprojeto | `tools/setup_env.sh <nome>` (lista: `--list`) |
+| Atualizar os repositórios externos | `tools/fetch_external.sh --latest` |
+| Banco de grafeno amorfo (substituto) | `cd Data/GO-MACE-23-main/code && python make_amorphous_db.py` |
 | Integrar imagem de difração | `np.fromfile(..., dtype=np.uint16, offset=8192).reshape(-1,2048,2048)` + pyFAI |
+
+---
+
+## 10. Repositórios externos (Data/external)
+
+48 repositórios do GitHub clonados para cobrir o que faltava à proposta (lista completa, licenças, o que foi
+podado e por quê: [`Data/external/README.md`](../Data/external/README.md); commit exato de cada um:
+[`tools/external_repos.lock.tsv`](../tools/external_repos.lock.tsv)). Organizados por módulo do projeto:
+
+| Pasta | Conteúdo principal | Módulo |
+|---|---|---|
+| `bayesian-optimization/` | BoTorch, GPyTorch, Ax, BayBE, BoFire, Honegumi, Obsidian, Olympus, Atlas, Summit, Optuna, **novelty-aware EGBO**, PV-Lab Benchmarking | AuNP Designer, benchmark |
+| `multi-fidelity/` | misoKG (NIPS 2017), ClancyLab PAL/PAL2 (Herbol et al.), MFBO | MISO |
+| `aunp-spectral/` | **HEAD** (Vaddi/Pozzo), **SPACESHIP**, BespokeSynthesisPlatform/NanoChef/Batch/UV-Vis (KIST, com dados UV-Vis de AuNP), miepython, PyMieScatt | perda espectral, dados reais |
+| `inverse-design/` | Neural Processes (DeepMind), Transformer Neural Processes | design inverso |
+| `causal-interpretability/` | DoWhy, EconML, SHAP, pyPESTO | causalidade, SHAP, identificabilidade |
+| `atomistic/` | MACE, mace-foundations, fairchem (UMA), HierGO | GO Navigator (inclui potenciais com Au) |
+| `characterization/` | pyFAI, fabio, sasmodels, lmfit, RamanSPy | SAXS/WAXS, XPS, Raman |
+| `literature-llm/` | LLaMA-Factory, LeMat-Synth, submódulos CederGroupHub | curadoria |
+| `self-driving-lab/` | RoboChem-Flex, Octopus | SDL |
+
+Para manter tudo atualizado: `tools/fetch_external.sh --latest` (reclona e atualiza o lock).
+A maior parte das bibliotecas também está no ambiente `core` (§11), instalada pelo PyPI.
+
+## 11. Ambientes isolados (environments/)
+
+Um ambiente por subprojeto, criado com `tools/setup_env.sh <nome>` (usa `uv`; cai para `venv`+`pip`;
+`conda` para M2Hub e AmberGO). Versões fixadas em `environments/<nome>.lock.txt`; `--latest` usa o `.in`.
+Detalhes e o que foi testado: [`environments/README.md`](../environments/README.md).
+
+| Nome | Python | Uso |
+|---|---|---|
+| `core` | 3.12 | projeto GO–AuNP (BoTorch/Ax/BayBE/BoFire, SHAP, DoWhy, lmfit, pyFAI, Mie, Bgolearn) |
+| `go-mace` | 3.11 | GO-MACE-23 |
+| `sdl`, `text-mined`, `qubot-scripts`, `bgolearn` | 3.11 | subprojetos homônimos |
+| `chem-mfbo` | 3.10 | chem-MFBO (torch 2.2.1) |
+| `bocode` | 3.12 | BOCoDe |
+| `ramboau` | 3.9 | RAMBOAU (pymoo 0.4.2.2, torch 2.8) |
+| `matdesinne` | 3.8 | MatDesINNe (torch 1.7.1) |
+| `qwen-llm` | 3.12 | Qwen3/LLaMA-Factory (GPU) |
+| `m2hub`, `ambergo` | conda | M2Hub (PyG/DGL), AmberGO (AmberTools) |
