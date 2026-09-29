@@ -1,0 +1,311 @@
+"""Tests comparing naive vs incremental constrained Cartesian product construction."""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from functools import partial
+
+import numpy as np
+import pytest
+from pandas.testing import assert_frame_equal
+
+from baybe.constraints import (
+    DISCRETE_CONSTRAINTS_FILTERING_ORDER,
+    DiscreteCardinalityConstraint,
+    DiscreteDependenciesConstraint,
+    DiscreteLinearConstraint,
+    DiscretePermutationInvarianceConstraint,
+    DiscreteRepetitionLimitConstraint,
+    DiscreteSelectionConstraint,
+    SubSelectionCondition,
+    ThresholdCondition,
+)
+from baybe.constraints.base import DiscreteConstraint
+from baybe.parameters import CategoricalParameter, NumericalDiscreteParameter
+from baybe.parameters.base import DiscreteParameter
+from baybe.searchspace.utils import (
+    _apply_constraint_filter_pandas,
+    parameter_cartesian_prod_pandas,
+    parameter_cartesian_prod_pandas_constrained,
+)
+
+
+def _no_constraints_scenario() -> tuple[
+    Sequence[DiscreteParameter], Sequence[DiscreteConstraint]
+]:
+    params = [
+        CategoricalParameter(name="A", values=["a1", "a2"]),
+        CategoricalParameter(name="B", values=["b1", "b2", "b3"]),
+    ]
+    return params, []
+
+
+def _no_label_duplicates_scenario() -> tuple[
+    Sequence[DiscreteParameter], Sequence[DiscreteConstraint]
+]:
+    values = ["x", "y", "z", "w"]
+    params = [CategoricalParameter(name=f"P{i}", values=values) for i in range(4)]
+    constraints = [
+        DiscreteRepetitionLimitConstraint(
+            parameters=[p.name for p in params], n_max_repetitions=1
+        )
+    ]
+    return params, constraints
+
+
+def _linked_parameters_scenario() -> tuple[
+    Sequence[DiscreteParameter], Sequence[DiscreteConstraint]
+]:
+    values = ["a", "b", "c"]
+    params = [CategoricalParameter(name=f"P{i}", values=values) for i in range(3)]
+    constraints = [
+        DiscreteRepetitionLimitConstraint(
+            parameters=[p.name for p in params],
+            n_max_repetitions=len(params) - 1,
+            exclude=True,
+        )
+    ]
+    return params, constraints
+
+
+def _repetition_limit_scenario(
+    n_max: int,
+    exclude: bool,
+) -> tuple[Sequence[DiscreteParameter], Sequence[DiscreteConstraint]]:
+    values = ["a", "b", "c", "d"]
+    params = [CategoricalParameter(name=f"P{i}", values=values) for i in range(4)]
+    constraints = [
+        DiscreteRepetitionLimitConstraint(
+            parameters=[p.name for p in params],
+            n_max_repetitions=n_max,
+            exclude=exclude,
+        )
+    ]
+    return params, constraints
+
+
+def _filtering_scenario(
+    combiner: str, exclude: bool
+) -> tuple[Sequence[DiscreteParameter], Sequence[DiscreteConstraint]]:
+    params = [
+        CategoricalParameter(name="A", values=["a1", "a2", "a3"]),
+        CategoricalParameter(name="B", values=["b1", "b2", "b3"]),
+        CategoricalParameter(name="C", values=["c1", "c2", "c3"]),
+    ]
+    constraints = [
+        DiscreteSelectionConstraint(
+            parameters=["A", "B"],
+            conditions=[
+                SubSelectionCondition(selection=["a1"]),
+                SubSelectionCondition(selection=["b1"]),
+            ],
+            combiner=combiner,
+            exclude=exclude,
+        )
+    ]
+    return params, constraints
+
+
+def _cardinality_scenario() -> tuple[
+    Sequence[DiscreteParameter], Sequence[DiscreteConstraint]
+]:
+    params = [
+        NumericalDiscreteParameter(name=f"P{i}", values=[0.0, 1.0, 2.0])
+        for i in range(4)
+    ]
+    constraints = [
+        DiscreteCardinalityConstraint(
+            parameters=[p.name for p in params],
+            min_cardinality=1,
+            max_cardinality=2,
+        )
+    ]
+    return params, constraints
+
+
+def _sum_scenario() -> tuple[Sequence[DiscreteParameter], Sequence[DiscreteConstraint]]:
+    params = [
+        NumericalDiscreteParameter(name=f"P{i}", values=[0.0, 25.0, 50.0, 75.0, 100.0])
+        for i in range(3)
+    ]
+    constraints = [
+        DiscreteLinearConstraint(
+            parameters=[p.name for p in params],
+            operator="=",
+            rhs=100,
+            tolerance=0.1,
+        )
+    ]
+    return params, constraints
+
+
+def _dependencies_scenario() -> tuple[
+    Sequence[DiscreteParameter], Sequence[DiscreteConstraint]
+]:
+    params = [
+        CategoricalParameter(name="Switch", values=["on", "off"]),
+        CategoricalParameter(name="Label", values=["a", "b", "c"]),
+        NumericalDiscreteParameter(name="Amount", values=[1.0, 2.0, 3.0]),
+    ]
+    constraints = [
+        DiscreteDependenciesConstraint(
+            parameters=["Switch"],
+            conditions=[SubSelectionCondition(selection=["on"])],
+            affected_parameters=[["Label"]],
+        )
+    ]
+    return params, constraints
+
+
+def _permutation_invariance_scenario() -> tuple[
+    Sequence[DiscreteParameter], Sequence[DiscreteConstraint]
+]:
+    values = ["a", "b", "c", "d"]
+    params = [CategoricalParameter(name=f"P{i}", values=values) for i in range(3)]
+    constraints = [
+        DiscretePermutationInvarianceConstraint(parameters=[p.name for p in params])
+    ]
+    return params, constraints
+
+
+def _permutation_invariance_with_dependencies_scenario() -> tuple[
+    Sequence[DiscreteParameter], Sequence[DiscreteConstraint]
+]:
+    solvents = ["water", "ethanol", "methanol", "acetone"]
+    labels = [
+        CategoricalParameter(name=f"Slot{i}_Label", values=solvents) for i in range(3)
+    ]
+    amounts = [
+        NumericalDiscreteParameter(
+            name=f"Slot{i}_Amount", values=list(np.linspace(0, 100, 5))
+        )
+        for i in range(3)
+    ]
+    params = labels + amounts
+    label_names = [lbl.name for lbl in labels]
+    amount_names = [amt.name for amt in amounts]
+
+    constraints = [
+        DiscretePermutationInvarianceConstraint(
+            parameters=label_names,
+            dependencies=DiscreteDependenciesConstraint(
+                parameters=amount_names,
+                conditions=[
+                    ThresholdCondition(threshold=0.0, operator=">"),
+                    ThresholdCondition(threshold=0.0, operator=">"),
+                    ThresholdCondition(threshold=0.0, operator=">"),
+                ],
+                affected_parameters=[[n] for n in label_names],
+            ),
+        ),
+        DiscreteLinearConstraint(
+            parameters=amount_names,
+            operator="=",
+            rhs=100,
+            tolerance=0.1,
+        ),
+        DiscreteRepetitionLimitConstraint(parameters=label_names, n_max_repetitions=1),
+    ]
+    return params, constraints
+
+
+def _mixed_scenario() -> tuple[
+    Sequence[DiscreteParameter], Sequence[DiscreteConstraint]
+]:
+    params = [
+        CategoricalParameter(name="Cat1", values=["a", "b", "c"]),
+        CategoricalParameter(name="Cat2", values=["a", "b", "c"]),
+        CategoricalParameter(name="Cat3", values=["a", "b", "c"]),
+        NumericalDiscreteParameter(name="Num1", values=[0.0, 50.0, 100.0]),
+        NumericalDiscreteParameter(name="Num2", values=[0.0, 50.0, 100.0]),
+    ]
+    constraints = [
+        DiscreteRepetitionLimitConstraint(
+            parameters=["Cat1", "Cat2", "Cat3"], n_max_repetitions=1
+        ),
+        DiscreteLinearConstraint(
+            parameters=["Num1", "Num2"],
+            operator="<=",
+            rhs=100,
+        ),
+    ]
+    return params, constraints
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    [
+        pytest.param(_no_constraints_scenario, id="no_constraints"),
+        pytest.param(_no_label_duplicates_scenario, id="no_label_duplicates"),
+        pytest.param(_linked_parameters_scenario, id="linked_parameters"),
+        pytest.param(partial(_filtering_scenario, "OR", False), id="filtering_or_keep"),
+        pytest.param(
+            partial(_filtering_scenario, "OR", True), id="filtering_or_exclude"
+        ),
+        pytest.param(
+            partial(_filtering_scenario, "AND", False), id="filtering_and_keep"
+        ),
+        pytest.param(
+            partial(_filtering_scenario, "AND", True), id="filtering_and_exclude"
+        ),
+        pytest.param(
+            partial(_filtering_scenario, "XOR", False), id="filtering_xor_keep"
+        ),
+        pytest.param(
+            partial(_filtering_scenario, "XOR", True), id="filtering_xor_exclude"
+        ),
+        pytest.param(_cardinality_scenario, id="cardinality"),
+        pytest.param(_sum_scenario, id="sum"),
+        pytest.param(_dependencies_scenario, id="dependencies"),
+        pytest.param(_permutation_invariance_scenario, id="permutation_invariance"),
+        pytest.param(
+            _permutation_invariance_with_dependencies_scenario,
+            id="permutation_invariance_with_deps",
+        ),
+        pytest.param(_mixed_scenario, id="mixed"),
+        pytest.param(
+            partial(_repetition_limit_scenario, 1, True),
+            id="repetition_limit_exclude",
+        ),
+        pytest.param(
+            partial(_repetition_limit_scenario, 2, False),
+            id="repetition_limit_keep",
+        ),
+        pytest.param(
+            partial(_repetition_limit_scenario, 2, True),
+            id="repetition_limit_exclude_general",
+        ),
+    ],
+)
+def test_constrained_cartesian_product(scenario):
+    """Verify incremental and naive product construction produce identical results."""
+    parameters, constraints = scenario()
+
+    # Sort constraints in the same order used by the production code. This is
+    # necessary because some constraints (e.g., PermutationInvariance with
+    # dependencies) use ``duplicated(keep="first")``, making their outcome
+    # sensitive to which rows have already been removed by earlier constraints.
+    # A fixed ordering ensures both paths operate on the same intermediate state.
+    constraints = sorted(
+        constraints,
+        key=lambda c: DISCRETE_CONSTRAINTS_FILTERING_ORDER.index(c.__class__),
+    )
+
+    # Naive approach: full product then filter
+    df_naive = parameter_cartesian_prod_pandas(parameters)
+    _apply_constraint_filter_pandas(df_naive, constraints)
+
+    # Incremental approach
+    df_incremental = parameter_cartesian_prod_pandas_constrained(
+        parameters, constraints
+    )
+
+    # Column order must be identical
+    assert list(df_incremental.columns) == list(df_naive.columns)
+
+    # Content must be identical (row order may differ)
+    cols = df_naive.columns.tolist()
+    assert_frame_equal(
+        df_incremental.sort_values(cols).reset_index(drop=True),
+        df_naive.sort_values(cols).reset_index(drop=True),
+    )

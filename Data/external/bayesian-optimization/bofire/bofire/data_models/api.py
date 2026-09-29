@@ -1,0 +1,68 @@
+from bofire.data_models import unions
+from bofire.data_models.acquisition_functions.api import (
+    AcquisitionFunction,
+    AnyAcquisitionFunction,
+)
+from bofire.data_models.constraints.api import AnyConstraint, Constraint
+from bofire.data_models.dataframes.api import AnyDataFrame, AnyRow
+from bofire.data_models.descriptor_generators.api import (
+    AnyDescriptorGenerator,
+    DescriptorGenerator,
+)
+from bofire.data_models.domain.api import (
+    Constraints,
+    Domain,
+    EngineeredFeatures,
+    Features,
+    Inputs,
+    Outputs,
+)
+from bofire.data_models.features.api import (
+    AnyFeature,
+    AnyInput,
+    AnyOutput,
+    Feature,
+    Input,
+    Output,
+)
+from bofire.data_models.kernels.api import AnyKernel, Kernel
+from bofire.data_models.llm.api import AnyLLMProvider, LLMProvider
+from bofire.data_models.objectives.api import AnyObjective, Objective
+from bofire.data_models.priors.api import AnyPrior, AnyPriorConstraint, Prior
+from bofire.data_models.strategies.api import (
+    AnyCondition,
+    AnyLocalSearchConfig,
+    AnyPredictive,
+    AnyStrategy,
+    PredictiveStrategy,
+    Strategy,
+)
+from bofire.data_models.surrogates.api import (
+    AnyBotorchSurrogate,
+    AnySurrogate,
+    BotorchSurrogate,
+    Surrogate,
+)
+
+
+data_model_list = [
+    AnyAcquisitionFunction,
+    AnyCondition,
+    AnyConstraint,
+    AnyFeature,
+    AnyKernel,
+    AnySurrogate,
+    AnyObjective,
+    AnyPrior,
+    AnyPriorConstraint,
+    AnyStrategy,
+    AnyDescriptorGenerator,
+    Domain,
+    AnyLocalSearchConfig,
+    Inputs,
+    Outputs,
+    Constraints,
+    EngineeredFeatures,
+]
+
+AnyThing = [model for models in data_model_list for model in unions.to_list(models)]

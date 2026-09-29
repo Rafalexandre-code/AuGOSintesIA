@@ -1,0 +1,1384 @@
+#!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+# pyre-strict
+
+from math import isinf
+from typing import cast
+
+import numpy as np
+import pandas as pd
+from ax.core.parameter import (
+    _get_parameter_type,
+    ChoiceParameter,
+    DerivedParameter,
+    EPS,
+    FixedParameter,
+    ParameterType,
+    RangeParameter,
+)
+from ax.exceptions.core import (
+    AxParameterWarning,
+    AxWarning,
+    UnsupportedError,
+    UserInputError,
+)
+from ax.utils.common.testutils import TestCase
+from pyre_extensions import none_throws
+
+
+class RangeParameterTest(TestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.param1 = RangeParameter(
+            name="x",
+            parameter_type=ParameterType.FLOAT,
+            lower=1,
+            upper=3,
+            log_scale=True,
+            digits=5,
+            is_fidelity=True,
+            target_value=2,
+        )
+        self.param1_repr = (
+            "RangeParameter(name='x', parameter_type=FLOAT, range=[1.0, 3.0], "
+            "is_fidelity=True, log_scale=True, target_value=2.0, digits=5)"
+        )
+
+        self.param2 = RangeParameter(
+            name="y", parameter_type=ParameterType.INT, lower=10, upper=15
+        )
+        self.param2_repr = (
+            "RangeParameter(name='y', parameter_type=INT, range=[10, 15])"
+        )
+
+    def test_Eq(self) -> None:
+        param2 = RangeParameter(
+            name="x",
+            parameter_type=ParameterType.FLOAT,
+            lower=1,
+            upper=3,
+            log_scale=True,
+            digits=5,
+            is_fidelity=True,
+            target_value=2,
+        )
+        self.assertEqual(self.param1, param2)
+        self.assertNotEqual(self.param1, self.param2)
+
+    def test_Properties(self) -> None:
+        self.assertEqual(self.param1.name, "x")
+        self.assertEqual(self.param1.parameter_type, ParameterType.FLOAT)
+        self.assertEqual(self.param1.lower, 1)
+        self.assertEqual(self.param1.upper, 3)
+        self.assertEqual(self.param1.digits, 5)
+        self.assertTrue(self.param1.log_scale)
+        self.assertFalse(self.param2.log_scale)
+        self.assertTrue(self.param1.is_numeric)
+        self.assertTrue(self.param1.is_fidelity)
+        self.assertIsNotNone(self.param1.target_value)
+        self.assertFalse(self.param2.is_fidelity)
+        self.assertIsNone(self.param2.target_value)
+
+    def test_Validate(self) -> None:
+        self.assertFalse(self.param1.validate(None))
+        self.assertFalse(self.param1.validate("foo"))
+        self.assertTrue(self.param1.validate(1))
+        self.assertTrue(self.param1.validate(1.3))
+        self.assertFalse(self.param1.validate(3.5))
+
+        # Check with tolerances
+        self.assertTrue(self.param1.validate(1 - 0.5 * EPS))
+        self.assertTrue(self.param1.validate(3 + 0.5 * EPS))
+
+        # Check with raises
+        with self.assertRaisesRegex(UserInputError, "is `None` but the parameter"):
+            self.param1.validate(None, raises=True)
+
+        with self.assertRaisesRegex(
+            UserInputError,
+            r"parameter x has type \(<class 'str'>\), which is not valid",
+        ):
+            self.assertFalse(self.param1.validate("foo", raises=True))
+
+        self.assertTrue(self.param1.validate(1, raises=True))
+        self.assertTrue(self.param1.validate(1.3, raises=True))
+
+        with self.assertRaisesRegex(UserInputError, "is not within the range of"):
+            self.assertFalse(self.param1.validate(3.5, raises=True))
+
+    def test_Repr(self) -> None:
+        self.assertEqual(str(self.param1), self.param1_repr)
+        self.assertEqual(str(self.param2), self.param2_repr)
+
+    def test_BadCreations(self) -> None:
+        with self.assertRaises(UserInputError):
+            RangeParameter("x", ParameterType.STRING, 1, 3)
+
+        with self.assertRaises(UserInputError):
+            RangeParameter("x", ParameterType.FLOAT, 3, 1)
+
+        with self.assertRaises(UserInputError):
+            RangeParameter("x", ParameterType.INT, 0, 1, log_scale=True)
+
+        with self.assertRaises(UserInputError):
+            RangeParameter("x", ParameterType.INT, 0.5, 1)
+
+        with self.assertRaises(UserInputError):
+            RangeParameter("x", ParameterType.INT, 0.5, 1, is_fidelity=True)
+
+        with self.assertRaisesRegex(
+            UserInputError,
+            "likely to cause numerical errors. Consider reparameterizing",
+        ):
+            RangeParameter("x", ParameterType.FLOAT, EPS, 2 * EPS)
+
+    def test_BadSetter(self) -> None:
+        with self.assertRaises(ValueError):
+            # pyre-fixme[6]: For 1st param expected `Optional[float]` but got `str`.
+            self.param1.update_range(upper="foo")
+
+        with self.assertRaises(ValueError):
+            # pyre-fixme[6]: For 1st param expected `Optional[float]` but got `str`.
+            self.param1.update_range(lower="foo")
+
+        with self.assertRaises(UserInputError):
+            self.param1.update_range(lower=4)
+
+        with self.assertRaises(UserInputError):
+            self.param1.update_range(upper=0.5)
+
+        with self.assertRaises(UserInputError):
+            self.param1.update_range(lower=1.0, upper=0.9)
+
+    def test_GoodSetter(self) -> None:
+        self.param1.update_range(lower=1.0)
+        self.param1.update_range(upper=1.0011)
+        self.param1.set_log_scale(False)
+        self.param1.set_digits(3)
+        self.assertEqual(self.param1.digits, 3)
+        self.assertEqual(self.param1.upper, 1.001)
+
+        # This would cast Upper = Lower = 1, which is not allowed
+        with self.assertRaises(UserInputError):
+            self.param1.set_digits(1)
+
+        self.param1.update_range(lower=2.0, upper=3.0)
+        self.assertEqual(self.param1.lower, 2.0)
+        self.assertEqual(self.param1.upper, 3.0)
+
+    def test_Cast(self) -> None:
+        self.assertEqual(self.param2.cast(2.5), 2)
+        self.assertEqual(self.param2.cast(3), 3)
+        with self.assertRaisesRegex(UnsupportedError, "None values"):
+            self.param2.cast(None)
+
+    def test_Clone(self) -> None:
+        param_clone = self.param1.clone()
+        self.assertEqual(self.param1.lower, param_clone.lower)
+
+        param_clone._lower = 2.0
+        self.assertNotEqual(self.param1.lower, param_clone.lower)
+
+    def test_get_parameter_type(self) -> None:
+        self.assertEqual(_get_parameter_type(float), ParameterType.FLOAT)
+        self.assertEqual(_get_parameter_type(int), ParameterType.INT)
+        self.assertEqual(_get_parameter_type(bool), ParameterType.BOOL)
+        self.assertEqual(_get_parameter_type(str), ParameterType.STRING)
+        with self.assertRaises(ValueError):
+            _get_parameter_type(dict)
+
+    def test_Sortable(self) -> None:
+        param2 = RangeParameter(
+            name="z",
+            parameter_type=ParameterType.FLOAT,
+            lower=0,
+            upper=1,
+        )
+        self.assertTrue(self.param1 < param2)
+
+    def test_HierarchicalValidation(self) -> None:
+        self.assertFalse(self.param1.is_hierarchical)
+        with self.assertRaises(NotImplementedError):
+            self.param1.dependents
+
+    def test_available_flags(self) -> None:
+        range_flags = ["is_fidelity", "log_scale", "logit_scale"]
+        self.assertListEqual(self.param1.available_flags, range_flags)
+        self.assertListEqual(self.param2.available_flags, range_flags)
+
+    def test_domain_repr(self) -> None:
+        self.assertEqual(self.param1.domain_repr, "range=[1.0, 3.0]")
+        self.assertEqual(self.param2.domain_repr, "range=[10, 15]")
+
+    def test_summary_dict(self) -> None:
+        self.assertDictEqual(
+            self.param1.summary_dict,
+            {
+                "name": "x",
+                "type": "Range",
+                "domain": "range=[1.0, 3.0]",
+                "parameter_type": "float",
+                "flags": "fidelity, log_scale",
+                "target_value": 2.0,
+            },
+        )
+        self.assertDictEqual(
+            self.param2.summary_dict,
+            {
+                "name": "y",
+                "type": "Range",
+                "domain": "range=[10, 15]",
+                "parameter_type": "int",
+            },
+        )
+
+    def test_is_compatible_with(self) -> None:
+        with self.subTest("compatible_same_name_and_type"):
+            range_param_1 = RangeParameter(
+                name="x",
+                parameter_type=ParameterType.FLOAT,
+                lower=0.0,
+                upper=1.0,
+            )
+            range_param_2 = RangeParameter(
+                name="x",
+                parameter_type=ParameterType.FLOAT,
+                lower=0.5,
+                upper=2.0,
+            )
+            self.assertTrue(range_param_1.is_compatible_with(range_param_2))
+
+        with self.subTest("incompatible_different_type"):
+            range_param_1 = RangeParameter(
+                name="x",
+                parameter_type=ParameterType.FLOAT,
+                lower=0.0,
+                upper=1.0,
+            )
+            range_param_2 = RangeParameter(
+                name="x",
+                parameter_type=ParameterType.INT,
+                lower=0,
+                upper=10,
+            )
+            self.assertFalse(range_param_1.is_compatible_with(range_param_2))
+
+        with self.subTest("compatible_with_fixed_same_type"):
+            range_param = RangeParameter(
+                name="x",
+                parameter_type=ParameterType.FLOAT,
+                lower=0.0,
+                upper=1.0,
+            )
+            fixed_param = FixedParameter(
+                name="x",
+                parameter_type=ParameterType.FLOAT,
+                value=0.5,
+            )
+            self.assertTrue(range_param.is_compatible_with(fixed_param))
+
+        with self.subTest("incompatible_with_fixed_different_type"):
+            range_param = RangeParameter(
+                name="x",
+                parameter_type=ParameterType.FLOAT,
+                lower=0.0,
+                upper=1.0,
+            )
+            fixed_param = FixedParameter(
+                name="x",
+                parameter_type=ParameterType.INT,
+                value=1,
+            )
+            self.assertFalse(range_param.is_compatible_with(fixed_param))
+
+
+class ChoiceParameterTest(TestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.param1 = ChoiceParameter(
+            name="x", parameter_type=ParameterType.STRING, values=["foo", "bar", "baz"]
+        )
+        self.param1_repr = (
+            "ChoiceParameter(name='x', parameter_type=STRING, "
+            "values=['foo', 'bar', 'baz'], is_ordered=False, sort_values=False)"
+        )
+        self.param2 = ChoiceParameter(
+            name="x",
+            parameter_type=ParameterType.STRING,
+            values=["foo", "bar", "baz"],
+            is_ordered=True,
+            is_task=True,
+            target_value="baz",
+        )
+        self.param2_repr = (
+            "ChoiceParameter(name='x', parameter_type=STRING, "
+            "values=['foo', 'bar', 'baz'], is_ordered=False, is_task=True, "
+            "sort_values=False, target_value='baz')"
+        )
+        self.param3 = ChoiceParameter(
+            name="x",
+            parameter_type=ParameterType.STRING,
+            values=["foo", "bar"],
+            is_fidelity=True,
+            target_value="bar",
+        )
+        self.param3_repr = (
+            "ChoiceParameter(name='x', parameter_type=STRING, "
+            "values=['foo', 'bar'], is_fidelity=True, is_ordered=True, "
+            "sort_values=False, target_value='bar')"
+        )
+        self.param4 = ChoiceParameter(
+            name="x",
+            parameter_type=ParameterType.INT,
+            values=[1, 2, 4],
+            log_scale=True,
+        )
+        self.param4_repr = (
+            "ChoiceParameter(name='x', parameter_type=INT, "
+            "values=[1, 2, 4], is_ordered=True, sort_values=True, log_scale=True)"
+        )
+
+    def test_BadCreations(self) -> None:
+        with self.assertRaises(UserInputError):
+            ChoiceParameter(
+                name="x",
+                parameter_type=ParameterType.STRING,
+                values=["foo", "foo2"],
+                is_fidelity=True,
+            )
+        with self.assertRaises(UserInputError):
+            ChoiceParameter(
+                name="x",
+                parameter_type=ParameterType.STRING,
+                values=["foo", "foo2"],
+                is_task=True,
+            )
+        # Test that numeric ordered parameters must have sort_values=True
+        with self.assertRaisesRegex(
+            UserInputError,
+            "Numeric ordered choice parameters must have sort_values=True",
+        ):
+            ChoiceParameter(
+                name="x",
+                parameter_type=ParameterType.INT,
+                values=[1, 2, 3],
+                is_ordered=True,
+                sort_values=False,
+            )
+
+    def test_Eq(self) -> None:
+        param4 = ChoiceParameter(
+            name="x", parameter_type=ParameterType.STRING, values=["foo", "bar", "baz"]
+        )
+        self.assertEqual(self.param1, param4)
+        self.assertNotEqual(self.param1, self.param2)
+
+        param5 = ChoiceParameter(
+            name="x", parameter_type=ParameterType.STRING, values=["foo", "foobar"]
+        )
+        self.assertNotEqual(self.param1, param5)
+
+    def test_Properties(self) -> None:
+        self.assertEqual(self.param1.name, "x")
+        self.assertEqual(self.param1.parameter_type, ParameterType.STRING)
+        self.assertEqual(len(self.param1.values), 3)
+        self.assertFalse(self.param1.is_numeric)
+        self.assertFalse(self.param1.is_ordered)
+        self.assertFalse(self.param1.is_task)
+        self.assertTrue(self.param2.is_ordered)
+        self.assertTrue(self.param2.is_task)
+        self.assertEqual(self.param2.target_value, "baz")
+        # check is_ordered defaults
+        bool_param = ChoiceParameter(
+            name="x", parameter_type=ParameterType.BOOL, values=[True, False]
+        )
+        self.assertTrue(bool_param.is_ordered)
+        int_param = ChoiceParameter(
+            name="x", parameter_type=ParameterType.INT, values=[2, 1, 3]
+        )
+        self.assertTrue(int_param.is_ordered)
+        self.assertListEqual(
+            int_param.values, sorted(cast(list[int], int_param.values))
+        )
+        float_param = ChoiceParameter(
+            name="x", parameter_type=ParameterType.FLOAT, values=[1.5, 2.5, 3.5]
+        )
+        self.assertTrue(float_param.is_ordered)
+        string_param = ChoiceParameter(
+            name="x", parameter_type=ParameterType.STRING, values=["foo", "bar", "baz"]
+        )
+        self.assertFalse(string_param.is_ordered)
+
+    def test_Repr(self) -> None:
+        self.assertEqual(str(self.param1), self.param1_repr)
+        self.assertEqual(str(self.param3), self.param3_repr)
+        self.assertEqual(str(self.param4), self.param4_repr)
+
+    def test_Validate(self) -> None:
+        self.assertFalse(self.param1.validate(None))
+        self.assertFalse(self.param1.validate(3))
+        for value in ["foo", "bar", "baz"]:
+            self.assertTrue(self.param1.validate(value))
+
+        # Check with raises
+        for value in (None, 3):
+            with self.assertRaisesRegex(
+                UserInputError, "not in the list of allowed values"
+            ):
+                self.assertFalse(self.param1.validate(value, raises=True))
+
+    def test_Setter(self) -> None:
+        self.param1.add_values(["bin"])
+        self.assertTrue(self.param1.validate("bin"))
+
+        self.param1.set_values(["bar", "biz"])
+        self.assertTrue(self.param1.validate("biz"))
+        self.assertTrue(self.param1.validate("bar"))
+        self.assertFalse(self.param1.validate("foo"))
+
+    def test_SingleValue(self) -> None:
+        with self.assertRaises(UserInputError):
+            ChoiceParameter(
+                name="x", parameter_type=ParameterType.STRING, values=["foo"]
+            )
+        with self.assertRaises(UserInputError):
+            self.param1.set_values(["foo"])
+
+    def test_Clone(self) -> None:
+        param_clone = self.param1.clone()
+        self.assertEqual(len(self.param1.values), len(param_clone.values))
+        self.assertEqual(self.param1._is_ordered, param_clone._is_ordered)
+
+        param_clone._values.append("boo")
+        self.assertNotEqual(len(self.param1.values), len(param_clone.values))
+
+        # With dependents.
+        param = ChoiceParameter(
+            name="x",
+            parameter_type=ParameterType.STRING,
+            values=["foo", "bar", "baz"],
+            dependents={"foo": ["y", "z"], "bar": ["w"]},
+        )
+        param_clone = param.clone()
+        none_throws(param_clone._dependents)["foo"] = ["y"]
+        self.assertEqual(param.dependents, {"foo": ["y", "z"], "bar": ["w"]})
+        self.assertEqual(param_clone.dependents, {"foo": ["y"], "bar": ["w"]})
+
+    def test_HierarchicalValidation(self) -> None:
+        self.assertFalse(self.param1.is_hierarchical)
+        with self.assertRaises(NotImplementedError):
+            self.param1.dependents
+        with self.assertRaises(UserInputError):
+            ChoiceParameter(
+                name="x",
+                parameter_type=ParameterType.BOOL,
+                values=[True, False],
+                dependents={"not_a_value": ["other_param"]},
+            )
+        # Check that empty dependents doesn't flag as hierarchical.
+        self.param4._dependents = {}
+        self.assertFalse(self.param4.is_hierarchical)
+        # Check that valid dependents are detected.
+        self.param4._dependents = {1: ["other_param"]}
+        self.assertTrue(self.param4.is_hierarchical)
+
+    def test_MaxValuesValidation(self) -> None:
+        ChoiceParameter(
+            name="x",
+            parameter_type=ParameterType.INT,
+            values=list(range(999)),
+        )
+        with self.assertRaisesRegex(
+            UserInputError,
+            "`ChoiceParameter` with more than 1000 values is not supported! Use a "
+            "`RangeParameter` instead.",
+        ):
+            ChoiceParameter(
+                name="x",
+                parameter_type=ParameterType.INT,
+                values=list(range(1001)),
+            )
+        # With bypass_cardinality_check=True, this should not raise an error.
+        p = ChoiceParameter(
+            name="x",
+            parameter_type=ParameterType.INT,
+            values=list(range(1001)),
+            bypass_cardinality_check=True,
+        )
+        # Make sure the parameter can clone successfully.
+        clone = p.clone()
+        self.assertEqual(clone, p)
+
+    def test_Hierarchical(self) -> None:
+        # Test case where only some of the values entail dependents.
+        hierarchical_param = ChoiceParameter(
+            name="x",
+            parameter_type=ParameterType.BOOL,
+            values=[True, False],
+            dependents={True: ["other_param"]},
+        )
+        self.assertTrue(hierarchical_param.is_hierarchical)
+        self.assertEqual(hierarchical_param.dependents, {True: ["other_param"]})
+
+        # Test case where all of the values entail dependents.
+        hierarchical_param_2 = ChoiceParameter(
+            name="x",
+            parameter_type=ParameterType.STRING,
+            values=["a", "b"],
+            dependents={"a": ["other_param"], "b": ["third_param"]},
+        )
+        self.assertTrue(hierarchical_param_2.is_hierarchical)
+        self.assertEqual(
+            hierarchical_param_2.dependents,
+            {"a": ["other_param"], "b": ["third_param"]},
+        )
+
+        # Test case where nonexisted value entails dependents.
+        with self.assertRaises(UserInputError):
+            ChoiceParameter(
+                name="x",
+                parameter_type=ParameterType.STRING,
+                values=["a", "b"],
+                dependents={"c": ["other_param"]},
+            )
+
+    def test_available_flags(self) -> None:
+        choice_flags = [
+            "is_fidelity",
+            "is_ordered",
+            "is_hierarchical",
+            "is_task",
+            "sort_values",
+            "log_scale",
+        ]
+        self.assertListEqual(self.param1.available_flags, choice_flags)
+        self.assertListEqual(self.param2.available_flags, choice_flags)
+        self.assertListEqual(self.param3.available_flags, choice_flags)
+        self.assertListEqual(self.param4.available_flags, choice_flags)
+
+    def test_domain_repr(self) -> None:
+        self.assertEqual(self.param1.domain_repr, "values=['foo', 'bar', 'baz']")
+        self.assertEqual(self.param2.domain_repr, "values=['foo', 'bar', 'baz']")
+        self.assertEqual(self.param3.domain_repr, "values=['foo', 'bar']")
+        self.assertEqual(self.param4.domain_repr, "values=[1, 2, 4]")
+
+    def test_summary_dict(self) -> None:
+        self.assertDictEqual(
+            self.param1.summary_dict,
+            {
+                "name": "x",
+                "type": "Choice",
+                "domain": "values=['foo', 'bar', 'baz']",
+                "parameter_type": "string",
+                "flags": "unordered, unsorted",
+            },
+        )
+        self.assertDictEqual(
+            self.param2.summary_dict,
+            {
+                "name": "x",
+                "type": "Choice",
+                "domain": "values=['foo', 'bar', 'baz']",
+                "parameter_type": "string",
+                "flags": "ordered, task, unsorted",
+                "target_value": "baz",
+            },
+        )
+        self.assertDictEqual(
+            self.param3.summary_dict,
+            {
+                "name": "x",
+                "type": "Choice",
+                "domain": "values=['foo', 'bar']",
+                "parameter_type": "string",
+                "flags": "fidelity, ordered, unsorted",
+                "target_value": "bar",
+            },
+        )
+        self.assertDictEqual(
+            self.param4.summary_dict,
+            {
+                "name": "x",
+                "type": "Choice",
+                "domain": "values=[1, 2, 4]",
+                "parameter_type": "int",
+                "flags": "ordered, sorted, log_scale",
+            },
+        )
+
+    def test_duplicate_values(self) -> None:
+        with self.assertWarnsRegex(AxWarning, "Duplicate values found"):
+            p = ChoiceParameter(
+                name="x",
+                parameter_type=ParameterType.STRING,
+                values=["foo", "bar", "foo"],
+            )
+        self.assertEqual(p.values, ["foo", "bar"])
+
+    def test_two_values_is_ordered(self) -> None:
+        parameter_types = (
+            ParameterType.INT,
+            ParameterType.FLOAT,
+            ParameterType.BOOL,
+            ParameterType.STRING,
+        )
+        parameter_values = ([0, 4], [0, 1.234], [False, True], ["foo", "bar"])
+        for parameter_type, values in zip(parameter_types, parameter_values):
+            p = ChoiceParameter(
+                name="x",
+                parameter_type=parameter_type,
+                values=values,  # pyre-ignore
+            )
+            self.assertEqual(p._is_ordered, True)
+
+            # Change `is_ordered` to True
+            p = ChoiceParameter(
+                name="x",
+                parameter_type=parameter_type,
+                values=values,  # pyre-ignore
+                is_ordered=False,
+            )
+            self.assertEqual(p._is_ordered, True)
+
+            # Set to True if `is_ordered` is not specified
+            with self.assertWarnsRegex(
+                AxParameterWarning, "since there are exactly two choices"
+            ):
+                p = ChoiceParameter(
+                    name="x",
+                    parameter_type=parameter_type,
+                    values=values,  # pyre-ignore
+                )
+                self.assertEqual(p._is_ordered, True)
+
+    def test_log_scale(self) -> None:
+        # Test explicit log_scale values
+        for log_scale, expected in ((True, True), (False, False), (None, True)):
+            param = ChoiceParameter(
+                name="learning_rate",
+                parameter_type=ParameterType.FLOAT,
+                values=[0.001, 0.01, 0.1, 1.0],
+                log_scale=log_scale,
+            )
+            self.assertEqual(param.log_scale, expected)
+
+        # Heuristic 1: Exponential spacing
+        # Example 1: Equal ratios - [2, 4, 8, 16] = [2^1, 2^2, 2^3, 2^4]
+        param_equal_ratios = ChoiceParameter(
+            name="batch_size",
+            parameter_type=ParameterType.INT,
+            values=[2, 4, 8, 16],
+        )
+        self.assertTrue(param_equal_ratios.log_scale)
+
+        # Example 2: Skipped powers - [64, 128, 512] = [2^6, 2^7, 2^9]
+        param_skipped_powers = ChoiceParameter(
+            name="embedding_dim",
+            parameter_type=ParameterType.INT,
+            values=[64, 128, 512],
+        )
+        self.assertTrue(param_skipped_powers.log_scale)
+
+        # Example 3: Constant factor - [10, 20, 40, 80] = 10 * [2^0, 2^1, 2^2, 2^3]
+        param_constant_factor = ChoiceParameter(
+            name="learning_rate_scaled",
+            parameter_type=ParameterType.INT,
+            values=[10, 20, 40, 80],
+        )
+        self.assertTrue(param_constant_factor.log_scale)
+
+        # Example 4: Different base - [3, 9, 27] = [3^1, 3^2, 3^3]
+        param_any_base = ChoiceParameter(
+            name="num_filters",
+            parameter_type=ParameterType.INT,
+            values=[3, 9, 27],
+        )
+        self.assertTrue(param_any_base.log_scale)
+
+        # Approximate scaling. Similar to powers of 3 but not exact.
+        param_approximate = ChoiceParameter(
+            name="num_filters",
+            parameter_type=ParameterType.INT,
+            values=[3, 9, 26, 80],
+        )
+        self.assertTrue(param_approximate.log_scale)
+
+        # Heuristic 2: Spans orders of magnitude
+        param_two_orders = ChoiceParameter(
+            name="step_size",
+            parameter_type=ParameterType.FLOAT,
+            values=[0.01, 0.2, 0.5, 1.0],
+        )
+        self.assertTrue(param_two_orders.log_scale)
+
+        param_irregular = ChoiceParameter(
+            name="num_samples",
+            parameter_type=ParameterType.INT,
+            values=[5, 10, 50, 100, 500],
+        )
+        self.assertTrue(param_irregular.log_scale)
+
+        # Negative cases
+        # Linear spacing
+        param_linear = ChoiceParameter(
+            name="num_layers",
+            parameter_type=ParameterType.INT,
+            values=[1, 2, 3, 4, 5],
+        )
+        self.assertFalse(param_linear.log_scale)
+
+        # String values
+        param_string = ChoiceParameter(
+            name="optimizer",
+            parameter_type=ParameterType.STRING,
+            values=["adam", "sgd", "rmsprop"],
+        )
+        self.assertFalse(param_string.log_scale)
+
+        # Too few values (need at least 3)
+        param_few = ChoiceParameter(
+            name="mode",
+            parameter_type=ParameterType.INT,
+            values=[2, 4],
+        )
+        self.assertFalse(param_few.log_scale)
+
+        # Negative values
+        param_negative = ChoiceParameter(
+            name="temperature",
+            parameter_type=ParameterType.FLOAT,
+            values=[-1.0, 0.0, 1.0, 2.0],
+        )
+        self.assertFalse(param_negative.log_scale)
+
+        # Categorical.
+        param_categorical = ChoiceParameter(
+            name="temperature",
+            parameter_type=ParameterType.FLOAT,
+            values=[2, 4, 8, 16],
+            is_ordered=False,
+        )
+        self.assertFalse(param_categorical.log_scale)
+
+    def test_log_scale_validation_errors(self) -> None:
+        """Test that log_scale=True raises appropriate errors for invalid inputs."""
+        # Negative values
+        with self.assertRaisesRegex(
+            UserInputError, "log_scale requires all values to be positive"
+        ):
+            ChoiceParameter(
+                name="x",
+                parameter_type=ParameterType.FLOAT,
+                values=[-1.0, 1.0, 10.0],
+                log_scale=True,
+            )
+
+        # Zero values
+        with self.assertRaisesRegex(
+            UserInputError, "log_scale requires all values to be positive"
+        ):
+            ChoiceParameter(
+                name="x",
+                parameter_type=ParameterType.FLOAT,
+                values=[0.0, 1.0, 10.0],
+                log_scale=True,
+            )
+
+        # Non-numerical type
+        with self.assertRaisesRegex(
+            UserInputError, "log_scale is only supported for numerical parameters"
+        ):
+            ChoiceParameter(
+                name="x",
+                parameter_type=ParameterType.STRING,
+                values=["a", "b", "c"],
+                log_scale=True,
+            )
+
+        # Unordered parameter (log_scale requires ordered)
+        with self.assertRaisesRegex(
+            UserInputError, "log_scale is only supported for ordered parameters"
+        ):
+            ChoiceParameter(
+                name="x",
+                parameter_type=ParameterType.INT,
+                values=[1, 2, 4],
+                is_ordered=False,
+                log_scale=True,
+            )
+
+    def test_is_compatible_with(self) -> None:
+        with self.subTest("compatible_same_values"):
+            choice_param_1 = ChoiceParameter(
+                name="x",
+                parameter_type=ParameterType.STRING,
+                values=["foo", "bar"],
+            )
+            choice_param_2 = ChoiceParameter(
+                name="x",
+                parameter_type=ParameterType.STRING,
+                values=["foo", "bar"],
+            )
+            self.assertTrue(choice_param_1.is_compatible_with(choice_param_2))
+
+        with self.subTest("compatible_different_values"):
+            choice_param_1 = ChoiceParameter(
+                name="x",
+                parameter_type=ParameterType.STRING,
+                values=["foo", "bar"],
+            )
+            choice_param_2 = ChoiceParameter(
+                name="x",
+                parameter_type=ParameterType.STRING,
+                values=["bar", "baz"],
+            )
+            self.assertTrue(choice_param_1.is_compatible_with(choice_param_2))
+
+
+class FixedParameterTest(TestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.param1 = FixedParameter(
+            name="x", parameter_type=ParameterType.BOOL, value=True
+        )
+        self.param1_repr = "FixedParameter(name='x', parameter_type=BOOL, value=True)"
+        self.param2 = FixedParameter(
+            name="y", parameter_type=ParameterType.STRING, value="foo"
+        )
+        self.param2_repr = (
+            "FixedParameter(name='y', parameter_type=STRING, value='foo')"
+        )
+
+    def test_BadCreations(self) -> None:
+        with self.assertRaises(UserInputError):
+            FixedParameter(
+                name="x",
+                parameter_type=ParameterType.BOOL,
+                value=True,
+                is_fidelity=True,
+            )
+
+    def test_Eq(self) -> None:
+        param2 = FixedParameter(name="x", parameter_type=ParameterType.BOOL, value=True)
+        self.assertEqual(self.param1, param2)
+
+        param3 = FixedParameter(
+            name="x", parameter_type=ParameterType.BOOL, value=False
+        )
+        self.assertNotEqual(self.param1, param3)
+
+    def test_Properties(self) -> None:
+        self.assertEqual(self.param1.name, "x")
+        self.assertEqual(self.param1.parameter_type, ParameterType.BOOL)
+        self.assertEqual(self.param1.value, True)
+        self.assertFalse(self.param1.is_numeric)
+
+    def test_Repr(self) -> None:
+        self.assertEqual(str(self.param1), self.param1_repr)
+        self.param1._is_fidelity = True
+        self.assertNotEqual(str(self.param1), self.param1_repr)
+
+    def test_Validate(self) -> None:
+        self.assertFalse(self.param1.validate(None))
+        self.assertFalse(self.param1.validate("foo"))
+        self.assertFalse(self.param1.validate(False))
+        self.assertTrue(self.param1.validate(True))
+
+        # Check with raises
+        for value in (None, "foo", False):
+            with self.assertRaisesRegex(
+                UserInputError, "is not equal to the fixed value"
+            ):
+                self.assertFalse(self.param1.validate(value, raises=True))
+
+        self.assertTrue(self.param1.validate(True, raises=True))
+
+    def test_Setter(self) -> None:
+        self.param1.set_value(False)
+        self.assertEqual(self.param1.value, False)
+
+    def test_Clone(self) -> None:
+        param_clone = self.param1.clone()
+        self.assertEqual(self.param1.value, param_clone.value)
+
+        param_clone._value = False
+        self.assertNotEqual(self.param1.value, param_clone.value)
+
+    def test_Cast(self) -> None:
+        self.assertEqual(self.param1.cast(1), True)
+        self.assertEqual(self.param1.cast(False), False)
+        with self.assertRaisesRegex(UnsupportedError, "None values"):
+            self.param1.cast(None)
+
+    def test_HierarchicalValidation(self) -> None:
+        self.assertFalse(self.param1.is_hierarchical)
+        with self.assertRaises(NotImplementedError):
+            self.param1.dependents
+
+    def test_Hierarchical(self) -> None:
+        # Test case where only some of the values entail dependents.
+        hierarchical_param = FixedParameter(
+            name="x",
+            parameter_type=ParameterType.BOOL,
+            value=True,
+            dependents={True: ["other_param"]},
+        )
+        self.assertTrue(hierarchical_param.is_hierarchical)
+        self.assertEqual(hierarchical_param.dependents, {True: ["other_param"]})
+
+        # Test case where nonexistent value entails dependents.
+        with self.assertRaises(UserInputError):
+            FixedParameter(
+                name="x",
+                parameter_type=ParameterType.BOOL,
+                value=True,
+                dependents={False: ["other_param"]},
+            )
+
+    def test_available_flags(self) -> None:
+        fixed_flags = ["is_fidelity", "is_hierarchical"]
+        self.assertListEqual(self.param1.available_flags, fixed_flags)
+        self.assertListEqual(self.param2.available_flags, fixed_flags)
+
+    def test_domain_repr(self) -> None:
+        self.assertEqual(self.param1.domain_repr, "value=True")
+        self.assertEqual(self.param2.domain_repr, "value='foo'")
+
+    def test_summary_dict(self) -> None:
+        self.assertDictEqual(
+            self.param1.summary_dict,
+            {
+                "name": "x",
+                "type": "Fixed",
+                "domain": "value=True",
+                "parameter_type": "bool",
+            },
+        )
+        self.assertDictEqual(
+            self.param2.summary_dict,
+            {
+                "name": "y",
+                "type": "Fixed",
+                "domain": "value='foo'",
+                "parameter_type": "string",
+            },
+        )
+
+    def test_is_compatible_with(self) -> None:
+        with self.subTest("compatible_string_same_value"):
+            fixed_param_1 = FixedParameter(
+                name="x",
+                parameter_type=ParameterType.STRING,
+                value="foo",
+            )
+            fixed_param_2 = FixedParameter(
+                name="x",
+                parameter_type=ParameterType.STRING,
+                value="foo",
+            )
+            self.assertTrue(fixed_param_1.is_compatible_with(fixed_param_2))
+
+        with self.subTest("compatible_int_same_value"):
+            fixed_param_1 = FixedParameter(
+                name="x", parameter_type=ParameterType.INT, value=1
+            )
+            fixed_param_2 = FixedParameter(
+                name="x", parameter_type=ParameterType.INT, value=1
+            )
+            self.assertTrue(fixed_param_1.is_compatible_with(fixed_param_2))
+
+        with self.subTest("compatible_bool_same_value"):
+            fixed_param_1 = FixedParameter(
+                name="x",
+                parameter_type=ParameterType.BOOL,
+                value=True,
+            )
+            fixed_param_2 = FixedParameter(
+                name="x",
+                parameter_type=ParameterType.BOOL,
+                value=True,
+            )
+            self.assertTrue(fixed_param_1.is_compatible_with(fixed_param_2))
+
+        with self.subTest("compatible_different_value"):
+            fixed_param_1 = FixedParameter(
+                name="x",
+                parameter_type=ParameterType.STRING,
+                value="foo",
+            )
+            fixed_param_2 = FixedParameter(
+                name="x",
+                parameter_type=ParameterType.STRING,
+                value="bar",
+            )
+            self.assertTrue(fixed_param_1.is_compatible_with(fixed_param_2))
+
+        with self.subTest("compatible_with_range_same_type"):
+            fixed_param = FixedParameter(
+                name="x",
+                parameter_type=ParameterType.FLOAT,
+                value=0.5,
+            )
+            range_param = RangeParameter(
+                name="x",
+                parameter_type=ParameterType.FLOAT,
+                lower=0.0,
+                upper=1.0,
+            )
+            self.assertTrue(fixed_param.is_compatible_with(range_param))
+
+        with self.subTest("incompatible_with_range_different_type"):
+            fixed_param = FixedParameter(
+                name="x",
+                parameter_type=ParameterType.INT,
+                value=1,
+            )
+            range_param = RangeParameter(
+                name="x",
+                parameter_type=ParameterType.FLOAT,
+                lower=0.0,
+                upper=1.0,
+            )
+            self.assertFalse(fixed_param.is_compatible_with(range_param))
+
+
+class DerivedParameterTest(TestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.param1 = DerivedParameter(
+            name="x",
+            parameter_type=ParameterType.FLOAT,
+            expression_str="2.0 * a + 1.0",
+        )
+        self.param1_domain_repr = "value=2.0 * a + 1.0"
+        self.param1_repr = (
+            "DerivedParameter(name='x', parameter_type=FLOAT, "
+            f"{self.param1_domain_repr})"
+        )
+        self.param2 = DerivedParameter(
+            name="x2",
+            parameter_type=ParameterType.INT,
+            expression_str="2.0 * a + 3.0 * b",
+        )
+        self.param2_domain_repr = "value=2.0 * a + 3.0 * b"
+        self.param2_repr = (
+            "DerivedParameter(name='x2', parameter_type=INT, "
+            f"{self.param2_domain_repr})"
+        )
+
+    def test_invalid_inputs(self) -> None:
+        with self.assertRaisesRegex(
+            UnsupportedError, "Derived parameters cannot be fidelity parameters."
+        ):
+            DerivedParameter(
+                name="x",
+                parameter_type=ParameterType.FLOAT,
+                expression_str="2.0 * a",
+                is_fidelity=True,
+            )
+        with self.assertRaisesRegex(
+            UnsupportedError,
+            "Derived parameters do not support specifying a target value.",
+        ):
+            DerivedParameter(
+                name="x",
+                parameter_type=ParameterType.FLOAT,
+                expression_str="2.0 * a",
+                target_value=0.0,
+            )
+        for parameter_type in (ParameterType.BOOL, ParameterType.STRING):
+            with self.assertRaisesRegex(
+                UserInputError,
+                f"Derived parameters of type {parameter_type.name} must be simple "
+                "copies",
+            ):
+                DerivedParameter(
+                    name="x",
+                    parameter_type=parameter_type,
+                    expression_str="2.0 * a",
+                )
+        with self.assertRaisesRegex(
+            UserInputError,
+            "Derived parameters must have at least one parameter in `expression_str`.",
+        ):
+            DerivedParameter(
+                name="x",
+                parameter_type=ParameterType.FLOAT,
+                expression_str="1.0",
+            )
+
+        # test non-linear expression
+        with self.assertRaisesRegex(
+            UnsupportedError,
+            "Only linear expressions are currently supported.",
+        ):
+            DerivedParameter(
+                name="x", parameter_type=ParameterType.FLOAT, expression_str="y * z"
+            )
+
+        with self.assertRaisesRegex(
+            UnsupportedError,
+            "Only linear expressions are currently supported.",
+        ):
+            DerivedParameter(
+                name="x", parameter_type=ParameterType.FLOAT, expression_str="y ** 2"
+            )
+
+    def test_eq(self) -> None:
+        param2 = DerivedParameter(
+            name="x", parameter_type=ParameterType.FLOAT, expression_str="2.0 * a + 1.0"
+        )
+        self.assertEqual(self.param1, param2)
+
+        param3 = DerivedParameter(
+            name="x",
+            parameter_type=ParameterType.INT,
+            expression_str="2.0 * a + 3.0 * b + 1.0",
+        )
+        self.assertNotEqual(self.param1, param3)
+
+    def test_attributes(self) -> None:
+        self.assertEqual(self.param1.name, "x")
+        self.assertEqual(self.param1.parameter_type, ParameterType.FLOAT)
+        self.assertEqual(self.param1._parameter_names_to_weights, {"a": 2.0})
+        self.assertEqual(self.param1._intercept, 1.0)
+        self.assertTrue(self.param1.is_numeric)
+        self.assertEqual(self.param1.expression_str, "2.0 * a + 1.0")
+
+    def test_repr(self) -> None:
+        self.assertEqual(str(self.param1), self.param1_repr)
+        self.assertEqual(str(self.param2), self.param2_repr)
+        self.param1._intercept = 5.0
+        self.assertNotEqual(str(self.param1), self.param1_repr)
+
+    def test_validate(self) -> None:
+        self.assertFalse(self.param1.validate(value=None))
+        self.assertFalse(self.param1.validate(value=1.0))
+
+        # Check with raises
+        with self.assertRaisesRegex(
+            UserInputError, "Must specify `parameters` to validate a derived parameter"
+        ):
+            self.assertFalse(self.param1.validate(value=3.0, raises=True))
+
+        with self.assertRaisesRegex(
+            UserInputError, "Value 3.0 is not equal to the expected derived value: 5.0."
+        ):
+            self.assertFalse(
+                self.param1.validate(value=3.0, parameters={"a": 2.0}, raises=True)
+            )
+
+        self.assertTrue(
+            self.param1.validate(value=3.0, parameters={"a": 1.0}, raises=True)
+        )
+        self.assertTrue(
+            self.param1.validate(value=3.0 + 1e-9, parameters={"a": 1.0}, raises=True)
+        )
+
+    def test_set_parameter_names_to_weights(self) -> None:
+        new_expression_str = "5.0 * c"
+        self.param1.set_expression_str(expression_str=new_expression_str)
+        self.assertEqual(self.param1._expression_str, new_expression_str)
+        self.assertEqual(self.param1.parameter_names_to_weights, {"c": 5.0})
+        with self.assertRaisesRegex(
+            UserInputError,
+            "Derived parameters must have at least one parameter in `expression_str`.",
+        ):
+            self.param1.set_expression_str(expression_str="1.0")
+
+    def test_clone(self) -> None:
+        param_clone = self.param1.clone()
+        self.assertEqual(
+            self.param1.parameter_names_to_weights,
+            param_clone.parameter_names_to_weights,
+        )
+        self.assertIsNot(
+            self.param1.parameter_names_to_weights,
+            param_clone.parameter_names_to_weights,
+        )
+        self.assertEqual(self.param1._expression_str, param_clone._expression_str)
+
+        param_clone._parameter_names_to_weights["c"] = 1.0
+        self.assertNotIn("c", self.param1.parameter_names_to_weights)
+
+    def test_cast(self) -> None:
+        self.assertEqual(self.param1.cast(1), 1.0)
+        self.assertEqual(self.param1.cast(1.0), 1.0)
+        with self.assertRaisesRegex(UnsupportedError, "None values"):
+            self.param1.cast(None)
+
+    def test_domain_repr(self) -> None:
+        self.assertEqual(self.param1.domain_repr, self.param1_domain_repr)
+        self.assertEqual(self.param2.domain_repr, self.param2_domain_repr)
+
+    def test_summary_dict(self) -> None:
+        self.assertDictEqual(
+            self.param1.summary_dict,
+            {
+                "domain": "value=2.0 * a + 1.0",
+                "name": "x",
+                "parameter_type": "float",
+                "type": "Derived",
+            },
+        )
+        self.assertDictEqual(
+            self.param2.summary_dict,
+            {
+                "domain": "value=2.0 * a + 3.0 * b",
+                "name": "x2",
+                "parameter_type": "int",
+                "type": "Derived",
+            },
+        )
+
+    def test_cardinality(self) -> None:
+        self.assertTrue(isinf(self.param1.cardinality()))
+        with self.assertRaisesRegex(
+            UnsupportedError,
+            "cardinality for an integer DerivedParameter is not supported.",
+        ):
+            self.param2.cardinality()
+
+    def test_simple_copy(self) -> None:
+        """Test simple copy functionality for all parameter types including BOOL, and
+        STRING.
+        """
+        # Test 1: Simple copy detection - _is_simple_copy returns True for single param
+        dp_float = DerivedParameter(
+            name="derived_x",
+            parameter_type=ParameterType.FLOAT,
+            expression_str="x",
+        )
+        self.assertTrue(dp_float._is_simple_copy)
+        self.assertEqual(dp_float.source_parameter_name, "x")
+
+        # Test 2: _is_simple_copy returns False for expressions with coefficients != 1
+        dp_scaled = DerivedParameter(
+            name="derived_scaled",
+            parameter_type=ParameterType.FLOAT,
+            expression_str="2 * x",
+        )
+        self.assertFalse(dp_scaled._is_simple_copy)
+        self.assertIsNone(dp_scaled.source_parameter_name)
+
+        # Test 3: _is_simple_copy returns False for expressions with intercepts
+        dp_offset = DerivedParameter(
+            name="derived_offset",
+            parameter_type=ParameterType.FLOAT,
+            expression_str="x + 1",
+        )
+        self.assertFalse(dp_offset._is_simple_copy)
+
+        # Test 4: _is_simple_copy returns False for multi-param expressions
+        dp_multi = DerivedParameter(
+            name="derived_multi",
+            parameter_type=ParameterType.FLOAT,
+            expression_str="x + y",
+        )
+        self.assertFalse(dp_multi._is_simple_copy)
+
+        # Test 5: BOOL derived parameter - compute and validate
+        dp_bool = DerivedParameter(
+            name="derived_bool",
+            parameter_type=ParameterType.BOOL,
+            expression_str="flag",
+        )
+        self.assertTrue(dp_bool._is_simple_copy)
+        self.assertEqual(dp_bool.compute({"flag": True}), True)
+        self.assertEqual(dp_bool.compute({"flag": False}), False)
+        self.assertTrue(dp_bool.validate(True, parameters={"flag": True}))
+        self.assertTrue(dp_bool.validate(False, parameters={"flag": False}))
+        self.assertFalse(dp_bool.validate(True, parameters={"flag": False}))
+
+        # Test 6: STRING derived parameter - compute and validate
+        dp_string = DerivedParameter(
+            name="derived_string",
+            parameter_type=ParameterType.STRING,
+            expression_str="category",
+        )
+        self.assertTrue(dp_string._is_simple_copy)
+        self.assertEqual(dp_string.compute({"category": "foo"}), "foo")
+        self.assertEqual(dp_string.compute({"category": "bar"}), "bar")
+        self.assertTrue(dp_string.validate("foo", parameters={"category": "foo"}))
+        self.assertFalse(dp_string.validate("foo", parameters={"category": "bar"}))
+
+        # Test 7: domain_repr for simple copy
+        self.assertEqual(dp_bool.domain_repr, "value=flag")
+        self.assertEqual(dp_string.domain_repr, "value=category")
+
+        # Test 8: Error case - BOOL with non-simple expression
+        with self.assertRaisesRegex(UserInputError, "simple copies"):
+            DerivedParameter(
+                name="bad_bool",
+                parameter_type=ParameterType.BOOL,
+                expression_str="2 * flag",
+            )
+
+        # Test 9: Error case - STRING with non-simple expression
+        with self.assertRaisesRegex(UserInputError, "simple copies"):
+            DerivedParameter(
+                name="bad_string",
+                parameter_type=ParameterType.STRING,
+                expression_str="cat + 1",
+            )
+
+        # Test 10: compute_array and validate_array for BOOL
+        df = pd.DataFrame(
+            {
+                "flag": [True, False, True],
+                "other": [False, False, False],
+            }
+        )
+        computed_bool = dp_bool.compute_array(df)
+        self.assertTrue(np.array_equal(computed_bool, np.array([True, False, True])))
+        self.assertTrue(
+            np.array_equal(
+                dp_bool.validate_array(np.array([True, False, True]), df),
+                np.array([True, True, True]),
+            )
+        )
+
+        # Test 11: compute_array and validate_array for STRING
+        df_str = pd.DataFrame({"category": ["foo", "bar", "baz"]})
+        computed_str = dp_string.compute_array(df_str)
+        self.assertTrue(np.array_equal(computed_str, np.array(["foo", "bar", "baz"])))
+
+        # Test 12: compute_array for numeric (FLOAT) simple copy with column present
+        # (Covers line 1533: return df[source_name].to_numpy(dtype=np.float64, ...))
+        df_float = pd.DataFrame({"x": [1.0, 2.0, 3.0]})
+        np.testing.assert_array_equal(
+            dp_float.compute_array(df_float), np.array([1.0, 2.0, 3.0])
+        )
+
+        # Test 13: compute_array for simple copy with missing column
+        # (Covers lines 1535-1537)
+        df_missing = pd.DataFrame({"other": [1.0, 2.0]})
+        self.assertTrue(np.all(np.isnan(dp_float.compute_array(df_missing))))  # numeric
+        self.assertTrue(
+            np.all(pd.isna(dp_bool.compute_array(df_missing)))
+        )  # non-numeric
+
+        # Test 14: validate_array with df=None
+        # (Covers line 1568)
+        np.testing.assert_array_equal(
+            dp_float.validate_array(np.array([1.0, 2.0]), df=None),
+            np.array([False, False]),
+        )
+
+
+class ParameterEqualityTest(TestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.fixed_parameter = FixedParameter(
+            name="x", parameter_type=ParameterType.BOOL, value=True
+        )
+        self.choice_parameter = ChoiceParameter(
+            name="x", parameter_type=ParameterType.STRING, values=["foo", "bar", "baz"]
+        )
+
+    def test_NotEqual(self) -> None:
+        self.assertNotEqual(self.fixed_parameter, self.choice_parameter)

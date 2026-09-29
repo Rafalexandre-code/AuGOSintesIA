@@ -1,0 +1,678 @@
+import importlib
+
+import pandas as pd
+import pytest
+import torch
+from botorch.models.transforms.input import (
+    ChainedInputTransform,
+    FilterFeatures,
+    InputStandardize,
+    Normalize,
+    NumericToCategoricalEncoding,
+)
+
+from bofire.data_models.descriptor_generators.api import (
+    Fingerprints,
+    Fragments,
+    MordredDescriptors,
+)
+from bofire.data_models.domain.api import EngineeredFeatures, Inputs
+from bofire.data_models.encodings.api import (
+    DescriptorEncoding,
+    OneHotEncoding,
+    OrdinalEncoding,
+)
+from bofire.data_models.features.api import (
+    CategoricalInput,
+    ContinuousInput,
+    MeanFeature,
+    SumFeature,
+    WeightedSumFeature,
+)
+from bofire.data_models.features.descriptors import Descriptors
+from bofire.data_models.surrogates.scaler import Normalize as NormalizeScaler
+from bofire.data_models.surrogates.scaler import Standardize as StandardizeScaler
+from bofire.surrogates.utils import (
+    get_continuous_feature_keys,
+    get_input_transform,
+    get_scaler,
+)
+
+
+RDKIT_AVAILABLE = importlib.util.find_spec("rdkit") is not None
+
+
+def test_get_scaler_none():
+    inputs = Inputs(
+        features=[
+            CategoricalInput(key="x_cat", categories=["mama", "papa"]),
+            CategoricalInput(key="x_desc", categories=["alpha", "beta"]),
+        ],
+    )
+    scaler = get_scaler(
+        inputs=inputs,
+        engineered_features=EngineeredFeatures(features=[]),
+        categorical_encodings={
+            "x_cat": OneHotEncoding(),
+            "x_desc": OneHotEncoding(),
+        },
+        scaler_type=NormalizeScaler(),
+    )
+    assert scaler == {}
+
+
+@pytest.mark.parametrize(
+    "scaler_enum, input_preprocessing_specs, expected_scaler, expected_indices, expected_offset, expected_coefficient",
+    [
+        (
+            NormalizeScaler(),
+            {
+                "x_cat": OneHotEncoding(),
+                "x_desc": OneHotEncoding(),
+            },
+            Normalize,
+            torch.tensor([0, 1], dtype=torch.int64),
+            None,
+            None,
+        ),
+        (
+            NormalizeScaler(),
+            {
+                "x_cat": OneHotEncoding(),
+                "x_desc": DescriptorEncoding(),
+            },
+            Normalize,
+            # x_desc is a plain CategoricalInput now, so it sorts after x_cat and its
+            # descriptor columns land at 4/5 rather than 2/3.
+            torch.tensor([0, 1, 4, 5], dtype=torch.int64),
+            None,
+            None,
+        ),
+        (
+            StandardizeScaler(),
+            {
+                "x_cat": OneHotEncoding(),
+                "x_desc": OneHotEncoding(),
+            },
+            InputStandardize,
+            torch.tensor([0, 1], dtype=torch.int64),
+            None,
+            None,
+        ),
+        (
+            StandardizeScaler(),
+            {
+                "x_cat": OneHotEncoding(),
+                "x_desc": DescriptorEncoding(),
+            },
+            InputStandardize,
+            # x_desc is a plain CategoricalInput now, so it sorts after x_cat and its
+            # descriptor columns land at 4/5 rather than 2/3.
+            torch.tensor([0, 1, 4, 5], dtype=torch.int64),
+            None,
+            None,
+        ),
+        (
+            None,
+            {
+                "x_cat": OneHotEncoding(),
+                "x_desc": OneHotEncoding(),
+            },
+            type(None),
+            None,
+            None,
+            None,
+        ),
+        (
+            None,
+            {
+                "x_cat": OneHotEncoding(),
+                "x_desc": DescriptorEncoding(),
+            },
+            type(None),
+            None,
+            None,
+            None,
+        ),
+    ],
+)
+def test_get_scaler(
+    scaler_enum,
+    input_preprocessing_specs,
+    expected_scaler,
+    expected_indices,
+    expected_offset,
+    expected_coefficient,
+):
+    inputs = Inputs(
+        features=[
+            ContinuousInput(
+                key=f"x_{i + 1}",
+                bounds=(-4, 4),
+            )
+            for i in range(2)
+        ]
+        + [
+            CategoricalInput(key="x_cat", categories=["mama", "papa"]),
+            CategoricalInput(
+                key="x_desc",
+                categories=["alpha", "beta"],
+                descriptors=Descriptors(columns={"oskar": [1, 6], "wilde": [3, 8]}),
+            ),
+        ],
+    )
+
+    scaler_dict = get_scaler(
+        inputs=inputs,
+        engineered_features=EngineeredFeatures(features=[]),
+        categorical_encodings=input_preprocessing_specs,
+        scaler_type=scaler_enum,
+    )
+    scaler = None if scaler_dict == {} else scaler_dict["scaler"]
+
+    assert isinstance(scaler, expected_scaler)
+    if expected_indices is not None:
+        assert (scaler.indices == expected_indices).all()
+        assert scaler.transform_on_train is True
+    else:
+        with pytest.raises(AttributeError):
+            assert (scaler.indices == expected_indices).all()
+    # if expected_offset is not None:
+    #     assert torch.allclose(scaler.offset, expected_offset)
+    #     assert torch.allclose(scaler.coefficient, expected_coefficient)
+    # elif scaler is None:
+    #     with pytest.raises(AttributeError):
+    #         assert (scaler.offset == expected_offset).all()
+    #     with pytest.raises(AttributeError):
+    #         assert (scaler.coefficient == expected_coefficient).all()
+
+
+def test_get_scaler_with_experiments():
+    inputs = Inputs(
+        features=[
+            ContinuousInput(
+                key=f"x_{i + 1}",
+                bounds=(-4, 4),
+            )
+            for i in range(2)
+        ]
+    )
+
+    scaler = get_scaler(
+        inputs=inputs,
+        engineered_features=EngineeredFeatures(features=[]),
+        categorical_encodings={},
+        scaler_type=NormalizeScaler(),
+    )["scaler"]
+
+    assert isinstance(scaler, Normalize)
+    assert (scaler.bounds == torch.tensor([[-4.0], [4.0]])).all()
+
+    experiments_beyond_bounds = pd.DataFrame(
+        [[-8.0, 0.1], [1.2, 5.0]], columns=inputs.get_keys()
+    )
+
+    scaler_beyond_bounds = get_scaler(
+        inputs=inputs,
+        engineered_features=EngineeredFeatures(features=[]),
+        categorical_encodings={},
+        scaler_type=NormalizeScaler(),
+        X=experiments_beyond_bounds,
+    )["scaler"]
+
+    assert (
+        scaler_beyond_bounds.bounds == torch.tensor([[-8.0, -4.0], [4.0, 5.0]])
+    ).all()
+
+
+@pytest.mark.skipif(not RDKIT_AVAILABLE, reason="requires rdkit")
+@pytest.mark.parametrize(
+    "scaler_enum, input_preprocessing_specs, expected_scaler, expected_indices",
+    [
+        (
+            NormalizeScaler(),
+            {
+                "x_mol": DescriptorEncoding(
+                    columns=[],
+                    generators=[MordredDescriptors(descriptors=["NssCH2", "ATSC2d"])],
+                ),
+            },
+            Normalize,
+            torch.tensor([0, 1, 2, 3], dtype=torch.int64),
+        ),
+        (
+            NormalizeScaler(),
+            {
+                "x_mol": DescriptorEncoding(
+                    columns=[], generators=[Fingerprints(n_bits=2)]
+                ),
+            },
+            Normalize,
+            torch.tensor([0, 1], dtype=torch.int64),
+        ),
+        (
+            StandardizeScaler(),
+            {
+                "x_mol": DescriptorEncoding(
+                    columns=[],
+                    generators=[MordredDescriptors(descriptors=["NssCH2", "ATSC2d"])],
+                ),
+            },
+            InputStandardize,
+            torch.tensor([0, 1, 2, 3], dtype=torch.int64),
+        ),
+        (
+            StandardizeScaler(),
+            {
+                "x_mol": DescriptorEncoding(
+                    columns=[],
+                    generators=[
+                        Fragments(
+                            fragments=["fr_unbrch_alkane", "fr_thiocyan"],
+                        )
+                    ],
+                ),
+            },
+            InputStandardize,
+            torch.tensor([0, 1], dtype=torch.int64),
+        ),
+        (
+            None,
+            {
+                "x_mol": DescriptorEncoding(
+                    columns=[],
+                    generators=[MordredDescriptors(descriptors=["NssCH2", "ATSC2d"])],
+                ),
+            },
+            type(None),
+            None,
+        ),
+        (
+            None,
+            {
+                "x_mol": DescriptorEncoding(
+                    columns=[],
+                    generators=[Fingerprints(n_bits=32), Fragments()],
+                ),
+            },
+            type(None),
+            None,
+        ),
+    ],
+)
+def test_get_scaler_molecular(
+    scaler_enum,
+    input_preprocessing_specs,
+    expected_scaler,
+    expected_indices,
+):
+    inputs = Inputs(
+        features=[
+            ContinuousInput(
+                key=f"x_{i + 1}",
+                bounds=(0, 5),
+            )
+            for i in range(2)
+        ]
+        + [
+            CategoricalInput(
+                key="x_mol",
+                categories=[
+                    "CC(=O)Oc1ccccc1C(=O)O",
+                    "c1ccccc1",
+                    "[CH3][CH2][OH]",
+                    "N[C@](C)(F)C(=O)O",
+                ],
+                descriptors=Descriptors(
+                    structure=[
+                        "CC(=O)Oc1ccccc1C(=O)O",
+                        "c1ccccc1",
+                        "[CH3][CH2][OH]",
+                        "N[C@](C)(F)C(=O)O",
+                    ]
+                ),
+            )
+        ],
+    )
+    experiments = [
+        [5.0, 2.5, "CC(=O)Oc1ccccc1C(=O)O"],
+        [4.0, 2.0, "c1ccccc1"],
+        [3.0, 0.5, "[CH3][CH2][OH]"],
+        [1.5, 4.5, "N[C@](C)(F)C(=O)O"],
+    ]
+    experiments = pd.DataFrame(experiments, columns=["x_1", "x_2", "x_mol"])
+    scaler_dict = get_scaler(
+        inputs=inputs,
+        engineered_features=EngineeredFeatures(features=[]),
+        categorical_encodings=input_preprocessing_specs,
+        scaler_type=scaler_enum,
+        # X=experiments[inputs.get_keys()],
+    )
+    scaler = None if len(scaler_dict) == 0 else scaler_dict["scaler"]
+    assert isinstance(scaler, expected_scaler)
+    if expected_indices is not None:
+        assert scaler.transform_on_train is True
+        assert (scaler.indices == expected_indices).all()
+
+
+def test_get_scaler_engineered_features():
+    inputs = Inputs(
+        features=[
+            ContinuousInput(
+                key=f"x_{i + 1}",
+                bounds=(0, 5),
+                descriptors=Descriptors(
+                    columns={"d1": [1.0], "d2": [2.0], "d3": [3.0]}
+                ),
+            )
+            for i in range(2)
+        ]
+        + [CategoricalInput(key="x_cat", categories=["mama", "papa", "lotta"])],
+    )
+    engineered_features = EngineeredFeatures(
+        features=[
+            SumFeature(key="sum", features=["x_1", "x_2"]),
+            MeanFeature(key="mean", features=["x_1", "x_2"]),
+            WeightedSumFeature(
+                key="weighted_sum", features=["x_1", "x_2"], columns=["d1", "d3"]
+            ),
+        ],
+    )
+    scaler_dict = get_scaler(
+        inputs=inputs,
+        engineered_features=engineered_features,
+        categorical_encodings={"x_cat": OneHotEncoding()},
+        scaler_type=NormalizeScaler(),
+    )
+
+    assert isinstance(scaler_dict, dict) and all(
+        isinstance(tf, Normalize) for tf in scaler_dict.values()
+    )
+    assert (
+        scaler_dict["scaler"].indices == torch.tensor([0, 1], dtype=torch.int64)
+    ).all()
+    assert not scaler_dict["scaler"].learn_coefficients
+
+    assert (
+        scaler_dict["engineered_scaler"].indices
+        == torch.tensor([5, 6, 7, 8], dtype=torch.int64)
+    ).all()
+    assert scaler_dict["engineered_scaler"].learn_coefficients
+
+
+def test_get_scaler_feature_specific():
+    inputs = Inputs(
+        features=[
+            ContinuousInput(
+                key=f"x_{i + 1}",
+                bounds=(0, 5),
+            )
+            for i in range(5)
+        ]
+        + [CategoricalInput(key="x_cat", categories=["mama", "papa", "lotta"])],
+    )
+
+    engineered_features = EngineeredFeatures(
+        features=[
+            SumFeature(key="sum", features=["x_1", "x_2"]),
+            MeanFeature(key="mean", features=["x_1", "x_2"]),
+        ]
+    )
+
+    scaler_dict = get_scaler(
+        inputs=inputs,
+        engineered_features=engineered_features,
+        categorical_encodings={"x_cat": OneHotEncoding()},
+        scaler_type=NormalizeScaler(features=["x_2", "x_4", "sum"]),
+    )
+
+    assert len(scaler_dict) == 2
+    assert (
+        scaler_dict["scaler"].indices == torch.tensor([1, 3], dtype=torch.int64)
+    ).all()
+
+    assert (
+        scaler_dict["engineered_scaler"].indices == torch.tensor([8], dtype=torch.int64)
+    ).all()
+
+
+@pytest.mark.skipif(not RDKIT_AVAILABLE, reason="requires rdkit")
+@pytest.mark.parametrize(
+    "specs, expected_continuous_keys",
+    [
+        (
+            {
+                "x2": OneHotEncoding(),
+                "x3": OneHotEncoding(),
+                "x4": DescriptorEncoding(
+                    columns=[], generators=[Fingerprints(n_bits=2)]
+                ),
+            },
+            ["x1"],
+        ),
+        (
+            {
+                "x2": OneHotEncoding(),
+                "x3": OneHotEncoding(),
+                "x4": DescriptorEncoding(
+                    columns=[],
+                    generators=[
+                        Fragments(fragments=["fr_unbrch_alkane", "fr_thiocyan"])
+                    ],
+                ),
+            },
+            ["x1"],
+        ),
+        (
+            {
+                "x2": OneHotEncoding(),
+                "x3": OneHotEncoding(),
+                "x4": DescriptorEncoding(
+                    columns=[],
+                    generators=[MordredDescriptors(descriptors=["NssCH2", "ATSC2d"])],
+                ),
+            },
+            ["x1", "x4"],
+        ),
+        (
+            {
+                "x2": OneHotEncoding(),
+                "x3": DescriptorEncoding(),
+                "x4": DescriptorEncoding(
+                    columns=[], generators=[Fingerprints(n_bits=2)]
+                ),
+            },
+            ["x1", "x3"],
+        ),
+        (
+            {
+                "x2": OneHotEncoding(),
+                "x3": DescriptorEncoding(),
+                "x4": DescriptorEncoding(
+                    columns=[],
+                    generators=[
+                        Fragments(fragments=["fr_unbrch_alkane", "fr_thiocyan"])
+                    ],
+                ),
+            },
+            ["x1", "x3"],
+        ),
+        (
+            {
+                "x2": OneHotEncoding(),
+                "x3": DescriptorEncoding(),
+                "x4": DescriptorEncoding(
+                    columns=[],
+                    generators=[
+                        Fingerprints(n_bits=32),
+                        Fragments(fragments=["fr_unbrch_alkane", "fr_thiocyan"]),
+                    ],
+                ),
+            },
+            ["x1", "x3"],
+        ),
+        (
+            {
+                "x2": OneHotEncoding(),
+                "x3": DescriptorEncoding(),
+                "x4": DescriptorEncoding(
+                    columns=[],
+                    generators=[MordredDescriptors(descriptors=["NssCH2", "ATSC2d"])],
+                ),
+            },
+            ["x1", "x3", "x4"],
+        ),
+        (
+            {
+                "x2": OneHotEncoding(),
+                "x3": DescriptorEncoding(),
+                # mixed real (Mordred) + binary (Fingerprints): not purely continuous,
+                # so x4 is not scaled (every generator must be real-valued to qualify).
+                "x4": DescriptorEncoding(
+                    columns=[],
+                    generators=[
+                        MordredDescriptors(descriptors=["NssCH2", "ATSC2d"]),
+                        Fingerprints(n_bits=128),
+                    ],
+                ),
+            },
+            ["x1", "x3"],
+        ),
+    ],
+)
+def test_get_feature_keys(
+    specs,
+    expected_continuous_keys,
+):
+    inps = Inputs(
+        features=[
+            ContinuousInput(key="x1", bounds=(0, 1)),
+            CategoricalInput(key="x2", categories=["apple", "banana", "orange"]),
+            CategoricalInput(
+                key="x3",
+                categories=["apple", "banana", "orange", "cherry"],
+                descriptors=Descriptors(
+                    columns={"d1": [1, 3, 5, 7], "d2": [2, 4, 6, 8]}
+                ),
+            ),
+            CategoricalInput(
+                key="x4",
+                categories=[
+                    "CC(=O)Oc1ccccc1C(=O)O",
+                    "c1ccccc1",
+                    "[CH3][CH2][OH]",
+                    "N[C@](C)(F)C(=O)O",
+                ],
+                descriptors=Descriptors(
+                    structure=[
+                        "CC(=O)Oc1ccccc1C(=O)O",
+                        "c1ccccc1",
+                        "[CH3][CH2][OH]",
+                        "N[C@](C)(F)C(=O)O",
+                    ]
+                ),
+            ),
+        ],
+    )
+    continuous_feature_keys = get_continuous_feature_keys(inps, specs)
+
+    assert continuous_feature_keys == expected_continuous_keys
+
+
+def test_get_input_transform():
+    inputs = Inputs(
+        features=[
+            ContinuousInput(key="x1", bounds=(0, 1)),
+            CategoricalInput(key="x2", categories=["apple", "banana", "orange"]),
+            ContinuousInput(key="x3", bounds=(-5, 5)),
+        ]
+    )
+
+    # case 1 scaler not none, categorical transform not none
+    input_transform = get_input_transform(
+        inputs=inputs,
+        scaler_type=NormalizeScaler(),
+        categorical_encodings={
+            "x2": OneHotEncoding(),
+        },
+        engineered_features=EngineeredFeatures(features=[]),
+    )
+    assert isinstance(input_transform, ChainedInputTransform)
+    # case 2 scaler is none, categorical transform is not none
+    input_transform = get_input_transform(
+        inputs=inputs,
+        scaler_type=None,
+        categorical_encodings={
+            "x2": OneHotEncoding(),
+        },
+        engineered_features=EngineeredFeatures(features=[]),
+    )
+    assert isinstance(input_transform, NumericToCategoricalEncoding)
+    # case 3 scaler is not none, categorical transform is none
+    input_transform = get_input_transform(
+        inputs=inputs,
+        scaler_type=NormalizeScaler(),
+        categorical_encodings={
+            "x2": OrdinalEncoding(),
+        },
+        engineered_features=EngineeredFeatures(features=[]),
+    )
+    assert isinstance(input_transform, Normalize)
+    # case 4 both is none
+    input_transform = get_input_transform(
+        inputs=inputs,
+        scaler_type=None,
+        categorical_encodings={
+            "x2": OrdinalEncoding(),
+        },
+        engineered_features=EngineeredFeatures(features=[]),
+    )
+    assert input_transform is None
+    # case 5 engineered features with scaler and categorical transform
+    input_transform = get_input_transform(
+        inputs=inputs,
+        scaler_type=NormalizeScaler(),
+        categorical_encodings={
+            "x2": OneHotEncoding(),
+        },
+        engineered_features=EngineeredFeatures(
+            features=[
+                SumFeature(key="sum", features=["x1", "x3"]),
+            ],
+        ),
+    )
+    assert isinstance(input_transform, ChainedInputTransform)
+    assert list(input_transform.keys()) == ["cat", "sum", "scaler", "engineered_scaler"]
+    scaler, engineered_scaler = (
+        input_transform["scaler"],
+        input_transform["engineered_scaler"],
+    )
+    assert isinstance(scaler, Normalize) and isinstance(engineered_scaler, Normalize)
+    assert (scaler.indices == torch.tensor([0, 1], dtype=torch.int64)).all()
+    assert (engineered_scaler.indices == torch.tensor([5], dtype=torch.int64)).all()
+    # case 6 engineered features keep_features = False
+    input_transform = get_input_transform(
+        inputs=inputs,
+        scaler_type=NormalizeScaler(),
+        categorical_encodings={
+            "x2": OneHotEncoding(),
+        },
+        engineered_features=EngineeredFeatures(
+            features=[
+                SumFeature(key="sum", features=["x1", "x3"], keep_features=False),
+            ],
+        ),
+    )
+    assert isinstance(input_transform, ChainedInputTransform)
+    assert list(input_transform.keys()) == [
+        "cat",
+        "sum",
+        "scaler",
+        "engineered_scaler",
+        "filter_engineered",
+    ]
+    filter = input_transform["filter_engineered"]
+    assert isinstance(filter, FilterFeatures)
+    assert (
+        filter.feature_indices == torch.tensor([2, 3, 4, 5], dtype=torch.int64)
+    ).all()

@@ -1,0 +1,143 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+# pyre-strict
+
+from typing import final
+
+from ax.adapter.base import Adapter
+from ax.analysis.analysis import Analysis
+from ax.analysis.graphviz.generation_strategy_graph import GenerationStrategyGraph
+from ax.analysis.plotly.cross_validation import CrossValidationPlot
+from ax.analysis.utils import extract_relevant_adapter, validate_experiment
+from ax.core.analysis_card import AnalysisCardGroup
+from ax.core.experiment import Experiment
+from ax.core.utils import is_bandit_experiment
+from ax.exceptions.core import UserInputError
+from ax.generation_strategy.generation_strategy import GenerationStrategy
+from ax.utils.common.constants import is_preference_metric
+from pyre_extensions import none_throws, override
+
+DIAGNOSTICS_CARDGROUP_TITLE = "Diagnostic Analysis"
+
+DIAGNOSTICS_CARDGROUP_SUBTITLE = (
+    "Diagnostic Analyses provide information about the optimization process and "
+    "the quality of the model fit. You can use this information to understand "
+    "if the experimental design should be adjusted to improve optimization quality."
+)
+
+
+@final
+class DiagnosticAnalysis(Analysis):
+    """
+    An Analysis that provides diagnostic information about the optimization process.
+    This includes information about the quality of the model fit, such as the results
+    of leave-one-out cross validation.
+    """
+
+    def __init__(
+        self,
+        include_tracking_metrics: bool = False,
+        test_trial_index: int | None = None,
+    ) -> None:
+        """Initialize the DiagnosticAnalysis.
+
+        Args:
+            include_tracking_metrics: Whether to include tracking metrics or just use
+                the optimization config metrics.
+            test_trial_index: If provided, limits cross validation to only evaluate
+                predictions for observations from this trial. Other trials'
+                observations will still be used for training but will not
+                appear as test points.
+        """
+        self.include_tracking_metrics = include_tracking_metrics
+        self.test_trial_index = test_trial_index
+
+    @override
+    def validate_applicable_state(
+        self,
+        experiment: Experiment | None = None,
+        generation_strategy: GenerationStrategy | None = None,
+        adapter: Adapter | None = None,
+    ) -> str | None:
+        return validate_experiment(
+            experiment=experiment,
+            require_trials=False,
+            require_data=False,
+        )
+
+    @override
+    def compute(
+        self,
+        experiment: Experiment | None = None,
+        generation_strategy: GenerationStrategy | None = None,
+        adapter: Adapter | None = None,
+    ) -> AnalysisCardGroup:
+        experiment = none_throws(experiment)
+
+        if self.include_tracking_metrics:
+            metric_names = list(experiment.metrics.keys())
+        else:
+            # Extract all metric names from the OptimizationConfig.
+            metric_names = [*none_throws(experiment.optimization_config).metric_names]
+
+        # Identify preference metrics so CrossValidationPlot can switch to
+        # pair-aware accuracy evaluation (instead of scatter + R^2). If CV
+        # fails for a preference model (e.g., PairwiseGP NotPSDError), it
+        # surfaces as an ErrorAnalysisCard -- same as any other model failure.
+        preference_metrics = {m for m in metric_names if is_preference_metric(m)}
+
+        is_bandit = generation_strategy and is_bandit_experiment(
+            generation_strategy_name=generation_strategy.name
+        )
+        try:
+            relevant_adapter = extract_relevant_adapter(
+                experiment=experiment,
+                generation_strategy=generation_strategy,
+                adapter=adapter,
+            )
+            adapter_metric_names = [
+                relevant_adapter._experiment.signature_to_metric[signature].name
+                for signature in relevant_adapter._metric_signatures
+            ]
+            metric_names = [m for m in metric_names if m in adapter_metric_names]
+        except UserInputError:
+            pass
+
+        cross_validation_plots = (
+            [
+                CrossValidationPlot(
+                    metric_names=metric_names,
+                    test_trial_index=self.test_trial_index,
+                    preference_metrics=preference_metrics
+                    if preference_metrics
+                    else None,
+                ).compute_or_error_card(
+                    experiment=experiment,
+                    generation_strategy=generation_strategy,
+                    adapter=adapter,
+                )
+            ]
+            if not is_bandit and len(metric_names) > 0
+            else []
+        )
+
+        generation_strategy_graph = (
+            [
+                GenerationStrategyGraph().compute_or_error_card(
+                    experiment=experiment,
+                    generation_strategy=generation_strategy,
+                    adapter=adapter,
+                )
+            ]
+            if generation_strategy is not None
+            else []
+        )
+
+        return self._create_analysis_card_group(
+            title=DIAGNOSTICS_CARDGROUP_TITLE,
+            subtitle=DIAGNOSTICS_CARDGROUP_SUBTITLE,
+            children=[*cross_validation_plots, *generation_strategy_graph],
+        )

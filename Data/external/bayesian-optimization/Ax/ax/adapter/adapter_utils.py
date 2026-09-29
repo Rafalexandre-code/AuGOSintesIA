@@ -1,0 +1,1535 @@
+#!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+# pyre-strict
+
+from __future__ import annotations
+
+import warnings
+from collections.abc import Iterable, Mapping, MutableMapping, Sequence
+from copy import deepcopy
+from logging import Logger
+from typing import Any, Callable, cast, SupportsFloat, TYPE_CHECKING
+
+import numpy as np
+import numpy.typing as npt
+import torch
+from ax.adapter.parameter_utils import (  # noqa: F401
+    can_map_to_binary,
+    is_unordered_choice,
+)
+from ax.adapter.transforms.base import Transform
+from ax.adapter.transforms.utils import (
+    derelativize_optimization_config_with_raw_status_quo,
+)
+from ax.core.arm import Arm
+from ax.core.experiment import Experiment
+from ax.core.objective import _build_objective_expression, Objective
+from ax.core.observation import Observation, ObservationData, ObservationFeatures
+from ax.core.optimization_config import (
+    MultiObjectiveOptimizationConfig,
+    OptimizationConfig,
+    TRefPoint,
+)
+from ax.core.outcome_constraint import (
+    ComparisonOp,
+    OutcomeConstraint,
+    ScalarizedOutcomeConstraint,
+)
+from ax.core.parameter import ChoiceParameter, ParameterType, RangeParameter
+from ax.core.parameter_constraint import ParameterConstraint
+from ax.core.search_space import SearchSpace, SearchSpaceDigest
+from ax.core.types import TBounds, TCandidateMetadata, TNumeric
+from ax.exceptions.core import DataRequiredError, UserInputError
+from ax.generators.torch.botorch_moo_utils import (
+    get_weighted_mc_objective,
+    pareto_frontier_evaluator,
+)
+from ax.utils.common.constants import Keys
+from ax.utils.common.hash_utils import get_current_lilo_hash
+from ax.utils.common.logger import get_logger
+from ax.utils.common.sympy import (
+    extract_metric_weights_from_objective_expr,
+    parse_objective_expression,
+)
+from ax.utils.common.typeutils import (
+    assert_is_instance_of_tuple,
+    assert_is_instance_optional,
+)
+from botorch.models.utils.assorted import consolidate_duplicates
+from botorch.utils.containers import SliceContainer
+from botorch.utils.datasets import ContextualDataset, RankingDataset, SupervisedDataset
+from botorch.utils.multi_objective.box_decompositions.dominated import (
+    DominatedPartitioning,
+)
+from pyre_extensions import assert_is_instance, none_throws
+from torch import LongTensor, Tensor
+
+logger: Logger = get_logger(__name__)
+
+
+if TYPE_CHECKING:
+    # import as module to make sphinx-autodoc-typehints happy
+    from ax import adapter as adapter_module  # noqa F401
+
+
+def _extract_constraints(
+    parameter_constraints: list[ParameterConstraint],
+    param_names: list[str],
+    is_equality: bool,
+) -> TBounds:
+    """Extract linear constraints into a tuple of NumPy arrays.
+
+    Shared helper for extracting inequality (``A x <= b``) or equality
+    (``A x = b``) constraints.
+
+    Args:
+        parameter_constraints: A list of parameter constraint objects.
+        param_names: A list of parameter names.
+        is_equality: If True, extract equality constraints; otherwise
+            extract inequality constraints.
+
+    Returns:
+        An optional tuple of NumPy arrays (A, b).
+    """
+    filtered = [c for c in parameter_constraints if c.is_equality == is_equality]
+    if len(filtered) == 0:
+        return None
+    A = np.zeros((len(filtered), len(param_names)))
+    b = np.zeros((len(filtered), 1))
+    for i, c in enumerate(filtered):
+        b[i, 0] = c.bound
+        for name, val in c.constraint_dict.items():
+            A[i, param_names.index(name)] = val
+    return (A, b)
+
+
+def extract_inequality_constraints(
+    parameter_constraints: list[ParameterConstraint], param_names: list[str]
+) -> TBounds:
+    """Convert Ax inequality parameter constraints into NumPy arrays.
+
+    Args:
+        parameter_constraints: A list of parameter constraint objects.
+        param_names: A list of parameter names.
+
+    Returns:
+        An optional tuple of NumPy arrays (A, b) with ``A x <= b``.
+    """
+    return _extract_constraints(parameter_constraints, param_names, is_equality=False)
+
+
+def extract_equality_constraints(
+    parameter_constraints: list[ParameterConstraint], param_names: list[str]
+) -> TBounds:
+    """Convert Ax equality parameter constraints into NumPy arrays.
+
+    Args:
+        parameter_constraints: A list of parameter constraint objects.
+        param_names: A list of parameter names.
+
+    Returns:
+        An optional tuple of NumPy arrays (A, b) with ``A x = b``.
+    """
+    return _extract_constraints(parameter_constraints, param_names, is_equality=True)
+
+
+def extract_search_space_digest(
+    search_space: SearchSpace, param_names: list[str]
+) -> SearchSpaceDigest:
+    """Extract basic parameter properties from a search space.
+
+    This is typically called with the transformed search space and makes certain
+    assumptions regarding the parameters being transformed.
+
+    For ChoiceParameters:
+    * The choices are assumed to be numerical. ChoiceToNumericChoice
+    and OrderedChoiceToIntegerRange
+    transforms handle this.
+    * If is_task, its index is added to task_features.
+    * If ordered, its index is added to ordinal_features.
+    * Otherwise, its index is added to categorical_features.
+    * In all cases, the choices are added to discrete_choices.
+    * The minimum and maximum value are added to the bounds.
+    * The target_value is added to target_values.
+
+    For RangeParameters:
+    * They're assumed not to be in the log_scale. The Log transform handles this.
+    * If integer, its index is added to ordinal_features and the choices are added
+    to discrete_choices.
+    * The minimum and maximum value are added to the bounds.
+
+    If a parameter is_fidelity:
+    * Its target_value is assumed to be numerical.
+    * The target_value is added to target_values.
+    * Its index is added to fidelity_features.
+    """
+    bounds: list[tuple[int | float, int | float]] = []
+    ordinal_features: list[int] = []
+    categorical_features: list[int] = []
+    discrete_choices: dict[int, list[int | float]] = {}
+    task_features: list[int] = []
+    fidelity_features: list[int] = []
+    target_values: dict[int, int | float] = {}
+    hierarchical_dependencies: dict[int, dict[int | float, list[int]]] | None = None
+
+    for i, p_name in enumerate(param_names):
+        p = search_space.parameters[p_name]
+        if isinstance(p, ChoiceParameter):
+            if p.is_task:
+                task_features.append(i)
+                target_values[i] = cast(
+                    TNumeric,
+                    assert_is_instance_of_tuple(p.target_value, (int, float)),
+                )
+            elif p.is_ordered:
+                ordinal_features.append(i)
+            else:
+                categorical_features.append(i)
+            # at this point we can assume that values are numeric due to transforms
+            numeric_values: list[TNumeric] = [
+                cast(TNumeric, assert_is_instance_of_tuple(v, (int, float)))
+                for v in p.values
+            ]
+            discrete_choices[i] = numeric_values
+            bounds.append((min(numeric_values), max(numeric_values)))
+        elif isinstance(p, RangeParameter):
+            if p.log_scale or p.logit_scale:
+                raise UserInputError(
+                    "Log and Logit scale parameters must be transformed using the "
+                    "corresponding transform within the `Adapter`. After applying "
+                    f"the transforms, we have {p.log_scale=} and {p.logit_scale=}."
+                )
+            if p.parameter_type == ParameterType.INT:
+                ordinal_features.append(i)
+                d_choices: list[TNumeric] = list(range(int(p.lower), int(p.upper) + 1))
+                discrete_choices[i] = d_choices
+            bounds.append((p.lower, p.upper))
+        else:
+            raise ValueError(f"Unknown parameter type {type(p)}")
+        if p.is_fidelity:
+            fidelity_features.append(i)
+            target_values[i] = cast(
+                TNumeric,
+                assert_is_instance_of_tuple(p.target_value, (int, float)),
+            )
+
+    if search_space.is_hierarchical:
+        hierarchical_dependencies = {}
+
+        for p_name, p in search_space.parameters.items():
+            if p.is_hierarchical:
+                hierarchical_dependencies[param_names.index(p_name)] = {
+                    cast(
+                        TNumeric,
+                        assert_is_instance_of_tuple(parent_value, (int, float)),
+                    ): [
+                        param_names.index(activated_param)
+                        for activated_param in activated_params
+                    ]
+                    for parent_value, activated_params in p.dependents.items()
+                }
+
+    return SearchSpaceDigest(
+        feature_names=param_names,
+        bounds=bounds,
+        ordinal_features=ordinal_features,
+        categorical_features=categorical_features,
+        discrete_choices=discrete_choices,
+        task_features=task_features,
+        fidelity_features=fidelity_features,
+        target_values=target_values,
+        hierarchical_dependencies=hierarchical_dependencies,
+    )
+
+
+def extract_objective_thresholds(
+    objective_thresholds: TRefPoint,
+    objective: Objective,
+    outcomes: list[str],
+) -> npt.NDArray | None:
+    """Extracts objective thresholds' values, in the order of objectives.
+
+    Will return None if no objective thresholds or if the objective is single-
+    objective. Otherwise the extracted array will have length ``n_objectives``
+    (matching the rows of the objective weight matrix).
+
+    Objectives that do not have a corresponding objective threshold will be
+    given a threshold of NaN. We will later infer appropriate threshold values
+    for those objectives.
+
+    The returned thresholds are maximization-aligned: for minimize objectives,
+    the threshold is negated. E.g., an outcome we want to maximize with a
+    threshold of at least 5 returns 5. An outcome we want to minimize with a
+    threshold of no more than 5 returns -5, since we maximize the negative of
+    the outcome internally.
+
+    Args:
+        objective_thresholds: Objective thresholds to extract values from.
+        objective: The corresponding Objective, for validation purposes.
+        outcomes: n-length list of metric signatures.
+
+    Returns:
+        ``(n_objectives,)`` array of maximization-aligned thresholds, or None.
+    """
+    if len(objective_thresholds) == 0:
+        return None
+
+    objective_threshold_dict = {}
+    for ot in objective_thresholds:
+        ot_signature = ot.metric_signatures[0]
+        if ot.relative:
+            raise ValueError(
+                f"Objective {ot_signature} has a relative threshold that "
+                f"is not supported here."
+            )
+        objective_threshold_dict[ot_signature] = ot.bound
+
+    # Check that all thresholds correspond to a metric.
+    obj_metric_signatures = objective.metric_signatures
+    if set(objective_threshold_dict.keys()).difference(set(obj_metric_signatures)):
+        raise ValueError(
+            "Some objective thresholds do not have corresponding metrics. "
+            f"Got {objective_thresholds=} and {objective=}."
+        )
+
+    if not objective.is_multi_objective:
+        # Single objective — thresholds not applicable.
+        return None
+
+    parsed = parse_objective_expression(objective.expression)
+    sub_exprs = parsed if isinstance(parsed, tuple) else (parsed,)
+    n_objectives = len(sub_exprs)
+    obj_t = np.full(n_objectives, float("nan"))
+    for i, sub_expr in enumerate(sub_exprs):
+        sub_mw = extract_metric_weights_from_objective_expr(sub_expr)
+        if len(sub_mw) > 1:
+            continue  # Scalarized sub-objective — NaN, will be inferred later.
+        name, weight = sub_mw[0]
+        sig = objective.metric_name_to_signature[name]
+        if sig in objective_threshold_dict:
+            sign = 1.0 if weight > 0 else -1.0
+            obj_t[i] = sign * objective_threshold_dict[sig]
+    return obj_t
+
+
+def extract_objective_weights(
+    objective: Objective,
+    outcomes: list[str],
+) -> npt.NDArray:
+    """Extract a weights for objectives.
+
+    Weights are for a maximization problem.
+
+    Give an objective weight to each modeled outcome. Outcomes that are modeled
+    but not part of the objective get weight 0.
+
+    In the single metric case, the objective is given either +/- 1, depending
+    on the minimize flag.
+
+    In the multiple metric case, each objective is given the input weight,
+    multiplied by the minimize flag.
+
+    Args:
+        objective: Objective to extract weights from.
+        outcomes: n-length list of metric signatures.
+
+    Returns:
+        n-length array of weights.
+
+    """
+    objective_weights = np.zeros(len(outcomes))
+    # metric_weights returns sign-encoded (signature, weight) tuples for all
+    # objective types (single, scalarized, multi).
+    for obj_metric_sig, obj_weight in objective.metric_weights:
+        objective_weights[outcomes.index(obj_metric_sig)] = obj_weight
+    return objective_weights
+
+
+def extract_objective_weight_matrix(
+    objective: Objective,
+    outcomes: list[str],
+) -> npt.NDArray:
+    """Extract a 2D weight matrix for objectives.
+
+    Each row corresponds to one objective and each column to one modeled
+    outcome.  Outcomes that are not part of an objective get weight 0 in
+    every row.
+
+    For a single ``Objective`` (including ``ScalarizedObjective``), the
+    matrix has a single row.  For a ``MultiObjective``, each sub-objective
+    gets its own row.
+
+    Args:
+        objective: Objective to extract weights from.
+        outcomes: n-length list of metric signatures.
+
+    Returns:
+        ``(n_objectives, n)`` array of weights.
+    """
+    if objective.is_multi_objective:
+        rows: list[npt.NDArray] = []
+        obj_names = objective.metric_names
+        obj_weights = [w for _, w in objective.metric_weights]
+        name_to_sig = objective.metric_name_to_signature
+        for name, weight in zip(obj_names, obj_weights):
+            rows.append(
+                extract_objective_weights(
+                    objective=Objective(
+                        expression=_build_objective_expression([(name, weight)]),
+                        metric_name_to_signature={name: name_to_sig[name]},
+                        _parsed=([name], [[(name, weight)]]),
+                    ),
+                    outcomes=outcomes,
+                )
+            )
+        return np.stack(rows, axis=0)
+    else:
+        # Single row – covers Objective and ScalarizedObjective
+        return extract_objective_weights(
+            objective=objective,
+            outcomes=outcomes,
+        ).reshape(1, -1)
+
+
+def extract_outcome_constraints(
+    outcome_constraints: list[OutcomeConstraint],
+    outcomes: list[str],
+) -> TBounds:
+    if len(outcome_constraints) == 0:
+        return None
+    # Extract outcome constraints
+    A = np.zeros((len(outcome_constraints), len(outcomes)))
+    b = np.zeros((len(outcome_constraints), 1))
+    for i, c in enumerate(outcome_constraints):
+        s = 1 if c.op == ComparisonOp.LEQ else -1
+        if isinstance(c, ScalarizedOutcomeConstraint):
+            for c_metric_sig, c_weight in c.metric_weights:
+                j = outcomes.index(c_metric_sig)
+                A[i, j] = s * c_weight
+        else:
+            j = outcomes.index(c.metric_signatures[0])
+            A[i, j] = s
+        b[i, 0] = s * c.bound
+    return (A, b)
+
+
+def arm_to_np_array(arm: Arm | None, parameters: list[str]) -> npt.NDArray | None:
+    """Converts an arm to a numpy array in the order of `parameters`.
+
+    Args:
+        arm: The Arm to extract values from.
+        parameters: n-length list of names of parameters.
+
+    Returns:
+        n-length array of target values.
+    """
+    if arm is None:
+        return None
+    return np.array([arm.parameters[p_name] for p_name in parameters])
+
+
+def validate_and_apply_final_transform(
+    objective_weights: npt.NDArray,
+    outcome_constraints: tuple[npt.NDArray, npt.NDArray] | None,
+    linear_constraints: tuple[npt.NDArray, npt.NDArray] | None,
+    pending_observations: list[npt.NDArray] | None,
+    objective_thresholds: npt.NDArray | None = None,
+    pruning_target_point: npt.NDArray | None = None,
+    equality_constraints: tuple[npt.NDArray, npt.NDArray] | None = None,
+    final_transform: Callable[[npt.NDArray], Tensor] = torch.tensor,
+) -> tuple[
+    Tensor,
+    tuple[Tensor, Tensor] | None,
+    tuple[Tensor, Tensor] | None,
+    list[Tensor] | None,
+    Tensor | None,
+    Tensor | None,
+    tuple[Tensor, Tensor] | None,
+]:
+    # TODO: use some container down the road (similar to
+    # SearchSpaceDigest) to limit the return arguments
+    obj_weights_tensor = final_transform(objective_weights)
+    outcome_constraints_tensors: tuple[Tensor, Tensor] | None = None
+    if outcome_constraints is not None:
+        outcome_constraints_tensors = (
+            final_transform(outcome_constraints[0]),
+            final_transform(outcome_constraints[1]),
+        )
+    linear_constraints_tensors: tuple[Tensor, Tensor] | None = None
+    if linear_constraints is not None:
+        linear_constraints_tensors = (
+            final_transform(linear_constraints[0]),
+            final_transform(linear_constraints[1]),
+        )
+    pending_obs_tensors: list[Tensor] | None = None
+    if pending_observations is not None:
+        pending_obs_tensors = [
+            final_transform(pending_obs) for pending_obs in pending_observations
+        ]
+    obj_thresholds_tensor: Tensor | None = None
+    if objective_thresholds is not None:
+        obj_thresholds_tensor = final_transform(objective_thresholds)
+    pruning_target_tensor: Tensor | None = None
+    if pruning_target_point is not None:
+        pruning_target_tensor = final_transform(pruning_target_point)
+    equality_constraints_tensors: tuple[Tensor, Tensor] | None = None
+    if equality_constraints is not None:
+        equality_constraints_tensors = (
+            final_transform(equality_constraints[0]),
+            final_transform(equality_constraints[1]),
+        )
+    return (
+        obj_weights_tensor,
+        outcome_constraints_tensors,
+        linear_constraints_tensors,
+        pending_obs_tensors,
+        obj_thresholds_tensor,
+        pruning_target_tensor,
+        equality_constraints_tensors,
+    )
+
+
+def get_fixed_features(
+    fixed_features: ObservationFeatures | None, param_names: list[str]
+) -> dict[int, float] | None:
+    """Reformat a set of fixed_features."""
+    if fixed_features is None or not fixed_features.parameters:
+        return None
+    params = fixed_features.parameters
+    params_set = set(params)
+    param_names_set = set(param_names)
+    if params_set > param_names_set:
+        raise ValueError(
+            "Fixed features contains parameters not in "
+            f"`param_names`: {params_set - param_names_set}."
+        )
+    fixed_features_dict = {
+        i: float(assert_is_instance(params[p_name], SupportsFloat))
+        for i, p_name in enumerate(param_names)
+        if p_name in params
+    }
+    return fixed_features_dict
+
+
+def get_fixed_features_from_experiment(
+    experiment: Experiment,
+) -> ObservationFeatures:
+    completed_indices = [t.index for t in experiment.completed_trials]
+    completed_indices.append(0)  # handle case of no completed trials
+    return ObservationFeatures(
+        parameters={},
+        trial_index=max(completed_indices),
+    )
+
+
+def pending_observations_as_array_list(
+    pending_observations: dict[str, list[ObservationFeatures]],
+    outcome_names: list[str],
+    param_names: list[str],
+) -> list[npt.NDArray] | None:
+    """Re-format pending observations.
+
+    Args:
+        pending_observations: List of raw numpy pending observations.
+        outcome_names: List of outcome names.
+        param_names: List fitted param names.
+
+    Returns:
+        Filtered pending observations data, by outcome and param names.
+    """
+    if len(pending_observations) == 0:
+        return None
+
+    pending = [np.array([]) for _ in outcome_names]
+    for metric_signature, po_list in pending_observations.items():
+        # It is possible that some metrics attached to the experiment should
+        # not be included in pending features for a given model. For example,
+        # if a model is fit to the initial data that is missing some of the
+        # metrics on the experiment or if a model just should not be fit for
+        # some of the metrics attached to the experiment, so metrics that
+        # appear in pending_observations (drawn from an experiment) but not
+        # in outcome_names (metrics, expected for the model) are filtered out.
+        if metric_signature not in outcome_names:
+            continue
+        pending[outcome_names.index(metric_signature)] = np.array(
+            [[po.parameters[p] for p in param_names] for po in po_list]
+        )
+    return pending
+
+
+def parse_observation_features(
+    X: npt.NDArray,
+    param_names: list[str],
+    candidate_metadata: Sequence[TCandidateMetadata] | None = None,
+) -> list[ObservationFeatures]:
+    """Re-format raw model-generated candidates into ObservationFeatures.
+
+    Args:
+        param_names: List of param names.
+        X: Raw np.ndarray of candidate values.
+        candidate_metadata: Model's metadata for candidates it produced.
+
+    Returns:
+        List of candidates, represented as ObservationFeatures.
+    """
+    if candidate_metadata and len(candidate_metadata) != len(X):
+        raise ValueError(
+            "Observations metadata list provided is not of "
+            "the same size as the number of candidates."
+        )
+    observation_features = []
+    for i, x in enumerate(X):
+        observation_features.append(
+            ObservationFeatures(
+                parameters=dict(zip(param_names, x, strict=True)),
+                metadata=candidate_metadata[i] if candidate_metadata else None,
+            )
+        )
+    return observation_features
+
+
+def transform_callback(
+    param_names: list[str],
+    transforms: MutableMapping[str, Transform],
+) -> Callable[[npt.NDArray], npt.NDArray]:
+    """A closure for performing the `round trip` transformations.
+
+    The function rounds points by de-transforming points back into
+    the original space (done by applying transforms in reverse), and then
+    re-transforming them.
+    This function is specifically for points which are formatted as numpy
+    arrays. This function is passed to _model_gen.
+
+    Args:
+        param_names: Names of parameters to transform.
+        transforms: Ordered set of transforms which were applied to the points.
+
+    Returns:
+        a function with for performing the roundtrip transform.
+    """
+
+    def _roundtrip_transform(x: npt.NDArray) -> npt.NDArray:
+        """Inner function for performing aforementioned functionality.
+
+        Args:
+            x: points in the transformed space (e.g. all transforms have been applied
+                to them)
+
+        Returns:
+            points in the transformed space, but rounded via the original space.
+        """
+        # apply reverse terminal transform to turn array to ObservationFeatures
+        observation_features = [
+            ObservationFeatures(
+                parameters={p: float(x[i]) for i, p in enumerate(param_names)}
+            )
+        ]
+        # reverse loop through the transforms and do untransform
+        for t in reversed(list(transforms.values())):
+            observation_features = t.untransform_observation_features(
+                observation_features
+            )
+        # forward loop through the transforms and do transform
+        for t in transforms.values():
+            observation_features = t.transform_observation_features(
+                observation_features
+            )
+        new_x: list[float] = [
+            # pyrefly: ignore [bad-argument-type]
+            float(observation_features[0].parameters[p])
+            for p in param_names
+        ]
+        # turn it back into an array
+        return np.array(new_x)
+
+    return _roundtrip_transform
+
+
+def get_pareto_frontier_and_configs(
+    adapter: adapter_module.torch.TorchAdapter,
+    observation_features: list[ObservationFeatures],
+    observation_data: list[ObservationData] | None = None,
+    objective_thresholds: TRefPoint | None = None,
+    optimization_config: MultiObjectiveOptimizationConfig | None = None,
+    arm_names: list[str | None] | None = None,
+    use_model_predictions: bool = True,
+) -> tuple[list[Observation], Tensor, Tensor, Tensor | None]:
+    """Helper that applies transforms and calls ``frontier_evaluator``.
+
+    Returns the ``frontier_evaluator`` configs in addition to the Pareto
+    observations.
+
+    Args:
+        adapter: ``Adapter`` used to predict metrics outcomes.
+        observation_features: Observation features to consider for the Pareto
+            frontier.
+        observation_data: Data for computing the Pareto front, unless
+            ``observation_features`` are provided and ``model_predictions is True``.
+        objective_thresholds: Metric values bounding the region of interest in
+            the objective outcome space; used to override objective thresholds
+            specified in ``optimization_config``, if necessary.
+        optimization_config: Multi-objective optimization config.
+        arm_names: Arm names for each observation in ``observation_features``.
+        use_model_predictions: If ``True``, will use model predictions at
+            ``observation_features`` to compute Pareto front. If ``False``,
+            will use ``observation_data`` directly to compute Pareto front, ignoring
+            ``observation_features``.
+
+    Returns: Four-item tuple of:
+          - frontier_observations: Observations of points on the pareto frontier,
+          - f: n x m tensor representation of the Pareto frontier values where n is the
+            length of frontier_observations and m is the number of metrics,
+          - obj_w: m tensor of objective weights,
+          - obj_t: m tensor of objective thresholds corresponding to Y, or None if no
+            objective thresholds used.
+    """
+    # Input validation
+    if use_model_predictions:
+        if observation_data is not None:
+            warnings.warn(
+                "You provided `observation_data` when `use_model_predictions` is True; "
+                "`observation_data` will not be used.",
+                stacklevel=2,
+            )
+    elif observation_data is None:
+        raise ValueError(
+            "`observation_data` must not be None when `use_model_predictions` is False."
+        )
+
+    array_to_tensor = adapter._array_to_tensor
+    if use_model_predictions:
+        observation_data = adapter._predict_observation_data(
+            observation_features=observation_features
+        )
+    Y, Yvar = observation_data_to_array(
+        outcomes=adapter.outcomes, observation_data=none_throws(observation_data)
+    )
+    Y, Yvar = (array_to_tensor(Y), array_to_tensor(Yvar))
+    if arm_names is None:
+        arm_names = [None] * len(observation_features)
+
+    # Extract optimization config: make sure that the problem is a MOO
+    # problem and clone the optimization config with specified
+    # `objective_thresholds` if those are provided. If `optimization_config`
+    # is not specified, uses the one stored on `adapter`.
+    optimization_config = _get_multiobjective_optimization_config(
+        adapter=adapter,
+        optimization_config=optimization_config,
+        objective_thresholds=objective_thresholds,
+    )
+
+    # Transform optimization config.
+
+    # de-relativize outcome constraints and objective thresholds
+    optimization_config = assert_is_instance(
+        derelativize_optimization_config_with_raw_status_quo(
+            optimization_config=optimization_config, adapter=adapter
+        ),
+        MultiObjectiveOptimizationConfig,
+    )
+    # Extract weights, constraints, and objective_thresholds
+    objective_weights = extract_objective_weight_matrix(
+        objective=optimization_config.objective,
+        outcomes=adapter.outcomes,
+    )
+    outcome_constraints = extract_outcome_constraints(
+        outcome_constraints=optimization_config.outcome_constraints,
+        outcomes=adapter.outcomes,
+    )
+    obj_t = extract_objective_thresholds(
+        objective_thresholds=optimization_config.objective_thresholds,
+        objective=optimization_config.objective,
+        outcomes=adapter.outcomes,
+    )
+    if obj_t is not None:
+        obj_t = array_to_tensor(obj_t)
+    # Transform to tensors.
+    obj_w, oc_c, _, _, _, _, _ = validate_and_apply_final_transform(
+        objective_weights=objective_weights,
+        outcome_constraints=outcome_constraints,
+        linear_constraints=None,
+        pending_observations=None,
+        final_transform=array_to_tensor,
+    )
+    f, cov, indx = pareto_frontier_evaluator(
+        model=None,
+        X=None,
+        Y=Y,
+        Yvar=Yvar,
+        objective_thresholds=obj_t,
+        objective_weights=obj_w,
+        outcome_constraints=oc_c,
+    )
+    f, cov = f.detach().cpu().clone(), cov.detach().cpu().clone()
+    indx = indx.tolist()
+    frontier_observation_data = array_to_observation_data(
+        f=f.numpy(), cov=cov.numpy(), outcomes=none_throws(adapter.outcomes)
+    )
+    # Construct observations
+    frontier_observations = []
+    for i, obsd in enumerate(frontier_observation_data):
+        frontier_observations.append(
+            Observation(
+                features=deepcopy(observation_features[indx[i]]),
+                data=deepcopy(obsd),
+                arm_name=arm_names[indx[i]],
+            )
+        )
+
+    return (
+        frontier_observations,
+        f,
+        obj_w.cpu(),
+        obj_t.cpu() if obj_t is not None else None,
+    )
+
+
+def pareto_frontier(
+    adapter: adapter_module.torch.TorchAdapter,
+    observation_features: list[ObservationFeatures],
+    observation_data: list[ObservationData] | None = None,
+    objective_thresholds: TRefPoint | None = None,
+    optimization_config: MultiObjectiveOptimizationConfig | None = None,
+    arm_names: list[str | None] | None = None,
+    use_model_predictions: bool = True,
+) -> list[Observation]:
+    """Compute the list of points on the Pareto frontier as `Observation`-s
+    in the untransformed search space.
+
+    Args:
+        adapter: ``Adapter`` used to predict metrics outcomes.
+        observation_features: Observation features to consider for the Pareto
+            frontier.
+        observation_data: Data for computing the Pareto front, unless
+            ``observation_features`` are provided and ``model_predictions is True``.
+        objective_thresholds: Metric values bounding the region of interest in
+            the objective outcome space; used to override objective thresholds
+            specified in ``optimization_config``, if necessary.
+        optimization_config: Multi-objective optimization config.
+        arm_names: Arm names for each observation in ``observation_features``.
+        use_model_predictions: If ``True``, will use model predictions at
+            ``observation_features`` to compute Pareto front. If ``False``,
+            will use ``observation_data`` directly to compute Pareto front, ignoring
+            ``observation_features``.
+
+    Returns: Points on the Pareto frontier as `Observation`-s in order of descending
+        individual hypervolume if possible.
+    """
+    frontier_observations, f, obj_w, obj_t = get_pareto_frontier_and_configs(
+        adapter=adapter,
+        observation_features=observation_features,
+        observation_data=observation_data,
+        objective_thresholds=objective_thresholds,
+        optimization_config=optimization_config,
+        arm_names=arm_names,
+        use_model_predictions=use_model_predictions,
+    )
+
+    # If no objective thresholds are present we cannot compute hypervolume -- return
+    # frontier observations in arbitrary order
+    if obj_t is None:
+        return frontier_observations
+
+    # Apply appropriate weights
+    obj = get_weighted_mc_objective(objective_weights=obj_w)
+    f_t = obj(f)
+
+    # Compute individual hypervolumes by taking the difference between the observation
+    # and the reference point and multiplying
+    individual_hypervolumes = (
+        (f_t.unsqueeze(dim=0) - obj_t).clamp_min(0).prod(dim=-1).squeeze().tolist()
+    )
+
+    if not isinstance(individual_hypervolumes, list):
+        individual_hypervolumes = [individual_hypervolumes]
+
+    return [
+        obs
+        for obs, _ in sorted(
+            zip(frontier_observations, individual_hypervolumes),
+            key=lambda tup: tup[1],
+            reverse=True,
+        )
+    ]
+
+
+def predicted_pareto_frontier(
+    adapter: adapter_module.torch.TorchAdapter,
+    objective_thresholds: TRefPoint | None = None,
+    observation_features: list[ObservationFeatures] | None = None,
+    optimization_config: MultiObjectiveOptimizationConfig | None = None,
+) -> list[Observation]:
+    """Generate a Pareto frontier based on the posterior means of given
+    observation features. Given a model and optionally features to evaluate
+    (will use model training data if not specified), use the model to predict
+    which points lie on the Pareto frontier.
+
+    Args:
+        adapter: ``Adapter`` used to predict metrics outcomes.
+        observation_features: Observation features to predict, if provided and
+            ``use_model_predictions is True``.
+        objective_thresholds: Metric values bounding the region of interest in
+            the objective outcome space; used to override objective thresholds
+            specified in ``optimization_config``, if necessary.
+        optimization_config: Multi-objective optimization config.
+
+    Returns:
+        Observations representing points on the Pareto frontier.
+    """
+    if observation_features is None:
+        observation_features, _, arm_names = _get_adapter_training_data(
+            adapter=adapter, in_design_only=True
+        )
+    else:
+        arm_names = None
+    if not observation_features:
+        raise ValueError(
+            "Must receive observation_features as input or the model must "
+            "have training data."
+        )
+
+    pareto_observations = pareto_frontier(
+        adapter=adapter,
+        objective_thresholds=objective_thresholds,
+        observation_features=observation_features,
+        optimization_config=optimization_config,
+        arm_names=arm_names,
+    )
+    return pareto_observations
+
+
+def observed_pareto_frontier(
+    adapter: adapter_module.torch.TorchAdapter,
+    objective_thresholds: TRefPoint | None = None,
+    optimization_config: MultiObjectiveOptimizationConfig | None = None,
+) -> list[Observation]:
+    """Generate a pareto frontier based on observed data. Given observed data
+    (sourced from model training data), return points on the Pareto frontier
+    as `Observation`-s.
+
+    Args:
+        adapter: ``Adapter`` that holds previous training data.
+        objective_thresholds: Metric values bounding the region of interest in
+            the objective outcome space; used to override objective thresholds
+            in the optimization config, if needed.
+        optimization_config: Multi-objective optimization config.
+
+    Returns:
+        Data representing points on the pareto frontier.
+    """
+    # Get observation_data from current training data
+    obs_feats, obs_data, arm_names = _get_adapter_training_data(
+        adapter=adapter, in_design_only=True
+    )
+
+    pareto_observations = pareto_frontier(
+        adapter=adapter,
+        objective_thresholds=objective_thresholds,
+        observation_data=obs_data,
+        observation_features=obs_feats,
+        optimization_config=optimization_config,
+        arm_names=arm_names,
+        use_model_predictions=False,
+    )
+    return pareto_observations
+
+
+def hypervolume(
+    adapter: adapter_module.torch.TorchAdapter,
+    observation_features: list[ObservationFeatures],
+    objective_thresholds: TRefPoint | None = None,
+    observation_data: list[ObservationData] | None = None,
+    optimization_config: MultiObjectiveOptimizationConfig | None = None,
+    selected_metrics: list[str] | None = None,
+    use_model_predictions: bool = True,
+) -> float:
+    """Helper function that computes (feasible) hypervolume.
+
+    Args:
+        adapter: The adapter.
+        observation_features: The observation features for the in-sample arms.
+        objective_thresholds: The objective thresholds to be used for computing
+            the hypervolume. If None, these are extracted from the optimization
+            config.
+        observation_data: The observed outcomes for the in-sample arms.
+        optimization_config: The optimization config specifying the objectives,
+            objectives thresholds, and outcome constraints.
+        selected_metrics: A list of objective metric names specifying which
+            objectives to use in hypervolume computation. By default, all
+            objectives are used.
+        use_model_predictions: A boolean indicating whether to use model predictions
+            for determining the in-sample Pareto frontier instead of the raw observed
+            values.
+
+    Returns:
+        The (feasible) hypervolume.
+
+    """
+    frontier_observations, f, obj_w, obj_t = get_pareto_frontier_and_configs(
+        adapter=adapter,
+        observation_features=observation_features,
+        observation_data=observation_data,
+        objective_thresholds=objective_thresholds,
+        optimization_config=optimization_config,
+        use_model_predictions=use_model_predictions,
+    )
+    if obj_t is None:
+        raise ValueError(
+            "Cannot compute hypervolume without having objective thresholds specified."
+        )
+    oc = _get_multiobjective_optimization_config(
+        adapter=adapter,
+        optimization_config=optimization_config,
+        objective_thresholds=objective_thresholds,
+    )
+    # Set to all metrics if unspecified
+    if selected_metrics is None:
+        selected_metrics = oc.objective.metric_names
+    # filter to only include objectives
+    else:
+        if any(m not in oc.objective.metric_names for m in selected_metrics):
+            raise ValueError("All selected metrics must be objectives.")
+
+    # Create a mask indicating selected metrics
+    selected_metrics_mask = torch.tensor(
+        [metric in selected_metrics for metric in adapter.outcomes],
+        dtype=torch.bool,
+        device=f.device,
+    )
+    # Apply appropriate weights
+    obj = get_weighted_mc_objective(objective_weights=obj_w)
+    f_t = obj(f)
+    obj_mask = (obj_w != 0).any(dim=0).nonzero().view(-1)
+    selected_metrics_mask = selected_metrics_mask[obj_mask]
+    f_t = f_t[:, selected_metrics_mask]
+    obj_t = none_throws(obj_t)[selected_metrics_mask]
+    bd = DominatedPartitioning(ref_point=obj_t, Y=f_t)
+    return bd.compute_hypervolume().item()
+
+
+def _get_multiobjective_optimization_config(
+    adapter: adapter_module.torch.TorchAdapter,
+    optimization_config: OptimizationConfig | None = None,
+    objective_thresholds: TRefPoint | None = None,
+) -> MultiObjectiveOptimizationConfig:
+    # Optimization_config
+    mooc = optimization_config or assert_is_instance_optional(
+        adapter._optimization_config, MultiObjectiveOptimizationConfig
+    )
+    if not mooc:
+        raise ValueError(
+            "Experiment must have an existing optimization_config "
+            "of type `MultiObjectiveOptimizationConfig` "
+            "or `optimization_config` must be passed as an argument."
+        )
+    if not isinstance(mooc, MultiObjectiveOptimizationConfig):
+        raise ValueError(
+            "optimization_config must be a MultiObjectiveOptimizationConfig."
+        )
+    if objective_thresholds:
+        mooc = mooc.clone_with_args(objective_thresholds=objective_thresholds)
+
+    return mooc
+
+
+def predicted_hypervolume(
+    adapter: adapter_module.torch.TorchAdapter,
+    objective_thresholds: TRefPoint | None = None,
+    observation_features: list[ObservationFeatures] | None = None,
+    optimization_config: MultiObjectiveOptimizationConfig | None = None,
+    selected_metrics: list[str] | None = None,
+) -> float:
+    """Calculate hypervolume of a pareto frontier based on the posterior means of
+    given observation features.
+
+    Given a model and features to evaluate calculate the hypervolume of the pareto
+    frontier formed from their predicted outcomes.
+
+    Args:
+        adapter: Adapter used to predict metrics outcomes.
+        objective_thresholds: point defining the origin of hyperrectangles that
+            can contribute to hypervolume.
+        observation_features: observation features to predict. Model's training
+            data used by default if unspecified.
+        optimization_config: Optimization config
+        selected_metrics: If specified, hypervolume will only be evaluated on
+            the specified subset of metrics. Otherwise, all metrics will be used.
+
+    Returns:
+        calculated hypervolume.
+    """
+    if observation_features is None:
+        (
+            observation_features,
+            _,
+            __,
+        ) = _get_adapter_training_data(adapter=adapter)
+    if not observation_features:
+        raise ValueError(
+            "Must receive observation_features as input or the model must "
+            "have training data."
+        )
+
+    return hypervolume(
+        adapter=adapter,
+        objective_thresholds=objective_thresholds,
+        observation_features=observation_features,
+        optimization_config=optimization_config,
+        selected_metrics=selected_metrics,
+    )
+
+
+def observed_hypervolume(
+    adapter: adapter_module.torch.TorchAdapter,
+    objective_thresholds: TRefPoint | None = None,
+    optimization_config: MultiObjectiveOptimizationConfig | None = None,
+    selected_metrics: list[str] | None = None,
+) -> float:
+    """Calculate hypervolume of a pareto frontier based on observed data.
+
+    Given observed data, return the hypervolume of the pareto frontier formed from
+    those outcomes.
+
+    Args:
+        adapter: Adapter that holds previous training data.
+        objective_thresholds: Point defining the origin of hyperrectangles that
+            can contribute to hypervolume. Note that if this is None,
+            `objective_thresholds` must be present on the
+            `adapter.optimization_config`.
+        observation_features: observation features to predict. Model's training
+            data used by default if unspecified.
+        optimization_config: Optimization config
+        selected_metrics: If specified, hypervolume will only be evaluated on
+            the specified subset of metrics. Otherwise, all metrics will be used.
+
+    Returns:
+        (float) calculated hypervolume.
+    """
+    # Get observation_data from current training data.
+    obs_feats, obs_data, _ = _get_adapter_training_data(adapter=adapter)
+
+    return hypervolume(
+        adapter=adapter,
+        objective_thresholds=objective_thresholds,
+        observation_features=obs_feats,
+        observation_data=obs_data,
+        optimization_config=optimization_config,
+        selected_metrics=selected_metrics,
+        use_model_predictions=False,
+    )
+
+
+def array_to_observation_data(
+    f: npt.NDArray,
+    cov: npt.NDArray,
+    outcomes: list[str],
+) -> list[ObservationData]:
+    """Convert arrays of model predictions to a list of ObservationData.
+
+    Args:
+        f: An (n x m) array
+        cov: An (n x m x m) array
+        outcomes: A list of d outcome names
+
+    Returns: A list of n ObservationData
+    """
+    observation_data = []
+    for i in range(f.shape[0]):
+        observation_data.append(
+            ObservationData(
+                metric_signatures=list(outcomes),
+                means=f[i, :].copy(),
+                covariance=cov[i, :, :].copy(),
+            )
+        )
+    return observation_data
+
+
+def observation_data_to_array(
+    outcomes: list[str],
+    observation_data: list[ObservationData],
+) -> tuple[npt.NDArray, npt.NDArray]:
+    """Convert a list of Observation data to arrays.
+
+    Any missing mean or covariance values will be returned as NaNs.
+
+    Args:
+        outcomes: A list of `m` outcomes to extract observation data for.
+        observation_data: A list of `n` ``ObservationData`` objects.
+
+    Returns:
+        - means: An (n x m) array of mean observations.
+        - cov: An (n x m x m) array of covariance observations.
+    """
+    means = []
+    cov = []
+    # Initialize arrays with all NaN values.
+    means = np.full((len(observation_data), len(outcomes)), np.nan)
+    cov = np.full((len(observation_data), len(outcomes), len(outcomes)), np.nan)
+    # Iterate over observations and extract the relevant data.
+    for i, obsd in enumerate(observation_data):
+        # Indices of outcomes that are observed.
+        outcome_idx = [j for j, o in enumerate(outcomes) if o in obsd.metric_signatures]
+        # Corresponding indices in the observation data.
+        observation_idx = [
+            obsd.metric_signatures.index(outcomes[j]) for j in outcome_idx
+        ]
+        means[i, outcome_idx] = obsd.means[observation_idx]
+        # We can't use advanced indexing over two dimensions jointly for assignment,
+        # so this has to be done in two steps.
+        cov_pick = np.full((len(outcome_idx), len(outcomes)), np.nan)
+        cov_pick[:, outcome_idx] = obsd.covariance[observation_idx][:, observation_idx]
+        cov[i, outcome_idx] = cov_pick
+    return means, cov
+
+
+def observation_features_to_array(
+    parameters: list[str],
+    obsf: list[ObservationFeatures],
+) -> npt.NDArray:
+    """Convert a list of Observation features to arrays."""
+    return np.array([[of.parameters[p] for p in parameters] for of in obsf])
+
+
+def feasible_hypervolume(
+    optimization_config: MultiObjectiveOptimizationConfig,
+    values: dict[str, npt.NDArray],
+) -> npt.NDArray:
+    """Compute the feasible hypervolume each iteration.
+
+    Args:
+        optimization_config: Optimization config.
+        values: Dictionary from metric signature to array of value at each
+            iteration (each array is `n`-dim). If optimization config contains
+            outcome constraints, values for them must be present in `values`.
+
+    Returns: Array of feasible hypervolumes.
+    """
+    # Get objective at each iteration
+    obj_threshold_dict = {
+        ot.metric_signatures[0]: ot.bound
+        for ot in optimization_config.objective_thresholds
+    }
+    obj_metric_sigs = optimization_config.objective.metric_signatures
+    f_vals = np.hstack([values[sig].reshape(-1, 1) for sig in obj_metric_sigs])
+    obj_thresholds = np.array([obj_threshold_dict[sig] for sig in obj_metric_sigs])
+    # Set infeasible points to be the objective threshold
+    for oc in optimization_config.outcome_constraints:
+        if oc.relative:
+            raise ValueError(
+                "Benchmark aggregation does not support relative constraints"
+            )
+        oc_sig = oc.metric_signatures[0]
+        g = values[oc_sig]
+        feas = g <= oc.bound if oc.op == ComparisonOp.LEQ else g >= oc.bound
+        f_vals[~feas] = obj_thresholds
+
+    # Derive objective directions from the objective's metric_weights.
+    # Positive weight = maximize, negative weight = minimize.
+    obj_weight_dict = dict(optimization_config.objective.metric_weights)
+    obj_weights = np.array(
+        [1 if obj_weight_dict[sig] > 0 else -1 for sig in obj_metric_sigs]
+    )
+    obj_thresholds = obj_thresholds * obj_weights
+    f_vals = f_vals * obj_weights
+    partitioning = DominatedPartitioning(
+        ref_point=torch.from_numpy(obj_thresholds).double()
+    )
+    f_vals_torch = torch.from_numpy(f_vals).double()
+    # compute hv at each iteration
+    hvs = []
+    for i in range(f_vals.shape[0]):
+        # update with new point
+        partitioning.update(Y=f_vals_torch[i : i + 1])
+        hv = partitioning.compute_hypervolume().item()
+        hvs.append(hv)
+    return np.array(hvs)
+
+
+def _get_adapter_training_data(
+    adapter: adapter_module.torch.TorchAdapter, in_design_only: bool = False
+) -> tuple[list[ObservationFeatures], list[ObservationData], list[str | None]]:
+    """
+    Get training data for adapter, optionally filtering out out-of-design points.
+    """
+    experiment_data = adapter.get_training_data(filter_in_design=in_design_only)
+    observations = experiment_data.convert_to_list_of_observations()
+    return _unpack_observations(obs=observations)
+
+
+def _unpack_observations(
+    obs: list[Observation],
+) -> tuple[list[ObservationFeatures], list[ObservationData], list[str | None]]:
+    obs_feats, obs_data, arm_names = [], [], []
+    for ob in obs:
+        obs_feats.append(ob.features)
+        obs_data.append(ob.data)
+        arm_names.append(ob.arm_name)
+    return obs_feats, obs_data, arm_names
+
+
+def transform_search_space(
+    search_space: SearchSpace,
+    transforms: Iterable[type[Transform]],
+    transform_configs: Mapping[str, Any],
+) -> SearchSpace:
+    """
+    Apply all given transforms to a copy of the SearchSpace iteratively.
+    """
+    search_space = search_space.clone()
+
+    for t in transforms:
+        try:
+            t_instance = t(
+                search_space=search_space,
+                adapter=None,
+                config=transform_configs.get(t.__name__),
+            )
+
+            search_space = t_instance.transform_search_space(search_space=search_space)
+        except DataRequiredError:
+            # Skip this transform if data is required. Data is only required for
+            # transforms that operate on Observations.
+            pass
+
+    return search_space
+
+
+def process_contextual_datasets(
+    datasets: list[SupervisedDataset],
+    outcomes: list[str],
+    parameter_decomposition: dict[str, list[str]],
+    metric_decomposition: dict[str, list[str]] | None = None,
+) -> list[ContextualDataset]:
+    """Contruct a list of `ContextualDataset`.
+
+    Args:
+        datasets: A list of `Dataset` objects.
+        outcomes: The names of the outcomes to extract observations for.
+        parameter_decomposition: Keys are context names. Values are the lists
+            of parameter names belonging to the context, e.g.
+            {'context1': ['p1_c1', 'p2_c1'],'context2': ['p1_c2', 'p2_c2']}.
+        metric_decomposition: Context breakdown metrics. Keys are context names.
+            Values are the lists of metric names belonging to the context:
+            {
+                'context1': ['m1_c1', 'm2_c1', 'm3_c1'],
+                'context2': ['m1_c2', 'm2_c2', 'm3_c2'],
+            }
+
+    Returns: A list of `ContextualDataset` objects. Order generally will not be that of
+        `outcomes`.
+    """
+    context_buckets = list(parameter_decomposition.keys())
+    remaining_metrics = deepcopy(outcomes)
+    contextual_datasets = []
+    if metric_decomposition is not None:
+        M = len(metric_decomposition[context_buckets[0]])
+        for j in range(M):
+            metric_list = [metric_decomposition[c][j] for c in context_buckets]
+            contextual_datasets.append(
+                ContextualDataset(
+                    datasets=[
+                        datasets[outcomes.index(metric_i)] for metric_i in metric_list
+                    ],
+                    parameter_decomposition=parameter_decomposition,
+                    metric_decomposition=metric_decomposition,
+                )
+            )
+            remaining_metrics = list(set(remaining_metrics) - set(metric_list))
+    else:
+        logger.warning(
+            "No metric decomposition found in experiment properties. Using "
+            "LCEA model to fit each outcome independently."
+        )
+    if len(remaining_metrics) > 0:
+        for metric_i in remaining_metrics:
+            contextual_datasets.append(
+                ContextualDataset(
+                    datasets=[datasets[outcomes.index(metric_i)]],
+                    parameter_decomposition=parameter_decomposition,
+                )
+            )
+    return contextual_datasets
+
+
+def _get_fresh_pairwise_trial_indices(
+    experiment: Experiment,
+) -> set[int] | None:
+    """Return trial indices whose pairwise labels match current experiment state.
+
+    LILO (Language-in-the-Loop) trials are stamped with a hash of the
+    experiment state (metric data + LLM messages) at labeling time.  When
+    the experiment state changes (new data, updated LLM messages), old labels
+    become stale and should be excluded from PairwiseGP model fitting.
+
+    Design note: we intentionally compare each trial's stamped hash against
+    the *current* experiment state rather than the most-recently-stamped LILO
+    hash.  This is because the LLM prompt includes a full experiment summary
+    (via ``get_llm_messages_with_experiment_summary``), so any change to
+    input metric data -- even from non-LILO trials -- alters the context
+    under which labels would be produced and warrants relabeling.
+
+    Returns:
+        A set of trial indices whose LILO input hash matches the current
+        experiment state, or ``None`` if hash-based filtering is not
+        applicable (e.g., no trials have a LILO input hash -- the experiment
+        uses BOPE or another non-LILO pairwise workflow).
+    """
+    # Collect trials that have been stamped with a LILO input hash.
+    stamped_trials = {
+        idx: trial
+        for idx, trial in experiment.trials.items()
+        if Keys.LILO_INPUT_HASH in trial._properties
+    }
+    if not stamped_trials:
+        # Not a LILO experiment -- no filtering needed.
+        return None
+
+    current_hash = get_current_lilo_hash(experiment)
+    if current_hash is None:
+        return None
+
+    fresh_indices: set[int] = set()
+    for idx, trial in experiment.trials.items():
+        trial_hash = trial._properties.get(Keys.LILO_INPUT_HASH)
+        if trial_hash is None:
+            # Trial without hash (non-LILO trial) -- always include.
+            fresh_indices.add(idx)
+        elif trial_hash == current_hash:
+            # Hash matches -- labels are fresh.
+            fresh_indices.add(idx)
+        # else: stale hash -- excluded.
+
+    return fresh_indices
+
+
+def prep_pairwise_data(
+    X: Tensor,
+    Y: Tensor,
+    group_indices: Tensor,
+    outcome: str,
+    parameters: list[str],
+) -> RankingDataset:
+    """Prep data for pairwise modeling
+    Args:
+        X: Tensor of shape `(n, d)` where `n` is the number of datapoints and `d` is
+            the number of features.
+        Y: Tensor of shape `(n, 1)` with binary 0 or 1 outcomes with 1 indicating
+            that is the preferred arm in the trial.
+        group_indices: Indices of groups of each observation. A valid comparison
+            group has exactly two arms with exactly one 0 and one 1 in Y. Groups
+            that do not satisfy this (e.g. a single arm, or two arms with the same
+            label) are dropped with a warning before pairing, so callers are not
+            required to guarantee this invariant.
+        outcome: Name of the outcome.
+        parameters: Names of the features.
+
+    Returns:
+        A `RankingDataset` for pairwise preference modeling.
+
+    Raises:
+        UserInputError: If no valid comparison group remains after dropping
+            incomplete groups.
+    """
+    sorted_indices = torch.argsort(group_indices)
+    X = X[sorted_indices]
+    Y = Y[sorted_indices]
+    group_indices = group_indices[sorted_indices]
+
+    # Each comparison group must contain exactly two arms with exactly one
+    # preferred (`1`) and one not (`0`) to form a valid pair. Upstream filtering
+    # -- e.g. dropping arms whose outcome is NaN or removing stale LILO labels --
+    # can leave a group with a single arm (yielding an odd number of observations
+    # that cannot be reshaped into pairs and would otherwise crash with a cryptic
+    # `shape '[-1, 2]' is invalid` error) or with two identically-labeled arms
+    # (which would be silently mispaired). Drop any such invalid group.
+    unique_groups, inverse, counts = torch.unique(
+        group_indices, return_inverse=True, return_counts=True
+    )
+    label_sums = torch.zeros(
+        unique_groups.shape[0], dtype=Y.dtype, device=Y.device
+    ).scatter_add_(0, inverse, Y.view(-1))
+    invalid_groups = unique_groups[(counts != 2) | (label_sums != 1)]
+    if invalid_groups.numel() > 0:
+        keep_mask = ~torch.isin(group_indices, invalid_groups)
+        logger.warning(
+            f"Dropping {int((~keep_mask).sum())} pairwise preference "
+            f"observation(s) from {int(invalid_groups.numel())} comparison "
+            "group(s) that do not contain exactly two arms with exactly one "
+            "preferred (1) and one not-preferred (0) label. Each pairwise "
+            "comparison requires exactly two such arms."
+        )
+        X = X[keep_mask]
+        Y = Y[keep_mask]
+        group_indices = group_indices[keep_mask]
+
+    if Y.numel() == 0:
+        raise UserInputError(
+            "No valid pairwise comparison groups remain for outcome "
+            f"'{outcome}' after dropping incomplete groups. Each pairwise "
+            "comparison requires exactly two arms with exactly one preferred "
+            "(1) and one not-preferred (0) label."
+        )
+
+    # Update Xs and Ys shapes for PairwiseGP
+    Y = _binary_pref_to_comp_pair(Y=Y)
+    X, Y = _consolidate_comparisons(X=X, Y=Y)
+
+    datapoints, comparisons = X, Y.long()
+    event_shape = torch.Size([2 * datapoints.shape[-1]])
+    dataset_X = SliceContainer(
+        values=datapoints,
+        indices=assert_is_instance(comparisons, LongTensor),
+        event_shape=event_shape,
+    )
+    dataset_Y = torch.tensor([[0, 1]]).expand(comparisons.shape)
+    dataset = RankingDataset(
+        X=dataset_X,
+        Y=dataset_Y,
+        feature_names=parameters,
+        outcome_names=[outcome],
+    )
+    return dataset
+
+
+def _binary_pref_to_comp_pair(Y: Tensor) -> Tensor:
+    """Convert Y from binary indicator pair to index pair comparisons
+
+    Convert Y from binary indicator pair such as [[0, 1], [1, 0], ...]
+    to index comparisons like [[1, 0], [2, 3], ...]
+    """
+    Y_shape = Y.shape[:-2] + (-1, 2)
+    Y = Y.reshape(Y_shape)
+
+    # ==== Check if Ys have valid values ====
+    # Y must have even number of elements
+    if Y.shape[-1] != 2:
+        raise ValueError(
+            f"Trailing dimension of `Y` should be size 2 but is {Y.shape[-1]}"
+        )
+    # all adjacent pairs must have exactly a 0 and a 1
+    if not (Y.min(dim=-1).values.eq(0).all() and Y.max(dim=-1).values.eq(1).all()):
+        raise ValueError("`Y` values must be `{0, 1}.`")
+
+    idx_shift = (torch.arange(0, Y.shape[-2]) * 2).unsqueeze(-1).expand_as(Y)
+    comparison_pairs = idx_shift + (1 - Y)
+    return comparison_pairs
+
+
+def _consolidate_comparisons(X: Tensor, Y: Tensor) -> tuple[Tensor, Tensor]:
+    """Drop duplicated Xs and update the indices in Ys accordingly"""
+    if Y.shape[-1] != 2:
+        raise ValueError(
+            "The last dimension of Y must contain 2 elements "
+            "representing the pairwise comparison."
+        )
+
+    if len(Y.shape) != 2:
+        raise ValueError("Y must have 2 dimensions.")
+
+    X, Y, _ = consolidate_duplicates(X, Y)
+    return X, Y

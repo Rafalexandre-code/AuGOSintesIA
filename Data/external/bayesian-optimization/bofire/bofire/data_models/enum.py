@@ -1,0 +1,42 @@
+from enum import Enum
+
+
+class SamplingMethodEnum(str, Enum):
+    UNIFORM = "UNIFORM"
+    SOBOL = "SOBOL"
+    LHS = "LHS"
+
+
+class ClassificationMetricsEnum(str, Enum):
+    """Enumeration class for classification metrics."""
+
+    ACCURACY = "ACCURACY"
+    F1 = "F1"
+
+
+class OutputFilteringEnum(str, Enum):
+    ALL = "ALL"
+    ANY = "ANY"
+
+
+class RegressionMetricsEnum(str, Enum):
+    """Enumeration class for regression metrics."""
+
+    R2 = "R2"
+    MAE = "MAE"
+    MSD = "MSD"
+    MAPE = "MAPE"
+    PEARSON = "PEARSON"
+    SPEARMAN = "SPEARMAN"
+    FISHER = "FISHER"
+
+
+class UQRegressionMetricsEnum(str, Enum):
+    """Enumeration class for ucertainty regression metrics."""
+
+    PEARSON_UQ = "PEARSON_UQ"
+    SPEARMAN_UQ = "SPEARMAN_UQ"
+    KENDALL_UQ = "KENDALL_UQ"
+    MAXIMUMCALIBRATION = "MAXIMUMCALIBRATION"
+    MISCALIBRATIONAREA = "MISCALIBRATIONAREA"
+    ABSOLUTEMISCALIBRATIONAREA = "ABSOLUTEMISCALIBRATIONAREA"

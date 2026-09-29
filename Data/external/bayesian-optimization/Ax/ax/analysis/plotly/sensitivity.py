@@ -1,0 +1,358 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+# pyre-strict
+from collections.abc import Mapping, Sequence
+from typing import final, Literal
+
+import pandas as pd
+from ax.adapter.base import Adapter
+from ax.adapter.torch import TorchAdapter
+from ax.analysis.analysis import Analysis
+from ax.analysis.plotly.color_constants import COLOR_FOR_DECREASES, COLOR_FOR_INCREASES
+from ax.analysis.plotly.plotly_analysis import create_plotly_analysis_card
+from ax.analysis.plotly.utils import (
+    LEGEND_POSITION,
+    MARGIN_REDUCUTION,
+    MAX_HOVER_LABEL_LEN,
+    select_metric,
+    truncate_label,
+)
+from ax.analysis.utils import extract_relevant_adapter, validate_experiment
+from ax.core.analysis_card import AnalysisCard, AnalysisCardGroup
+from ax.core.experiment import Experiment
+from ax.generation_strategy.generation_strategy import GenerationStrategy
+from ax.utils.sensitivity.sobol_measures import ax_parameter_sens
+from plotly import express as px, graph_objects as go
+from pyre_extensions import assert_is_instance, none_throws, override
+
+# Maximum characters per line for y-axis labels before wrapping with <br>
+MAX_LINE_LEN: int = 25
+
+SENSITIVITY_CARDGROUP_TITLE = (
+    "Sensitivity Analysis: Understand how each parameter affects metrics"
+)
+
+SENSITIVITY_CARDGROUP_SUBTITLE = (
+    "These plots showcase the most influential parameters for each metric in the "
+    "experiment, highlighting both the direction and magnitude of the metric's "
+    "sensitivity to changes in these parameters. This information can be valuable for "
+    "understanding metrics that may be oppositely affected by the same parameter, "
+    "identifying the most critical parameters to further refine the search space, or "
+    "validating underlying assumptions about the experiment's response surface. "
+    "Sensitivity is measured using Sobol indices, which are calculated based on the "
+    "model fitted to the data."
+)
+
+
+@final
+class SensitivityAnalysisPlot(Analysis):
+    """
+    Compute sensitivity for all metrics on a TorchAdapter.
+
+    Sobol measures are always positive regardless of the direction in which the
+    parameter influences f. If `signed` is set to True, then the Sobol measure for each
+    parameter will be given as its sign the sign of the average gradient with respect to
+    that parameter across the search space. Thus, important parameters that, when
+    increased, decrease will have large and negative values; unimportant parameters
+    will have values close to 0.
+    """
+
+    def __init__(
+        self,
+        metric_name: str | None = None,
+        order: Literal["first", "second", "total"] = "total",
+        top_k: int | None = 6,
+        labels: Mapping[str, str] | None = None,
+        exclude_map_key: bool = True,
+    ) -> None:
+        """
+        Args:
+            metric_name: The name of the metric to compute sensitivity analysis for.
+                If not provided, will compute sensitivity analysis for the objective.
+            order: A string specifying the order of the Sobol indices to be computed.
+                Supports "first" and "total" and defaults to "first".
+            top_k: Optional limit on the number of parameters to show in the plot.
+            labels: A mapping from metric names to labels to use in the plot. If a label
+                is not provided for a metric, the metric name will be used.
+            exclude_map_key: If True (default), the "step" feature will be excluded
+                from sensitivity analysis by fixing it at the maximum step value. This
+                makes the sensitivity analysis more interpretable for users who care
+                about the effect of parameters on final performance.
+        """
+        self.metric_name = metric_name
+        self.order = order
+        self.top_k = top_k
+        self.labels: dict[str, str] = {**labels} if labels is not None else {}
+        self.exclude_map_key = exclude_map_key
+
+    @override
+    def validate_applicable_state(
+        self,
+        experiment: Experiment | None = None,
+        generation_strategy: GenerationStrategy | None = None,
+        adapter: Adapter | None = None,
+    ) -> str | None:
+        """
+        SensitivityAnalysisPlot requires an experiment with trials and data as well as
+        a TorchAdapter.
+        """
+        if self.metric_name is None:
+            if (
+                experiment_invalid_reason := validate_experiment(
+                    experiment=experiment,
+                    require_trials=True,
+                    require_data=True,
+                )
+            ) is not None:
+                return experiment_invalid_reason
+
+        relevant_adapter = extract_relevant_adapter(
+            experiment=experiment,
+            generation_strategy=generation_strategy,
+            adapter=adapter,
+        )
+
+        if not isinstance(relevant_adapter, TorchAdapter):
+            return (
+                "This analysis requires a fitted Bayesian model (TorchAdapter). "
+                "Ensure the optimization has run enough trials and the generation "
+                "strategy has reached a model-based stage."
+            )
+
+    @override
+    def compute(
+        self,
+        experiment: Experiment | None = None,
+        generation_strategy: GenerationStrategy | None = None,
+        adapter: Adapter | None = None,
+    ) -> AnalysisCard:
+        if self.metric_name is None:
+            metric_name = select_metric(experiment=none_throws(experiment))
+        else:
+            metric_name = self.metric_name
+
+        relevant_adapter = assert_is_instance(
+            extract_relevant_adapter(
+                experiment=experiment,
+                generation_strategy=generation_strategy,
+                adapter=adapter,
+            ),
+            TorchAdapter,
+        )
+
+        data = _prepare_data(
+            adapter=relevant_adapter,
+            metric_name=metric_name,
+            order=self.order,
+            exclude_map_key=self.exclude_map_key,
+        )
+
+        # If a human readable metric name is provided, use it
+        metric_label = self.labels.get(
+            metric_name, truncate_label(label=metric_name, n=MAX_LINE_LEN)
+        )
+        df, fig = _prepare_card_components(
+            data=data,
+            metric_name=metric_name,
+            top_k=self.top_k,
+            metric_label=metric_label,
+        )
+
+        return create_plotly_analysis_card(
+            name=self.__class__.__name__,
+            title=f"Sensitivity Analysis for {metric_label}",
+            subtitle=(
+                f"Understand how each parameter affects {metric_label} according "
+                f"to a {self.order}-order sensitivity analysis."
+            ),
+            df=df,
+            fig=fig,
+        )
+
+
+def compute_sensitivity_adhoc(
+    adapter: Adapter,
+    metric_names: Sequence[str] | None = None,
+    labels: Mapping[str, str] | None = None,
+    order: Literal["first", "second", "total"] = "total",
+    top_k: int | None = None,
+    exclude_map_key: bool = True,
+) -> AnalysisCardGroup:
+    """
+    Compute SensitivityAnalysis cards for the given experiment and either Adapter or
+    GenerationStrategy.
+
+    Note that cards are not saved to the database when computed adhoc -- they are only
+    saved when computed as part of call to ``Client.compute_analyses`` or equivalent.
+
+    Args:
+        adapter: The adapter to use to compute the analysis.
+        metric_names: The names of the metrics and outcomes for which to compute
+                sensitivities. This should preferably be metrics with a good model fit.
+                Defaults to all metrics in the experiment.
+        order: A string specifying the order of the Sobol indices to be computed.
+            Supports "first" and "total" and defaults to "first".
+        top_k: Optional limit on the number of parameters to show in the plot.
+        labels: A mapping from metric names to labels to use in the plot. If a label
+            is not provided for a metric, the metric name will be used.
+        exclude_map_key: If True (default), the "step" feature will be excluded
+            from sensitivity analysis by fixing it at the maximum step value.
+    """
+    analyis_cards = [
+        SensitivityAnalysisPlot(
+            metric_name=metric_name,
+            order=order,
+            top_k=top_k,
+            labels=labels,
+            exclude_map_key=exclude_map_key,
+        ).compute_or_error_card(adapter=adapter)
+        for metric_name in (
+            metric_names if metric_names is not None else adapter.outcomes
+        )
+    ]
+
+    return AnalysisCardGroup(
+        name="SensitivityAnalysisAdhoc",
+        title="Adhoc Sensitivity Analysis",
+        subtitle=None,
+        children=analyis_cards,
+    )
+
+
+def _wrap_label(name: str, max_line_len: int = MAX_LINE_LEN) -> str:
+    """Wrap long parameter names using <br> for multi-line y-axis labels.
+
+    For interaction effects (containing " & "), each parameter is placed on its
+    own line. For single parameter names that exceed max_line_len, the name is
+    wrapped at underscores.
+    """
+    if " & " in name:
+        parts = name.split(" & ")
+        wrapped_parts = [_wrap_single(p, max_line_len) for p in parts]
+        return " &<br>".join(wrapped_parts)
+    return _wrap_single(name, max_line_len)
+
+
+def _wrap_single(name: str, max_line_len: int = MAX_LINE_LEN) -> str:
+    """Wrap a single parameter name at underscores if it exceeds max_line_len.
+
+    The underscore at the wrap point is preserved as a leading underscore on the
+    next line, so the full name can be reconstructed by removing ``<br>`` tags.
+    """
+    if len(name) <= max_line_len:
+        return name
+    segments = name.split("_")
+    lines: list[str] = []
+    current_line = ""
+    for segment in segments:
+        candidate = f"{current_line}_{segment}" if current_line else segment
+        if len(candidate) > max_line_len and current_line:
+            lines.append(current_line)
+            current_line = segment
+        else:
+            current_line = candidate
+    if current_line:
+        lines.append(current_line)
+    # Re-join with "<br>_" so the underscore at each break point is preserved
+    # on the next line, making the label visually faithful to the original name.
+    return "<br>_".join(lines)
+
+
+def _prepare_data(
+    adapter: TorchAdapter,
+    metric_name: str,
+    order: Literal["first", "second", "total"],
+    exclude_map_key: bool = True,
+) -> pd.DataFrame:
+    sensitivities = ax_parameter_sens(
+        adapter=adapter,
+        metrics=[metric_name],
+        order=order,
+        exclude_map_key=exclude_map_key,
+        exclude_task=True,
+    )
+
+    df = pd.DataFrame.from_records(
+        [
+            {
+                "metric_name": metric_name,
+                "parameter_name": parameter_name,
+                "sensitivity": sensitivity,
+            }
+            for metric_name, sensitivity_dict in sensitivities.items()
+            for parameter_name, sensitivity in sensitivity_dict.items()
+        ]
+    )
+
+    # Re-normalize sensitivities so absolute values sum to 1 per metric.
+    for mn in df["metric_name"].unique():
+        mask = df["metric_name"] == mn
+        total = df.loc[mask, "sensitivity"].abs().sum()
+        if total > 0:
+            df.loc[mask, "sensitivity"] = df.loc[mask, "sensitivity"] / total
+
+    return df
+
+
+def _prepare_card_components(
+    data: pd.DataFrame,
+    metric_name: str,
+    metric_label: str,
+    top_k: int | None,
+) -> tuple[pd.DataFrame, go.Figure]:
+    plotting_df = data.loc[data["metric_name"] == metric_name][
+        ["parameter_name", "sensitivity"]
+    ].copy()
+
+    # Wrap long parameter names using <br> for multi-line y-axis labels.
+    # If the wrapped name collides with an existing one, append a count suffix.
+    param_names = plotting_df["parameter_name"].unique()
+    param_to_display_name: dict[str, str] = {}
+    display_name_count: dict[str, int] = {}
+    for name in param_names:
+        display_name = _wrap_label(name)
+        if display_name not in display_name_count:
+            display_name_count[display_name] = 0
+        else:
+            display_name_count[display_name] += 1
+            display_name = display_name + f"_{display_name_count[display_name]}"
+        param_to_display_name[name] = display_name
+    plotting_df["display_parameter_name"] = plotting_df["parameter_name"].map(
+        param_to_display_name
+    )
+
+    plotting_df["importance"] = plotting_df["sensitivity"].abs()
+    plotting_df["direction"] = plotting_df["sensitivity"].apply(
+        lambda x: f"Increases {metric_label}" if x >= 0 else f"Decreases {metric_label}"
+    )
+    figure = px.bar(
+        plotting_df.sort_values(by="importance", ascending=False)
+        .reset_index()
+        .head(top_k),
+        x="importance",
+        y="display_parameter_name",
+        orientation="h",
+        color="direction",
+        color_discrete_map={
+            f"Increases {metric_label}": COLOR_FOR_INCREASES,
+            f"Decreases {metric_label}": COLOR_FOR_DECREASES,
+        },
+        # Show longer version of parameter name on hover without overflowing hover
+        hover_data=["parameter_name"][:MAX_HOVER_LABEL_LEN],
+    )
+
+    figure.update_layout(
+        # Display most important parameters first
+        yaxis={"categoryorder": "total ascending"},
+        # move legend to bottom of plot
+        legend=LEGEND_POSITION,
+        margin=MARGIN_REDUCUTION,
+    )
+
+    return (
+        plotting_df[["parameter_name", "sensitivity"]],
+        figure,
+    )

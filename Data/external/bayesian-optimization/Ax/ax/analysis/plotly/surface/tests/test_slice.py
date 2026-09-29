@@ -1,0 +1,161 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+# pyre-strict
+
+from ax.analysis.plotly.surface.slice import compute_slice_adhoc, SlicePlot
+from ax.core.trial import Trial
+from ax.exceptions.core import UserInputError
+from ax.service.ax_client import AxClient, ObjectiveProperties
+from ax.utils.common.testutils import TestCase
+from ax.utils.testing.mock import mock_botorch_optimize
+from pyre_extensions import assert_is_instance, none_throws
+
+
+class TestSlicePlot(TestCase):
+    @mock_botorch_optimize
+    def setUp(self) -> None:
+        super().setUp()
+        self.client = AxClient()
+        self.client.create_experiment(
+            is_test=True,
+            name="foo",
+            parameters=[
+                {
+                    "name": "x",
+                    "type": "range",
+                    "bounds": [-1.0, 1.0],
+                },
+                {
+                    "name": "z",
+                    "type": "choice",
+                    "values": [1, 2, 3, 4],
+                    "value_type": "int",
+                    "is_ordered": True,
+                },
+            ],
+            objectives={"bar": ObjectiveProperties(minimize=True)},
+        )
+
+        for _ in range(10):
+            parameterization, trial_index = self.client.get_next_trial()
+            self.client.complete_trial(
+                trial_index=trial_index, raw_data={"bar": parameterization["x"] ** 2}
+            )
+
+    def test_compute(self) -> None:
+        analysis = SlicePlot(parameter_name="x", metric_name="bar")
+
+        # Test that it fails if no Experiment is provided
+        with self.assertRaisesRegex(UserInputError, "requires an Experiment"):
+            analysis.compute()
+        # Test that it fails if no GenerationStrategy is provided
+        with self.assertRaisesRegex(
+            UserInputError, "Must provide either a GenerationStrategy or an Adapter"
+        ):
+            analysis.compute(experiment=self.client.experiment)
+
+        card = analysis.compute(
+            experiment=self.client.experiment,
+            generation_strategy=self.client.generation_strategy,
+        )
+        self.assertEqual(
+            card.name,
+            "SlicePlot",
+        )
+        self.assertEqual(card.title, "bar vs. x")
+        # Subtitle should mention "their best trial value"
+        self.assertIn(
+            "while keeping all other parameters fixed at their best trial value",
+            card.subtitle,
+        )
+        self.assertEqual(
+            {*card.df.columns},
+            {"x", "bar_mean", "bar_sem", "sampled", "trial_index", "arm_name"},
+        )
+        self.assertIsNotNone(card.blob)
+
+        # Assert that any row where sampled is True has a value of x that is
+        # sampled in at least one trial.
+        x_values_sampled = {
+            none_throws(assert_is_instance(trial, Trial).arm).parameters["x"]
+            for trial in self.client.experiment.trials.values()
+        }
+        self.assertTrue(
+            card.df.apply(
+                lambda row: row["x"] in x_values_sampled if row["sampled"] else True,
+                axis=1,
+            ).all()
+        )
+
+    def test_compute_adhoc(self) -> None:
+        (card,) = compute_slice_adhoc(
+            parameter_name="x",
+            metric_name="bar",
+            experiment=self.client.experiment,
+            generation_strategy=self.client.generation_strategy,
+        ).flatten()
+        self.assertEqual(
+            card.name,
+            "SlicePlot",
+        )
+        self.assertEqual(card.title, "bar vs. x")
+        # Subtitle should mention "their best trial value"
+        self.assertIn(
+            "while keeping all other parameters fixed at their best trial value",
+            card.subtitle,
+        )
+        self.assertEqual(
+            {*card.df.columns},
+            {"x", "bar_mean", "bar_sem", "sampled", "arm_name", "trial_index"},
+        )
+        self.assertIsNotNone(card.blob)
+
+        # Assert that any row where sampled is True has a value of x that is
+        # sampled in at least one trial.
+        x_values_sampled = {
+            none_throws(assert_is_instance(trial, Trial).arm).parameters["x"]
+            for trial in self.client.experiment.trials.values()
+        }
+        self.assertTrue(
+            card.df.apply(
+                lambda row: row["x"] in x_values_sampled if row["sampled"] else True,
+                axis=1,
+            ).all()
+        )
+
+    def test_trial_status_filtering(self) -> None:
+        trial_index = self.client.experiment.new_trial().index
+        self.client.experiment.trials[trial_index].mark_abandoned()
+
+        analysis = SlicePlot(parameter_name="x", metric_name="bar")
+
+        card = analysis.compute(
+            experiment=self.client.experiment,
+            generation_strategy=self.client.generation_strategy,
+        )
+        self.assertNotIn(
+            trial_index,
+            card.df["trial_index"].values,
+        )
+
+    def test_compute_with_choice_parameter(self) -> None:
+        """Test slice plot with ordered ChoiceParameter."""
+        analysis = SlicePlot(parameter_name="z", metric_name="bar")
+        card = analysis.compute(
+            experiment=self.client.experiment,
+            generation_strategy=self.client.generation_strategy,
+        )
+
+        # Assert: Verify the slice plot was created successfully
+        self.assertEqual(card.name, "SlicePlot")
+        self.assertEqual(card.title, "bar vs. z")
+        self.assertIn("z", card.df.columns)
+        self.assertIn("bar_mean", card.df.columns)
+
+        # Assert: Verify that z only contains the discrete choice values
+        unique_z_values = card.df["z"].unique()
+        for value in unique_z_values:
+            self.assertIn(value, [1, 2, 3, 4])

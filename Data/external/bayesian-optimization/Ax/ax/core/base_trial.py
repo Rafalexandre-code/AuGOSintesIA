@@ -1,0 +1,940 @@
+#!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+# pyre-strict
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from collections.abc import Callable
+from copy import deepcopy
+from datetime import datetime, timedelta
+from typing import Any, Self, TYPE_CHECKING
+
+from ax.core.arm import Arm
+from ax.core.data import Data
+from ax.core.evaluations_to_data import raw_evaluations_to_data
+from ax.core.generator_run import GeneratorRun, GeneratorRunType
+from ax.core.metric import Metric, MetricFetchResult
+from ax.core.runner import Runner
+from ax.core.trial_status import TrialStatus
+from ax.core.types import TCandidateMetadata, TEvaluationOutcome
+from ax.exceptions.core import TrialMutationError, UnsupportedError, UserInputError
+from ax.utils.common.base import SortableBase
+from ax.utils.common.constants import Keys
+from pyre_extensions import none_throws
+
+
+if TYPE_CHECKING:
+    # import as module to make sphinx-autodoc-typehints happy
+    from ax import core  # noqa F401
+
+MANUAL_GENERATION_METHOD_STR = "Manual"
+UNKNOWN_GENERATION_METHOD_STR = "Unknown"
+STATUS_QUO_GENERATION_METHOD_STR = "Status Quo"
+MAX_ABANDONED_REASON_LENGTH = 1000
+
+
+def immutable_once_run(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Decorator for methods that should throw Error when
+    trial is running or has ever run and immutable.
+    """
+
+    def _immutable_once_run(self: Any, *args: Any, **kwargs: Any) -> Any:
+        if self._status != TrialStatus.CANDIDATE:
+            raise TrialMutationError(
+                "Cannot modify a trial that is running or has ever run. "
+                "Create a new trial using `experiment.new_trial()` "
+                "or clone an existing trial using `trial.clone()`."
+            )
+        return func(self, *args, **kwargs)
+
+    return _immutable_once_run
+
+
+class BaseTrial(ABC, SortableBase):
+    """Base class for representing trials.
+
+    Trials are containers for arms that are deployed together. There are
+    two kinds of trials: regular Trial, which only contains a single arm,
+    and BatchTrial, which contains an arbitrary number of arms.
+
+    Args:
+        experiment: Experiment, of which this trial is a part
+        trial_type: Type of this trial, if used in MultiTypeExperiment.
+        ttl_seconds: If specified, trials will be considered stale after
+            this many seconds since the time the trial was ran, unless the
+            trial is completed before then. Meant to be used to detect
+            'dead' trials, for which the evaluation process might have
+            crashed etc., and which should be considered stale after
+            their 'time to live' has passed.
+        index: If specified, the trial's index will be set accordingly.
+            This should generally not be specified, as in the index will be
+            automatically determined based on the number of existing trials.
+            This is only used for the purpose of loading from storage.
+    """
+
+    def __init__(
+        self,
+        experiment: core.experiment.Experiment,
+        trial_type: str | None = None,
+        ttl_seconds: int | None = None,
+        index: int | None = None,
+        arm_name_prefix: str | None = None,
+    ) -> None:
+        """Initialize trial.
+
+        Args:
+            experiment: The experiment this trial belongs to.
+            arm_name_prefix: If provided, arms added to this trial will be
+                named ``{arm_name_prefix}_{trial_index}_{i}`` instead of the
+                default ``{trial_index}_{i}`` scheme. Retaining the trial and
+                arm indices keeps arm names unique even when the same prefix is
+                reused across multiple trials.
+        """
+        self._experiment = experiment
+        if ttl_seconds is not None and ttl_seconds <= 0:
+            raise ValueError("TTL must be a positive integer (or None).")
+        self._ttl_seconds: int | None = ttl_seconds
+        self._index: int = self._experiment._attach_trial(self, index=index)
+
+        trial_type = (
+            trial_type
+            if trial_type is not None
+            else self._experiment.default_trial_type
+        )
+        if not self._experiment.supports_trial_type(trial_type):
+            raise ValueError(
+                f"Trial type {trial_type} is not supported by the experiment."
+            )
+        self._trial_type = trial_type
+
+        self.__status: TrialStatus | None = None
+        # Uses `_status` setter, which updates trial statuses to trial indices
+        # mapping on the experiment, with which this trial is associated.
+        self._status = TrialStatus.CANDIDATE
+        self._time_created: datetime = datetime.now()
+
+        # Initialize fields to be used later in lifecycle
+        self._time_completed: datetime | None = None
+        self._time_staged: datetime | None = None
+        self._time_run_started: datetime | None = None
+
+        self._status_reason: str | None = None
+        self._run_metadata: dict[str, Any] = {}
+        self._stop_metadata: dict[str, Any] = {}
+
+        # Counter to maintain how many arms have been named by this BatchTrial
+        self._num_arms_created = 0
+        self._arm_name_prefix: str | None = arm_name_prefix
+
+        # NOTE: Please do not store any data related to trial deployment or data-
+        # fetching in properties. It is intended to only store properties related
+        # to core Ax functionality and not to any third-system that the trials
+        # might be getting deployed to.
+        self._properties: dict[str, Any] = {}
+
+    @property
+    @abstractmethod
+    def arms(self) -> list[Arm]:
+        """All arms associated with this trial."""
+        pass
+
+    @property
+    @abstractmethod
+    def arms_by_name(self) -> dict[str, Arm]:
+        """A mapping of from arm names, to all arms associated with
+        this trial.
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def abandoned_arms(self) -> list[Arm]:
+        """All abandoned arms, associated with this trial."""
+        pass
+
+    @abstractmethod
+    def add_generator_run(self, generator_run: GeneratorRun) -> Self:
+        """Add a generator run to the trial.
+
+        The arms and weights from the generator run will be merged with
+        the existing arms and weights on the trial, and the generator run
+        object will be linked to the trial for tracking.
+
+        Args:
+            generator_run: The generator run to be added.
+
+        Returns:
+            The trial instance.
+        """
+        pass
+
+    @abstractmethod
+    def add_arm(
+        self, arm: Arm, candidate_metadata: dict[str, Any] | None = None
+    ) -> Self:
+        """Add arm to the trial.
+
+        Returns:
+            The trial instance.
+        """
+        pass
+
+    @abstractmethod
+    def __repr__(self) -> str:
+        """String representation of the trial."""
+        pass
+
+    @property
+    def experiment(self) -> core.experiment.Experiment:
+        """The experiment this trial belongs to."""
+        return self._experiment
+
+    @property
+    def index(self) -> int:
+        """The index of this trial within the experiment's trial list."""
+        return self._index
+
+    @property
+    def status(self) -> TrialStatus:
+        """The status of the trial in the experimentation lifecycle."""
+        self._mark_stale_if_past_TTL()
+        return none_throws(self._status)
+
+    @property
+    def expecting_data(self) -> bool:
+        """Whether this trial expects data via the standard data-fetch pipeline.
+
+        Returns ``False`` for LILO labeling trials because their pairwise
+        preference data is fetched inline during the labeling loop and is
+        never refetched through the normal orchestration path.
+        """
+        return self.status.expecting_data and self.trial_type != Keys.LILO_LABELING
+
+    @status.setter
+    def status(self, status: TrialStatus) -> None:
+        raise NotImplementedError("Use `trial.mark_*` methods to set trial status.")
+
+    @property
+    def ttl_seconds(self) -> int | None:
+        """This trial's time-to-live once ran, in seconds. If not set, trial
+        will never be automatically considered stale (i.e. infinite TTL).
+        Reflects after how many seconds since the time the trial was run it
+        will be considered stale unless completed.
+        """
+        return self._ttl_seconds
+
+    @ttl_seconds.setter
+    def ttl_seconds(self, ttl_seconds: int | None) -> None:
+        """Sets this trial's time-to-live once ran, in seconds. If None, trial
+        will never be automatically considered stale (i.e. infinite TTL).
+        Reflects after how many seconds since the time the trial was run it
+        will be considered stale unless completed.
+        """
+        if ttl_seconds is not None and ttl_seconds <= 0:
+            raise ValueError("TTL must be a positive integer (or None).")
+        self._ttl_seconds = ttl_seconds
+
+    @property
+    def completed_successfully(self) -> bool:
+        """Checks if trial status is `COMPLETED`."""
+        return self.status == TrialStatus.COMPLETED
+
+    @property
+    def did_not_complete(self) -> bool:
+        """Checks if trial status is terminal, but not `COMPLETED`."""
+        return self.status.is_terminal and not self.completed_successfully
+
+    @property
+    def runner(self) -> Runner | None:
+        """The runner object defining how to deploy the trial."""
+        return self.experiment.runner_for_trial_type(self.trial_type)
+
+    @runner.setter
+    def runner(self, runner: Runner | None) -> None:
+        raise UnsupportedError(
+            "Setting runner on individual trials is no longer supported. "
+            "Use experiment-level runners instead."
+        )
+
+    @property
+    def _runner(self) -> Runner | None:
+        """Private runner access is not supported."""
+        raise UnsupportedError(
+            "Accessing _runner on individual trials is no longer supported. "
+            "Use trial.runner instead, which gets the runner from the experiment."
+        )
+
+    @_runner.setter
+    def _runner(self, runner: Runner | None) -> None:
+        """Private runner setting is not supported."""
+        raise UnsupportedError(
+            "Setting _runner on individual trials is no longer supported. "
+            "Use experiment-level runners instead."
+        )
+
+    @property
+    def deployed_name(self) -> str | None:
+        """Name of the experiment created in external framework.
+
+        This property is derived from the name field in run_metadata.
+        """
+        return self._run_metadata.get("name") if self._run_metadata else None
+
+    @property
+    def run_metadata(self) -> dict[str, Any]:
+        """Dict containing metadata from the deployment process.
+
+        This is set implicitly during `trial.run()`.
+        """
+        return self._run_metadata
+
+    @property
+    def stop_metadata(self) -> dict[str, Any]:
+        """Dict containing metadata from the stopping process.
+
+        This is set implicitly during `trial.stop()`.
+        """
+        return self._stop_metadata
+
+    @property
+    def trial_type(self) -> str | None:
+        """The type of the trial.
+
+        Relevant for experiments containing different kinds of trials
+        (e.g. different deployment types).
+        """
+        return self._trial_type
+
+    def _add_generator_run(self, generator_run: GeneratorRun) -> None:
+        """Helper called from ``{BatchTrial, Trial}.add_generator_run: validates
+        and names arms; adds the ``GeneratorRun`` to this trial's ``Experiment``.
+        """
+        # 1. Validate the arm(s) in the generator run.
+        for arm in generator_run.arms:
+            self.experiment.search_space.check_types(arm.parameters, raise_error=True)
+
+        # 2. Name any yet-unnamed arms: for arms that are not yet added to this
+        # trial's experiment, assign a new name; use name on experiment otherwise.
+        for arm in generator_run.arms:
+            self._check_existing_and_name_arm(arm)
+
+        # 3.TODO: Add the generator run to the experiment if it's not already there;
+        # assign an experiment-level index if newly added.
+
+        # 4. TODO: Capture which generator run the arms we are about to add this
+        # this trial, came from.
+
+    def update_run_metadata(self, metadata: dict[str, Any]) -> dict[str, Any]:
+        """Updates the run metadata dict stored on this trial and returns the
+        updated dict."""
+        self._run_metadata.update(metadata)
+        return self._run_metadata
+
+    def update_stop_metadata(self, metadata: dict[str, Any]) -> dict[str, Any]:
+        """Updates the stop metadata dict stored on this trial and returns the
+        updated dict."""
+        self._stop_metadata.update(metadata)
+        return self._stop_metadata
+
+    def run(self) -> Self:
+        """Deploys the trial according to the behavior on the runner.
+
+        The runner returns a `run_metadata` dict containining metadata
+        of the deployment process. It also returns a `deployed_name` of the trial
+        within the system to which it was deployed. Both these fields are set on
+        the trial.
+
+        Returns:
+            The trial instance.
+        """
+        if self.status != TrialStatus.CANDIDATE:
+            raise ValueError("Can only run a candidate trial.")
+
+        if self.runner is None:
+            raise ValueError("No runner set on experiment.")
+
+        self.update_run_metadata(none_throws(self.runner).run(self))
+
+        if none_throws(self.runner).staging_required:
+            self.mark_staged()
+        else:
+            self.mark_running()
+        return self
+
+    def stop(self, new_status: TrialStatus, reason: str | None = None) -> Self:
+        """Stops the trial according to the behavior on the runner.
+
+        The runner returns a `stop_metadata` dict containining metadata
+        of the stopping process.
+
+        Args:
+            new_status: The new TrialStatus. Must be one of {TrialStatus.COMPLETED,
+                TrialStatus.ABANDONED, TrialStatus.EARLY_STOPPED}
+            reason: A message containing information why the trial is to be stopped.
+
+        Returns:
+            The trial instance.
+        """
+        if self.status not in {TrialStatus.STAGED, TrialStatus.RUNNING}:
+            raise ValueError("Can only stop STAGED or RUNNING trials.")
+
+        if new_status not in {
+            TrialStatus.COMPLETED,
+            TrialStatus.ABANDONED,
+            TrialStatus.EARLY_STOPPED,
+        }:
+            raise ValueError(
+                "New status of a stopped trial must either be "
+                "COMPLETED, ABANDONED or EARLY_STOPPED."
+            )
+
+        if self.runner is None:
+            raise ValueError("No runner set on experiment.")
+        runner = none_throws(self.runner)
+
+        self._stop_metadata = runner.stop(self, reason=reason)
+        self.mark_as(new_status)
+        return self
+
+    def complete(self, reason: str | None = None) -> Self:
+        """Stops the trial if functionality is defined on runner
+            and marks trial completed.
+
+        Args:
+            reason: A message containing information why the trial is to be
+                completed.
+
+        Returns:
+            The trial instance.
+        """
+        if self.status != TrialStatus.RUNNING:
+            raise ValueError("Can only stop a running trial.")
+        try:
+            self.stop(new_status=TrialStatus.COMPLETED, reason=reason)
+        except NotImplementedError:
+            self.mark_completed()
+        return self
+
+    def fetch_data_results(
+        self, metrics: list[Metric] | None = None, **kwargs: Any
+    ) -> dict[str, MetricFetchResult]:
+        """Fetch data results for this trial for all metrics on experiment.
+
+        Args:
+            trial_index: The index of the trial to fetch data for.
+            metrics: If provided, fetch data for these metrics instead of the ones
+                defined on the experiment.
+            kwargs: keyword args to pass to underlying metrics' fetch data functions.
+
+        Returns:
+            MetricFetchResults for this trial.
+        """
+
+        return self.experiment._fetch_trial_data(
+            trial_index=self.index, metrics=metrics, **kwargs
+        )
+
+    def fetch_data(self, metrics: list[Metric] | None = None, **kwargs: Any) -> Data:
+        """Fetch data for this trial for all metrics on experiment.
+
+        Args:
+            trial_index: The index of the trial to fetch data for.
+            metrics: If provided, fetch data for these metrics instead of the ones
+                defined on the experiment.
+            kwargs: keyword args to pass to underlying metrics' fetch data functions.
+
+        Returns:
+            Data for this trial.
+        """
+        data = Metric._unwrap_trial_data_multi(
+            results=self.fetch_data_results(metrics=metrics, **kwargs)
+        )
+
+        return data
+
+    def lookup_data(self) -> Data:
+        """Lookup cached data on experiment for this trial.
+
+        Returns:
+            All ``Data`` on the experiment that is associated with this trial.
+
+        """
+        return self.experiment.lookup_data(trial_indices={self.index})
+
+    def _check_existing_and_name_arm(self, arm: Arm) -> None:
+        """Sets name for given arm; if this arm is already in the
+        experiment, uses the existing arm name.
+        """
+        proposed_name = self._get_default_name()
+
+        # Arm could already be in experiment, replacement is okay.
+        self.experiment._name_and_store_arm_if_not_exists(
+            arm=arm, proposed_name=proposed_name, replace=True
+        )
+        # If arm was named using given name, incremement the count
+        if arm.name == proposed_name:
+            self._num_arms_created += 1
+
+    def _get_default_name(self, arm_index: int | None = None) -> str:
+        if arm_index is None:
+            arm_index = self._num_arms_created
+        if self._arm_name_prefix is not None:
+            return f"{self._arm_name_prefix}_{self.index}_{arm_index}"
+        return f"{self.index}_{arm_index}"
+
+    @property
+    def active_arms(self) -> list[Arm]:
+        """All non abandoned arms associated with this trial."""
+        return [arm for arm in self.arms if arm not in self.abandoned_arms]
+
+    @property
+    @abstractmethod
+    def generator_runs(self) -> list[GeneratorRun]:
+        """All generator runs associated with this trial."""
+        pass
+
+    @abstractmethod
+    def _get_candidate_metadata_from_all_generator_runs(
+        self,
+    ) -> dict[str, TCandidateMetadata]:
+        """Retrieves combined candidate metadata from all generator runs associated
+        with this trial.
+        """
+        ...
+
+    @abstractmethod
+    def _get_candidate_metadata(self, arm_name: str) -> TCandidateMetadata:
+        """Retrieves candidate metadata for a specific arm."""
+        ...
+
+    # --- Trial lifecycle management functions ---
+
+    @property
+    def time_created(self) -> datetime:
+        """Creation time of the trial."""
+        return self._time_created
+
+    @property
+    def time_completed(self) -> datetime | None:
+        """Completion time of the trial."""
+        return self._time_completed
+
+    @property
+    def time_staged(self) -> datetime | None:
+        """Staged time of the trial."""
+        return self._time_staged
+
+    @property
+    def time_run_started(self) -> datetime | None:
+        """Time the trial was started running (i.e. collecting data)."""
+        return self._time_run_started
+
+    @property
+    def is_abandoned(self) -> bool:
+        """Whether this trial is abandoned."""
+        return self._status == TrialStatus.ABANDONED
+
+    @property
+    def status_reason(self) -> str | None:
+        """Reason string for the trial status (failed, abandoned, or early stopped)."""
+        return self._status_reason
+
+    def mark_staged(self, unsafe: bool = False) -> Self:
+        """Mark the trial as being staged for running.
+
+        No-op if the trial is already staged.
+
+        Args:
+            unsafe: Ignore sanity checks on state transitions.
+        Returns:
+            The trial instance.
+        """
+        if self._status == TrialStatus.STAGED:
+            return self
+        if not unsafe and self._status != TrialStatus.CANDIDATE:
+            raise TrialMutationError(
+                f"Can only stage a candidate trial.  This trial is {self._status}"
+            )
+        self._status = TrialStatus.STAGED
+        self._time_staged = datetime.now()
+        return self
+
+    def mark_running(
+        self,
+        no_runner_required: bool = False,
+        unsafe: bool = False,
+        started_time: datetime | None = None,
+    ) -> Self:
+        """Mark trial has started running.
+
+        No-op if the trial is already running.
+
+        Args:
+            no_runner_required: Whether to skip the check for presence of a
+                ``Runner`` on the experiment.
+            unsafe: Ignore sanity checks on state transitions.
+            started_time: When the trial actually started running. Defaults
+                to ``datetime.now()`` if not provided. Useful for runners
+                that confirm deployment asynchronously and know the real
+                start time.
+
+        Returns:
+            The trial instance.
+        """
+        if self._status == TrialStatus.RUNNING:
+            return self
+        if self.runner is None and not no_runner_required:
+            raise ValueError("Cannot mark trial running without setting runner.")
+
+        prev_step = (
+            TrialStatus.STAGED
+            if self.runner is not None and self.runner.staging_required
+            else TrialStatus.CANDIDATE
+        )
+        prev_step_str = "staged" if prev_step == TrialStatus.STAGED else "candidate"
+        if not unsafe and self._status != prev_step:
+            raise TrialMutationError(
+                f"Can only mark this trial as running when {prev_step_str}."
+            )
+        self._status = TrialStatus.RUNNING
+        self._time_run_started = (
+            started_time if started_time is not None else datetime.now()
+        )
+        return self
+
+    def mark_completed(
+        self, unsafe: bool = False, time_completed: str | None = None
+    ) -> Self:
+        """Mark trial as completed.
+
+        No-op if the trial is already completed.
+
+        Args:
+            unsafe: Ignore sanity checks on state transitions.
+            time_completed: The time the trial was completed. If None, defaults to
+                the time the method was called. String must follow "%Y-%m-%d" format.
+                This is a risky argument, and should only be used if you are confident
+                in your changes.
+        Returns:
+            The trial instance.
+        """
+        if self._status == TrialStatus.COMPLETED:
+            return self
+        if not unsafe and self._status != TrialStatus.RUNNING:
+            raise TrialMutationError(
+                "Can only complete trial that is currently running."
+            )
+        self._status = TrialStatus.COMPLETED
+        self._time_completed = (
+            datetime.now()
+            if time_completed is None
+            else datetime.strptime(time_completed, "%Y-%m-%d")
+        )
+        return self
+
+    def mark_abandoned(self, reason: str | None = None, unsafe: bool = False) -> Self:
+        """Mark trial as abandoned.
+
+        No-op if the trial is already abandoned.
+
+        NOTE: Arms in abandoned trials are considered to be 'pending points'
+        in experiment after their abandonment to avoid Ax models suggesting
+        the same arm again as a new candidate. Arms in abandoned trials are
+        also excluded from model training data unless ``fit_abandoned`` option
+        is specified to adapter via ``DataLoaderConfig``.
+
+        Args:
+            reason: The reason the trial was abandoned.
+            unsafe: Ignore sanity checks on state transitions.
+
+        Returns:
+            The trial instance.
+        """
+        if self._status == TrialStatus.ABANDONED:
+            return self
+        if not unsafe and none_throws(self._status).is_terminal:
+            raise ValueError("Cannot abandon a trial in a terminal state.")
+
+        if reason is not None and len(reason) > MAX_ABANDONED_REASON_LENGTH:
+            reason = reason[:MAX_ABANDONED_REASON_LENGTH] + "..."
+        self._status_reason = reason
+        self._status = TrialStatus.ABANDONED
+        self._time_completed = datetime.now()
+        return self
+
+    def mark_failed(self, reason: str | None = None, unsafe: bool = False) -> Self:
+        """Mark trial as failed.
+
+        No-op if the trial is already failed.
+
+        Args:
+            unsafe: Ignore sanity checks on state transitions.
+        Returns:
+            The trial instance.
+        """
+        if self._status == TrialStatus.FAILED:
+            return self
+        if not unsafe and self._status != TrialStatus.RUNNING:
+            raise TrialMutationError(
+                "Can only mark failed a trial that is currently running."
+            )
+
+        self._status_reason = reason
+        self._status = TrialStatus.FAILED
+        self._time_completed = datetime.now()
+        return self
+
+    def mark_early_stopped(
+        self, reason: str | None = None, unsafe: bool = False
+    ) -> Self:
+        """Mark trial as early stopped.
+
+        No-op if the trial is already early stopped.
+
+        Args:
+            reason: The reason the trial was early stopped.
+            unsafe: Ignore sanity checks on state transitions.
+        Returns:
+            The trial instance.
+        """
+        if self._status == TrialStatus.EARLY_STOPPED:
+            return self
+        if not unsafe:
+            if self._status != TrialStatus.RUNNING:
+                raise TrialMutationError(
+                    "Can only early stop trial that is currently running."
+                )
+
+            if self.lookup_data().df.empty:
+                raise UnsupportedError(
+                    "Cannot mark trial early stopped without data. Please mark trial "
+                    "abandoned instead."
+                )
+
+        self._status_reason = reason
+        self._status = TrialStatus.EARLY_STOPPED
+        self._time_completed = datetime.now()
+        return self
+
+    def mark_stale(self, unsafe: bool = False) -> Self:
+        """Mark trial as stale.
+
+        No-op if the trial is already stale.
+
+        Args:
+            unsafe: Ignore sanity checks on state transitions.
+        Returns:
+            The trial instance.
+        """
+        if self._status == TrialStatus.STALE:
+            return self
+        if not unsafe and self._status != TrialStatus.CANDIDATE:
+            raise TrialMutationError(
+                message=(
+                    "Cannot mark this candidate as `STALE` because the current status "
+                    f"is {self.status} and only trials with status `CANDIDATE` are "
+                    "eligible to be marked as `STALE`."
+                )
+            )
+
+        self._status = TrialStatus.STALE
+        self._time_completed = datetime.now()
+        return self
+
+    def mark_as(self, status: TrialStatus, unsafe: bool = False, **kwargs: Any) -> Self:
+        """Mark trial with a new TrialStatus.
+
+        If the trial is already in the given status, this is a no-op -- the
+        trial is returned unchanged and timestamps are not overwritten.
+
+        Args:
+            status: The new status of the trial.
+            unsafe: Ignore sanity checks on state transitions.
+            kwargs: Additional keyword args, as can be ued in the respective `mark_`
+                methods associated with the trial status.
+
+        Returns:
+            The trial instance.
+        """
+        if self._status == status:
+            return self
+        if status == TrialStatus.STAGED:
+            self.mark_staged(unsafe=unsafe)
+        elif status == TrialStatus.RUNNING:
+            no_runner_required = kwargs.get("no_runner_required", False)
+            started_time = kwargs.get("started_time")
+            self.mark_running(
+                no_runner_required=no_runner_required,
+                unsafe=unsafe,
+                started_time=started_time,
+            )
+        elif status == TrialStatus.ABANDONED:
+            self.mark_abandoned(reason=kwargs.get("reason"), unsafe=unsafe)
+        elif status == TrialStatus.FAILED:
+            self.mark_failed(reason=kwargs.get("reason"), unsafe=unsafe)
+        elif status == TrialStatus.COMPLETED:
+            self.mark_completed(unsafe=unsafe)
+        elif status == TrialStatus.EARLY_STOPPED:
+            self.mark_early_stopped(reason=kwargs.get("reason"), unsafe=unsafe)
+        elif status == TrialStatus.STALE:
+            self.mark_stale(unsafe=unsafe)
+        else:
+            raise TrialMutationError(f"Cannot mark trial as {status}.")
+        return self
+
+    def mark_arm_abandoned(self, arm_name: str, reason: str | None = None) -> Self:
+        raise NotImplementedError(
+            "Abandoning arms is only supported for `BatchTrial`. "
+            "Use `trial.mark_abandoned` if applicable."
+        )
+
+    @property
+    def generation_method_str(self) -> str:
+        """Returns the generation method(s) used to generate this trial's arms,
+        as a human-readable string (e.g. 'Sobol', 'BoTorch', 'Manual', etc.).
+        Returns a comma-delimited string if multiple generation methods were used.
+        """
+        # Use model key provided during warm-starting if present, since the
+        # generator run may not be present on warm-started trials.
+        if (
+            warm_start_model_key := self._properties.get(Keys.WARMSTART_TRIAL_MODEL_KEY)
+        ) is not None:
+            return warm_start_model_key
+
+        generation_methods = {
+            none_throws(generator_run._generator_key)
+            for generator_run in self.generator_runs
+            if generator_run._generator_key is not None
+        }
+
+        # Add generator-run-type strings for non-Adapter generator runs.
+        gr_type_name_to_str = {
+            GeneratorRunType.MANUAL.name: MANUAL_GENERATION_METHOD_STR,
+            GeneratorRunType.STATUS_QUO.name: STATUS_QUO_GENERATION_METHOD_STR,
+        }
+        generation_methods |= {
+            gr_type_name_to_str[generator_run.generator_run_type]
+            for generator_run in self.generator_runs
+            if generator_run.generator_run_type in gr_type_name_to_str
+        }
+
+        return (
+            # Sort for deterministic output
+            ", ".join(sorted(generation_methods))
+            if generation_methods
+            else UNKNOWN_GENERATION_METHOD_STR
+        )
+
+    def _mark_stale_if_past_TTL(self) -> None:
+        """
+        Changes a `CANDIDATE` trial's status to `STALE` if the trial has a 'ttl' set
+        and the time elapsed is greater than the ttl value.
+        """
+        if self.ttl_seconds is None or not none_throws(self._status).is_candidate:
+            return
+
+        time_elapsed = datetime.now() - self._time_created
+        if time_elapsed > timedelta(seconds=none_throws(self.ttl_seconds)):
+            self.mark_stale()
+
+    @property
+    def _status(self) -> TrialStatus | None:
+        """The status of the trial in the experimentation lifecycle. This private
+        property exists to allow for a corresponding setter, since its important
+        that the trial statuses mapping on the experiment is updated always when
+        a trial status is updated. In addition, the private property can be None
+        whereas the public `status` errors out if self._status is None.
+        """
+        return self.__status
+
+    @_status.setter
+    def _status(self, trial_status: TrialStatus) -> None:
+        """Setter for the `_status` attribute that also updates the experiment's
+        `_trial_indices_by_status mapping according to the newly set trial status.
+        """
+        status = self._status
+        if status is not None:
+            assert self.index in self._experiment._trial_indices_by_status[status]
+            self._experiment._trial_indices_by_status[status].remove(self.index)
+        self._experiment._trial_indices_by_status[trial_status].add(self.index)
+        self.__status = trial_status
+
+    @property
+    def _unique_id(self) -> str:
+        return str(self.index)
+
+    def _raw_evaluations_to_data(self, raw_data: dict[str, TEvaluationOutcome]) -> Data:
+        """Formats given raw data as Ax `Data`.
+
+        Args:
+            raw_data: Map from arm name to
+                metric outcomes.
+        """
+
+        metric_name_to_signature = {
+            name: metric.signature for name, metric in self.experiment.metrics.items()
+        }
+
+        try:
+            return raw_evaluations_to_data(
+                raw_data=raw_data,
+                metric_name_to_signature=metric_name_to_signature,
+                trial_index=self.index,
+            )
+        except UserInputError as e:
+            if "not found in metric_name_to_signature." in str(e):
+                raise UserInputError(
+                    "Unable to find the metric signature for one or more metrics. "
+                    "Please ensure that the experiment has an attached metric "
+                    "for each metric present in raw_data."
+                ) from e
+            raise e
+
+    def _raise_cant_attach_if_completed(self) -> None:
+        """
+        Helper method used by `validate_can_attach_data` to raise an error if
+        the user tries to attach data to a completed trial. Subclasses such as
+        `Trial` override this by suggesting a remediation.
+        """
+        raise UnsupportedError(
+            f"Trial {self.index} already has status 'COMPLETED', so data cannot "
+            "be attached."
+        )
+
+    def _validate_can_attach_data(self) -> None:
+        """Determines whether a trial is in a state that can be attached data."""
+        if self.status.is_completed:
+            self._raise_cant_attach_if_completed()
+        if self.status.is_abandoned or self.status.is_failed:
+            raise UnsupportedError(
+                f"Trial {self.index} has been marked {self.status.name}, so it "
+                "no longer expects data."
+            )
+
+    def _update_trial_attrs_on_clone(
+        self,
+        new_trial: BaseTrial,
+    ) -> None:
+        """Updates attributes of the trial that are not copied over when cloning
+        a trial.
+
+        Args:
+            new_trial: The cloned trial.
+            new_experiment: The experiment that the cloned trial belongs to.
+            new_status: The new status of the cloned trial.
+        """
+        new_trial._run_metadata = deepcopy(self._run_metadata)
+        new_trial._stop_metadata = deepcopy(self._stop_metadata)
+        new_trial._num_arms_created = self._num_arms_created
+
+        # Set status and reason accordingly.
+        if self.status == TrialStatus.CANDIDATE:
+            return
+        new_trial.mark_as(
+            self.status, reason=self.status_reason, no_runner_required=True, unsafe=True
+        )

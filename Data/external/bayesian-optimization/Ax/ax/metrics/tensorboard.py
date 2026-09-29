@@ -1,0 +1,350 @@
+#!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+# pyre-strict
+
+from __future__ import annotations
+
+import logging
+import warnings
+from logging import Logger
+from typing import Any
+
+import numpy as np
+import pandas as pd
+from ax.core.base_trial import BaseTrial
+from ax.core.data import Data, MAP_KEY
+from ax.core.map_metric import MapMetric
+from ax.core.metric import Metric, MetricFetchE, MetricFetchResult
+from ax.core.trial import Trial
+from ax.utils.common.logger import get_logger
+from ax.utils.common.result import Err, Ok
+from pyre_extensions import assert_is_instance
+
+logger: Logger = get_logger(__name__)
+
+# Default in Tensorboard UI (https://fburl.com/workplace/1sq11640)
+SMOOTHING_DEFAULT = 0
+RUN_METADATA_KEY = "tb_log_dir"
+
+try:
+    from tensorboard.backend.event_processing import (
+        plugin_event_multiplexer as event_multiplexer,
+    )
+
+    logging.getLogger("tensorboard").setLevel(logging.CRITICAL)
+
+    class TensorboardMetric(MapMetric):
+        """A *new* `MapMetric` for getting Tensorboard metrics."""
+
+        def __init__(
+            self,
+            name: str,
+            tag: str,
+            lower_is_better: bool | None = True,
+            smoothing: float = SMOOTHING_DEFAULT,
+            cumulative_best: bool = False,
+            percentile: float | None = None,
+            quantile: float | None = None,
+        ) -> None:
+            """
+            Args:
+                name: The name of the metric.
+                tag: The name of the learning curve in the Tensorboard Scalars tab.
+                lower_is_better: If True, lower curve values are considered better.
+                smoothing: If > 0, apply exponential weighted mean to the curve. This
+                    is the same postprocessing as the "smoothing" slider in the
+                    Tensorboard UI. Needs to be smaller than 1.0.
+                cumulative_best: If True, for each trial, apply cumulative best to
+                    the curve (i.e., if lower is better, then we return a curve
+                    representing the cumulative min of the raw curve).
+                percentile: DEPRECATED. Use `quantile` instead. If not None, return
+                    the (rolling) quantile value of the curve. Despite the name, this
+                    parameter expects a value in [0, 1] (like a quantile), not [0, 100].
+                quantile: If not None, return the (rolling) quantile value of the curve.
+                    Expects a value in [0, 1].
+                    e.g. if the original curve is [0, 6, 4, 2] and quantile=0.5, then
+                    the returned curve is [0, 3, 4, 3]. Rolling quantile is applied
+                    after any potential smoothing or cumulative_best processing.
+            """
+            super().__init__(name=name, lower_is_better=lower_is_better)
+
+            if not (0 <= smoothing < 1):
+                raise ValueError(
+                    f"smoothing must be in the range [0, 1), got {smoothing}."
+                )
+
+            if percentile is not None and quantile is not None:
+                raise ValueError(
+                    "Cannot specify both `percentile` and `quantile`. "
+                    "Please use `quantile` only, as `percentile` is deprecated."
+                )
+
+            if percentile is not None:
+                warnings.warn(
+                    "The `percentile` argument is deprecated and will be removed in "
+                    "a future release. Please use `quantile` instead. Note that "
+                    "despite the name, `percentile` has always expected a value in "
+                    "[0, 1] (like a quantile), not [0, 100].",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                quantile = percentile
+
+            if quantile is not None and not (0 <= quantile <= 1):
+                raise ValueError(
+                    f"quantile must be in the range [0, 1], got {quantile}."
+                )
+
+            self.smoothing = smoothing
+            self.tag = tag
+            self.cumulative_best = cumulative_best
+            self.percentile: None = None  # deprecated, left for backwards compatibility
+            self.quantile = quantile
+
+        @classmethod
+        def is_available_while_running(cls) -> bool:
+            return True
+
+        def bulk_fetch_trial_data(
+            self, trial: BaseTrial, metrics: list[Metric], **kwargs: Any
+        ) -> dict[str, MetricFetchResult]:
+            """Fetch multiple metrics data for one trial, using instance attributes
+            of the metrics.
+
+            Returns Dict of metric_signature => Result
+            Default behavior calls `fetch_trial_data` for each metric. Subclasses should
+            override this to perform trial data computation for multiple metrics.
+            """
+            tb_metrics = [
+                assert_is_instance(metric, TensorboardMetric) for metric in metrics
+            ]
+
+            trial = assert_is_instance(trial, Trial)
+            if trial.arm is None:
+                raise ValueError("Trial must have arm set.")
+
+            arm_name = trial.arm.name
+
+            try:
+                mul = self._get_event_multiplexer_for_trial(trial=trial)
+            except Exception as e:
+                return {
+                    metric.signature: Err(
+                        MetricFetchE(
+                            message=f"Failed to get event multiplexer for {trial=}",
+                            exception=e,
+                        )
+                    )
+                    for metric in tb_metrics
+                }
+
+            scalar_dict = mul.PluginRunToTagToContent("scalars")
+            if len(scalar_dict) == 0:
+                return {
+                    metric.signature: Err(
+                        MetricFetchE(
+                            message=(
+                                "Tensorboard multiplexer is empty. This can happen if "
+                                "TB data is not populated at the time of fetch. Check "
+                                "the corresponding logs to confirm that Tensorboard "
+                                "data is available."
+                            ),
+                            exception=None,
+                        )
+                    )
+                    for metric in tb_metrics
+                }
+
+            res = {}
+            for metric in tb_metrics:
+                try:
+                    records = [
+                        {
+                            "trial_index": trial.index,
+                            "arm_name": arm_name,
+                            "metric_signature": metric.signature,
+                            MAP_KEY: t.step,
+                            "mean": (
+                                t.tensor_proto.double_val[0]
+                                if t.tensor_proto.double_val
+                                else t.tensor_proto.float_val[0]
+                            ),
+                            "sem": float("nan"),
+                        }
+                        for run_name, tags in scalar_dict.items()
+                        for tag in tags
+                        if tag == metric.tag
+                        for t in mul.Tensors(run_name, tag)
+                    ]
+
+                    # If records is empty something has gone wrong: either the tag is
+                    # not present on the multiplexer or the content referenced is empty
+                    if len(records) == 0:
+                        if metric.tag not in [
+                            j for sub in scalar_dict.values() for j in sub
+                        ]:
+                            raise KeyError(
+                                f"Tag {metric.tag} not found on multiplexer {mul=}. "
+                                "Did you specify this tag exactly as it appears in "
+                                "the TensorBoard UI's Scalars tab?"
+                            )
+                        else:
+                            raise ValueError(
+                                f"Found tag {metric.tag}, but no data found for it. Is "
+                                "the curve empty in the TensorBoard UI?"
+                            )
+                    df = self._process_records_to_df(
+                        metric=metric, records=records, arm_name=arm_name
+                    )
+                    df.loc[
+                        df["metric_signature"] == metric.signature, "metric_name"
+                    ] = metric.name
+
+                    # Accumulate successfully extracted timeseries
+                    res[metric.signature] = Ok(Data(df=df))
+
+                except Exception as e:
+                    # pyrefly: ignore [unsupported-operation]
+                    res[metric.signature] = Err(
+                        MetricFetchE(
+                            message=f"Failed to fetch data for {metric.name}",
+                            exception=e,
+                        )
+                    )
+
+            self._clear_multiplexer_if_possible(multiplexer=mul)
+
+            # pyrefly: ignore [bad-return]
+            return res
+
+        def fetch_trial_data(
+            self, trial: BaseTrial, **kwargs: Any
+        ) -> MetricFetchResult:
+            """Fetch data for one trial."""
+
+            return self.bulk_fetch_trial_data(trial=trial, metrics=[self], **kwargs)[
+                self.signature
+            ]
+
+        def _get_event_multiplexer_for_trial(
+            self, trial: BaseTrial
+        ) -> event_multiplexer.EventMultiplexer:
+            """Get an event multiplexer with the logs for a given trial."""
+
+            mul = event_multiplexer.EventMultiplexer(max_reload_threads=20)
+            mul.AddRunsFromDirectory(trial.run_metadata[RUN_METADATA_KEY], None)
+            mul.Reload()
+
+            return mul
+
+        def _clear_multiplexer_if_possible(
+            self, multiplexer: event_multiplexer.EventMultiplexer
+        ) -> None:
+            """
+            Clear the multiplexer of all data. This is a no-op here, but for some
+            Multiplexers which may implement a clearing method this method can be
+            important for managing memory consumption.
+            """
+            pass
+
+        def _process_records_to_df(
+            self,
+            metric: TensorboardMetric,
+            records: list[dict[str, Any]],
+            arm_name: str,
+        ) -> pd.DataFrame:
+            """
+            Process records to a Data-style dataframe (with "step"/MAP_KEY column).
+            """
+            df = (
+                pd.DataFrame(records)
+                # If a metric has multiple records for the same arm, metric, and
+                # step (sometimes caused by restarts, etc) take the mean
+                .groupby(["arm_name", "metric_signature", MAP_KEY])
+                .mean()
+                .reset_index()
+            )
+            # Ensure we are only processing records for a single arm and a single
+            # metric, since this affects curve processing below.
+            df = df[
+                (df["metric_signature"] == metric.signature)
+                & (df["arm_name"] == arm_name)
+            ]
+
+            # If all values are NaNs or Infs, we raise an error
+            # If some values are NaNs or Infs, we log a warning and filter out the
+            # non-finite values
+            is_finite = np.isfinite(df["mean"])
+            is_not_finite = ~is_finite
+            if np.all(is_not_finite):
+                raise ValueError("All values are NaNs or Infs.")
+
+            if np.any(is_not_finite):
+                logger.warning(
+                    f"{sum(is_not_finite)} / {len(is_not_finite)} data points are NaNs "
+                    "or Infs. Filtering out non-finite values."
+                )
+                df = df[is_finite]
+
+            # Apply smoothing
+            if metric.smoothing > 0:
+                # Interpolate onto a grid to avoid smoothing artifacts.
+                df = _grid_interpolate(
+                    df=df, arm_name=arm_name, metric_signature=metric.signature
+                )
+                df["mean"] = df["mean"].ewm(alpha=1 - metric.smoothing).mean()
+                df["sem"] = df["sem"].ewm(alpha=1 - metric.smoothing).mean()
+
+            # Apply rolling quantile
+            if metric.quantile is not None:
+                df["mean"] = df["mean"].expanding().quantile(metric.quantile)
+
+            # Apply per-metric post-processing
+            # Apply cumulative "best" (min if lower_is_better)
+            if metric.cumulative_best:
+                if metric.lower_is_better:
+                    df["mean"] = df["mean"].cummin()
+                else:
+                    df["mean"] = df["mean"].cummax()
+
+            return df
+
+except ImportError:
+    logger.warning(
+        "tensorboard package not found. If you would like to use "
+        "TensorboardMetric, please install tensorboard."
+    )
+    pass
+
+
+def _grid_interpolate(
+    df: pd.DataFrame, arm_name: str, metric_signature: str
+) -> pd.DataFrame:
+    """Interpolate a dataframe onto an evenly spaced grid of MAP_KEY."""
+
+    df = df[(df["metric_signature"] == metric_signature) & (df["arm_name"] == arm_name)]
+    if len(df) == 0:
+        logger.warning(f"No data found for {arm_name=} and {metric_signature=}.")
+        return pd.DataFrame()
+
+    # Create an evenly spaced grid with the same length as the original df
+    grid_min = df[MAP_KEY].min()
+    grid_max = df[MAP_KEY].max()
+    grid = np.linspace(grid_min, grid_max, len(df))
+
+    # Interpolate observed values onto the grid
+    df_grid = pd.DataFrame(
+        {
+            "arm_name": arm_name,
+            "metric_signature": metric_signature,
+            "mean": np.interp(grid, df["step"], df["mean"]),
+            "sem": np.interp(grid, df["step"], df["sem"]),
+            "trial_index": df["trial_index"].unique()[0],
+            "step": grid,
+        }
+    )
+    return df_grid

@@ -1,0 +1,694 @@
+#!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+# pyre-strict
+
+import unittest
+from logging import Logger
+from typing import Any
+
+import numpy as np
+from ax.adapter.cross_validation import FISHER_EXACT_TEST_P
+from ax.adapter.registry import Generators
+from ax.adapter.transforms.base import Transform
+from ax.adapter.transforms.int_to_float import IntToFloat
+from ax.adapter.transforms.transform_to_new_sq import TransformToNewSQ
+from ax.api.utils.generation_strategy_dispatch import choose_generation_strategy
+from ax.api.utils.structs import GenerationStrategyDispatchStruct
+from ax.core.experiment import Experiment
+from ax.core.metric import Metric
+from ax.core.observation import Observation, ObservationData, ObservationFeatures
+from ax.core.trial_status import TrialStatus
+from ax.exceptions.core import UserInputError
+from ax.generation_strategy.best_model_selector import (
+    ReductionCriterion,
+    SingleDiagnosticBestModelSelector,
+)
+from ax.generation_strategy.generation_node import GenerationNode
+from ax.generation_strategy.generation_node_input_constructors import (
+    InputConstructorPurpose,
+    NodeInputConstructors,
+)
+from ax.generation_strategy.generation_strategy import (
+    GenerationStep,
+    GenerationStrategy,
+)
+from ax.generation_strategy.generator_spec import GeneratorSpec
+from ax.generation_strategy.transition_criterion import (
+    AutoTransitionAfterGen,
+    IsSingleObjective,
+    MaxGenerationParallelism,
+    MaxTrialsAwaitingData,
+    MinTrials,
+)
+from ax.generators.torch.botorch_modular.surrogate import (
+    ModelConfig,
+    Surrogate,
+    SurrogateSpec,
+)
+from ax.utils.common.constants import Keys
+from ax.utils.common.logger import get_logger
+from ax.utils.testing.core_stubs import get_experiment, get_search_space_for_value
+from botorch.acquisition.monte_carlo import qNoisyExpectedImprovement
+from botorch.models.fully_bayesian import SaasFullyBayesianSingleTaskGP
+from botorch.models.transforms.input import InputTransform, Normalize
+from botorch.models.transforms.outcome import OutcomeTransform, Standardize
+from gpytorch.mlls.exact_marginal_log_likelihood import ExactMarginalLogLikelihood
+from pyre_extensions import assert_is_instance
+
+logger: Logger = get_logger(__name__)
+
+
+# Observations
+
+
+def get_observation_features() -> ObservationFeatures:
+    return ObservationFeatures(parameters={"x": 2.0, "y": 10.0}, trial_index=0)
+
+
+def get_observation1(
+    first_metric_signature: str = "a",
+    second_metric_signature: str = "b",
+) -> Observation:
+    return Observation(
+        features=ObservationFeatures(parameters={"x": 2.0, "y": 10.0}, trial_index=0),
+        data=ObservationData(
+            means=np.array([2.0, 4.0]),
+            covariance=np.array([[1.0, 2.0], [3.0, 4.0]]),
+            metric_signatures=[first_metric_signature, second_metric_signature],
+        ),
+        arm_name="1_1",
+    )
+
+
+def get_observation1trans(
+    first_metric_signature: str = "a",
+    second_metric_signature: str = "b",
+) -> Observation:
+    return Observation(
+        features=ObservationFeatures(parameters={"x": 9.0, "y": 121.0}, trial_index=0),
+        data=ObservationData(
+            means=np.array([9.0, 25.0]),
+            covariance=np.array([[1.0, 2.0], [3.0, 4.0]]),
+            metric_signatures=[first_metric_signature, second_metric_signature],
+        ),
+        arm_name="1_1",
+    )
+
+
+def get_observation2(
+    first_metric_signature: str = "a",
+    second_metric_signature: str = "b",
+) -> Observation:
+    return Observation(
+        features=ObservationFeatures(parameters={"x": 3.0, "y": 2.0}, trial_index=1),
+        data=ObservationData(
+            means=np.array([2.0, 1.0]),
+            covariance=np.array([[2.0, 3.0], [4.0, 5.0]]),
+            metric_signatures=[first_metric_signature, second_metric_signature],
+        ),
+        arm_name="1_1",
+    )
+
+
+# Modeling layer
+
+
+def get_generation_strategy(
+    with_experiment: bool = False,
+    with_generation_nodes: bool = False,  # kept for backward compatibility
+) -> GenerationStrategy:
+    # All generation strategies now use GenerationNode internally.
+    # The with_generation_nodes parameter is kept for backward compatibility
+    # but is effectively ignored since we always use nodes.
+    gs = sobol_gpei_generation_node_gs()
+    if with_experiment:
+        gs._experiment = get_experiment()
+    return gs
+
+
+def get_default_generation_strategy_at_MBM_node(
+    experiment: Experiment,
+) -> GenerationStrategy:
+    gs = choose_generation_strategy(struct=GenerationStrategyDispatchStruct())
+
+    gs._experiment = experiment
+
+    mbm_node = next(node for name, node in gs.nodes_by_name.items() if "MBM" in name)
+    gs._curr = mbm_node
+
+    return gs
+
+
+def sobol_gpei_generation_node_gs(
+    with_model_selection: bool = False,
+    with_auto_transition: bool = False,
+    with_previous_node: bool = False,
+    with_input_constructors_all_n: bool = False,
+    with_input_constructors_remaining_n: bool = False,
+    with_input_constructors_repeat_n: bool = False,
+    with_input_constructors_target_trial: bool = False,
+    with_unlimited_gen_mbm: bool = False,
+    with_trial_type: bool = False,
+    with_is_SOO_transition: bool = False,
+) -> GenerationStrategy:
+    """Returns a basic SOBOL+MBM GS using GenerationNodes for testing.
+
+    Args:
+        with_model_selection: If True, will add a second GeneratorSpec in the MBM node.
+            This can be used for testing model selection.
+    """
+    if sum([with_auto_transition, with_unlimited_gen_mbm, with_is_SOO_transition]) > 1:
+        raise UserInputError(
+            "Only one of with_auto_transition, with_unlimited_gen_mbm, "
+            "with_is_SOO_transition can be set to True."
+        )
+    if (
+        sum(
+            [
+                with_input_constructors_all_n,
+                with_input_constructors_remaining_n,
+                with_input_constructors_repeat_n,
+                with_input_constructors_target_trial,
+            ]
+        )
+        > 1
+    ):
+        raise UserInputError(
+            "Only one of the input_constructors kwargs can be set to True."
+        )
+
+    sobol_criterion = [
+        MinTrials(
+            threshold=5,
+            transition_to="MBM_node",
+            only_in_statuses=None,
+            not_in_statuses=[TrialStatus.FAILED, TrialStatus.ABANDONED],
+        )
+    ]
+    # self-transitioning for mbm criterion isn't representative of real-world, but is
+    # useful for testing attributes likes repr etc
+    mbm_criterion = [
+        MinTrials(
+            threshold=2,
+            transition_to="MBM_node",
+            only_in_statuses=None,
+            not_in_statuses=[TrialStatus.FAILED, TrialStatus.ABANDONED],
+        ),
+        # Here MinTrials and MaxParallelism don't enforce anything, but
+        # we wanted to have an instance of them to test for storage compatibility.
+        MinTrials(
+            threshold=0,
+            transition_to="MBM_node",
+            only_in_statuses=[TrialStatus.CANDIDATE],
+            not_in_statuses=None,
+        ),
+    ]
+    sobol_blocking_criteria = [
+        MaxTrialsAwaitingData(
+            threshold=5,
+            only_in_statuses=None,
+            not_in_statuses=[TrialStatus.FAILED, TrialStatus.ABANDONED],
+        ),
+        MaxGenerationParallelism(
+            threshold=1000,
+            only_in_statuses=[TrialStatus.RUNNING],
+            not_in_statuses=None,
+        ),
+    ]
+    auto_mbm_criterion = [AutoTransitionAfterGen(transition_to="MBM_node")]
+    is_SOO_mbm_criterion = [IsSingleObjective(transition_to="MBM_node")]
+    step_generator_kwargs = {"silently_filter_kwargs": True}
+    sobol_generator_spec = GeneratorSpec(
+        generator_enum=Generators.SOBOL,
+        generator_kwargs=step_generator_kwargs,
+        generator_gen_kwargs={},
+    )
+    mbm_generator_specs = [
+        GeneratorSpec(
+            generator_enum=Generators.BOTORCH_MODULAR,
+            generator_kwargs=step_generator_kwargs,
+            generator_gen_kwargs={},
+        )
+    ]
+    sobol_node = GenerationNode(
+        name="sobol_node",
+        transition_criteria=sobol_criterion,
+        pausing_criteria=sobol_blocking_criteria,
+        generator_specs=[sobol_generator_spec],
+    )
+    if with_model_selection:
+        # This is just MBM with different transforms.
+        mbm_generator_specs.append(GeneratorSpec(generator_enum=Generators.BO_MIXED))
+        best_model_selector = SingleDiagnosticBestModelSelector(
+            diagnostic=FISHER_EXACT_TEST_P,
+            metric_aggregation=ReductionCriterion.MEAN,
+            criterion=ReductionCriterion.MIN,
+        )
+    else:
+        best_model_selector = None
+
+    if with_auto_transition:
+        mbm_node = GenerationNode(
+            name="MBM_node",
+            transition_criteria=auto_mbm_criterion,
+            generator_specs=mbm_generator_specs,
+            best_model_selector=best_model_selector,
+        )
+    elif with_unlimited_gen_mbm:
+        # no TC defined is equivalent to unlimited gen
+        mbm_node = GenerationNode(
+            name="MBM_node",
+            generator_specs=mbm_generator_specs,
+            best_model_selector=best_model_selector,
+        )
+    elif with_is_SOO_transition:
+        mbm_node = GenerationNode(
+            name="MBM_node",
+            transition_criteria=is_SOO_mbm_criterion,
+            generator_specs=mbm_generator_specs,
+            best_model_selector=best_model_selector,
+        )
+
+    else:
+        mbm_node = GenerationNode(
+            name="MBM_node",
+            transition_criteria=mbm_criterion,
+            generator_specs=mbm_generator_specs,
+            best_model_selector=best_model_selector,
+        )
+
+    # in an actual GS, this would be set during transition, manually setting here for
+    # testing purposes
+    if with_previous_node:
+        mbm_node._previous_node_name = sobol_node.name
+
+    if with_trial_type:
+        sobol_node._trial_type = Keys.LONG_RUN
+        mbm_node._trial_type = Keys.SHORT_RUN
+    # test input constructors, this also leaves the mbm node with no input
+    # constructors which validates encoding/decoding of instances with no
+    # input constructors
+    if with_input_constructors_all_n:
+        sobol_node._input_constructors = {
+            InputConstructorPurpose.N: NodeInputConstructors.ALL_N,
+        }
+    elif with_input_constructors_remaining_n:
+        sobol_node._input_constructors = {
+            InputConstructorPurpose.N: NodeInputConstructors.REMAINING_N,
+        }
+    elif with_input_constructors_repeat_n:
+        sobol_node._input_constructors = {
+            InputConstructorPurpose.N: NodeInputConstructors.REPEAT_N,
+        }
+    elif with_input_constructors_target_trial:
+        purpose = InputConstructorPurpose.FIXED_FEATURES
+        sobol_node._input_constructors = {
+            purpose: NodeInputConstructors.TARGET_TRIAL_FIXED_FEATURES,
+        }
+
+    sobol_mbm_GS_nodes = GenerationStrategy(
+        name="Sobol+MBM_Nodes",
+        nodes=[sobol_node, mbm_node],
+    )
+    return sobol_mbm_GS_nodes
+
+
+def check_sobol_node(
+    test_case: unittest.TestCase,
+    gs: GenerationStrategy,
+    expected_num_trials: int,
+    expected_min_trials_observed: int | None = None,
+) -> None:
+    """Helper to check common Sobol node properties.
+
+    Args:
+        test_case: The test case instance for assertions.
+        gs: The generation strategy to check.
+        expected_num_trials: The expected number of trials that need to be generated
+            before the transition to the next node.
+        expected_min_trials_observed: The expected number of trial that needs to be
+            observed (i.e., completed) before the transition to the next node.
+            If None, the check is skipped.
+    """
+    sobol_node = gs._nodes[0]
+    test_case.assertEqual(
+        sobol_node.generator_specs[0].generator_enum, Generators.SOBOL
+    )
+    # First MinTrials criterion has the num_trials threshold.
+    test_case.assertEqual(
+        assert_is_instance(sobol_node.transition_criteria[0], MinTrials).threshold,
+        expected_num_trials,
+    )
+    if expected_min_trials_observed is not None:
+        # Second MinTrials criterion has the min_trials_observed threshold.
+        test_case.assertEqual(
+            assert_is_instance(sobol_node.transition_criteria[1], MinTrials).threshold,
+            expected_min_trials_observed,
+        )
+
+
+def get_sobol_MBM_MTGP_gs() -> GenerationStrategy:
+    return GenerationStrategy(
+        nodes=[
+            GenerationNode(
+                name="Sobol",
+                generator_specs=[GeneratorSpec(generator_enum=Generators.SOBOL)],
+                transition_criteria=[
+                    MinTrials(
+                        threshold=1,
+                        transition_to="MBM",
+                    )
+                ],
+            ),
+            GenerationNode(
+                name="MBM",
+                generator_specs=[
+                    GeneratorSpec(
+                        generator_enum=Generators.BOTORCH_MODULAR,
+                    ),
+                ],
+                transition_criteria=[
+                    MinTrials(
+                        threshold=1,
+                        transition_to="MTGP",
+                        only_in_statuses=[
+                            TrialStatus.RUNNING,
+                            TrialStatus.COMPLETED,
+                            TrialStatus.EARLY_STOPPED,
+                        ],
+                    )
+                ],
+            ),
+            GenerationNode(
+                name="MTGP",
+                generator_specs=[
+                    GeneratorSpec(
+                        generator_enum=Generators.ST_MTGP,
+                    ),
+                ],
+            ),
+        ],
+    )
+
+
+def get_transform_type() -> type[Transform]:
+    return IntToFloat
+
+
+def get_input_transform_type() -> type[InputTransform]:
+    return Normalize
+
+
+def get_outcome_transfrom_type() -> type[OutcomeTransform]:
+    return Standardize
+
+
+def get_to_new_sq_transform_type() -> type[TransformToNewSQ]:
+    return TransformToNewSQ
+
+
+def get_experiment_for_value() -> Experiment:
+    experiment = Experiment(get_search_space_for_value(), "test")
+    experiment.add_tracking_metrics([Metric(name="a"), Metric(name="b")])
+    return experiment
+
+
+def get_legacy_list_surrogate_generation_step_as_dict() -> dict[str, Any]:
+    """
+    For use ensuring backwards compatibility loading the now deprecated ListSurrogate.
+    """
+
+    # Generated via `get_sobol_botorch_modular_saas_fully_bayesian_single_task_gp_qnei`
+    # before new multi-Surrogate Model and new Surrogate diffs D42013742
+    return {
+        "__type": "GenerationStep",
+        "model": {"__type": "Generators", "name": "BOTORCH_MODULAR"},
+        "num_trials": -1,
+        "min_trials_observed": 0,
+        "completion_criteria": [],
+        "max_parallelism": 1,
+        "enforce_num_trials": True,
+        "model_kwargs": {
+            "surrogate": {
+                "__type": "ListSurrogate",
+                "botorch_submodel_class_per_outcome": {},
+                "botorch_submodel_class": {
+                    "__type": "Type[Model]",
+                    "index": "SaasFullyBayesianSingleTaskGP",
+                    "class": "<class 'botorch.models.model.Model'>",
+                },
+                "submodel_options_per_outcome": {},
+                "submodel_options": {},
+                "mll_class": {
+                    "__type": "Type[MarginalLogLikelihood]",
+                    "index": "ExactMarginalLogLikelihood",
+                    "class": (
+                        "<class 'gpytorch.mlls.marginal_log_likelihood."
+                        "MarginalLogLikelihood'>"
+                    ),
+                },
+                "mll_options": {},
+                "submodel_outcome_transforms": [
+                    {
+                        "__type": "Standardize",
+                        "index": {
+                            "__type": "Type[OutcomeTransform]",
+                            "index": "Standardize",
+                            "class": (
+                                "<class 'botorch.models.transforms.outcome."
+                                "OutcomeTransform'>"
+                            ),
+                        },
+                        "class": (
+                            "<class 'botorch.models.transforms.outcome.Standardize'>"
+                        ),
+                        "state_dict": {"m": 1, "outputs": None, "min_stdv": 1e-8},
+                    }
+                ],
+                "submodel_input_transforms": [
+                    {
+                        "__type": "Normalize",
+                        "index": {
+                            "__type": "Type[InputTransform]",
+                            "index": "Normalize",
+                            "class": (
+                                "<class 'botorch.models.transforms.input."
+                                "InputTransform'>"
+                            ),
+                        },
+                        "class": "<class 'botorch.models.transforms.input.Normalize'>",
+                        "state_dict": {
+                            "d": 3,
+                            "indices": None,
+                            "transform_on_train": True,
+                            "transform_on_eval": True,
+                            "transform_on_fantasize": True,
+                            "reverse": False,
+                            "min_range": 1e-08,
+                            "learn_bounds": False,
+                        },
+                    }
+                ],
+                "submodel_covar_module_class": None,
+                "submodel_covar_module_options": {},
+                "submodel_likelihood_class": None,
+                "submodel_likelihood_options": {},
+            },
+            "botorch_acqf_class": {
+                "__type": "Type[AcquisitionFunction]",
+                "index": "qNoisyExpectedImprovement",
+                "class": "<class 'botorch.acquisition.acquisition.AcquisitionFunction'>",  # noqa
+            },
+        },
+        "generator_gen_kwargs": {},
+        "index": -1,
+        "should_deduplicate": False,
+    }
+
+
+def get_surrogate_generation_node() -> GenerationNode:
+    """Returns a GenerationNode with surrogate configuration for testing."""
+    return GenerationNode(
+        name="surrogate_node",
+        generator_specs=[
+            GeneratorSpec(
+                generator_enum=Generators.BOTORCH_MODULAR,
+                generator_kwargs={
+                    "surrogate": Surrogate(
+                        surrogate_spec=SurrogateSpec(
+                            model_configs=[
+                                ModelConfig(
+                                    botorch_model_class=SaasFullyBayesianSingleTaskGP,
+                                    input_transform_classes=[Normalize],
+                                    input_transform_options={
+                                        "Normalize": {
+                                            "d": 3,
+                                            "indices": None,
+                                            "transform_on_train": True,
+                                            "transform_on_eval": True,
+                                            "transform_on_fantasize": True,
+                                            "reverse": False,
+                                            "min_range": 1e-08,
+                                            "learn_bounds": False,
+                                        }
+                                    },
+                                    outcome_transform_classes=[Standardize],
+                                    outcome_transform_options={
+                                        "Standardize": {
+                                            "m": 1,
+                                            "outputs": None,
+                                            "min_stdv": 1e-8,
+                                        }
+                                    },
+                                    mll_class=ExactMarginalLogLikelihood,
+                                    name="from deprecated args",
+                                )
+                            ]
+                        )
+                    ),
+                    "botorch_acqf_class": qNoisyExpectedImprovement,
+                },
+            )
+        ],
+        transition_criteria=[],
+    )
+
+
+def get_surrogate_generation_step() -> GenerationStep:
+    """Returns a GenerationStep with surrogate configuration for testing.
+
+    Note: This is kept for backward compatibility testing. New code should use
+    get_surrogate_generation_node() instead.
+    """
+    # pyrefly: ignore [bad-return]
+    return GenerationStep(
+        generator=Generators.BOTORCH_MODULAR,
+        num_trials=-1,
+        max_parallelism=1,
+        generator_kwargs={
+            "surrogate": Surrogate(
+                surrogate_spec=SurrogateSpec(
+                    model_configs=[
+                        ModelConfig(
+                            botorch_model_class=SaasFullyBayesianSingleTaskGP,
+                            input_transform_classes=[Normalize],
+                            input_transform_options={
+                                "Normalize": {
+                                    "d": 3,
+                                    "indices": None,
+                                    "transform_on_train": True,
+                                    "transform_on_eval": True,
+                                    "transform_on_fantasize": True,
+                                    "reverse": False,
+                                    "min_range": 1e-08,
+                                    "learn_bounds": False,
+                                }
+                            },
+                            outcome_transform_classes=[Standardize],
+                            outcome_transform_options={
+                                "Standardize": {
+                                    "m": 1,
+                                    "outputs": None,
+                                    "min_stdv": 1e-8,
+                                }
+                            },
+                            mll_class=ExactMarginalLogLikelihood,
+                            name="from deprecated args",
+                        )
+                    ]
+                )
+            ),
+            "botorch_acqf_class": qNoisyExpectedImprovement,
+        },
+    )
+
+
+def get_surrogate_as_dict() -> dict[str, Any]:
+    """
+    For use ensuring backwards compatibility when loading Surrogate
+    with input_transform and outcome_transform kwargs.
+    """
+    return {
+        "__type": "Surrogate",
+        "botorch_model_class": None,
+        "model_options": {},
+        "mll_class": {
+            "__type": "Type[MarginalLogLikelihood]",
+            "index": "ExactMarginalLogLikelihood",
+            "class": (
+                "<class 'gpytorch.mlls.marginal_log_likelihood.MarginalLogLikelihood'>"
+            ),
+        },
+        "mll_options": {},
+        "outcome_transform": None,
+        "input_transform": None,
+        "covar_module_class": None,
+        "covar_module_options": {},
+        "likelihood_class": None,
+        "likelihood_options": {},
+        "allow_batched_models": False,
+    }
+
+
+def get_surrogate_spec_as_dict(
+    model_class: str | None = None, with_legacy_input_transform: bool = False
+) -> dict[str, Any]:
+    """
+    For use ensuring backwards compatibility when loading SurrogateSpec
+    with input_transform and outcome_transform kwargs.
+    """
+    if model_class is None:
+        model_class = "SingleTaskGP"
+    if with_legacy_input_transform:
+        input_transform = {
+            "__type": "Normalize",
+            "index": {
+                "__type": "Type[InputTransform]",
+                "index": "Normalize",
+                "class": "<class 'botorch.models.transforms.input.InputTransform'>",
+            },
+            "class": "<class 'botorch.models.transforms.input.Normalize'>",
+            "state_dict": {
+                "d": 7,
+                "indices": None,
+                "bounds": None,
+                "batch_shape": {"__type": "torch_Size", "value": "[]"},
+                "transform_on_train": True,
+                "transform_on_eval": True,
+                "transform_on_fantasize": True,
+                "reverse": False,
+                "min_range": 1e-08,
+                "learn_bounds": False,
+            },
+        }
+    else:
+        input_transform = None
+    return {
+        "__type": "SurrogateSpec",
+        "botorch_model_class": {
+            "__type": "Type[Model]",
+            "index": model_class,
+            "class": "<class 'botorch.models.model.Model'>",
+        },
+        "botorch_model_kwargs": {},
+        "mll_class": {
+            "__type": "Type[MarginalLogLikelihood]",
+            "index": "ExactMarginalLogLikelihood",
+            "class": (
+                "<class 'gpytorch.mlls.marginal_log_likelihood.MarginalLogLikelihood'>"
+            ),
+        },
+        "mll_kwargs": {},
+        "covar_module_class": None,
+        "covar_module_kwargs": None,
+        "likelihood_class": None,
+        "likelihood_kwargs": None,
+        "input_transform": input_transform,
+        "outcome_transform": None,
+        "allow_batched_models": False,
+        "outcomes": [],
+    }

@@ -1,0 +1,5 @@
+[report]
+omit =
+    baybe/utils/plotting.py
+    baybe/utils/random.py
+    baybe/simulation/*

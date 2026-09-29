@@ -1,0 +1,418 @@
+#!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+# pyre-strict
+
+from __future__ import annotations
+
+from itertools import chain
+from typing import Any
+
+import torch
+from ax.core.search_space import SearchSpaceDigest
+from ax.utils.common.typeutils import _argparse_type_encoder
+from botorch.models.transforms.input import (
+    FilterFeatures,
+    InputTransform,
+    LearnedFeatureImputation,
+    Normalize,
+    Warp,
+)
+from botorch.utils.datasets import (
+    ContextualDataset,
+    MultiTaskDataset,
+    RankingDataset,
+    SupervisedDataset,
+)
+from botorch.utils.dispatcher import Dispatcher
+from botorch.utils.transforms import normalize_indices
+from pyre_extensions import none_throws
+
+
+input_transform_argparse = Dispatcher(
+    name="input_transform_argparse", encoder=_argparse_type_encoder
+)
+
+
+def _set_default_bounds(
+    search_space_digest: SearchSpaceDigest,
+    input_transform_options: dict[str, Any],
+    d: int,
+    torch_device: torch.device | None = None,
+    torch_dtype: torch.dtype | None = None,
+) -> None:
+    """Set default bounds in input_transform_options, in-place.
+
+    Args:
+        search_space_digest: Search space digest.
+        input_transform_options: Input transform kwargs.
+        d: The dimension of the input space.
+        torch_device: The device on which the input transform will be used.
+        torch_dtype: The dtype on which the input transform will be used.
+    """
+    bounds = torch.as_tensor(
+        search_space_digest.bounds,
+        dtype=torch_dtype,
+        device=torch_device,
+    ).T
+
+    if (
+        ("bounds" not in input_transform_options)
+        and (bounds.shape[-1] < d)
+        and (len(search_space_digest.task_features) == 0)
+    ):
+        raise NotImplementedError(
+            "Normalization bounds should be specified explicitly if there"
+            " are task features outside the search space."
+        )
+
+    input_transform_options.setdefault("bounds", bounds)
+
+
+@input_transform_argparse.register(InputTransform)
+def _input_transform_argparse_base(
+    input_transform_class: type[InputTransform],
+    dataset: SupervisedDataset | None = None,
+    search_space_digest: SearchSpaceDigest | None = None,
+    input_transform_options: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """
+    Extract the input transform kwargs from the given arguments.
+
+    Args:
+        input_transform_class: Input transform class.
+        dataset: Dataset containing feature matrix and the response.
+        search_space_digest: Search space digest.
+        input_transform_options: An optional dictionary of input transform options.
+            This may include overrides for the above options. For example, when
+            `input_transform_class` is Normalize this dictionary might include
+            {
+                "d": 2, # the dimension of the input space
+            }
+            See `botorch.models.transforms.input.py` for more options.
+
+    Returns:
+        A dictionary with input transform kwargs.
+    """
+    return input_transform_options or {}
+
+
+@input_transform_argparse.register(Warp)
+def _input_transform_argparse_warp(
+    input_transform_class: type[Warp],
+    dataset: SupervisedDataset,
+    search_space_digest: SearchSpaceDigest,
+    input_transform_options: dict[str, Any] | None = None,
+    torch_device: torch.device | None = None,
+    torch_dtype: torch.dtype | None = None,
+) -> dict[str, Any]:
+    """Extract the base input transform kwargs form the given arguments.
+
+    Args:
+        input_transform_class: Input transform class.
+        dataset: Dataset containing feature matrix and the response.
+        search_space_digest: Search space digest.
+        input_transform_options: Input transform kwargs.
+        torch_device: The device on which the input transform will be used.
+        torch_dtype: The dtype on which the input transform will be used.
+
+    Returns:
+        A dictionary with input transform kwargs.
+    """
+    input_transform_options = input_transform_options or {}
+    d = len(dataset.feature_names)
+    indices = list(range(d))
+    task_features = none_throws(
+        normalize_indices(search_space_digest.task_features, d=d)
+    )
+
+    for task_feature in sorted(task_features, reverse=True):
+        del indices[task_feature]
+
+    input_transform_options.setdefault("d", d)
+    input_transform_options.setdefault("indices", indices)
+
+    # if ranking dataset, infer the bounds instead as it may be unbounded
+    if not isinstance(dataset, RankingDataset):
+        _set_default_bounds(
+            search_space_digest=search_space_digest,
+            input_transform_options=input_transform_options,
+            d=d,
+            torch_device=torch_device,
+            torch_dtype=torch_dtype,
+        )
+    return input_transform_options
+
+
+@input_transform_argparse.register(Normalize)
+def _input_transform_argparse_normalize(
+    input_transform_class: type[Normalize],
+    dataset: SupervisedDataset,
+    search_space_digest: SearchSpaceDigest,
+    input_transform_options: dict[str, Any] | None = None,
+    torch_device: torch.device | None = None,
+    torch_dtype: torch.dtype | None = None,
+) -> dict[str, Any]:
+    """
+    Extract the base input transform kwargs form the given arguments.
+    NOTE: This input constructor doesn't support the case when there are
+    task features that are not part of search space digest. In that case,
+    the bounds need to be specified manually as a part of input_transform_options.
+
+    Args:
+        input_transform_class: Input transform class.
+        dataset: Dataset containing feature matrix and the response.
+        search_space_digest: Search space digest.
+        input_transform_options: Input transform kwargs.
+        torch_device: The device on which the input transform will be used.
+        torch_dtype: The dtype on which the input transform will be used.
+
+    Returns:
+        A dictionary with input transform kwargs.
+    """
+    input_transform_options = input_transform_options or {}
+    if isinstance(dataset, MultiTaskDataset) and dataset.has_heterogeneous_features:
+        # set d to number of features in the full feature space
+        d = len(set(chain(*(ds.feature_names for ds in dataset.datasets.values()))))
+    elif isinstance(dataset, ContextualDataset):
+        # The dataset & SSD has num contexts * num parameters total parameters.
+        # The model internally reshapes the inputs before applying the transform.
+        context_params = next(iter(dataset.parameter_decomposition.values()))
+        d = len(context_params) + 1
+        # Last index will be made into task feature. Remove it from indices.
+        input_transform_options["indices"] = list(range(d - 1))
+        # Extract the subset of bounds that correspond unique parameters.
+        context_params = next(iter(dataset.parameter_decomposition.values()))
+        param_indices = [dataset.feature_names.index(p) for p in context_params]
+        bounds = [search_space_digest.bounds[i] for i in param_indices]
+        input_transform_options["bounds"] = torch.as_tensor(
+            bounds, dtype=torch_dtype, device=torch_device
+        ).T
+    else:
+        d = input_transform_options.get("d", len(dataset.feature_names))
+    input_transform_options["d"] = d
+
+    if isinstance(dataset, RankingDataset):
+        input_transform_options["indices"] = None
+    elif input_transform_options.get("indices") is None:
+        indices = list(range(d))
+        if isinstance(dataset, MultiTaskDataset) and dataset.has_heterogeneous_features:
+            # task feature is last feature
+            del indices[none_throws(dataset.task_feature_index)]
+        else:
+            task_features = none_throws(
+                normalize_indices(search_space_digest.task_features, d=d)
+            )
+            for task_feature in sorted(task_features, reverse=True):
+                del indices[task_feature]
+
+        if len(indices) < d:
+            input_transform_options["indices"] = indices
+
+    # if ranking dataset, infer the bounds instead as it may be unbounded
+    if not isinstance(dataset, RankingDataset):
+        _set_default_bounds(
+            search_space_digest=search_space_digest,
+            input_transform_options=input_transform_options,
+            d=d,
+            torch_device=torch_device,
+            torch_dtype=torch_dtype,
+        )
+
+    return input_transform_options
+
+
+@input_transform_argparse.register(FilterFeatures)
+def _input_transform_argparse_filter_features(
+    input_transform_class: type[FilterFeatures],
+    dataset: SupervisedDataset,
+    search_space_digest: SearchSpaceDigest,
+    input_transform_options: dict[str, Any] | None = None,
+    torch_device: torch.device | None = None,
+    torch_dtype: torch.dtype | None = None,
+) -> dict[str, Any]:
+    """Extract the FilterFeatures input transform kwargs from the given arguments.
+
+    Args:
+        input_transform_class: Input transform class.
+        dataset: Dataset containing feature matrix and the response.
+        search_space_digest: Search space digest.
+        input_transform_options: Input transform kwargs. May contain:
+            - "feature_indices": Explicit list of feature indices to keep
+            - "ignored_params": List of parameter names to ignore
+            - Other FilterFeatures kwargs
+        torch_device: The device on which the input transform will be used.
+        torch_dtype: The dtype on which the input transform will be used.
+
+    Returns:
+        A dictionary with FilterFeatures kwargs.
+    """
+    input_transform_options_copy = (
+        input_transform_options.copy() if input_transform_options else {}
+    )
+
+    # If no options are provided, keep all features
+    if not input_transform_options_copy:
+        return {"feature_indices": torch.arange(len(dataset.feature_names))}
+
+    feature_names = dataset.feature_names
+
+    # Validate ignored_params if present
+    if "ignored_params" in input_transform_options_copy:
+        ignored_params = input_transform_options_copy["ignored_params"]
+        invalid_params = [
+            param for param in ignored_params if param not in feature_names
+        ]
+        # TO DO: This may error out on Categorical parameters that went through
+        # `OneHot` transform. We should add the ability to handle this in the future.
+        if invalid_params:
+            raise ValueError(
+                f"Invalid parameter names in ignored_params: {invalid_params}. "
+                f"Valid feature names are: {feature_names}."
+            )
+
+    # If feature_indices is already provided, use it directly
+    if "feature_indices" in input_transform_options_copy:
+        if "ignored_params" in input_transform_options_copy:
+            # If both feature_indices and ignored_params are provided, check for
+            # consistency and pop "ignored_params"
+            feature_indices = input_transform_options_copy["feature_indices"]
+            filtered_indices_from_ignored_param = torch.tensor(
+                [
+                    i
+                    for i, name in enumerate(feature_names)
+                    if name not in input_transform_options_copy["ignored_params"]
+                ],
+                dtype=torch.int64,
+            )
+
+            if not torch.equal(feature_indices, filtered_indices_from_ignored_param):
+                raise ValueError(
+                    f"Filtered features passed in by feature_indices {feature_indices} "
+                    "is inconsistent with filtered feature indices computed from "
+                    f"ignored_params {filtered_indices_from_ignored_param}."
+                    "Please provide only one of 'feature_indices' or 'ignored_params', "
+                    "or ensure they are consistent."
+                )
+            # pop "ignored_params" as it is not an expected arg of FilterFeatures
+            input_transform_options_copy.pop("ignored_params")
+        return input_transform_options_copy
+
+    # If only ignored_params is provided, compute feature_indices from it
+    # and find feature_indices to keep
+    if "ignored_params" in input_transform_options_copy:
+        ignored_params = input_transform_options_copy.pop("ignored_params")
+
+        feature_indices = [
+            i for i, name in enumerate(feature_names) if name not in ignored_params
+        ]
+
+        input_transform_options_copy["feature_indices"] = torch.tensor(
+            feature_indices, dtype=torch.int64
+        )
+
+    return input_transform_options_copy
+
+
+@input_transform_argparse.register(LearnedFeatureImputation)
+def _input_transform_argparse_learned_feature_imputation(
+    input_transform_class: type[LearnedFeatureImputation],
+    dataset: SupervisedDataset,
+    search_space_digest: SearchSpaceDigest,
+    input_transform_options: dict[str, Any] | None = None,
+    torch_device: torch.device | None = None,
+    torch_dtype: torch.dtype | None = None,
+) -> dict[str, Any]:
+    """Extract LearnedFeatureImputation kwargs from a MultiTaskDataset.
+
+    Computes ``feature_indices`` and ``d`` from the heterogeneous feature sets
+    in the dataset, following the same convention as
+    ``HeterogeneousMTGP.construct_inputs``: the target task is placed first,
+    and the task feature column is excluded from the feature union.
+
+    Args:
+        input_transform_class: Input transform class.
+        dataset: A ``MultiTaskDataset`` with heterogeneous features.
+        search_space_digest: Search space digest.
+        input_transform_options: Optional overrides for transform kwargs.
+        torch_device: Device for the transform parameters.
+        torch_dtype: Dtype for the transform parameters.
+
+    Returns:
+        A dictionary with ``feature_indices``, ``d``, ``task_feature_index``,
+        ``bounds``, ``device``, and ``dtype`` keys.
+    """
+    if not isinstance(dataset, MultiTaskDataset):
+        raise ValueError(
+            "LearnedFeatureImputation requires a MultiTaskDataset, "
+            f"got {type(dataset).__name__}."
+        )
+    if not dataset.has_heterogeneous_features:
+        raise ValueError(
+            "LearnedFeatureImputation requires a MultiTaskDataset with "
+            "heterogeneous features (has_heterogeneous_features=True)."
+        )
+    input_transform_options = input_transform_options or {}
+
+    # Order datasets: target first, then remaining (same as HeterogeneousMTGP).
+    child_datasets = dataset.datasets.copy()
+    target_dataset = child_datasets.pop(dataset.target_outcome_name)
+    all_datasets = [target_dataset] + list(child_datasets.values())
+
+    # The feature_names[:task_feature_index] slice only works when the task
+    # column is the last column (index == -1). Guard against other positions
+    # the same way ImputedMultiTaskGP.construct_inputs does.
+    task_feature_index = (
+        dataset.task_feature_index if (dataset.task_feature_index is not None) else -1
+    )
+    if task_feature_index != -1:
+        raise NotImplementedError(
+            "LearnedFeatureImputation argparse only supports "
+            "task_feature_index == -1. Got "
+            f"task_feature_index={task_feature_index}."
+        )
+
+    # Use target's feature order as canonical (NO alphabetical sort).
+    # Source-only features are appended at the end.
+    all_features: list[str] = list(target_dataset.feature_names[:task_feature_index])
+    for ds in all_datasets[1:]:
+        for fn in ds.feature_names[:task_feature_index]:
+            if fn not in all_features:
+                all_features.append(fn)
+    d = len(all_features)
+
+    # Map each task's features to indices in the global feature space.
+    feature_indices = {
+        task_idx: [
+            all_features.index(fn) for fn in ds.feature_names[:task_feature_index]
+        ]
+        for task_idx, ds in enumerate(all_datasets)
+    }
+
+    dtype = torch_dtype or torch.float64
+    # Constrain imputation values to [0, 1] since the preceding Normalize
+    # maps features to this range. Without bounds, imputation values are
+    # unconstrained and can drift far from the valid input range.
+    bounds = torch.stack(
+        [
+            torch.zeros(d, dtype=dtype, device=torch_device),
+            torch.ones(d, dtype=dtype, device=torch_device),
+        ]
+    )
+    # The target task is at position 0 (target_dataset is prepended above), so
+    # at posterior time — when X arrives without a task column — LFI applies
+    # the target task's imputation pattern.
+    kwargs: dict[str, Any] = {
+        "feature_indices": feature_indices,
+        "d": d,
+        "task_feature_index": task_feature_index,
+        "target_task": 0,
+        "bounds": bounds,
+        "device": torch_device,
+        "dtype": dtype,
+    }
+    kwargs.update(input_transform_options)
+    return kwargs

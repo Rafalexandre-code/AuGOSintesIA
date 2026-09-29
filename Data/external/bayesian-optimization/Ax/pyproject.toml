@@ -1,0 +1,108 @@
+[build-system]
+requires = ["setuptools>=34.4", "wheel", "setuptools_scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ax-platform"
+description = "Adaptive Experimentation"
+authors = [{name = "Meta Platforms, Inc."}]
+license = "MIT"
+license-files = ["LICENSE"]
+readme = "README.md"
+requires-python = ">=3.11"
+keywords = ["Experimentation", "Optimization"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS :: MacOS X",
+    "Programming Language :: Python :: 3",
+]
+dynamic = ["version"]
+
+dependencies = [
+    "botorch[pymoo]>=0.18.1,<0.18.2dev9999",
+    "jinja2",  # also a Plotly dep
+    "pandas",
+    "scipy",
+    "scikit-learn",
+    "ipywidgets",
+    # Needed for compatibility with ipywidgets >= 8.0.0
+    "plotly>=5.12.0",
+    "pyre-extensions",
+    "sympy",
+    "markdown",
+    "graphviz",
+]
+
+[project.optional-dependencies]
+dev = [
+    "beautifulsoup4",
+    "Jinja2",
+    "pyfakefs",
+    "pytest>=4.6",
+    "pytest-cov",
+    "sphinx",
+    "sphinx-autodoc-typehints",
+    "sphinx_rtd_theme",
+    "lxml",
+    "mdformat-myst",
+]
+
+mysql = [
+    "SQLAlchemy==1.4.17",
+]
+
+notebook = [
+    "jupyter",
+]
+
+# Optional backend for fully Bayesian (SAAS) models. As of BoTorch 0.18.1 the
+# JAX / NumPyro NUTS backend is no longer a required dependency; install this
+# extra (`pip install "ax-platform[fully_bayesian]"`) to use SAASBO / SAAS_MTGP
+# or the API's `method="quality"` generation strategy.
+fully_bayesian = [
+    "botorch[fully_bayesian]",
+]
+
+unittest_minimal = [
+    # For tensorboard unit tests (min req: numpy 2.0 compatibility).
+    "tensorboard>=2.18.0",
+    "torchx>=0.2.0",  # For torchx unit tests
+    # Required for building RayTune tutorial notebook and
+    # deserializing data for benchmark suites.
+    "pyarrow",
+    "xgboost>=3.0.2",  # For XGBoost surrogate models.
+]
+
+unittest = [
+    # `fully_bayesian` pulls in the JAX/NumPyro backend so SAAS model tests
+    # still run now that it is no longer a required dependency.
+    "ax-platform[dev,mysql,notebook,unittest_minimal,fully_bayesian]",
+]
+
+tutorial = [
+    "ax-platform[unittest]",
+    "matplotlib",  # Required for building sklearn.ipynb tutorial notebook.
+    "papermill",  # For executing the tutorials.
+    "mdformat",
+]
+
+[project.urls]
+Homepage = "https://ax.dev/"
+Repository = "https://github.com/facebook/Ax"
+
+[tool.setuptools.packages]
+find = {}
+
+[tool.setuptools.package-data]
+"*" = ["*.js", "*.css", "*.html"]
+
+[tool.setuptools_scm]
+write_to = "ax/version.py"
+local_scheme = "node-and-date"
+
+[tool.usort]
+first_party_detection = false
+
+[tool.ufmt]
+formatter = "ruff-api"
