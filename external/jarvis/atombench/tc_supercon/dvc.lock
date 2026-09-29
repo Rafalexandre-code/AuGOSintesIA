@@ -1,0 +1,152 @@
+schema: '2.0'
+stages:
+  data_agpt:
+    cmd: bash run_id_prop.sh
+    deps:
+    - path: run_id_prop.sh
+      hash: md5
+      md5: f8f06a3d7b59295d75b96520979f98e2
+      size: 258
+      isexec: true
+    outs:
+    - path: agpt_tc_supercon
+      hash: md5
+      md5: fd4176d81a9430ee0204fb309fe246df.dir
+      size: 332906
+      nfiles: 1001
+  data_cdvae:
+    cmd: bash run_cdvae_data.sh
+    deps:
+    - path: run_cdvae_data.sh
+      hash: md5
+      md5: 590b22ae47968be91194fc9f6d57016e
+      size: 626
+      isexec: true
+    outs:
+    - path: ../models/cdvae/conf/data/supercon.yaml
+      hash: md5
+      md5: eff3ab2a48ede6791ac51e36b8ca44dd
+      size: 182394
+      isexec: true
+    - path: ../models/cdvae/data/supercon
+      hash: md5
+      md5: 1560967ce519d380bd1804b975f399af.dir
+      size: 969525
+      nfiles: 3
+  agpt:
+    cmd: bash scripts/run_id_prop.sh
+    deps:
+    - path: scripts/run_id_prop.sh
+      hash: md5
+      md5: 396607484b12dd6c0245cf109c1cc624
+      size: 266
+      isexec: true
+    outs:
+    - path: agpt_tc_supercon
+      hash: md5
+      md5: ff8b6fc9496f3492c9504c997a96c469.dir
+      size: 332930
+      nfiles: 1001
+  cdvae:
+    cmd: bash scripts/run_cdvae_data.sh
+    deps:
+    - path: scripts/data_preprocess.py
+      hash: md5
+      md5: e1d8e377632dbd400498b88bdfa3a0f9
+      size: 16897
+    - path: scripts/run_cdvae_data.sh
+      hash: md5
+      md5: ec5ad21259745d1679645d369b668966
+      size: 540
+    outs:
+    - path: ../models/cdvae/data/supercon
+      hash: md5
+      md5: 09a76f9ca4379517c6d2cbcb400a19ee.dir
+      size: 965041
+      nfiles: 3
+  flowmm:
+    cmd: bash scripts/run_flowmm_data.sh
+    deps:
+    - path: scripts/data_preprocess.py
+      hash: md5
+      md5: e1d8e377632dbd400498b88bdfa3a0f9
+      size: 16897
+    - path: scripts/run_flowmm_data.sh
+      hash: md5
+      md5: 1e0ee1ccea11d6901571c6915ff76db0
+      size: 538
+    outs:
+    - path: ../models/flowmm/data/supercon
+      hash: md5
+      md5: f6463c12b65577547e7d2155fdedbfa4.dir
+      size: 2123890
+      nfiles: 3
+  atomgpt:
+    cmd: bash scripts/run_atomgpt_data.sh
+    deps:
+    - path: scripts/data_preprocess.py
+      hash: md5
+      md5: e1d8e377632dbd400498b88bdfa3a0f9
+      size: 16897
+    - path: scripts/run_atomgpt_data.sh
+      hash: md5
+      md5: 7bc8e1f952d5a89572f665856dd4f8e0
+      size: 233
+    outs:
+    - path: atomgpt_data
+      hash: md5
+      md5: 170988f8d2eb1b582f02af11c7588ea9.dir
+      size: 346536
+      nfiles: 1056
+  check:
+    cmd: python scripts/checker.py --atomgpt-dir ./atomgpt_data --cdvae-dir 
+      ../models/cdvae/data/supercon --flowmm-dir ../models/flowmm/data/supercon 
+      --strict-order
+    deps:
+    - path: scripts/checker.py
+      hash: md5
+      md5: 452e074f9a5070e1430700f75fef7e9b
+      size: 21943
+  charts:
+    cmd: python scripts/histogram_pie_chart.py --output . --dataset dft_3d
+    deps:
+    - path: scripts/histogram_pie_chart.py
+      hash: md5
+      md5: ca9c8672a7104ddea048b6cd9f65edf4
+      size: 9794
+  mattergen:
+    cmd: bash scripts/run_mattergen_data.sh
+    deps:
+    - path: ../models/cdvae/data/supercon
+      hash: md5
+      md5: 09a76f9ca4379517c6d2cbcb400a19ee.dir
+      size: 965041
+      nfiles: 3
+    - path: scripts/run_mattergen_data.sh
+      hash: md5
+      md5: a8719afc291395b1898656da6ab2f840
+      size: 598
+    outs:
+    - path: ../models/mattergen/datasets/cache/supercon_atombench
+      hash: md5
+      md5: abb8aa3feaca5a4f717beec00a72f252.dir
+      size: 282496
+      nfiles: 15
+  mattergen_tc:
+    cmd: bash scripts/run_mattergen_data_tc.sh
+    deps:
+    - path: ../models/cdvae/data/supercon
+      hash: md5
+      md5: 09a76f9ca4379517c6d2cbcb400a19ee.dir
+      size: 965041
+      nfiles: 3
+    - path: scripts/run_mattergen_data_tc.sh
+      hash: md5
+      md5: 0d32bfa48f4ba54c58ca84f7c6955c77
+      size: 1169
+    outs:
+    - path: ../models/mattergen/datasets/cache/supercon_atombench_tc
+      hash: md5
+      md5: abb8aa3feaca5a4f717beec00a72f252.dir
+      size: 282496
+      nfiles: 15

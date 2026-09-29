@@ -1,0 +1,49 @@
+name: Deploy Site
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    name: Deploy with MkDocs
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Setup Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: test
+          environment-file: environment.yml
+          python-version: "3.10"
+          auto-activate-base: false
+          
+      - name: Install dependencies
+        shell: bash -l {0}
+        run: |
+          conda info
+          conda list
+          python -m pip install --upgrade pip setuptools
+          python setup.py develop
+          pip install pymatgen
+          
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "actions@github.com"
+          
+      - name: Generate content and deploy
+        shell: bash -l {0}
+        run: |
+          python jarvis_leaderboard/rebuild.py
+          python jarvis_leaderboard/specialized_benchmarks.py
+          mkdocs gh-deploy --force

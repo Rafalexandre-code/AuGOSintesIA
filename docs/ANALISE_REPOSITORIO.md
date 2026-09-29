@@ -5,7 +5,7 @@
 > nanocompósitos GO–AuNP sob variabilidade multi-fonte de matéria-prima"*.
 >
 > Análise feita em 2026-09-29 sobre o commit `e18986f` (2 commits, ~2 870 arquivos, ~1,7 GB em disco).
-> **Atualizado no mesmo dia:** 48 (depois 58, hoje 75) repositórios externos em `external/` (§10), ambientes por
+> **Atualizado no mesmo dia:** 48 (depois 58, 75, hoje 89) repositórios externos em `external/` (§10), ambientes por
 > subprojeto em `environments/` (§11) e correção dos problemas listados antes (§7).
 > **Reorganizado:** a antiga pasta `Data/` foi dividida em `datasets/`, `projects/<módulo>/` e `external/`;
 > `Articles/` virou `literature/` (§12). Os nomes antigos (`Data/…-main`) aparecem só no histórico do git.
@@ -45,6 +45,7 @@
 13. [Fontes de dados, curadoria e depósito](#13-fontes-de-dados-curadoria-e-depósito)
 14. [`code/` — GO Navigator e AuNP Designer; verificação do repositório](#14-code--go-navigator-e-aunp-designer-verificação-do-repositório)
 15. [Proposta × ferramentas: revisão de atualidade (2026-09-29)](#15-proposta--ferramentas-revisão-de-atualidade-2026-09-29)
+16. [Ecossistema JARVIS e design inverso atomístico GO–Au](#16-ecossistema-jarvis-e-design-inverso-atomístico-goau)
 
 ---
 
@@ -52,8 +53,8 @@
 
 O repositório **não é um software único**: é uma coleção curada de (a) o projeto de pesquisa, (b) o corpus
 de artigos citados, (c) datasets, (d) **13 subprojetos de terceiros** (código + dados, já corrigidos para
-rodar em qualquer SO), (e) **75 repositórios de referência** clonados (§10) e (f) a camada de fontes de dados
-(§13). Cada subprojeto tem
+rodar em qualquer SO), (e) **89 repositórios de referência** clonados (§10; inclusive o ecossistema JARVIS, §16) e
+(f) a camada de fontes de dados (§13). Cada subprojeto tem
 dependências próprias e **deve ser usado em ambiente virtual separado** (`tools/setup_env.sh`, §11).
 
 ```
@@ -84,8 +85,8 @@ AuGOSintesIA/
 │   ├── inverse-design/       MatDesINNe
 │   ├── materials-ml/         M2Hub
 │   └── self-driving-lab/qubot/  hardware/ (CAD, BOM), data/, scripts/, README.pdf
-├── code/                               # código do projeto: espectral, caracterização, Navigator, Designer, benchmark, causal (§14–§15)
-├── external/                           # 75 repositórios de referência (+ data-access/: clientes de API) (§10)
+├── code/                               # código do projeto: espectral, caracterização, Navigator, Designer, benchmark, causal, atomístico/JARVIS (§14–§16)
+├── external/                           # 89 repositórios de referência (+ data-access/: clientes de API; jarvis/: JARVIS) (§10, §16)
 ├── environments/                       # um ambiente por subprojeto (§11)
 ├── deposit/GO-AuNP-Autonomous-Design/  # estrutura do depósito Zenodo/MDF (§13)
 └── tools/                              # setup_env.sh, fetch_external.sh, external_repos.lock.tsv, data_sources/ (§13)
@@ -952,7 +953,7 @@ Execução: bancada manual  →  (opcional) Qubot/control-lab-ly  ;  SAXS/WAXS: 
 
 ## 10. Repositórios externos (external)
 
-75 repositórios do GitHub clonados para cobrir o que faltava à proposta (lista completa, licenças, o que foi
+89 repositórios do GitHub clonados para cobrir o que faltava à proposta (lista completa, licenças, o que foi
 podado e por quê: [`external/README.md`](../external/README.md); commit exato de cada um:
 [`tools/external_repos.lock.tsv`](../tools/external_repos.lock.tsv)). Organizados por módulo do projeto:
 
@@ -967,7 +968,8 @@ podado e por quê: [`external/README.md`](../external/README.md); commit exato d
 | `characterization/` | pyFAI, fabio, sasmodels, lmfit, RamanSPy, pybaselines | SAXS/WAXS, XPS, Raman |
 | `literature-llm/` | LLaMA-Factory, LeMat-Synth, submódulos CederGroupHub, marker, paper-qa, ChemDataExtractor2 | curadoria |
 | `self-driving-lab/` | RoboChem-Flex, Octopus, PyLabRobot, MADSci, AlabOS, IvoryOS | SDL |
-| `data-access/` | pyalex (OpenAlex), habanero (Crossref), unpywall, PubChemPy, zenodo_get, foundry (MDF), optimade-python-tools, mp-api, jarvis-tools, pynanomapper (eNanoMapper) | fontes de dados (§13) |
+| `data-access/` | pyalex (OpenAlex), habanero (Crossref), unpywall, PubChemPy, zenodo_get, foundry (MDF), optimade-python-tools, mp-api, pynanomapper (eNanoMapper), ro-crate-py | fontes de dados (§13) |
+| `jarvis/` | **ecossistema JARVIS** (15): jarvis-tools, ALIGNN/ALIGNN-FF, AtomGPT, JARVIS-Leaderboard, CHIPS-FF, CHIPS-TB, InterMat, SlaKoNet, AtomVision, ChemNLP, tb3py, AtomBench, AGAPI, jarvis-tools-notebooks, JARVIS-FF | GO Navigator/design inverso atomístico (§16) |
 
 Para manter tudo atualizado: `tools/fetch_external.sh --latest` (reclona e atualiza o lock).
 A maior parte das bibliotecas também está no ambiente `core` (§11), instalada pelo PyPI.
@@ -977,7 +979,7 @@ A maior parte das bibliotecas também está no ambiente `core` (§11), instalada
 Um ambiente por subprojeto, criado com `tools/setup_env.sh <nome>` (usa `uv`; cai para `venv`+`pip`;
 `conda` para M2Hub e AmberGO). Versões fixadas em `environments/<nome>.lock.txt`; `--latest` usa o `.in`.
 Detalhes e o que foi testado: [`environments/README.md`](../environments/README.md). Teste de execução de
-todos: `tools/smoke_test.sh` (11/11 OK); verificação estrutural: `python tools/check_repo.py --regen`.
+todos: `tools/smoke_test.sh` (11/11 OK, e o `jarvis` depois); verificação estrutural: `python tools/check_repo.py --regen`.
 
 | Nome | Python | Uso |
 |---|---|---|
@@ -990,6 +992,8 @@ todos: `tools/smoke_test.sh` (11/11 OK); verificação estrutural: `python tools
 | `matdesinne` | 3.8 | MatDesINNe (torch 1.7.1) |
 | `qwen-llm` | 3.12 | Qwen3/LLaMA-Factory (GPU) |
 | `data-sources` | 3.12 | clientes de API de `tools/data_sources/` (§13) |
+| `jarvis` | 3.11 | ecossistema JARVIS instalado de `external/jarvis/` + MACE-MP/CHGNet/SevenNet + LAMMPS (§16) |
+| `atomgpt` | 3.10 | AtomGPT (instalado e testado em CPU; o modelo inverso exige GPU) |
 | `m2hub`, `ambergo` | conda | M2Hub (PyG/DGL), AmberGO (AmberTools) |
 
 ## 12. `literature/` — corpus dos artigos citados
@@ -1035,6 +1039,7 @@ Auditoria completa, fonte por fonte: [`FONTES_DE_DADOS.md`](FONTES_DE_DADOS.md).
 - **Com rede** (rodar localmente): `fetch_records.py` (Zenodo/Figshare/HF), `literature_pipeline.py`
   (OpenAlex → Crossref → Unpaywall → PMC → fila para o extrator LLM), `optimade_query.py` (NOMAD, Materials Cloud,
   MP, OQMD, AFLOW, JARVIS — só camada computacional). Clientes em `external/data-access/`; ambiente `data-sources`.
+  JARVIS completo (dados, FF, ML, benchmarks), com reconstrução offline do dft_3d: §16.
 
 ---
 
@@ -1064,7 +1069,8 @@ SMOKE_FULL=1 tools/smoke_test.sh qubot-scripts   # inclui a análise completa de
 
 Resultado em 2026-09-29: `check_repo.py --regen` → 0 problemas; `smoke_test.sh` → 11/11 ambientes OK
 (no `core`: os 21 testes de `code/tests`; nos demais: SDL, Bgolearn, RAMBOAU, chem-MFBO, BOCoDe/AgNP, GO-MACE-23, notebook de Cruse,
-Qubot, cINN do MatDesINNe com localização, clientes de dados).
+Qubot, cINN do MatDesINNe com localização, clientes de dados); depois, `jarvis` OK (10 testes de
+`code/tests/test_atomistic.py`, JARVIS-FF, CHIPS-FF, ALIGNN/ALIGNN-FF, BO GO–Au, InterMat — §16).
 
 ---
 
@@ -1100,3 +1106,40 @@ Correções técnicas registradas em `code/README.md` ("Notas técnicas"): qLogN
 heteroscedástico), faixas de validade das relações de Haiss, viés das linhas de base flexíveis no Raman de GO e
 número mínimo de sementes para a simulação de poder.
 
+
+---
+
+## 16. Ecossistema JARVIS e design inverso atomístico GO–Au
+
+**Pedido:** todas as ferramentas do JARVIS (NIST) no repositório, funcionando, para o design inverso. Estão em
+[`external/jarvis/`](../external/jarvis/README.md) (15 repositórios oficiais, cópias podadas e fixadas no lock),
+instaladas **a partir dessas cópias** no ambiente `jarvis` e integradas ao projeto em
+[`code/atomistic/`](../code/atomistic/README.md).
+
+| Módulo | O que é | No repositório | Verificado aqui |
+|---|---|---|---|
+| **JARVIS-DFT** | dezenas de milhares de materiais (3D, 2D, moléculas) com centenas de milhares de propriedades DFT | `jarvis.db.figshare` + `jarvis_data.py`; sem rede, **reconstrução offline** do dft_3d (75 993 estruturas do AtomGPT + 36 propriedades dos benchmarks do Leaderboard; vacancydb e surfacedb) | estruturas × POSCAR originais: \|ΔV/V\| mediana 0,15 %; lida pelo próprio jarvis-tools, CHIPS-FF e InterMat |
+| **JARVIS-FF** | MD/LAMMPS com potenciais clássicos; superfícies e defeitos vs. DFT | `JARVIS-FF` (3 291 cálculos), `jarvis.tasks.lammps`, LAMMPS do PyPI; `jarvis_ff.py` | Au (EAM Foiles): −3,93 eV/átomo, C11/C12/C44 = 183/159/45 GPa, B = 167 GPa (JARVIS-FF 167,8), E_vac = 1,03 eV |
+| **JARVIS-ML** | GNNs/transformers para triagem rápida | ALIGNN, ALIGNN-FF, AtomGPT, AtomVision, SlaKoNet, ChemNLP, tb3py | ALIGNN e ALIGNN-FF treinados (dados do ALIGNN e do GO–Au), ALIGNN-FF usado como calculadora; SlaKoNet (Si) |
+| **JARVIS-Tools** | pacote Python: dados, workflows, modelos | `jarvis-tools` + 160 tutoriais | `Atoms`, CFID, `Surface`/`Vacancy`, ZSL, `LammpsJob` |
+| Leaderboard, CHIPS-FF, InterMat, AtomBench | benchmarks, validação de MLFF, interfaces, métricas generativas | pastas homônimas | CHIPS-FF (MACE-MP) × DFT no Au: γ(111) 0,88 × 0,90 J/m², vacância 0,48 × 0,46 eV; Au(111)/grafite W_ad = 0,23 J/m² (D3) |
+
+**Design inverso (onde o JARVIS entra na proposta).** O AuNP Designer (§4.5) otimiza receitas; o GO Navigator (§4.2)
+descreve os lotes de GO. O `go_au.py` liga os dois pelo nível atomístico, no fluxo típico do JARVIS
+(gerar → triar com ML → validar com FF/DFT): gera GO com o gerador do GO-MACE-23 (O/C, fração de OH), calcula a
+energia de adsorção de Au₁/Au₄ com um MLFF universal (ALIGNN-FF, MACE-MP-0 com D3, CHGNet, SevenNet), treina ALIGNN
+(estrutura → E_ads) e ALIGNN-FF específico de GO–Au com os próprios dados, e usa **otimização bayesiana** (GP com
+a variância das réplicas como ruído, qLogNEI) para achar a química de GO que dá o E_ads alvo. O E_ads e os
+descritores CFID podem entrar no contexto do GP do Designer (braço `go`).
+
+**Defeitos upstream contornados sem editar as cópias** (tabela completa em `external/jarvis/README.md`): caminho
+fixo `/users/knc6/displace.mod` no `inelast.mod`; `LammpsJob` só aceitar `eam/alloy` (conversão funcfl → setfl);
+CHIPS-FF com `ExpCellFilter` removido do ASE 3.27, `IndexError` sem tensor elástico de referência e dependência do
+figshare para arquivos locais; AtomBench declarando o pacote errado (`amd`); AtomVision com pydantic 1; LAMMPS do
+PyPI sem MPI.
+
+**Limites.** Figshare e Hugging Face estão bloqueados no contêiner de nuvem: os modelos pré-treinados (ALIGNN,
+ALIGNN-FF, SlaKoNet completo, AtomGPT) e o dft_3d original vêm por `jarvis_data.py download` numa máquina com rede.
+O AtomGPT inverso (LLM) exige GPU: o ambiente `atomgpt` foi instalado e testado aqui só na parte em CPU (modelo
+direto, conversão estrutura ↔ texto; `smoke_test.sh atomgpt`). MLFFs universais servem para
+ordenar composições de GO; os finalistas devem ser confirmados por DFT.

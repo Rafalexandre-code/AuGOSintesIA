@@ -6,7 +6,8 @@ matéria-prima"*.
 
 Reúne o projeto de pesquisa, o corpus dos artigos citados, datasets de síntese de nanopartículas e de
 reagentes, 13 subprojetos de referência já adaptados (óxido de grafeno, otimização bayesiana, design inverso,
-extração de sínteses com LLM, robô de laboratório), 75 repositórios de ferramentas atuais e a camada de fontes de
+extração de sínteses com LLM, robô de laboratório), 89 repositórios de ferramentas atuais (inclusive o ecossistema
+JARVIS completo do NIST, integrado ao design inverso atomístico GO–Au) e a camada de fontes de
 dados (dicionário de reagentes PubChem, semente GO–AuNP da literatura, modelo de dados do laboratório, depósito Zenodo).
 
 📘 **Guia completo (o que é cada coisa, como usar, o que foi corrigido):** [docs/ANALISE_REPOSITORIO.md](docs/ANALISE_REPOSITORIO.md)
@@ -19,9 +20,9 @@ dados (dicionário de reagentes PubChem, semente GO–AuNP da literatura, modelo
 | [`docs/`](docs) | análise do repositório, auditoria das fontes de dados; `projeto/` com o projeto FAPESP (.docx) | [ANALISE_REPOSITORIO.md](docs/ANALISE_REPOSITORIO.md) · [FONTES_DE_DADOS.md](docs/FONTES_DE_DADOS.md) |
 | [`literature/`](literature) | 65 artigos em texto (Markdown combinado, trechos para busca/RAG, relatório) | [README](literature/README.md) |
 | [`datasets/`](datasets) | dados avulsos: nanoclusters de Au, base síntese→propriedade (Gu et al.), AuNP minerado, COFs, PubChem, calibração de XRD; **reagentes normalizados**, **semente GO–AuNP**, **modelo de dados do laboratório** | [README](datasets/README.md) |
-| [`code/`](code) | **código do projeto**: UV-Vis/perda J/Mie, Raman/XPS/TEM, GO Navigator, AuNP Designer (4 braços, qLogNEHVI, LBO, novelty, SHAP), simulação de campanha e poder, causalidade (DoWhy/E-value), sustentabilidade — com testes | [README](code/README.md) |
+| [`code/`](code) | **código do projeto**: UV-Vis/perda J/Mie, Raman/XPS/TEM, GO Navigator, AuNP Designer (4 braços, qLogNEHVI, LBO, novelty, SHAP), simulação de campanha e poder, causalidade (DoWhy/E-value), sustentabilidade, **design inverso atomístico GO–Au com o JARVIS** (`atomistic/`) — com testes | [README](code/README.md) |
 | [`projects/`](projects) | 13 subprojetos base por módulo: `atomistic`, `literature-llm`, `bayesian-optimization`, `multi-fidelity`, `inverse-design`, `materials-ml`, `self-driving-lab` | [README](projects/README.md) |
-| [`external/`](external) | 75 repositórios de referência (BoTorch, Ax, BayBE, HEAD, SPACESHIP, misoKG, DoWhy, MACE, pyFAI…; `data-access/`: OpenAlex, Crossref, Unpaywall, PubChem, OPTIMADE, MP, JARVIS, MDF, eNanoMapper) | [README](external/README.md) |
+| [`external/`](external) | 89 repositórios de referência (BoTorch, Ax, BayBE, HEAD, SPACESHIP, misoKG, DoWhy, MACE, pyFAI…; `data-access/`: OpenAlex, Crossref, Unpaywall, PubChem, OPTIMADE, MP, MDF, eNanoMapper; [`jarvis/`](external/jarvis/README.md): JARVIS-Tools, ALIGNN/ALIGNN-FF, AtomGPT, CHIPS-FF, InterMat, Leaderboard, JARVIS-FF…) | [README](external/README.md) |
 | [`environments/`](environments) | especificação e versões fixadas de um ambiente Python por subprojeto | [README](environments/README.md) |
 | [`deposit/`](deposit/GO-AuNP-Autonomous-Design) | estrutura do depósito **GO-AuNP-Autonomous-Design** (Zenodo/MDF, DOI por versão) | [README](deposit/GO-AuNP-Autonomous-Design/README.md) |
 | [`tools/`](tools) | `setup_env.sh` (cria ambientes), `fetch_external.sh` (atualiza `external/`), `check_repo.py` e `smoke_test.sh` (verificação), `search_literature.py`, `data_sources/` (fontes, curadoria, depósito) | [data_sources](tools/data_sources/README.md) |

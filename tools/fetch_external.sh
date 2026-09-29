@@ -8,9 +8,12 @@
 #   tools/fetch_external.sh --list          # só lista o que está no lock
 #
 # Poda padrão (reproduz o que está versionado): arquivos > 50 MB, olympus/case_studies,
-# olympus/__dev_, shap/docs, shap/data, jarvis-tools/jarvis/{tests,examples}; docs/testes/tutoriais de
-# causal-learn, MAPIE, ATHENA, pylabrobot, alabos, paper-qa, marker (data/) e ivoryos. Os .gitattributes aninhados com LFS são renomeados
-# para .gitattributes.upstream para não quebrar o clone deste repositório.
+# olympus/__dev_, shap/docs, shap/data; docs/testes/tutoriais de causal-learn, MAPIE, ATHENA, pylabrobot, alabos,
+# paper-qa, marker (data/) e ivoryos. JARVIS (external/jarvis/): jarvis-tools/jarvis/tests e examples/vasp,
+# intermat/tests, vasprun*.xml dos testes do slakonet, jarvis_leaderboard/contributions e os conjuntos > 5 MB
+# do leaderboard (forças/tensões de MLFF), saídas dos notebooks de jarvis-tools-notebooks (o código fica).
+# Os .gitattributes aninhados com LFS são renomeados para .gitattributes.upstream para não quebrar o clone
+# deste repositório.
 set -euo pipefail
 export GIT_LFS_SKIP_SMUDGE=1   # objetos LFS de terceiros não são baixados (ver LFS_OBJECTS_NOT_INCLUDED.txt)
 
@@ -24,7 +27,7 @@ for a in "$@"; do
     --latest) latest=1 ;;
     --full) full=1 ;;
     --list) list=1 ;;
-    -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
     *) names+=("$a") ;;
   esac
 done
@@ -54,7 +57,12 @@ grep -v '^#' "$LOCK" | while IFS=$'\t' read -r cat name repo branch commit date;
     case "$name" in
       olympus) rm -rf "$src/case_studies" "$src/__dev_" ;;
       shap) rm -rf "$src/docs" "$src/data" ;;
-      jarvis-tools) rm -rf "$src/jarvis/tests" "$src/jarvis/examples" ;;
+      jarvis-tools) rm -rf "$src/jarvis/tests" "$src/jarvis/examples/vasp" ;;
+      intermat) rm -rf "$src/intermat/tests" ;;
+      slakonet) rm -f "$src"/slakonet/tests/vasprun*.xml ;;
+      jarvis_leaderboard) rm -rf "$src/jarvis_leaderboard/contributions"
+                          find "$src/jarvis_leaderboard/benchmarks" -type f -size +5M -print -delete ;;
+      jarvis-tools-notebooks) python3 "$ROOT/tools/strip_notebook_outputs.py" "$src" ;;
       causal-learn) rm -rf "$src/tests" "$src/docs" ;;
       MAPIE) rm -rf "$src/notebooks" "$src/doc" ;;
       ATHENA) rm -rf "$src/tutorials" "$src/docs" "$src/readme" ;;

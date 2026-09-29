@@ -21,7 +21,8 @@ Cada pasta de primeiro nível tem um `README.md` com o seu índice.
 - `code/` — código do projeto (ambiente `core`; testes `python -m pytest code/tests`): `spectral/` (UV-Vis, perda J, Mie),
   `characterization/` (Raman, XPS, TEM), `go_navigator/`, `aunp_designer/designer.py` (4 braços recipe/batch/go/go+impurities,
   qLogNEHVI|qNEHVI, LBO, novelty, SHAP, `demo`), `benchmarking/` (laboratório SIMULADO, campanha/poder, estatística),
-  `causal/` (DAG, DoWhy, E-value, causal-learn), `sustainability/` (E-factor, EcoScale, CPU).
+  `causal/` (DAG, DoWhy, E-value, causal-learn), `sustainability/` (E-factor, EcoScale, CPU), `atomistic/` (ambiente
+  `jarvis`: design inverso GO–Au com JARVIS-DFT/FF/ML/Tools, CHIPS-FF, InterMat; `test_atomistic.py`).
 - `projects/<módulo>/` — 13 subprojetos base (modificados aqui: caminhos portáveis, bugs corrigidos):
   - `atomistic/GO-MACE-23` (gerador de GO em `code/`, potencial `models/fitting/potential/iter-12-final-model/go-mace-23.pt`,
     C/H/O, sem Au), `atomistic/AmberGO` (GO 5–68 % para AMBER/GAFF; depende do HierGO)
@@ -30,12 +31,14 @@ Cada pasta de primeiro nível tem um `README.md` com o seu índice.
   - `bayesian-optimization/{SDL,Bgolearn,RAMBOAU,BOCoDe}` (BOCoDe: **maximização**, restrição viável `g<=0`)
   - `multi-fidelity/chem-MFBO`, `inverse-design/MatDesINNe`, `materials-ml/M2Hub`
   - `self-driving-lab/qubot/{hardware,data,scripts,README.pdf}` — `data/` e `scripts/` devem ficar lado a lado
-- `external/<módulo>/` — 75 repositórios de referência (`data-access/` = clientes OpenAlex/Crossref/Unpaywall/PubChem/
-  OPTIMADE/MP/JARVIS/MDF/eNanoMapper), cópias sem `.git` (manifesto `external/README.md`;
-  commits `tools/external_repos.lock.tsv`; atualizar com `tools/fetch_external.sh --latest`). Não editar à mão.
+- `external/<módulo>/` — 89 repositórios de referência (`data-access/` = clientes OpenAlex/Crossref/Unpaywall/PubChem/
+  OPTIMADE/MP/MDF/eNanoMapper; `jarvis/` = 15 do ecossistema JARVIS, índice e contornos em `external/jarvis/README.md`),
+  cópias sem `.git` (manifesto `external/README.md`; commits `tools/external_repos.lock.tsv`; atualizar com
+  `tools/fetch_external.sh --latest`). Não editar à mão: defeitos upstream são contornados em `code/`/`environments/`.
 - `environments/` + `tools/setup_env.sh <nome>` — um ambiente por subprojeto (`--list`); `core` = projeto GO–AuNP;
   `<nome>.override.txt` substitui pinos do subprojeto (chem-mfbo: torch 2.8 em vez de 2.2.1);
-  `data-sources` = clientes de API.
+  `data-sources` = clientes de API; `jarvis` = JARVIS instalado de `external/jarvis/` (+ MACE-MP, CHGNet, SevenNet,
+  LAMMPS); `atomgpt` = AtomGPT (inverso exige GPU; testado em CPU).
 - `deposit/GO-AuNP-Autonomous-Design/` — esqueleto do depósito Zenodo/MDF; montar com `tools/data_sources/build_deposit.py`.
 
 ## Verificar antes de commitar
@@ -56,5 +59,7 @@ Cada pasta de primeiro nível tem um `README.md` com o seu índice.
 - Rodar código gera `__pycache__/`, `result/`, `Bgolearn/`, `outputs/` etc.; não commitar esses artefatos
   (`/outputs/` está no `.gitignore`; os scripts de rede de `tools/data_sources/` gravam lá).
 - Rede do contêiner de nuvem: só GitHub e PyPI. Zenodo/HF/figshare/OpenAlex/PubChem etc. ficam bloqueados; os scripts
-  de `tools/data_sources/` que usam rede devem rodar localmente.
+  de `tools/data_sources/` que usam rede devem rodar localmente. JARVIS sem figshare: `code/atomistic/jarvis_data.py`
+  monta uma reconstrução offline do dft_3d (marcada `reconstrucao_offline`, em `outputs/jarvis_offline_cache`); os
+  modelos pré-treinados (ALIGNN/ALIGNN-FF, SlaKoNet, AtomGPT) vêm por `jarvis_data.py download` numa máquina com rede.
 - `qubot/data/*/summary.csv` são regravados pelas análises; teste com `QUBOT_DATA_DIR=<cópia>`.

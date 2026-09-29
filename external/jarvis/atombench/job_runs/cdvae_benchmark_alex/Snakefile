@@ -1,0 +1,36 @@
+rule train_cdvae_alex:
+    output:
+        touch("cdvae_benchmark_alex.trained")
+    input:
+        "cdvae_env.created",
+        "alex_data.created"
+    shell:
+        """
+        sbatch --wait -p nvl --time=08:00:00 job_runs/cdvae_benchmark_alex/train_cdvae.job
+        """
+
+rule infer_cdvae_alex:
+    output:
+        touch("cdvae_benchmark_alex.inferred")
+    input:
+        "cdvae_env.created",
+        "alex_data.created",
+        "cdvae_benchmark_alex.trained"
+    shell:
+        """
+        sbatch --wait -p nvl --time=08:00:00 job_runs/cdvae_benchmark_alex/inference_cdvae.job
+        """
+
+rule benchmark_cdvae_alex:
+    output:
+        touch("cdvae_benchmark_alex.final")
+    input:
+        "cdvae_env.created",
+        "alex_data.created",
+        "cdvae_benchmark_alex.trained",
+        "cdvae_benchmark_alex.inferred"
+
+    shell:
+        """
+        sbatch --wait -p nvl --time=08:00:00 job_runs/cdvae_benchmark_alex/benchmark_cdvae.job
+        """

@@ -1,0 +1,2 @@
+# AtomGPT (JARVIS): modelos generativos (LLM) direto/inverso, DiffractGPT, MicroscopyGPT — requer GPU (bitsandbytes/CUDA)
+-e ../external/jarvis/atomgpt

@@ -1,0 +1,351 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  conda_env_matrix:
+    name: Build ${{ matrix.env }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["ubuntu-latest"]
+        env: ["atombench", "my_atomgpt", "cdvae", "flowmm"]
+
+    env:
+      CONDA_PKGS_DIRS: /tmp/conda_pkgs
+      PIP_CACHE_DIR: /tmp/pip_cache
+
+    steps:
+      - name: Checkout with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Smoke-check submodules
+        run: |
+          set -e
+          git submodule update --init --recursive
+          if git submodule status | grep -q '^[+-]'; then
+            echo 'Submodule update did not produce a clean state:' >&2
+            git submodule status
+            exit 1
+          fi
+          for d in models/atomgpt models/cdvae models/flowmm; do
+            if [ ! -d "$d" ]; then
+              echo "Directory $d is missing"
+              exit 1
+            fi
+            if [ -z "$(ls -A "$d")" ]; then
+              echo "Directory $d is empty; submodule may not have been cloned correctly"
+              exit 1
+            fi
+          done
+
+      - name: Assert submodules populated
+        shell: bash -l {0}
+        run: |
+          set -euo pipefail
+
+          git submodule update --init --recursive
+
+          # Submodules should be "clean" (no + or - prefix in status)
+          if git submodule status --recursive | grep -q '^[+-]'; then
+            echo "Submodule status is not clean:" >&2
+            git submodule status --recursive >&2
+            exit 1
+          fi
+
+          # Ensure each submodule dir exists, is non-empty, and is a valid git work tree
+          for d in models/atomgpt models/cdvae models/flowmm; do
+            [[ -d "$d" ]] || { echo "Missing submodule directory: $d" >&2; exit 1; }
+            [[ -n "$(ls -A "$d")" ]] || { echo "Empty submodule directory: $d" >&2; exit 1; }
+            git -C "$d" rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Not a git worktree: $d" >&2; exit 1; }
+            git -C "$d" rev-parse HEAD >/dev/null 2>&1 || { echo "Cannot resolve HEAD in: $d" >&2; exit 1; }
+          done
+
+      - name: Free disk space (runner)
+        run: |
+          set -e
+          df -h
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android || true
+          df -h
+
+      - name: Set up Miniconda
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          auto-activate-base: false
+          use-mamba: true
+
+      # --- atombench env (standalone) ---
+      - name: Create atombench env
+        if: matrix.env == 'atombench'
+        shell: bash -l {0}
+        run: |
+          conda create -y -n atombench python=3.11 pip
+          conda run -n atombench python -m pip install uv dvc snakemake
+          conda install -n atombench -c conda-forge mamba -y
+
+      # --- model env jobs (NO atombench activation) ---
+      - name: Install bootstrap tools in base (no atombench activation)
+        if: matrix.env != 'atombench'
+        shell: bash -l {0}
+        run: |
+          conda run -n base python -m pip install uv dvc snakemake
+          conda install -n base -c conda-forge mamba -y
+
+      - name: Create model env via Snakemake target
+        if: matrix.env != 'atombench'
+        shell: bash -l {0}
+        run: |
+          set -euo pipefail
+
+          target=""
+          case "${{ matrix.env }}" in
+            my_atomgpt) target="atomgpt_env.created" ;;
+            cdvae)      target="cdvae_env.created" ;;
+            flowmm)     target="flowmm_env.created" ;;
+            *)          echo "Unknown matrix.env=${{ matrix.env }}" >&2; exit 1 ;;
+          esac
+
+          conda run -n base snakemake \
+            --cores 1 \
+            --use-conda \
+            --conda-frontend mamba \
+            --conda-cleanup-pkgs cache \
+            --printshellcmds \
+            --show-failed-logs \
+            "${target}"
+
+      - name: Assert my_atomgpt pip installs
+        if: matrix.env == 'my_atomgpt'
+        shell: bash -l {0}
+        run: |
+          set -euo pipefail
+
+          conda env list | awk 'NF && $1 !~ /^#/ {print $1}' | grep -qx my_atomgpt
+
+          conda run -n my_atomgpt python -m pip show uv >/dev/null
+          conda run -n my_atomgpt python -m pip check
+
+          # Assert editable install points at the populated submodule path (no module-name guessing)
+          conda run -n my_atomgpt python - <<'PY'
+          import os, sys, site, pathlib
+
+          expected = os.path.realpath(os.path.join(os.environ.get("GITHUB_WORKSPACE", os.getcwd()), "models", "atomgpt"))
+          expected_slash = expected.replace(os.sep, "/")
+
+          def hit(text: str) -> bool:
+            return (expected in text) or (expected_slash in text)
+
+          ok = False
+
+          # 1) quick sys.path check
+          for p in sys.path:
+            if not p:
+              continue
+            rp = os.path.realpath(p)
+            if rp == expected or rp.startswith(expected + os.sep):
+              ok = True
+              print("Found editable path on sys.path:", rp)
+              break
+
+          # 2) fallback: scan site-packages for .pth or direct_url.json references
+          if not ok:
+            candidates = []
+            for sp in list(site.getsitepackages()) + [site.getusersitepackages()]:
+              if not sp:
+                continue
+              base = pathlib.Path(sp)
+              if not base.exists():
+                continue
+              candidates.extend(list(base.glob("*.pth")))
+              candidates.extend(list(base.glob("**/direct_url.json")))
+
+            for f in candidates:
+              try:
+                txt = f.read_text(errors="ignore")
+              except Exception:
+                continue
+              if hit(txt):
+                ok = True
+                print("Found editable reference in:", str(f))
+                break
+
+          assert ok, f"Did not find editable install reference to {expected} (sys.path/.pth/direct_url.json)"
+          print("my_atomgpt editable install reference OK")
+          PY
+
+      - name: Assert cdvae pip installs (versions)
+        if: matrix.env == 'cdvae'
+        shell: bash -l {0}
+        run: |
+          set -euo pipefail
+
+          conda env list | awk 'NF && $1 !~ /^#/ {print $1}' | grep -qx cdvae
+
+          conda run -n cdvae python - <<'PY'
+          from importlib.metadata import version
+          import re
+
+          def parse_ver(s: str):
+            core = re.split(r"[+ -]", s.strip())[0]
+            nums = []
+            for p in core.split("."):
+              nums.append(int(p) if p.isdigit() else 0)
+            while len(nums) < 3:
+              nums.append(0)
+            return tuple(nums[:3])
+
+          def v(pkg: str):
+            return parse_ver(version(pkg))
+
+          assert version("monty") == "2022.9.9", f"monty={version('monty')} (expected 2022.9.9)"
+          assert version("torch-geometric") == "1.7.0", f"torch-geometric={version('torch-geometric')} (expected 1.7.0)"
+
+          for pkg in ["pandas", "jarvis-tools"]:
+            _ = version(pkg)
+
+          pv = v("pymatgen")
+          assert pv >= (2022, 0, 8) and pv < (2023, 0, 0), f"pymatgen={version('pymatgen')} (expected >=2022.0.8,<2023)"
+
+          tv = v("torchmetrics")
+          assert tv < (0, 8, 0), f"torchmetrics={version('torchmetrics')} (expected <0.8.0)"
+
+          print("cdvae env OK")
+          PY
+
+          conda run -n cdvae python -m pip check
+
+          # Assert editable install points at the populated submodule path (no module-name guessing)
+          conda run -n cdvae python - <<'PY'
+          import os, sys, site, pathlib
+
+          expected = os.path.realpath(os.path.join(os.environ.get("GITHUB_WORKSPACE", os.getcwd()), "models", "cdvae"))
+          expected_slash = expected.replace(os.sep, "/")
+
+          def hit(text: str) -> bool:
+            return (expected in text) or (expected_slash in text)
+
+          ok = False
+
+          for p in sys.path:
+            if not p:
+              continue
+            rp = os.path.realpath(p)
+            if rp == expected or rp.startswith(expected + os.sep):
+              ok = True
+              print("Found editable path on sys.path:", rp)
+              break
+
+          if not ok:
+            candidates = []
+            for sp in list(site.getsitepackages()) + [site.getusersitepackages()]:
+              if not sp:
+                continue
+              base = pathlib.Path(sp)
+              if not base.exists():
+                continue
+              candidates.extend(list(base.glob("*.pth")))
+              candidates.extend(list(base.glob("**/direct_url.json")))
+
+            for f in candidates:
+              try:
+                txt = f.read_text(errors="ignore")
+              except Exception:
+                continue
+              if hit(txt):
+                ok = True
+                print("Found editable reference in:", str(f))
+                break
+
+          assert ok, f"Did not find editable install reference to {expected} (sys.path/.pth/direct_url.json)"
+          print("cdvae editable install reference OK")
+          PY
+
+      - name: Assert flowmm pip installs (versions)
+        if: matrix.env == 'flowmm'
+        shell: bash -l {0}
+        run: |
+          set -euo pipefail
+
+          conda env list | awk 'NF && $1 !~ /^#/ {print $1}' | grep -qx flowmm
+
+          conda run -n flowmm python - <<'PY'
+          from importlib.metadata import version
+          import re
+
+          def parse_ver(s: str):
+            core = re.split(r"[+ -]", s.strip())[0]
+            nums = []
+            for p in core.split("."):
+              nums.append(int(p) if p.isdigit() else 0)
+            while len(nums) < 3:
+              nums.append(0)
+            return tuple(nums[:3])
+
+          def v(pkg: str):
+            return parse_ver(version(pkg))
+
+          for pkg in ["uv", "pandas", "numpy", "tqdm", "matminer"]:
+            _ = version(pkg)
+
+          assert v("jarvis-tools") >= (2024, 5, 0), f"jarvis-tools={version('jarvis-tools')} (expected >=2024.5)"
+          assert v("pymatgen") >= (2024, 1, 0), f"pymatgen={version('pymatgen')} (expected >=2024.1)"
+
+          print("flowmm env OK")
+          PY
+
+          conda run -n flowmm python -m pip check
+
+          # Assert editable install points at the populated submodule path (no module-name guessing)
+          conda run -n flowmm python - <<'PY'
+          import os, sys, site, pathlib
+
+          expected = os.path.realpath(os.path.join(os.environ.get("GITHUB_WORKSPACE", os.getcwd()), "models", "flowmm"))
+          expected_slash = expected.replace(os.sep, "/")
+
+          def hit(text: str) -> bool:
+            return (expected in text) or (expected_slash in text)
+
+          ok = False
+
+          for p in sys.path:
+            if not p:
+              continue
+            rp = os.path.realpath(p)
+            if rp == expected or rp.startswith(expected + os.sep):
+              ok = True
+              print("Found editable path on sys.path:", rp)
+              break
+
+          if not ok:
+            candidates = []
+            for sp in list(site.getsitepackages()) + [site.getusersitepackages()]:
+              if not sp:
+                continue
+              base = pathlib.Path(sp)
+              if not base.exists():
+                continue
+              candidates.extend(list(base.glob("*.pth")))
+              candidates.extend(list(base.glob("**/direct_url.json")))
+
+            for f in candidates:
+              try:
+                txt = f.read_text(errors="ignore")
+              except Exception:
+                continue
+              if hit(txt):
+                ok = True
+                print("Found editable reference in:", str(f))
+                break
+
+          assert ok, f"Did not find editable install reference to {expected} (sys.path/.pth/direct_url.json)"
+          print("flowmm editable install reference OK")
+          PY

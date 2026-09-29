@@ -1,0 +1,66 @@
+name: AtomGPT GitHub Action
+
+on: [push, pull_request]
+
+jobs:
+  miniconda:
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: ["ubuntu-latest"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Miniconda
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          activate-environment: atomgpt
+          environment-file: environment.yml
+          python-version: "3.10"
+          auto-activate-base: false
+          use-mamba: true  # Speeds up env creation
+
+      - name: Print Conda environment details
+        shell: bash -l {0}
+        run: |
+          conda info
+          conda list
+
+      - name: Install dev tools and dependencies
+        shell: bash -l {0}
+        run: |
+          pip install triton
+          conda install flake8 pycodestyle pydocstyle pytest coverage codecov -y
+
+      # - name: Lint with flake8 and others
+      #   shell: bash -l {0}
+      #   run: |
+      #     flake8 atomgpt --count --exit-zero --max-complexity=10 --statistics
+      #     pycodestyle atomgpt
+      #     pydocstyle atomgpt
+
+      - name: Install in editable mode
+        shell: bash -l {0}
+        run: |
+          python setup.py develop
+
+      - name: Run forward model test
+        shell: bash -l {0}
+        run: |
+          echo 'Listing files'
+          ls -l atomgpt/examples/forward_model/
+          echo 'Running forward model'
+          coverage run --omit="*scripts/*,*cache/*,*__pycache__/*" -m pytest -s -v atomgpt/tests/
+          coverage report -m -i
+          python atomgpt/forward_models/forward_models.py --config_name atomgpt/examples/forward_model/config.json
+
+      # Uncomment below to run inverse model + coverage tests
+      # - name: Run tests with coverage
+      #   shell: bash -l {0}
+      #   run: |
+      #     coverage run -m pytest
+      #     coverage report -m
+      #     codecov --token=${{ secrets.CODECOV_TOKEN }}

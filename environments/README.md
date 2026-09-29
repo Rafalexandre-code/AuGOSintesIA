@@ -16,6 +16,8 @@ O script usa [uv](https://docs.astral.sh/uv/) (instala até a versão de Python 
 | Nome | Python | Para | Arquivos | Testado aqui |
 |---|---|---|---|---|
 | `core` | 3.12 | **projeto GO–AuNP** (`code/`): BoTorch, GPyTorch, Ax, BayBE, BoFire, Optuna, Bgolearn, SHAP, DoWhy, EconML, causal-learn, MAPIE, lmfit, pybaselines, scikit-image, RosettaSciIO, pyFAI, fabio, sasmodels, miepython, PyMieScatt, RamanSPy, pymoo, statsmodels, ASE, pytest | `core.in`, `core.lock.txt` | instalado e executado ✓ |
+| `jarvis` | 3.11 | **ecossistema JARVIS** (instalado de `external/jarvis/`): jarvis-tools, ALIGNN/ALIGNN-FF, CHIPS-FF, InterMat, JARVIS-Leaderboard, SlaKoNet, AtomBench, AtomVision + MACE-MP (D3), CHGNet, SevenNet, LAMMPS (`lammps[mpi]`, JARVIS-FF), phonopy, elastic, BoTorch; `code/atomistic/` | `jarvis.in`, `jarvis.override.txt` (pydantic 2/pyparsing 3 para o AtomVision), `jarvis.lock.txt` | instalado e executado ✓ (`smoke_test.sh jarvis`) |
+| `atomgpt` | 3.10 | `external/jarvis/atomgpt` (AtomGPT direto/inverso, DiffractGPT; torch 2.7, transformers, PEFT, TRL, bitsandbytes — **GPU**) | `atomgpt.*` | instalado; parte em CPU executada ✓ (modelo inverso exige GPU) |
 | `go-mace` | 3.11 | `projects/atomistic/GO-MACE-23` (gerador, potencial, `make_amorphous_db.py`) | `go-mace.*` | instalado e executado ✓ |
 | `sdl` | 3.11 | `projects/bayesian-optimization/SDL` | `sdl.*` | instalado e executado ✓ |
 | `text-mined` | 3.11 | notebook de `projects/literature-llm/text-mined-aunp-synthesis` | `text-mined.*` | notebook executado ✓ |
@@ -31,7 +33,7 @@ O script usa [uv](https://docs.astral.sh/uv/) (instala até a versão de Python 
 | `ambergo` | 3.11 | `projects/atomistic/AmberGO` (AmberTools; VMD e Discovery Studio à parte) | `ambergo.yml` | — (conda) |
 
 **Teste de execução de todos os ambientes:** `tools/smoke_test.sh` (cada subprojeto roda numa cópia
-temporária; `--install` cria o ambiente antes; resultado de 2026-09-29: 11/11 OK).
+temporária; `--install` cria o ambiente antes; resultado de 2026-09-29: 11/11 OK; o `jarvis`, acrescentado depois, também OK).
 
 "Resolve ✓" = `uv pip compile` encontrou um conjunto consistente de versões para Linux x86-64 (o
 `.lock.txt`); "instalado e executado ✓" = ambiente criado e código do subprojeto rodado com sucesso.
@@ -43,4 +45,7 @@ Observações:
 - Os repositórios em `external/` trazem seus próprios `requirements`/`pyproject`; a maior parte das
   bibliotecas deles já está no ambiente `core`.
 - Para regenerar um lock: `cd environments && uv pip compile <nome>.in --python-version <py> -o <nome>.lock.txt`
+  (com `--override <nome>.override.txt` quando existir; `jarvis` e `atomgpt`: `-p 3.11`/`-p 3.10 --python-platform x86_64-unknown-linux-gnu`).
+- `jarvis`: o ASE fica em `<3.27` porque o CHIPS-FF e o AtomGPT usam `ase.constraints.ExpCellFilter`; a biblioteca
+  Python do LAMMPS precisa de `LD_LIBRARY_PATH=.venvs/jarvis/lib` (o executável `lmp`, usado pelo JARVIS-FF, não).
   (se existir `<nome>.override.txt`, acrescente `--override <nome>.override.txt`; o `setup_env.sh` já o aplica).

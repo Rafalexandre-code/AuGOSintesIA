@@ -1,0 +1,38 @@
+rule train_flowmm_jarvis:
+    output:
+        touch("flowmm_benchmark_jarvis.trained")
+    input:
+        "flowmm_env.created",
+        "jarvis_data.created",
+        "flowmm_yamls.created"
+    shell:
+        """
+        sbatch --wait -p nvl --time=08:00:00 job_runs/flowmm_benchmark_jarvis/train_flowmm.job
+        """
+
+rule infer_flowmm_jarvis:
+    output:
+        touch("flowmm_benchmark_jarvis.inferred")
+    input:
+        "flowmm_env.created",
+        "jarvis_data.created",
+        "flowmm_benchmark_jarvis.trained",
+        "flowmm_yamls.created"
+    shell:
+        """
+        sbatch --wait -p nvl --time=08:00:00 job_runs/flowmm_benchmark_jarvis/inference_flowmm.job
+        """
+
+rule benchmark_flowmm_jarvis:
+    output:
+        touch("flowmm_benchmark_jarvis.final")
+    input:
+        "flowmm_env.created",
+        "jarvis_data.created",
+        "flowmm_benchmark_jarvis.trained",
+        "flowmm_benchmark_jarvis.inferred",
+        "flowmm_yamls.created"
+    shell:
+        """
+        bash job_runs/flowmm_benchmark_jarvis/write_benchmark.sh
+        """

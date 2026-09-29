@@ -52,6 +52,7 @@ MAPPING = {
     "code/characterization": ["{code}/characterization/**/*"],
     "code/causal": ["{code}/causal/**/*"],
     "code/sustainability": ["{code}/sustainability/**/*"],
+    "code/atomistic": ["{code}/atomistic/**/*"],
     "code/tests": ["{code}/tests/**/*"],
     "models": ["{code}/models/**/*"],
 }
@@ -70,6 +71,7 @@ FOLDER_DOCS = {
     "code/characterization": "Raman, XPS e TEM.",
     "code/causal": "DAG, DoWhy, E-value.",
     "code/sustainability": "E-factor, EcoScale, custo por informação útil.",
+    "code/atomistic": "Design inverso atomístico GO–Au com o JARVIS (dados, JARVIS-FF, CHIPS-FF, ALIGNN, InterMat).",
     "code/tests": "Testes automatizados do código.",
     "models": "Modelos treinados (GPs, redes) com a versão do código e dos dados usados.",
     "protocols": "SOPs versionados (protocols.csv + PDFs).",
@@ -120,7 +122,7 @@ def main() -> None:
                 # mantém subpastas de raw_data/protocols/code; arquivos avulsos vão direto
                 keep = any(pat.startswith(p) for p in ("raw_data", "protocols/", "go_navigator", "aunp_designer",
                                                        "transfer_learning", "benchmarking", "models", "spectral",
-                                                       "characterization", "causal", "sustainability", "tests"))
+                                                       "characterization", "causal", "sustainability", "atomistic", "tests"))
                 tail = rel.split(os.sep, 1)[1] if keep and os.sep in rel else os.path.basename(src)
                 out = os.path.join(dest, sub, tail)
                 os.makedirs(os.path.dirname(out), exist_ok=True)
