@@ -23,3 +23,14 @@ scikit-learn
 matplotlib
 seaborn
 jupyterlab
+# análise de dados de caracterização, benchmark, causalidade e incerteza (code/)
+pybaselines
+scikit-image
+pymoo
+causal-learn
+mapie
+statsmodels
+networkx
+rosettasciio
+pyyaml
+pytest

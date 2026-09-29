@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Modelo de dados do laboratório GO–AuNP (inspirado no NanoCommons KnowledgeBase / eNanoMapper / ACEnano).
 
-Cadeia: lote de reagente → lote de GO → preparo da amostra → XPS/Raman/AFM… → descritores com incerteza por lote
+Cadeia: lote de reagente (+ análises de impurezas) → lote de GO → preparo da amostra → XPS/Raman/AFM… → descritores com incerteza por lote
 → síntese de AuNP (condições + id do experimento do otimizador) → UV-Vis/TEM… → desfecho (objetivos/restrições).
 Cada medida guarda valor, incerteza, tipo de incerteza, nº de réplicas, unidade, instrumento, protocolo e arquivo bruto
 — o equivalente ao "effect record" do eNanoMapper (substância → protocolo → resultado).
@@ -66,6 +66,25 @@ TABLES: dict[str, dict] = {
         ("received_date", D, False, "", "", None), ("opened_date", D, False, "", "", None),
         ("storage", S, False, "", "ex.: 4 °C, escuro, dessecador", None),
         ("coa_file", S, False, "", "certificado de análise (metadata/)", None), ("notes", S, False, "", "", None)]},
+    "reagent_analyses": {"key": "analysis_id", "doc": "Módulo de impurezas (§4.3): análises de cada lote de reagente (iodeto no CTAB, metais por ICP-MS, água por KF, solventes residuais…).", "cols": [
+        ("analysis_id", "id", True, "", "ex.: RA-0001", None),
+        ("lot_id", "fk:reagent_lots", True, "", "lote analisado", None),
+        ("analyte", S, True, "", "iodide, Fe, Cu, Ag, water, residual_solvent, assay…", None),
+        ("method", S, False, "", "IC, ICP-MS, ICP-OES, KF, GC, titulação, CoA…", None),
+    ] + MEAS_TAIL},
+    "spectra": {"key": "spectrum_id", "doc": "Espectros brutos e metadados de aquisição padronizados (§4.4/§4.17): diluição, caminho óptico, branco, tempo após o preparo.", "cols": [
+        ("spectrum_id", "id", True, "", "ex.: UV-0001", None),
+        ("synthesis_id", "fk:aunp_syntheses", False, "", "síntese (vazio se for do GO)", None),
+        ("go_sample_id", "fk:go_samples", False, "", "amostra de GO (brancos de GO, Raman/XPS)", None),
+        ("technique", E, True, "", "técnica", ["UV-Vis", "Raman", "XPS", "FTIR", "XRD", "DLS", "SAXS", "other"]),
+        ("file", S, True, "", "arquivo bruto em dataset/raw_data/ (CSV: eixo, intensidade)", None),
+        ("blank_spectrum_id", "fk:spectra", False, "", "espectro do branco usado na subtração", None),
+        ("dilution_factor", F, False, "", "fator de diluição (≥ 1)", None),
+        ("path_length_mm", F, False, "mm", "caminho óptico da cubeta", None),
+        ("time_after_prep_min", F, False, "min", "tempo entre o preparo e a leitura", None),
+        ("instrument", S, False, "", "", None), ("date", D, False, "", "", None),
+        ("operator", S, False, "", "", None), ("protocol_id", "fk:protocols", False, "", "", None),
+        ("notes", S, False, "", "", None)]},
     "go_batches": {"key": "go_batch_id", "doc": "Lote de óxido de grafeno (comercial ou sintetizado) — a fonte de variabilidade.", "cols": [
         ("go_batch_id", "id", True, "", "ex.: GO-B01", None),
         ("source_type", E, True, "", "origem", ["commercial", "lab_synthesized"]),
@@ -100,6 +119,7 @@ TABLES: dict[str, dict] = {
                                                "elemental_analysis", "SEM", "TEM", "other"]),
         ("quantity", S, True, "", "C_O_ratio, sp2_fraction, C-O_fraction, C=O_fraction, O-C=O_fraction, ID_IG, "
                                   "I2D_IG, La_nm, thickness_nm, lateral_size_um, n_layers, abs_230nm …", None),
+        ("spectrum_id", "fk:spectra", False, "", "espectro de origem (proveniência)", None),
     ] + MEAS_TAIL},
     "go_descriptors": {"key": ("go_batch_id", "descriptor"), "doc": "Descritores por lote com incerteza (entrada do GO Navigator / transferência entre lotes).", "cols": [
         ("go_batch_id", "fk:go_batches", True, "", "", None),
@@ -129,7 +149,16 @@ TABLES: dict[str, dict] = {
         ("campaign_id", S, False, "", "campanha de otimização", None),
         ("design_id", S, False, "", "id do candidato proposto pelo otimizador (iteração/lote)", None),
         ("fidelity", E, False, "", "fidelidade (MISO/multi-fidelidade)", ["high", "low", "simulation", ""]),
-        ("platform", E, False, "", "", ["manual", "robot", "flow", ""]), ("date", D, False, "", "", None),
+        ("platform", E, False, "", "", ["manual", "robot", "flow", ""]),
+        ("hardware", S, False, "", "equipamento de aquecimento/mistura (hot plate, banho-maria, reator de fluxo…) — §4.7", None),
+        ("is_control", E, False, "", "controle: sem GO / branco de GO tratado / réplica de referência (§4.17)",
+         ["none", "no_GO", "GO_blank", "reference", ""]),
+        ("preparation_id", S, False, "", "preparação física (alíquotas da mesma preparação NÃO são sínteses novas)", None),
+        ("block", S, False, "", "bloco de randomização (dia/operador) — §4.9, §4.11", None),
+        ("run_order", I, False, "", "ordem de execução dentro do bloco (randomizada)", None),
+        ("status", E, False, "", "resultado da execução (falhas ficam no registro — §4.17)",
+         ["done", "failed", "repeated", "planned", ""]),
+        ("date", D, False, "", "", None),
         ("operator", S, False, "", "", None), ("protocol_id", "fk:protocols", False, "", "", None),
         ("notes", S, False, "", "", None)]},
     "aunp_characterization": {"key": "measurement_id", "doc": "Medidas do produto (UV-Vis, TEM, DLS, zeta, XRD, XPS, ICP…).", "cols": [
@@ -138,7 +167,9 @@ TABLES: dict[str, dict] = {
         ("technique", E, True, "", "técnica", ["UV-Vis", "TEM", "SEM", "DLS", "zeta", "XRD", "XPS", "ICP-OES",
                                                "ICP-MS", "SERS", "catalysis", "other"]),
         ("quantity", S, True, "", "LSPR_nm, LSPR_FWHM_nm, A_LSPR, A400, size_mean_nm, size_sd_nm, n_particles, "
-                                  "aspect_ratio, hydrodynamic_nm, PDI, zeta_mV, Au_loading_wt, yield_pct, k_app_s-1 …", None),
+                                  "aspect_ratio, hydrodynamic_nm, PDI, zeta_mV, Au_loading_wt, yield_pct, k_app_s-1, spectral_loss_J, "
+                                  "GO_associated_fraction …", None),
+        ("spectrum_id", "fk:spectra", False, "", "espectro de origem (proveniência)", None),
     ] + MEAS_TAIL},
     "outcomes": {"key": ("synthesis_id", "objective"), "doc": "Objetivos/restrições usados pelo otimizador (derivados das medidas).", "cols": [
         ("synthesis_id", "fk:aunp_syntheses", True, "", "", None),

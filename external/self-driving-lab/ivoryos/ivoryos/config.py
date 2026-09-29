@@ -1,0 +1,70 @@
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+
+class Config:
+    SECRET_KEY = os.getenv('SECRET_KEY', 'default_secret_key')
+    OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', None)
+
+    OUTPUT_FOLDER = os.path.join(os.path.abspath(os.curdir), 'ivoryos_data')
+    CSV_FOLDER = os.path.join(OUTPUT_FOLDER, 'config_csv/')
+    SCRIPT_FOLDER = os.path.join(OUTPUT_FOLDER, 'scripts/')
+    DATA_FOLDER = os.path.join(OUTPUT_FOLDER, 'results/')
+    LOG_FOLDER = os.path.join(OUTPUT_FOLDER, 'logs/')
+    DUMMY_DECK = os.path.join(OUTPUT_FOLDER, 'pseudo_deck/')
+    LLM_OUTPUT = os.path.join(OUTPUT_FOLDER, 'llm_output/')
+    DECK_HISTORY = os.path.join(OUTPUT_FOLDER, 'deck_history.txt')
+    LOGGERS_PATH = "default.log"
+
+    # To use Supabase, set IVORYOS_DB_URI or DATABASE_URL env var
+    SQLALCHEMY_DATABASE_URI = os.getenv('IVORYOS_DB_URI') or os.getenv('DATABASE_URL') or f"sqlite:///{os.path.join(OUTPUT_FOLDER, 'ivoryos.db')}"
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    ENABLE_AGENT = True if OPENAI_API_KEY else False
+    OFF_LINE = True
+
+
+class DevelopmentConfig(Config):
+    DEBUG = True
+
+
+class ProductionConfig(Config):
+    DEBUG = False
+
+
+class TestingConfig(Config):
+    DEBUG = True
+    TESTING = True
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'  # Use an in-memory SQLite database for tests
+    WTF_CSRF_ENABLED = False  # Disable CSRF for testing forms
+
+
+
+class DemoConfig(Config):
+    DEBUG = False
+    DEMO_MODE = True
+    OUTPUT_FOLDER = os.path.join(os.path.abspath(os.curdir), 'ivoryos_demo_data')
+    SQLALCHEMY_DATABASE_URI = os.getenv('IVORYOS_DB_URI') or os.getenv('DATABASE_URL') or f"sqlite:///{os.path.join(OUTPUT_FOLDER, 'ivoryos.db')}"
+    CSV_FOLDER = os.path.join(OUTPUT_FOLDER, 'config_csv/')
+    SCRIPT_FOLDER = os.path.join(OUTPUT_FOLDER, 'scripts/')
+    DATA_FOLDER = os.path.join(OUTPUT_FOLDER, 'results/')
+    LOG_FOLDER = os.path.join(OUTPUT_FOLDER, 'logs/')
+    DUMMY_DECK = os.path.join(OUTPUT_FOLDER, 'pseudo_deck/')
+    LLM_OUTPUT = os.path.join(OUTPUT_FOLDER, 'llm_output/')
+    DECK_HISTORY = os.path.join(OUTPUT_FOLDER, 'deck_history.txt')
+    # session and cookies
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_SAMESITE = "None"
+    SESSION_COOKIE_HTTPONLY = True
+
+def get_config(env='dev'):
+    if env == 'production':
+        return ProductionConfig()
+    elif env == 'testing':
+        return TestingConfig()
+    elif env == 'demo':
+        return DemoConfig()
+    return DevelopmentConfig()

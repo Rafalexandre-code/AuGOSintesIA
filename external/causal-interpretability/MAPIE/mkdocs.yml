@@ -1,0 +1,187 @@
+site_name: MAPIE
+site_url: !ENV [READTHEDOCS_CANONICAL_URL, "https://mapie.readthedocs.io/en/latest/"]
+site_description: "Model Agnostic Prediction Interval Estimator — Conformal Prediction for Python"
+site_author: MAPIE Team
+repo_url: https://github.com/scikit-learn-contrib/MAPIE
+repo_name: scikit-learn-contrib/MAPIE
+edit_uri: edit/master/doc/
+
+theme:
+  name: material
+  logo: images/mapie_logo_white_cut.png
+  favicon: images/mapie_logo_m_cut.png
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.top
+    - navigation.indexes
+    - toc.integrate
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.copy
+    - content.code.annotate
+  font:
+    text: Inter
+    code: JetBrains Mono
+
+docs_dir: doc
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [.]
+          options:
+            show_source: true
+            show_bases: true
+            show_root_heading: true
+            show_root_full_path: true
+            heading_level: 2
+            members_order: source
+            docstring_style: numpy
+            docstring_section_style: spacy
+            show_signature_annotations: true
+            separate_signature: true
+            line_length: 60
+            merge_init_into_class: true
+            show_symbol_type_heading: true
+  - gallery:
+      examples_dirs:
+        - examples/regression
+        - examples/classification
+        - examples/conditional_cp
+        - examples/calibration
+        - examples/risk_control
+        - examples/exchangeability_testing
+      ignore_pattern: "(utils\\.py)$"
+      gallery_dirs:
+        - doc/generated/regression
+        - doc/generated/classification
+        - doc/generated/conditional_cp
+        - doc/generated/calibration
+        - doc/generated/risk_control
+        - doc/generated/exchangeability_testing
+      within_subsection_order: FileNameSortKey
+      plot_gallery: true
+      run_stale_examples: false
+      download_all_examples: false
+      abort_on_example_error: true
+      only_warn_on_example_error: false
+
+hooks:
+  - doc/hooks/gallery_memory.py
+  - doc/hooks/api_reference.py
+  - doc/hooks/gallery_nav_fix.py
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+
+extra_css:
+  - stylesheets/extra.css
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/scikit-learn-contrib/MAPIE
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/mapie/
+  generator: false
+
+copyright: Copyright &copy; 2021 - 2026 MAPIE Team — BSD-3-Clause License
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Quick Start: content/getting-started/quick-start.md
+    - Choosing the Right Algorithm: content/getting-started/choosing-algorithm.md
+    - v1 Release Notes: content/getting-started/v1-release-notes.md
+  - Conformal Prediction:
+    - Overview: content/conformal-prediction/index.md
+    - Theory:
+      - Foundations: content/conformal-prediction/theory.md
+      - Split vs. Cross Conformal: content/conformal-prediction/split-cross-conformal.md
+      - Regression: content/conformal-prediction/regression.md
+      - Classification: content/conformal-prediction/classification.md
+      - Conformity Scores: content/conformal-prediction/conformity-scores.md
+      - Conditional Guarantees: content/conformal-prediction/conditional-guarantees.md
+    - Metrics: content/conformal-prediction/metrics.md
+    - Examples:
+      - Regression: generated/regression
+      - Classification: generated/classification
+      - Conditional: generated/conditional_cp
+  - Risk Control:
+    - Overview: content/risk-control/index.md
+    - Theory: content/risk-control/theory.md
+    - LLM Risk Control: content/risk-control/llm-risk-control.md
+    - Examples: generated/risk_control
+  - Calibration:
+    - Overview: content/calibration/index.md
+    - Theory: content/calibration/theory.md
+    - Metrics: content/calibration/metrics.md
+    - Examples: generated/calibration
+    - Notebooks: content/calibration/notebooks.md
+  - Exchangeability Testing:
+    - Overview: content/exchangeability-testing/index.md
+    - Theory: content/exchangeability-testing/theory.md
+    - Examples: generated/exchangeability_testing
+  - All Examples: content/all-examples/index.md
+  # Populated from the public Python API by doc/hooks/api_reference.py.
+  - API Reference: []
+  - Contributing: content/contributing-docs.md

@@ -1,0 +1,705 @@
+{# Bayesian optimization tab component #}
+
+<div class="tab-pane fade h-100" id="tab3" role="tabpanel" aria-labelledby="tab3-tab">
+
+    <form method="POST" name="bo" action="{{ url_for('execute.run_bo') }}" class="h-100" enctype="multipart/form-data">
+        <div class="row h-100 overflow-auto">
+            <!-- Sidebar: Data & Controls -->
+            <div class="col-xl-3 col-lg-4 mb-3">
+                <div class="card border-0 bg-transparent">
+                    <div class="d-flex flex-column gap-3">
+                        <!-- Data Source Card -->
+                        <div class="card shadow-sm">
+                            <div class="card-header py-2">
+                                <h6 class="mb-0 fw-bold"><i class="bi bi-database me-2"></i>Data Source</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-grid gap-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="data_mode_toggle"
+                                            id="data_mode_toggle">
+                                        <label class="form-check-label small" for="data_mode_toggle">
+                                            Upload new data
+                                        </label>
+                                    </div>
+
+                                    <!-- Existing Data Select -->
+                                    <div id="existing_data_section">
+                                        <label class="form-label small text-muted mb-1">Existing File</label>
+                                        <select class="form-select form-select-sm" id="existing_data"
+                                            name="existing_data">
+                                            <option value="">-- Select file --</option>
+                                            {% for data in data_list %}
+                                            <option value="{{ data }}">{{ data }} </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+
+                                    <!-- Upload CSV -->
+                                    <div id="upload_data_section" style="display: none;">
+                                        <label class="form-label small text-muted mb-1">Upload CSV</label>
+                                        <input type="file" class="form-control form-control-sm" name="uploaded_data"
+                                            accept=".csv">
+                                    </div>
+
+                                    <!-- Preview Button -->
+                                    <button type="button" class="btn btn-outline-teal btn-sm" id="previewBtn"
+                                        disabled>
+                                        <i class="bi bi-table me-1"></i> Preview Data
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Run Settings Card -->
+                        <div class="card shadow-sm">
+                            <div class="card-header py-2">
+                                <h6 class="mb-0 fw-bold"><i class="bi bi-sliders me-2"></i>Run Settings</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label class="form-label small text-muted">Experiment Name</label>
+                                    <input class="form-control form-control-sm" type="text" id="display_name_bo" name="display_name" placeholder="{{ script.name if script.name else 'untitled' }}">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small text-muted">Batch size (# of suggestions)</label>
+                                    <input class="form-control form-control-sm" type="number" id="batch_size"
+                                        name="batch_size" min="1" max="100" value="1">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small text-muted">Max Iterations</label>
+                                    <input class="form-control form-control-sm" type="number" id="repeat" name="repeat"
+                                        min="1" max="1000" value="25">
+                                </div>
+
+                                {% if not no_deck_warning%}
+                                <div class="d-grid">
+                                    <button class="btn btn-teal shadow-sm py-2" type="submit" name="bo">
+                                        <i class="bi bi-lightning-charge-fill me-2"></i> Run Optimization
+                                    </button>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content: Configuration -->
+            <div class="col-xl-9 col-lg-8">
+                <!-- Optimizer Selection (Moved to Main) -->
+                <div class="card shadow-sm mb-3">
+                    <div class="card-header py-2">
+                        <h6 class="mb-0 fw-bold"><i class="bi bi-gear me-2"></i>Optimizer Strategy</h6>
+                    </div>
+                    <div class="card-body">
+                        <select class="form-select form-select-sm" id="optimizer_type" name="optimizer_type">
+                            {% if optimizer_schema|length != 1 %}
+                            <option value="">-- Select Strategy --</option>
+                            {% endif %}
+                            {% for optimizer_name, optimizer_info in optimizer_schema.items() %}
+                            <option value="{{ optimizer_name }}"
+                                {% if optimizer_schema|length == 1 %}selected{% endif %}
+                                data-multiobjective="{{ optimizer_info.multiple_objectives }}"
+                                data-parameter-types="{{ optimizer_info.parameter_types|join(',') }}"
+                                data-optimizer-config="{{ optimizer_info.optimizer_config|tojson|e }}">
+                                {{ optimizer_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+
+                    </div>
+                </div>
+                <div class="card shadow-sm ">
+                    <div class="card-header bg-light p-0 border-bottom-0">
+                        <!-- Tabs Navigation -->
+                        <ul class="nav nav-tabs card-header-tabs m-0 px-3 pt-2" id="configTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active py-2" id="parameters-tab" data-bs-toggle="tab"
+                                    data-bs-target="#parameters" type="button" role="tab">
+                                    Parameters & Objectives
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link py-2" id="strategy-tab" data-bs-toggle="tab"
+                                    data-bs-target="#strategy" type="button" role="tab">
+                                    Model Configuration
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link py-2" id="advanced-tab" data-bs-toggle="tab"
+                                    data-bs-target="#advanced" type="button" role="tab">
+                                    Advanced
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="card-body overflow-auto">
+                        <div class="tab-content" id="configTabContent">
+                            <!-- Parameters Tab -->
+                            <div class="tab-pane fade show active" id="parameters" role="tabpanel"
+                                aria-labelledby="parameters-tab">
+                                <div class="row g-4">
+                                    <!-- Parameters Section -->
+                                    <div class="col-12">
+                                        <h6 class="fw-bold border-bottom pb-2 mb-3 text-secondary">Input Parameters
+                                        </h6>
+                                        <div id="parameters_container">
+                                            {% for config in config_list %}
+                                            <div class="row align-items-center mb-2 parameter-row g-2">
+                                                <div class="col-md-3">
+                                                    <label class="col-form-label col-form-label-sm fw-medium">{{
+                                                        config }}</label>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <select class="form-select form-select-sm parameter-type bg-light"
+                                                        id="{{config}}_type" name="{{config}}_type"
+                                                        onchange="updateParameterInputs(this)">
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-6 parameter-inputs">
+                                                    <input type="text" class="form-control form-control-sm single-input"
+                                                        id="{{config}}_value" name="{{config}}_value"
+                                                        placeholder="Fixed value (e.g. 10)">
+                                                    <div class="range-inputs" style="display: none;">
+                                                        <div class="input-group input-group-sm">
+                                                            <input type="text" class="form-control" id="{{config}}_min"
+                                                                name="{{config}}_min" placeholder="Min" required>
+                                                            <span
+                                                                class="input-group-text px-1 border-start-0 border-end-0 bg-transparent">-</span>
+                                                            <input type="text" class="form-control" id="{{config}}_max"
+                                                                name="{{config}}_max" placeholder="Max" required>
+                                                            <input type="text" class="form-control" id="{{config}}_step"
+                                                                name="{{config}}_step" placeholder="Step">
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+
+                                    <!-- Objectives Section -->
+                                    <div class="col-12">
+                                        <h6 class="fw-bold border-bottom pb-2 mb-3 text-secondary">Objectives</h6>
+                                        {% for objective in return_list %}
+                                        <div class="row align-items-center mb-2 g-2">
+                                            <div class="col-md-3">
+                                                <label class="col-form-label col-form-label-sm fw-medium">{{
+                                                    objective }}</label>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <select class="form-select form-select-sm bg-light"
+                                                    id="{{objective}}_obj_min" name="{{objective}}_obj_min">
+                                                    <option selected>minimize</option>
+                                                    <option>maximize</option>
+                                                    <option>none</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <input class="form-control form-control-sm" type="number" step="any"
+                                                    id="{{objective}}_obj_threshold" name="{{objective}}_obj_threshold"
+                                                    placeholder="Early stop threshold (optional)">
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+
+                                    <!-- Constraints & Budget Split -->
+                                    <div class="col-12">
+                                        <div id="constraints_section">
+                                            <h6 class="fw-bold border-bottom pb-2 mb-3 text-secondary">Constraints
+                                                (optional, Ax expression only)
+                                            </h6>
+                                            <div id="constraints_container">
+                                                <div class="input-group input-group-sm mb-2 constraint-row">
+                                                    <input type="text" class="form-control" name="constraint_expr"
+                                                        placeholder="e.g. a + b <= 80">
+                                                    <button type="button" class="btn btn-outline-secondary"
+                                                        onclick="addConstraintRow()">+</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+
+                                </div>
+                            </div>
+
+                            <!-- Strategy Tab -->
+                            <div class="tab-pane fade" id="strategy" role="tabpanel" aria-labelledby="strategy">
+                                <div id="optimizer_config_container" style="display: none;">
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <div class="card h-100 bg-light border">
+                                                <div class="card-header py-1 bg-white border-bottom">
+                                                    <small class="fw-bold text-muted">Step 1 Configuration</small>
+                                                </div>
+                                                <div class="card-body">
+                                                    <div class="mb-3">
+                                                        <label class="form-label small fw-bold">Surrogate
+                                                            Model</label>
+                                                        <select class="form-select form-select-sm" id="step1_model"
+                                                            name="step1_model"></select>
+                                                    </div>
+                                                    <div class="mb-3" id="step1_num_samples_row">
+                                                        <label class="form-label small fw-bold">Num Samples</label>
+                                                        <input type="number" class="form-control form-control-sm"
+                                                            id="step1_num_samples" name="step1_num_samples" min="0">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-md-6">
+                                            <div class="card h-100 bg-light border">
+                                                <div class="card-header py-1 bg-white border-bottom">
+                                                    <small class="fw-bold text-muted">Step 2 Configuration</small>
+                                                </div>
+                                                <div class="card-body">
+                                                    <div class="mb-3">
+                                                        <label class="form-label small fw-bold">Acquisition
+                                                            Function</label>
+                                                        <select class="form-select form-select-sm" id="step2_model"
+                                                            name="step2_model"></select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="optimizer_config_placeholder" class="text-center py-5 text-muted">
+                                    <i class="bi bi-arrow-left-circle fs-4 mb-2 d-block"></i>
+                                    Please select an optimizer from the sidebar first.
+                                </div>
+                            </div>
+
+                            <!-- Advanced Tab -->
+                            <div class="tab-pane fade" id="advanced" role="tabpanel" aria-labelledby="advanced">
+                                <div id="advanced_settings_container">
+                                    <div class="text-center py-5 text-muted">
+                                        No advanced settings available for current selection.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <!-- Data Preview Modal -->
+    <div class="modal fade" id="dataPreviewModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title fw-bold"><i class="bi bi-table me-2"></i>Data Preview</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div id="data_preview_content" class="table-responsive">
+                        <!-- Content injected via JS -->
+                    </div>
+                </div>
+                <div class="modal-footer py-1">
+                    <small class="text-muted me-auto" id="previewFilename"></small>
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script>
+    const optimizerSchema = {{ optimizer_schema| tojson }};
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const dataSelect = document.getElementById('existing_data');
+        const previewBtn = document.getElementById('previewBtn');
+        const previewContent = document.getElementById('data_preview_content');
+        const previewFilename = document.getElementById('previewFilename');
+        const optimizerSelect = document.getElementById("optimizer_type");
+        const toggle = document.getElementById('data_mode_toggle');
+        const existingSection = document.getElementById('existing_data_section');
+        const uploadSection = document.getElementById('upload_data_section');
+
+        let previewModal = null;
+
+        // Initialize Modal
+        const modalEl = document.getElementById('dataPreviewModal');
+        if (modalEl) {
+            // Move modal to body to prevent z-index/display issues with tabs
+            document.body.appendChild(modalEl);
+            try {
+                previewModal = new bootstrap.Modal(modalEl);
+            } catch (e) {
+                console.error("Failed to initialize Bootstrap Modal:", e);
+            }
+        }
+
+        // Enable/Disable Preview Button & Handle Toggle
+        function updateUIState() {
+            const isUpload = toggle && toggle.checked;
+
+            // Update Toggle Sections
+            if (toggle) {
+                if (isUpload) {
+                    existingSection.style.display = 'none';
+                    uploadSection.style.display = 'block';
+                } else {
+                    existingSection.style.display = 'block';
+                    uploadSection.style.display = 'none';
+                }
+            }
+
+            // Update Preview Button
+            if (previewBtn) {
+                if (isUpload) {
+                    // Disable preview in upload mode (feature not implemented yet)
+                    previewBtn.disabled = true;
+                    previewBtn.title = "Preview not available for new uploads";
+                } else {
+                    // Enable if file selected
+                    previewBtn.disabled = !dataSelect || !dataSelect.value;
+                    previewBtn.title = "Preview selected file";
+                }
+            }
+        }
+
+        // Event Listeners for UI State
+        if (dataSelect) {
+            dataSelect.addEventListener('change', updateUIState);
+        }
+        if (toggle) {
+            toggle.addEventListener('change', updateUIState);
+        }
+
+        // Initial check
+        updateUIState();
+
+
+        // Preview Click Handler
+        if (previewBtn) {
+            previewBtn.addEventListener('click', function () {
+                const filename = dataSelect.value;
+                if (!filename) return;
+
+                // Show loading state
+                previewContent.innerHTML = '<div class="text-center p-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-muted">Loading data...</div></div>';
+                previewFilename.textContent = `File: ${filename}`;
+
+                if (previewModal) previewModal.show();
+
+                const url = '{{ url_for("execute.data_preview", filename="FILENAME") }}'.replace('FILENAME', encodeURIComponent(filename));
+
+                fetch(url)
+                    .then(response => {
+                        if (!response.ok) throw new Error('Network response was not ok');
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (!data.rows || data.rows.length === 0) {
+                            previewContent.innerHTML = '<div class="p-3 text-center text-muted">No data found in file.</div>';
+                            return;
+                        }
+
+                        // Build table
+                        let html = '<table class="table table-sm table-striped table-hover mb-0" style="font-size: 0.85rem;">';
+                        html += '<thead class="table-light sticky-top"><tr>';
+                        data.columns.forEach(col => html += `<th class="px-2 py-1 text-nowrap">${col}</th>`);
+                        html += '</tr></thead><tbody>';
+
+                        data.rows.forEach(row => {
+                            html += '<tr>';
+                            data.columns.forEach(col => html += `<td class="px-2 py-1">${row[col] || ''}</td>`);
+                            html += '</tr>';
+                        });
+                        html += '</tbody></table>';
+
+                        previewContent.innerHTML = html;
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        previewContent.innerHTML = `<div class="alert alert-danger m-3">Failed to load data preview. <br><small>${err.message}</small></div>`;
+                    });
+            });
+        }
+
+
+        const updateOptimizerConfig = (config) => {
+            const container = document.getElementById('optimizer_config_container');
+            const placeholder = document.getElementById('optimizer_config_placeholder');
+
+            if (!config || !config.step_1) {
+                if (container) container.style.display = 'none';
+                if (placeholder) placeholder.style.display = 'block';
+                return;
+            }
+
+            if (placeholder) placeholder.style.display = 'none';
+            if (container) container.style.display = 'block';
+
+            // Update Step 1
+            const step1ModelSelect = document.getElementById('step1_model');
+            if (step1ModelSelect && config.step_1.model) {
+                step1ModelSelect.innerHTML = '';
+                config.step_1.model.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model;
+                    option.textContent = model;
+                    step1ModelSelect.appendChild(option);
+                });
+            }
+
+            // Update Step 1 num_samples if exists
+            const step1NumSamplesRow = document.getElementById('step1_num_samples_row');
+            const step1NumSamplesInput = document.getElementById('step1_num_samples');
+            if (step1NumSamplesRow && step1NumSamplesInput) {
+                if (config.step_1.num_samples !== undefined) {
+                    step1NumSamplesRow.style.display = '';
+                    step1NumSamplesInput.value = config.step_1.num_samples;
+                } else {
+                    step1NumSamplesRow.style.display = 'none';
+                }
+            }
+
+            // Update Step 2
+            if (config.step_2) {
+                const step2ModelSelect = document.getElementById('step2_model');
+                if (step2ModelSelect && config.step_2.model) {
+                    step2ModelSelect.innerHTML = '';
+                    config.step_2.model.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model;
+                        option.textContent = model;
+                        step2ModelSelect.appendChild(option);
+                    });
+                }
+            }
+        };
+
+        const renderAdvancedSettings = (fields) => {
+            const container = document.getElementById("advanced_settings_container");
+            if (!container) return;
+
+            container.innerHTML = "";
+            Object.entries(fields).forEach(([name, spec]) => {
+                let html = "";
+                if (spec.type === "choice") {
+                    html = `
+                        <label class="form-label mt-2 small fw-bold">${name}</label>
+                        <select name="adv_${name}" class="form-select form-select-sm">
+                            ${spec.options.map(o => `<option value="${o}">${o}</option>`).join("")}
+                        </select>
+                    `;
+                }
+                else if (spec.type === "int" || spec.type === "float") {
+                    html = `
+                        <label class="form-label mt-2 small fw-bold">${name}</label>
+                        <input type="number" step="${spec.type === 'float' ? 'any' : '1'}" name="adv_${name}" class="form-control form-control-sm" placeholder="Optional">
+                    `;
+                }
+                else if (spec.type.startsWith("list")) {
+                    html = `
+                        <label class="form-label mt-2 small fw-bold">${name} (comma-separated)</label>
+                        <input type="text" name="adv_${name}" class="form-control form-control-sm" placeholder="e.g. 1, 2, 3">
+                    `;
+                }
+                container.innerHTML += `<div>${html}</div>`;
+            });
+        };
+
+        const updateOptimizerInfo = () => {
+            const opt = optimizerSelect.value;
+            if (!opt) {
+                if (document.getElementById('optimizer_config_container'))
+                    document.getElementById('optimizer_config_container').style.display = 'none';
+                if (document.getElementById('optimizer_config_placeholder'))
+                    document.getElementById('optimizer_config_placeholder').style.display = 'block';
+                return;
+            }
+
+            const schema = optimizerSchema[opt];
+            if (!schema) return;
+
+            if (schema.optimizer_config) {
+                updateOptimizerConfig(schema.optimizer_config);
+            }
+            if (schema.additional_field) {
+                renderAdvancedSettings(schema.additional_field);
+            }
+            const supportsContinuous = schema.supports_continuous !== false;
+            const available = schema.parameter_types || ["range", "choice", "fixed"];
+
+            document.querySelectorAll(".parameter-type").forEach(sel => {
+                const currentValue = sel.value;
+                sel.innerHTML = available.map(t => `<option value="${t}">${t}</option>`).join("");
+
+                if (available.includes(currentValue)) {
+                    sel.value = currentValue;
+                } else {
+                    sel.value = available.includes("range") ? "range" : available[0];
+                }
+
+                updateParameterInputs(sel, supportsContinuous);
+            });
+
+            if (document.getElementById("constraints_section"))
+                document.getElementById("constraints_section").style.display = schema.supports_constraints === false ? "none" : "block";
+
+            saveFormData();
+        };
+
+        const updateParameterInputs = (selectElement, supportsContinuous = true) => {
+            const row = selectElement.closest(".parameter-row");
+            if (!row) return;
+            const single = row.querySelector(".single-input");
+            const range = row.querySelector(".range-inputs");
+            const isRange = selectElement.value === "range";
+
+            if (single) single.style.display = isRange ? "none" : "block";
+            if (range) range.style.display = isRange ? "block" : "none";
+
+            const stepInput = range?.querySelector('input[name$="_step"]');
+            if (stepInput) {
+                if (!supportsContinuous) {
+                    stepInput.required = true;
+                    stepInput.placeholder = "Step (required)";
+                } else {
+                    stepInput.required = false;
+                    stepInput.placeholder = "Step (optional)";
+                }
+            }
+        };
+
+        // Bind events for Optimizer
+        if (optimizerSelect) {
+            optimizerSelect.addEventListener("change", () => {
+                updateOptimizerInfo();
+                saveFormData();
+            });
+        }
+
+        const form = document.querySelector('form[name="bo"]');
+        if (form) {
+            form.addEventListener("input", saveFormData);
+            form.addEventListener("change", saveFormData);
+        }
+
+        document.querySelectorAll(".parameter-type").forEach(sel =>
+            sel.addEventListener("change", e => {
+                const opt = optimizerSelect.value;
+                const schema = opt ? optimizerSchema[opt] : null;
+                const supportsContinuous = schema ? (schema.supports_continuous !== false) : true;
+                updateParameterInputs(e.target, supportsContinuous);
+                saveFormData();
+            })
+        );
+
+        // ... Save/Load State Logic ...
+        const FORM_STATE_KEY = "bo_form_state";
+        let saveTimeout = null;
+
+        function saveFormData() {
+            if (!form) return;
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(() => {
+                const formData = new FormData(form);
+                const data = {};
+                for (let [key, value] of formData.entries()) {
+                    data[key] = value;
+                }
+                try {
+                    sessionStorage.setItem(FORM_STATE_KEY, JSON.stringify(data));
+                } catch (e) { console.warn(e); }
+            }, 500);
+        };
+
+        function loadSavedData() {
+            try {
+                const saved = sessionStorage.getItem(FORM_STATE_KEY);
+                return saved ? JSON.parse(saved) : null;
+            } catch (e) { return null; }
+        };
+
+        function restoreState() {
+            const data = loadSavedData();
+            if (!data) return;
+
+            if (data.optimizer_type && optimizerSelect) {
+                optimizerSelect.value = data.optimizer_type;
+            }
+
+            if (optimizerSelect && optimizerSelect.value) {
+                updateOptimizerInfo();
+            }
+
+            setTimeout(() => {
+                Object.entries(data).forEach(([key, value]) => {
+                    // ... existing restore logic ...
+                    const el = form.querySelector(`[name="${key}"]`);
+                    if (el) {
+                        if (el.type === 'file') return;
+                        if (el.type === 'checkbox' || el.type === 'radio') {
+                            el.checked = true;
+                            if (el.id === 'data_mode_toggle') {
+                                // Manually trigger the toggle handler
+                                // el.dispatchEvent(new Event('change')); 
+                                // Actually we called updateUIState() globally, so we just need to ensure UI reflects it.
+                            }
+                        } else {
+                            el.value = value;
+                        }
+                    }
+                });
+                // Ensure UI is updated after restoring toggle state
+                updateUIState();
+
+                // Trigger update of parameter inputs to show/hide ranges correctly
+                const opt = optimizerSelect ? optimizerSelect.value : null;
+                const schema = (opt && optimizerSchema) ? optimizerSchema[opt] : null;
+                const supportsContinuous = schema ? (schema.supports_continuous !== false) : true;
+
+                document.querySelectorAll(".parameter-type").forEach(sel => {
+                    updateParameterInputs(sel, supportsContinuous);
+                });
+
+            }, 100);
+        }
+
+        // Restore
+        restoreState();
+
+        // If only one optimizer available, it's already pre-selected server-side;
+        // trigger info update immediately so config panels populate on load.
+        if (optimizerSelect && optimizerSelect.value) {
+            updateOptimizerInfo();
+        }
+
+        // Window unload
+        window.addEventListener('beforeunload', saveFormData);
+
+        // Global exposure (if needed by other scripts, though unlikely)
+        window.saveBO = saveFormData;
+        window.loadBO = restoreState;
+
+    });
+
+    // These need to be global for HTML onclick attributes (addConstraintRow)
+    function addConstraintRow() {
+        const container = document.getElementById('constraints_container');
+        const newRow = document.createElement('div');
+        newRow.classList.add('input-group', 'input-group-sm', 'mb-2', 'constraint-row');
+        newRow.innerHTML = `
+            <input type="text" class="form-control" name="constraint_expr" placeholder="e.g. a + b <= 80">
+            <button type="button" class="btn btn-outline-danger" onclick="removeConstraintRow(this)">-</button>
+        `;
+        container.appendChild(newRow);
+    }
+    function removeConstraintRow(button) {
+        button.closest('.constraint-row').remove();
+    }
+</script>

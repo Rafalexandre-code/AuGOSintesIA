@@ -5,7 +5,7 @@
 > nanocompósitos GO–AuNP sob variabilidade multi-fonte de matéria-prima"*.
 >
 > Análise feita em 2026-09-29 sobre o commit `e18986f` (2 commits, ~2 870 arquivos, ~1,7 GB em disco).
-> **Atualizado no mesmo dia:** 48 (depois 58) repositórios externos em `external/` (§10), ambientes por
+> **Atualizado no mesmo dia:** 48 (depois 58, hoje 75) repositórios externos em `external/` (§10), ambientes por
 > subprojeto em `environments/` (§11) e correção dos problemas listados antes (§7).
 > **Reorganizado:** a antiga pasta `Data/` foi dividida em `datasets/`, `projects/<módulo>/` e `external/`;
 > `Articles/` virou `literature/` (§12). Os nomes antigos (`Data/…-main`) aparecem só no histórico do git.
@@ -44,6 +44,7 @@
 12. [`literature/` — corpus dos artigos citados](#12-literature--corpus-dos-artigos-citados)
 13. [Fontes de dados, curadoria e depósito](#13-fontes-de-dados-curadoria-e-depósito)
 14. [`code/` — GO Navigator e AuNP Designer; verificação do repositório](#14-code--go-navigator-e-aunp-designer-verificação-do-repositório)
+15. [Proposta × ferramentas: revisão de atualidade (2026-09-29)](#15-proposta--ferramentas-revisão-de-atualidade-2026-09-29)
 
 ---
 
@@ -51,7 +52,7 @@
 
 O repositório **não é um software único**: é uma coleção curada de (a) o projeto de pesquisa, (b) o corpus
 de artigos citados, (c) datasets, (d) **13 subprojetos de terceiros** (código + dados, já corrigidos para
-rodar em qualquer SO), (e) **58 repositórios de referência** clonados (§10) e (f) a camada de fontes de dados
+rodar em qualquer SO), (e) **75 repositórios de referência** clonados (§10) e (f) a camada de fontes de dados
 (§13). Cada subprojeto tem
 dependências próprias e **deve ser usado em ambiente virtual separado** (`tools/setup_env.sh`, §11).
 
@@ -83,7 +84,8 @@ AuGOSintesIA/
 │   ├── inverse-design/       MatDesINNe
 │   ├── materials-ml/         M2Hub
 │   └── self-driving-lab/qubot/  hardware/ (CAD, BOM), data/, scripts/, README.pdf
-├── external/                           # 58 repositórios de referência (+ data-access/: clientes de API) (§10)
+├── code/                               # código do projeto: espectral, caracterização, Navigator, Designer, benchmark, causal (§14–§15)
+├── external/                           # 75 repositórios de referência (+ data-access/: clientes de API) (§10)
 ├── environments/                       # um ambiente por subprojeto (§11)
 ├── deposit/GO-AuNP-Autonomous-Design/  # estrutura do depósito Zenodo/MDF (§13)
 └── tools/                              # setup_env.sh, fetch_external.sh, external_repos.lock.tsv, data_sources/ (§13)
@@ -925,21 +927,21 @@ Execução: bancada manual  →  (opcional) Qubot/control-lab-ly  ;  SAXS/WAXS: 
 
 ## 10. Repositórios externos (external)
 
-58 repositórios do GitHub clonados para cobrir o que faltava à proposta (lista completa, licenças, o que foi
+75 repositórios do GitHub clonados para cobrir o que faltava à proposta (lista completa, licenças, o que foi
 podado e por quê: [`external/README.md`](../external/README.md); commit exato de cada um:
 [`tools/external_repos.lock.tsv`](../tools/external_repos.lock.tsv)). Organizados por módulo do projeto:
 
 | Pasta | Conteúdo principal | Módulo |
 |---|---|---|
-| `bayesian-optimization/` | BoTorch, GPyTorch, Ax, BayBE, BoFire, Honegumi, Obsidian, Olympus, Atlas, Summit, Optuna, **novelty-aware EGBO**, PV-Lab Benchmarking | AuNP Designer, benchmark |
-| `multi-fidelity/` | misoKG (NIPS 2017), ClancyLab PAL/PAL2 (Herbol et al.), MFBO | MISO |
-| `aunp-spectral/` | **HEAD** (Vaddi/Pozzo), **SPACESHIP**, BespokeSynthesisPlatform/NanoChef/Batch/UV-Vis (KIST, com dados UV-Vis de AuNP), miepython, PyMieScatt | perda espectral, dados reais |
-| `inverse-design/` | Neural Processes (DeepMind), Transformer Neural Processes | design inverso |
-| `causal-interpretability/` | DoWhy, EconML, SHAP, pyPESTO | causalidade, SHAP, identificabilidade |
+| `bayesian-optimization/` | BoTorch, GPyTorch, Ax, BayBE, BoFire, Honegumi, Obsidian, Olympus, Atlas, Summit, Optuna, **novelty-aware EGBO**, PV-Lab Benchmarking, pymoo, LLAMBO | AuNP Designer, benchmark |
+| `multi-fidelity/` | misoKG (NIPS 2017), ClancyLab PAL/PAL2 (Herbol et al.), MFBO, Emukit | MISO |
+| `aunp-spectral/` | **HEAD** (Vaddi/Pozzo), **activephasemap** (Vaddi 2025), **SPACESHIP**, BespokeSynthesisPlatform/NanoChef/Batch/UV-Vis (KIST, com dados UV-Vis de AuNP), miepython, PyMieScatt | perda espectral, dados reais |
+| `inverse-design/` | Neural Processes (DeepMind), Transformer Neural Processes, neuralprocesses | design inverso |
+| `causal-interpretability/` | DoWhy, EconML, SHAP, pyPESTO, causal-learn, MAPIE, ATHENA | causalidade, SHAP, identificabilidade, predição conformal, Active Subspaces |
 | `atomistic/` | MACE, mace-foundations, fairchem (UMA), HierGO | GO Navigator (inclui potenciais com Au) |
-| `characterization/` | pyFAI, fabio, sasmodels, lmfit, RamanSPy | SAXS/WAXS, XPS, Raman |
-| `literature-llm/` | LLaMA-Factory, LeMat-Synth, submódulos CederGroupHub | curadoria |
-| `self-driving-lab/` | RoboChem-Flex, Octopus | SDL |
+| `characterization/` | pyFAI, fabio, sasmodels, lmfit, RamanSPy, pybaselines | SAXS/WAXS, XPS, Raman |
+| `literature-llm/` | LLaMA-Factory, LeMat-Synth, submódulos CederGroupHub, marker, paper-qa, ChemDataExtractor2 | curadoria |
+| `self-driving-lab/` | RoboChem-Flex, Octopus, PyLabRobot, MADSci, AlabOS, IvoryOS | SDL |
 | `data-access/` | pyalex (OpenAlex), habanero (Crossref), unpywall, PubChemPy, zenodo_get, foundry (MDF), optimade-python-tools, mp-api, jarvis-tools, pynanomapper (eNanoMapper) | fontes de dados (§13) |
 
 Para manter tudo atualizado: `tools/fetch_external.sh --latest` (reclona e atualiza o lock).
@@ -1001,7 +1003,7 @@ Auditoria completa, fonte por fonte: [`FONTES_DE_DADOS.md`](FONTES_DE_DADOS.md).
     deles (`L−1`, `tribasic dihydrate`…) é excluída da contagem.
   - `build_literature_seed.py` → `datasets/literature-seed/`: 15 928 sínteses de Au; 312 citam GO/rGO. As classes de
     morfologia vêm dos regex de Cruse (`rsc/aunp_morph_syns_regex.json`), mais cluster, casca e partícula genérica.
-  - `lab_data_model.py` → `datasets/data-model/`: 9 tabelas, com validador, para a cadeia lote de GO → caracterização
+  - `lab_data_model.py` → `datasets/data-model/`: 11 tabelas (incluindo impurezas dos reagentes e espectros brutos), com validador, para a cadeia lote de GO → caracterização
     com incerteza → síntese → UV-Vis/TEM → desfecho.
   - `build_deposit.py` → `deposit/GO-AuNP-Autonomous-Design/`: estrutura do depósito, `.zenodo.json`,
     `CITATION.cff`, MANIFEST com sha256.
@@ -1018,12 +1020,11 @@ otimização bayesiana. Agora ele existe em [`code/`](../code/README.md) (ambien
 
 - `code/go_navigator/batch_descriptors.py`: média ± sd de cada descritor por lote de GO (de `go_characterization`
   ou `go_descriptors`) e a versão padronizada, que serve de contexto do GP.
-- `code/aunp_designer/designer.py`: um GP **Matérn-5/2 + ARD** por objetivo e **qLogNEHVI** (BoTorch). Os objetivos
-  `maximize`/`minimize`/`target` vêm de `outcomes.csv`, e a **transferência entre lotes** é contextual (descritores do
-  lote fixos na otimização). As propostas saem no formato de `aunp_syntheses.csv`. `designer.py literature`
-  resume as faixas de condições na semente da literatura, e `designer.py demo` roda o laço completo com um simulador
-  **de brinquedo** (dados SIMULADOS em `outputs/`): no lote novo, o hipervolume sobe de ~245 para ~375 em 4 rodadas,
-  e as 160 linhas geradas passam no validador do modelo de dados.
+- `code/aunp_designer/designer.py`: um GP **Matérn-5/2 + ARD** por objetivo (BoTorch), os 4 braços da proposta
+  (receita / + lote / + GO / + impurezas), qLogNEHVI ou qNEHVI, LBO, seleção novelty-aware, SHAP e proveniência
+  (§15). As propostas saem no formato de `aunp_syntheses.csv`. `designer.py demo` roda o laço completo com o
+  laboratório **simulado** de `code/benchmarking` (espectros por Mie, J calculado pelo mesmo código dos dados reais;
+  dados SIMULADOS em `outputs/`), e as tabelas geradas passam no validador.
 - `tools/search_literature.py`: busca BM25, sem dependências, nos 5 227 trechos dos 65 artigos (`literature/chunks.jsonl`).
   Exemplo: `"oxygen groups graphene oxide gold nucleation"` → Chem. Mater. 2009 (10.1021/cm901052s), p. 5.
 
@@ -1037,6 +1038,40 @@ SMOKE_FULL=1 tools/smoke_test.sh qubot-scripts   # inclui a análise completa de
 ```
 
 Resultado em 2026-09-29: `check_repo.py --regen` → 0 problemas; `smoke_test.sh` → 11/11 ambientes OK
-(qLogNEHVI + laço do Designer, SDL, Bgolearn, RAMBOAU, chem-MFBO, BOCoDe/AgNP, GO-MACE-23, notebook de Cruse,
+(no `core`: os 17 testes de `code/tests`; nos demais: SDL, Bgolearn, RAMBOAU, chem-MFBO, BOCoDe/AgNP, GO-MACE-23, notebook de Cruse,
 Qubot, cINN do MatDesINNe com localização, clientes de dados).
+
+---
+
+## 15. Proposta × ferramentas: revisão de atualidade (2026-09-29)
+
+Cada seção do método foi comparada com o que o repositório oferece, e o que faltava foi implementado em `code/`
+(com testes) ou incluído em `external/` (17 repositórios novos, ferramentas de 2025–2026 localizadas por busca na
+web). Detalhes do código em [`code/README.md`](../code/README.md); das ferramentas, em
+[`external/README.md`](../external/README.md).
+
+| Seção | Pede | Agora no repositório |
+|---|---|---|
+| 4.1 Curadoria | literatura → receitas | semente (Cruse + NSP + AuNCs), pipeline OpenAlex→Crossref→Unpaywall, NanoExtractor, LeMat-Synth; 🆕 `marker` (PDF→texto), `paper-qa` (RAG com citação), ChemDataExtractor2 |
+| 4.2 GO Navigator | C/O, XPS C 1s, larguras D/G, AFM…; incerteza; Batch Fingerprint, Active Subspace; LBO | 🆕 `code/characterization/{xps,raman}.py` (Shirley + C 1s; larguras com fundo conjunto), `go_navigator` (média ± sd, desvio entre lotes), LBO no Designer; 🆕 ATHENA (Active Subspaces) |
+| 4.3 Impurezas | descritores de impurezas por lote | 🆕 tabela `reagent_analyses` + braço `go+impurities` |
+| 4.4 Produto / J | UV-Vis padronizado, **J (Eq. 1)**, diâmetro | 🆕 `code/spectral/uvvis.py` (branco, diluição, caminho óptico, J, log(J+ε), Haiss), tabela `spectra` |
+| 4.5 Designer | Matérn-5/2+ARD, 4 representações, qNEHVI, LBO, novelty-aware, Autopilot | 🆕 os 4 braços, qNEHVI/qLogNEHVI, ruído medido, LBO, novelty (w·a+(1−w)·n); Autopilot: SPACESHIP em `external/` |
+| 4.6 Espectro diferenciável | Neural Processes, VAE/difusão | 🆕 `mie.py` (espectros físicos), activephasemap (Vaddi 2025), neuralprocesses; HEAD, TNP, MatDesINNe |
+| 4.7 Transferência | GP multitarefa/hierárquico; NP fine-tuning; hardware | 🆕 braço `batch` (MultiTaskGP/ICM), contexto do GO, coluna `hardware`; BayBE (TaskParameter) |
+| 4.8 MISO | KG sensível a custo; MGP/ICM/PCM | chem-MFBO, misoKG, PAL; 🆕 Emukit; coluna `fidelity` |
+| 4.9 Causal | DAG, randomização/blocos, propensity, E-value, mediação | 🆕 `code/causal` (DAG, DoWhy + refutações, E-value, PC do causal-learn); colunas `block`/`run_order` com aleatorização automática |
+| 4.10 Física/identificabilidade | perfil de verossimilhança | pyPESTO (sem mudança) |
+| 4.11 Campanha | 60 sínteses, simulação de poder | 🆕 `code/benchmarking/campaign_sim.py` (4 receitas × L1–L3, rodadas adaptativas, poder por reamostragem) |
+| 4.12 TEM | tamanho e distribuição | 🆕 `code/characterization/tem.py` (+ RosettaSciIO p/ .dm3/.dm4); SAM para casos difíceis (links em `external/README.md`) |
+| 4.13 SHAP | importância + estabilidade | 🆕 `designer.py explain` (SHAP no GP + Spearman por bootstrap) |
+| 4.14 Sustentabilidade | E-factor, EcoScale, CPU | 🆕 `code/sustainability/metrics.py` |
+| 4.15 Benchmark | HV, IGD, spread; Friedman/Wilcoxon + Holm | 🆕 `code/benchmarking/stats.py` (pymoo + scipy); BOCoDe, Olympus, EGBO; 🆕 pymoo, LLAMBO |
+| 4.16 SDL/cloud lab | integração condicional | Qubot, RoboChem-Flex, Octopus; 🆕 PyLabRobot, MADSci, AlabOS, IvoryOS |
+| 4.17 Rastreabilidade | proveniência, controles, espectros brutos | 🆕 `is_control`, `preparation_id`, `status` (falhas ficam), `spectra`; `run_metadata.json` em cada execução do Designer; 🆕 ro-crate-py (RO-Crate) |
+| 4.18 Incerteza/decisão | IC por bootstrap pareado, cobertura | 🆕 `stats.paired_bootstrap_relative_reduction`, cobertura no LBO; 🆕 MAPIE (conformal) |
+
+Correções técnicas registradas em `code/README.md` ("Notas técnicas"): qLogNEHVI × qNEHVI (não é questão de ruído
+heteroscedástico), faixas de validade das relações de Haiss, viés das linhas de base flexíveis no Raman de GO e
+número mínimo de sementes para a simulação de poder.
 

@@ -1,0 +1,18 @@
+# mac file systems
+.DS_Store
+
+# compiled python codes
+*.pyc
+pydmd\.egg-info/
+
+tutorials/\.ipynb_checkpoints/
+
+*.egg
+
+athena.egg-info/
+build/
+
+*.json
+
+
+tutorials/.ipynb_checkpoints/

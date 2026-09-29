@@ -15,7 +15,7 @@ O script usa [uv](https://docs.astral.sh/uv/) (instala até a versão de Python 
 
 | Nome | Python | Para | Arquivos | Testado aqui |
 |---|---|---|---|---|
-| `core` | 3.12 | **projeto GO–AuNP**: BoTorch, GPyTorch, Ax, BayBE, BoFire, Optuna, Bgolearn, SHAP, DoWhy, EconML, lmfit, pyFAI, fabio, sasmodels, miepython, PyMieScatt, RamanSPy, ASE | `core.in`, `core.lock.txt` | instalado e executado ✓ |
+| `core` | 3.12 | **projeto GO–AuNP** (`code/`): BoTorch, GPyTorch, Ax, BayBE, BoFire, Optuna, Bgolearn, SHAP, DoWhy, EconML, causal-learn, MAPIE, lmfit, pybaselines, scikit-image, RosettaSciIO, pyFAI, fabio, sasmodels, miepython, PyMieScatt, RamanSPy, pymoo, statsmodels, ASE, pytest | `core.in`, `core.lock.txt` | instalado e executado ✓ |
 | `go-mace` | 3.11 | `projects/atomistic/GO-MACE-23` (gerador, potencial, `make_amorphous_db.py`) | `go-mace.*` | instalado e executado ✓ |
 | `sdl` | 3.11 | `projects/bayesian-optimization/SDL` | `sdl.*` | instalado e executado ✓ |
 | `text-mined` | 3.11 | notebook de `projects/literature-llm/text-mined-aunp-synthesis` | `text-mined.*` | notebook executado ✓ |

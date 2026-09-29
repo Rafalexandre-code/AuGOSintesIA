@@ -1,0 +1,14 @@
+# MADSci Docker Compose - Root Entry Point
+# This file includes all sub-compose files for the MADSci example lab.
+#
+# Usage:
+#   docker compose up                          # Start example lab
+#   docker compose --profile build build       # Build images
+#   docker compose --profile otel up           # Start with observability stack
+#   docker compose --profile testing run ...   # Run e2e tests
+
+name: madsci_example_lab
+
+include:
+  - docker/compose.yaml
+  - examples/example_lab/compose.yaml

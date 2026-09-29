@@ -1,0 +1,141 @@
+{% extends 'base.html' %}
+{% block title %}IvoryOS | Documentation {% endblock %}
+
+{% block body %}
+    <h2>Documentations:</h2>
+    <div class="accordion accordion-flush" id="helpPage" >
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#overall" aria-expanded="false" aria-controls="helpPageControl">
+                    General information - What is ivoryOS?
+                </button>
+            </h2>
+            <div id="overall" class="accordion-collapse collapse" data-bs-parent="#helpPage">
+                <div class="accordion-body">
+                    <p>
+                        This web app aims to ease up the control of any Python-based self-driving labs (SDLs) by extracting and displaying functions and parameters for initialized modules dynamically.
+                        The modules can be hardware API, high-level functions, or experiment workflow. This can potentially be used for general visual programming purposes.
+                    </p>
+{#                    <p>Controller: single instrument mode and multi-instrument interface.</p>#}
+{#                    <p>Workflow editor: automation workflow editor#}
+                </div>
+            </div>
+        </div>
+{#        <p>In the Controller tab, you can connect any instrument or instruments from a complete automation deck. The GUI will parse and show available functions and prompt user to the input argument values if need.</p>#}
+{#        <p>In the Build Workflow tab, you can edit your own automation workflow from scratch or from the workflow library, where stores the ongoing projects and some basic example workflows.</p>#}
+
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#connect-device" aria-expanded="false" aria-controls="helpPageControl">
+                    General information - start ivoryOS from script
+                </button>
+            </h2>
+            <div id="connect-device" class="accordion-collapse collapse" data-bs-parent="#helpPage">
+                <div class="accordion-body">
+                    <pre ><code class="python" >{{ sample_deck }}</code></pre>
+                </div>
+            </div>
+        </div>
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#library" aria-expanded="false" aria-controls="helpPageControl">
+                    Script Editor - Library
+                </button>
+            </h2>
+            <div id="library" class="accordion-collapse collapse" data-bs-parent="#helpPage">
+                <div class="accordion-body">
+                    <p>In "Library" Tab, the interactive database displays all workflow information</p>
+                    <p>On top of the library page, you can click filter to choose your desired deck out of other automation platforms. You can also search for experiment keyword on the right</p>
+                    <p>Note that you can edit/delete your own workflow anytime, but in case you would like to adapt other author's workflow, you need to save as your own in a different file name.</p>
+                </div>
+            </div>
+        </div>
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#editor" aria-expanded="false" aria-controls="helpPageControl">
+                    Script Editor - How to use script editor?
+                </button>
+            </h2>
+            <div id="editor" class="accordion-collapse collapse" data-bs-parent="#helpPage">
+                <div class="accordion-body">
+                    <p>You can browse and load other's workflow in "Library" Tab or go to "Build Workflow" Tab to build from scratch.</p>
+                    <p>On the workflow canvas, there are three coding blocks: Prep, Experiment and Clean up. As the names indicated, the Prep and Clean up are steps taken prior and after to the main experiment, they cannot be repeated. On the other hand, the Experiment section can be repeated by a designated times or <a href="#config">a .csv configuration file</a></p>
+                    <p>On the left panel, you can choose the deck profile on the top, and browse deck action and builtin python functions. Click to input your argument and add to the canvas, then drag the action to change their order.</p>
+                    <img src="{{url_for('static', filename='gui_annotation/Slide1.PNG')}}">
+                </div>
+            </div>
+        </div>
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#editor-advanced" aria-expanded="false" aria-controls="helpPageControl">
+                    Script Editor - How to save data and configure reaction?
+                </button>
+            </h2>
+            <div id="editor-advanced" class="accordion-collapse collapse" data-bs-parent="#helpPage">
+                <div class="accordion-body">
+
+                    <img src="{{url_for('static', filename='gui_annotation/Slide2.PNG')}}">
+                </div>
+            </div>
+        </div>
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#config" aria-expanded="false" aria-controls="helpPageControl">
+                    Run my script - How to execute my workflow?
+                </button>
+            </h2>
+            <div id="config" class="accordion-collapse collapse" data-bs-parent="#helpPage">
+                <div class="accordion-body">
+                    <p>For workflow with no parameters, simply input repeat times to run.</p>
+                    <p>To configure your workflow, if there are less or equal than 5 parameters, one can use the web form or import a csv file.
+                    For workflow with more than 5 parameters, web form is not available.</p>
+                    <p>If there is any output, Bayesian Optimization will be available for adaptive experimentation. Note that the outputs need to be numeric values. </p>
+{#                    <img src="{{url_for('static', filename='gui_annotation/Slide3.PNG')}}">#}
+                </div>
+            </div>
+        </div>
+
+
+
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#controller" aria-expanded="false" aria-controls="helpPageControl">
+                    Control - How to use device interface?
+                </button>
+            </h2>
+            <div id="controller" class="accordion-collapse collapse" data-bs-parent="#helpPage">
+                <div class="accordion-body">
+                    <p>The function cards are draggable for customized layout. The hidden icon is to remove functions from the interface. </p>
+{#                    <p>(1)     Import a python script where devices are connected using Deck Deice tab (e.g. applied to a complete automation deck with a deck.py file).</p>#}
+{#                    <p>(2)     Connect devices in the web app using New Deice tab. There are builtin instruments, but you can always import your own API.</p>#}
+                </div>
+            </div>
+        </div>
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#deck" aria-expanded="false" aria-controls="helpPageControl">
+                    Control - Connect new devices
+                </button>
+            </h2>
+            <div id="deck" class="accordion-collapse collapse" data-bs-parent="#helpPage">
+                <div class="accordion-body">
+                    <p>When temporarily connecting instruments, New device -> New connection -> Import API. Use absolute path of your Python API file.
+                        Then enter required info (e.g. COM port) to connect a device.</p>
+                </div>
+            </div>
+        </div>
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#install" aria-expanded="false" aria-controls="helpPageControl">
+                    Supports
+                </button>
+            </h2>
+            <div id="install" class="accordion-collapse collapse" data-bs-parent="#helpPage">
+                <div class="accordion-body">
+                    This is project is a work in progress. In case of any bugs or suggestions, reach out to Ivory: ivoryzhang@chem.ubc.ca or create an issue on GitLab:
+                    <a href="https://gitlab.com/heingroup/ivoryos">https://gitlab.com/heingroup/ivoryos</a>.
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

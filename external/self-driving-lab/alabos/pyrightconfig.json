@@ -1,0 +1,18 @@
+{
+  "include": [
+    "alab_management"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "tests/",
+    "examples/",
+    "clients/",
+    "alab_management/_default"
+  ],
+  "reportMissingImports": false,
+  "reportMissingTypeStubs": false,
+  "reportPrivateImportUsage": false,
+  "useLibraryCodeForTypes": true,
+  "pythonPlatform": "All"
+}

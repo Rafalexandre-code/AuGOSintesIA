@@ -1,0 +1,197 @@
+## Overview
+
+Hello and thanks for considering contributing to Emukit! It's people like you who make the project great!
+
+Whether it's a bug report, new feature, correction, or additional
+documentation, we greatly value feedback and contributions from our community.
+
+Following these guidelines helps smooth out the process of contributing for both you as a contributor and those who maintain the project, making better use of everyone's time and energy.
+
+### Reporting a bug
+If you find a bug in Emukit, please file an issue, detailing as much about your setup as possible to help future developers in reproducing the issue. Tag it as a bug, with any additional tags as relevant.
+
+Information should contain the following:
+1. What version of Emukit are you using?
+2. What python version are you using?
+3. What did you do?
+4. What did you expect to happen?
+5. What actually happened?
+6. Have you made any modifications relevant to the bug?
+
+### Submitting a feature request
+If you're wishing for a feature that doesn't exist yet in Emukit, there are probably others who need it too. Open an issue on GitHub describing what it is you'd like to see added, why it's useful, and how it might work. Add an "Enhancement" tag for bonus points! Better yet, submit a pull request providing the feature you need!
+
+### Contributing code
+
+If you're thinking about adding code to Emukit, here are some guidelines to get you started.
+
+* If the change is a major feature, create an issue detailing your plan, optionally with a prototype implementation of your proposed changes. This is to get community feedback on the changes and document the design reasoning of Emukit for future reference.
+
+* Keep pull requests small, preferably one feature per pull request. This lowers the bar to entry for a reviewer, and keeps feedback focused for each feature.
+
+Some major areas where we appreciate contributions:
+* Adding new methods' implementations.
+* Model wrappers for new modelling frameworks.
+* Example notebooks showing how to use a particular method.
+
+If you're still not sure where to begin, have a look at our [issues](issues) page for open work.
+
+## Contributing via Pull Requests
+
+So you've implemented a new method for uncertainty quantification and you want to give it back to the community. Now it's time to submit a pull request! Before sending us a pull request, please ensure to:
+
+1. Check existing open, and recently merged, pull requests to make sure someone else hasn't addressed the problem already.
+2. Open an issue to discuss any significant work - we would hate for your time to be wasted.
+3. Working against the latest source on the *main* branch.
+
+To send us a pull request, please:
+
+1. Fork the repository.
+2. Modify the source; please focus on the specific change you are contributing. If you also reformat all the code, it will be hard to focus on your change.
+3. Ensure local tests pass.
+4. Commit to your fork using clear commit messages.
+5. Send us a pull request, making sure you've answered the questions in the pull request checklist (see below).
+6. Pay attention to any automated CI failures reported in the pull request, and stay involved in the conversation.
+
+GitHub provides additional document on [forking a repository](https://help.github.com/articles/fork-a-repo/) and [creating a pull request](https://help.github.com/articles/creating-a-pull-request/).
+
+Feel free to ask for help if you're unsure what to do at any point in the process, or on how best to integrate your code with the existing codebase!
+
+If you feel like your pull request is not receiving enough attention, feel free to ping the thread as a reminder.
+
+#### Coding style
+We follow to PEP8 standards as a general rule.
+
+The few Emukit specific rules are:
+* Interface names start with *I*: *IModel*, *IDifferentiable*
+* Use type hints to document input and output types: *def add(a: int, b: int) -> int*
+
+#### Pull Request Checklist
+Before submitting the pull request, please go through this checklist to make the process smoother for both yourself and the reviewers.
+* Are there unit tests with good code coverage? Please include numerical stability checks against edge cases if applicable.
+* Do all public functions have docstrings including examples? If you added a new module, did you add it to the Sphinx ```api.rst``` file in the ```doc``` folder?
+* Is the code style correct (PEP8)?
+* Is the commit message clear and informative?
+* Is there an issue related to the change? If so, please link the issue.
+* If this is a large addition, is there a tutorial or more extensive module-level description? Is there an example notebook?
+
+## Setting up a development environment
+
+### Building the code
+See installing from source (from version 0.5.0 using `pip install -e .[tests]` for core development, and `pip install -e .[dev]` for examples and docs as well). Note that, due to `numpy` version incompatibilities brought forwards by legacy dependencies (such as `GPy`), it is recommended to develop core features without installing any of the extras, using `tests` whenever possible. This will be improved whenever major dependencies, such as `GPy`, are updated.
+
+### Running tests
+Run the full suite of unit tests or integration tests with these commands:
+```
+pytest tests
+pytest integration_tests
+```
+from the top level directory. To check unit test coverage, run this:
+```
+pytest --verbose --cov emukit --cov-report term-missing tests
+```
+
+Notice that unit tests and integration tests have their own set of additional dependencies. You can install them via extras defined in `pyproject.toml`:
+```
+# Core + test tooling
+pip install -e .[tests]
+
+# Add optional dependency groups as needed (examples):
+pip install -e .[gpy]
+pip install -e .[bnn]
+pip install -e .[sklearn]
+# Or everything:
+pip install -e .[examples]
+```
+Legacy requirement files in `requirements/` remain temporarily for reference but will be phased out; prefer extras going forward.
+
+### Test markers & optional dependencies
+Emukit uses pytest markers to group tests that rely on optional dependencies. Current markers (defined in `pyproject.toml` under `[tool.pytest.ini_options]`):
+
+- gpy: tests requiring GPy optional dependency
+- pybnn: tests requiring pybnn optional dependency
+- sklearn: tests requiring scikit-learn optional dependency
+- notebooks: tests executing Jupyter notebooks (requires nbformat, nbconvert)
+
+Example of gating a test that needs GPy:
+```python
+import pytest
+
+pytest.importorskip("GPy")  # skip if GPy not installed
+pytestmark = pytest.mark.gpy  # file-level marker (can also set per test)
+
+def test_some_gpy_integration():
+    import GPy
+    # ... assertions using GPy ...
+```
+Function-level alternative:
+```python
+import pytest
+
+def test_feature_x():
+    GPy = pytest.importorskip("GPy")
+    # ... use GPy ...
+
+test_feature_x = pytest.mark.gpy(test_feature_x)
+```
+Guidelines:
+- Always protect optional imports with `pytest.importorskip("<module>")` to turn absence into a skip, not an error.
+- Apply the corresponding marker (`pytestmark = pytest.mark.<marker>` or function-level) so contributors can include/exclude groups via `-m`.
+- When introducing a new optional dependency group, add its marker entry in `setup.cfg` under `[tool:pytest]` and document it in this section.
+- Avoid installing heavy optional dependencies in default dev loops; install only when working on that area (e.g. `pip install .[gpy]`).
+- Notebook execution tests use the `notebooks` marker; exclude them during rapid iteration with `pytest -m 'not notebooks'`.
+- Keep slow or heavyweight examples under an appropriate marker instead of core unit tests.
+
+Filtering examples:
+Run only core tests (skip all optional groups):
+```
+pytest -m 'not (gpy or pybnn or sklearn or notebooks)'
+```
+Run just the sklearn tests:
+```
+pytest -m sklearn
+```
+
+### Formatting
+Emukit uses black and isort to format code. There is also a build action that checks code is properly formatted. Thus it is recommended to run these commands locally before creating a pull request:
+```
+isort .
+black .
+```
+
+### Generating docs
+Documentation contributions are much appreciated! If you see something incorrect or poorly explained, feel free to fix it and send the update!
+
+If you'd like to generate the docs locally, from inside the "doc" directory, run:
+
+```
+make html
+```
+
+## How to create a new release
+Step by step guide on releasing new version of Emukit. Mostly useful for project maintenance team.
+
+1. Update changelog file with most relevant changes since the last release
+1. Update `emukit/__version__.py` with new version
+1. Add both files and commit them with the message "Release <version>"
+1. Push changes to main (via PR or directly if you can)
+1. Create new git tag with `git tag <version>`
+1. Push tag to GitHub with `git push origin --tags`
+1. Create new venv and install two packages: `build` and `twine`
+1. Generate new build with `python -m build --sdist --wheel`
+1. Ensure your PyPI creds are available in `~/.pypirc`
+1. Upload build to PyPI with `twine upload dist/*`
+1. In a separate clean environment install new version to ensure installation works fine
+1. Done!
+
+## Licensing
+
+See the [LICENSE](LICENSE) file for our project's licensing. We will ask you to confirm the licensing of your contribution.
+
+We may ask you to sign a [Contributor License Agreement (CLA)](http://en.wikipedia.org/wiki/Contributor_License_Agreement) for larger changes.
+
+## Code of Conduct
+This project has adopted the [Amazon Open Source Code of Conduct](https://aws.github.io/code-of-conduct). For more information see the [Code of Conduct FAQ](https://aws.github.io/code-of-conduct-faq) or contact opensource-codeofconduct@amazon.com with any additional questions or comments.
+
+## Acknowledgements
+CONTRIBUTING contents partially inspired from [scipy's](https://github.com/scipy/scipy/blob/master/HACKING.rst.txt) and [Rust's](https://github.com/rust-lang/rust/blob/master/CONTRIBUTING.md) contribution guides!

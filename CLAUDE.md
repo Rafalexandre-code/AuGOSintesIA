@@ -17,9 +17,11 @@ Cada pasta de primeiro nível tem um `README.md` com o seu índice.
   `aunp-text-mined/` (LFS), `cofs-methane/`, `pressure-vessel/`, `pubchem/`, `xrd-ceo2-calibration/`
   (.ge3: 5 frames 2048×2048 uint16, offset 8192). Gerados por `tools/data_sources/` (regeráveis): `reagents/`
   (dicionário PubChem; editar só `aliases.tsv`), `literature-seed/` (Cruse+NSP+AuNCs; `go_aunp_subset.csv`),
-  `data-model/` (9 tabelas + validador). `lab/` = dados medidos (a preencher; validar com `lab_data_model.py validate`).
-- `code/` — código do projeto: `go_navigator/batch_descriptors.py` (descritores por lote de GO) e
-  `aunp_designer/designer.py` (GP Matérn-5/2+ARD + qLogNEHVI, contexto = lote; `demo` = laço simulado). Ambiente `core`.
+  `data-model/` (11 tabelas + validador), `optical-constants/` (n, k de Au/Ag para Mie). `lab/` = dados medidos (a preencher; validar com `lab_data_model.py validate`).
+- `code/` — código do projeto (ambiente `core`; testes `python -m pytest code/tests`): `spectral/` (UV-Vis, perda J, Mie),
+  `characterization/` (Raman, XPS, TEM), `go_navigator/`, `aunp_designer/designer.py` (4 braços recipe/batch/go/go+impurities,
+  qLogNEHVI|qNEHVI, LBO, novelty, SHAP, `demo`), `benchmarking/` (laboratório SIMULADO, campanha/poder, estatística),
+  `causal/` (DAG, DoWhy, E-value, causal-learn), `sustainability/` (E-factor, EcoScale, CPU).
 - `projects/<módulo>/` — 13 subprojetos base (modificados aqui: caminhos portáveis, bugs corrigidos):
   - `atomistic/GO-MACE-23` (gerador de GO em `code/`, potencial `models/fitting/potential/iter-12-final-model/go-mace-23.pt`,
     C/H/O, sem Au), `atomistic/AmberGO` (GO 5–68 % para AMBER/GAFF; depende do HierGO)
@@ -28,7 +30,7 @@ Cada pasta de primeiro nível tem um `README.md` com o seu índice.
   - `bayesian-optimization/{SDL,Bgolearn,RAMBOAU,BOCoDe}` (BOCoDe: **maximização**, restrição viável `g<=0`)
   - `multi-fidelity/chem-MFBO`, `inverse-design/MatDesINNe`, `materials-ml/M2Hub`
   - `self-driving-lab/qubot/{hardware,data,scripts,README.pdf}` — `data/` e `scripts/` devem ficar lado a lado
-- `external/<módulo>/` — 58 repositórios de referência (`data-access/` = clientes OpenAlex/Crossref/Unpaywall/PubChem/
+- `external/<módulo>/` — 75 repositórios de referência (`data-access/` = clientes OpenAlex/Crossref/Unpaywall/PubChem/
   OPTIMADE/MP/JARVIS/MDF/eNanoMapper), cópias sem `.git` (manifesto `external/README.md`;
   commits `tools/external_repos.lock.tsv`; atualizar com `tools/fetch_external.sh --latest`). Não editar à mão.
 - `environments/` + `tools/setup_env.sh <nome>` — um ambiente por subprojeto (`--list`); `core` = projeto GO–AuNP;
@@ -47,6 +49,7 @@ Cada pasta de primeiro nível tem um `README.md` com o seu índice.
 - Caminhos devem ser relativos ao script ou vir de variável de ambiente (`QUBOT_DATA_DIR`, `QWEN_*`,
   `RAMBOAU_EXP_DATA`, `GO_AMORPHOUS_DB`, `GO_ALLOW_LARGE`, `SDL_BELIEF_MODEL`, `MACE_RUN_TRAIN`, `GAUGE_PORT`…).
   Os `.in`/`.lock.txt` de `environments/` referenciam `../projects/...`: atualize-os se mover um subprojeto.
+- `code/benchmarking/{simulator,sim_lab}.py` e `designer.py demo` geram dados SIMULADOS (marcados "SIMULADO"; só em `outputs/`).
 - Dados sintéticos/substitutos, NÃO medidos: `projects/atomistic/GO-MACE-23/structures/aG_p6_surrogate.xyz`
   (de `code/make_amorphous_db.py`) e o gerador `projects/bayesian-optimization/RAMBOAU/problems/data/make_synthetic_experiment.py`.
 - Não versionar `.git` aninhado nem ponteiros LFS de terceiros em `external/` (use o script).

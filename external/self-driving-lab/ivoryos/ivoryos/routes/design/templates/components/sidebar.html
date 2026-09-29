@@ -1,0 +1,15 @@
+{# Sidebar component for experiment builder #}
+<div class="instrument-panel" id="instrument-panel">
+    {% if instrument %}
+        <div class="instrument-methods" id="instrument-methods">
+        {% include 'components/actions_panel.html' %}
+        </div>
+    {% else %}
+        {# select deck if this is online#}
+        {% if off_line %}
+            {% include 'components/deck_selector.html' %}
+        {% endif %}
+
+        {% include 'components/instruments_panel.html' %}
+    {% endif %}
+</div>

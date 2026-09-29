@@ -1,0 +1,739 @@
+"MADSci Node Types."
+
+import warnings
+from datetime import datetime
+from enum import Enum
+from typing import Any, Optional
+
+from madsci.common.types.action_types import ActionDefinition
+from madsci.common.types.admin_command_types import AdminCommands
+from madsci.common.types.auth_types import OwnershipInfo
+from madsci.common.types.base_types import (
+    Error,
+    MadsciBaseModel,
+    MadsciBaseSettings,
+)
+from madsci.common.types.resource_types import ResourceDataModels
+from madsci.common.utils import new_ulid_str
+from madsci.common.validators import ulid_validator
+from pydantic import (
+    Field,
+    SerializationInfo,
+    SerializerFunctionWrapHandler,
+    field_serializer,
+    model_serializer,
+)
+from pydantic.fields import computed_field
+from pydantic.functional_validators import field_validator
+from pydantic.networks import AnyUrl
+from pydantic_extra_types.semantic_version import SemanticVersion
+from semver import Version
+
+
+class NodeType(str, Enum):
+    """The type of a MADSci node."""
+
+    DEVICE = "device"
+    COMPUTE = "compute"
+    RESOURCE_MANAGER = "resource_manager"
+    EVENT_MANAGER = "event_manager"
+    WORKCELL_MANAGER = "workcell_manager"
+    DATA_MANAGER = "data_manager"
+    TRANSFER_MANAGER = "transfer_manager"
+
+
+class NodeConfig(
+    MadsciBaseSettings,
+    env_file=(".env", "node.env"),
+    toml_file=("settings.toml", "node.settings.toml"),
+    yaml_file=("settings.yaml", "node.settings.yaml"),
+    json_file=("settings.json", "node.settings.json"),
+    env_prefix="NODE_",
+):
+    """Basic Configuration for a MADSci Node."""
+
+    status_update_interval: Optional[float] = Field(
+        title="Status Update Interval",
+        description="The interval in seconds at which the node should update its status.",
+        default=2.0,
+    )
+    state_update_interval: Optional[float] = Field(
+        title="State Update Interval",
+        description="The interval in seconds at which the node should update its state.",
+        default=2.0,
+    )
+
+    # Identity fields — these specify node identity via settings/env vars.
+    node_name: Optional[str] = Field(
+        default=None,
+        title="Node Name",
+        description="Name for this node. If not set, defaults to the class name.",
+        alias="node_name",  # * Don't double prefix (NODE_ + node_name → NODE_NODE_NAME)
+    )
+    node_id: Optional[str] = Field(
+        default=None,
+        title="Node ID",
+        description="Unique ID for this node. If not set, a new ULID is generated.",
+        alias="node_id",  # * Don't double prefix
+    )
+    node_type: Optional[NodeType] = Field(
+        default=None,
+        title="Node Type",
+        description="The type of thing this node provides an interface for.",
+        alias="node_type",  # * Don't double prefix
+    )
+    module_name: Optional[str] = Field(
+        default=None,
+        title="Module Name",
+        description="Name of the node module implementation.",
+    )
+    module_version: Optional[str] = Field(
+        default=None,
+        title="Module Version",
+        description="Version of the node module implementation.",
+    )
+
+    # Registry resolution
+    enable_registry_resolution: bool = Field(
+        default=True,
+        title="Enable Registry Resolution",
+        description="When true, resolve node_id from the ID Registry at startup for stable identity across restarts.",
+    )
+    lab_url: Optional[AnyUrl] = Field(
+        default=None,
+        title="Lab URL",
+        description="Lab Manager URL for distributed registry coordination.",
+    )
+    registry_lock_timeout: float = Field(
+        default=60.0,
+        title="Registry Lock Timeout",
+        description="Seconds to retry registry lock acquisition on contention at startup. Should be at least 2x the lock TTL (30s) to survive ungraceful container restarts.",
+    )
+
+
+class RestNodeConfig(NodeConfig):
+    """Default Configuration for a MADSci Node that communicates over REST."""
+
+    node_url: AnyUrl = Field(
+        title="Node URL",
+        description="The URL used to communicate with the node. This is the base URL for the REST API.",
+        default=AnyUrl("http://127.0.0.1:2000"),
+        alias="node_url",  # * Don't double prefix
+    )
+    uvicorn_kwargs: dict[str, Any] = Field(
+        title="Uvicorn Configuration",
+        description="Configuration for the Uvicorn server that runs the REST API. By default, sets limit_concurrency=10 to protect against connection exhaustion attacks.",
+        default_factory=lambda: {"limit_concurrency": 10},
+    )
+    enable_rate_limiting: bool = Field(
+        title="Enable Rate Limiting",
+        description="Enable rate limiting middleware for the REST API.",
+        default=True,
+    )
+    rate_limit_requests: int = Field(
+        title="Rate Limit Requests",
+        description="Maximum number of requests allowed per long time window (only used if enable_rate_limiting is True).",
+        default=100,
+        ge=1,
+    )
+    rate_limit_window: int = Field(
+        title="Rate Limit Window",
+        description="Long time window in seconds for rate limiting (only used if enable_rate_limiting is True).",
+        default=60,
+        ge=1,
+    )
+    rate_limit_short_requests: Optional[int] = Field(
+        title="Rate Limit Short Requests",
+        description="Maximum number of requests allowed per short time window for burst protection (only used if enable_rate_limiting is True). If None, short window limiting is disabled.",
+        default=50,
+        ge=1,
+    )
+    rate_limit_short_window: Optional[int] = Field(
+        title="Rate Limit Short Window",
+        description="Short time window for burst protection in seconds (only used if enable_rate_limiting is True). If None, short window limiting is disabled.",
+        default=1,
+        ge=1,
+    )
+    rate_limit_cleanup_interval: int = Field(
+        title="Rate Limit Cleanup Interval",
+        description="Interval in seconds between cleanup operations to prevent memory leaks (only used if enable_rate_limiting is True).",
+        default=300,
+        ge=1,
+    )
+
+
+class NodeClientCapabilities(MadsciBaseModel):
+    """Capabilities of a MADSci Node Client. Default values are None, meaning the capability is not explicitly set. If a capability is set to False, it is explicitly not supported."""
+
+    get_info: Optional[bool] = Field(
+        default=None,
+        title="Node Info",
+        description="Whether the node supports querying its info.",
+    )
+    get_state: Optional[bool] = Field(
+        default=None,
+        title="Node State",
+        description="Whether the node supports querying its state.",
+    )
+    get_status: Optional[bool] = Field(
+        default=None,
+        title="Node Status",
+        description="Whether the node supports querying its status.",
+    )
+    send_action: Optional[bool] = Field(
+        default=None,
+        title="Node Send Action",
+        description="Whether the node supports sending actions.",
+    )
+    get_action_status: Optional[bool] = Field(
+        default=None,
+        title="Node Get Action Status",
+        description="Whether the node supports querying the status of an action.",
+    )
+    get_action_result: Optional[bool] = Field(
+        default=None,
+        title="Node Get Action Result",
+        description="Whether the node supports querying the result of an action.",
+    )
+    get_action_history: Optional[bool] = Field(
+        default=None,
+        title="Node Get Actions",
+        description="Whether the node supports querying the history of actions.",
+    )
+    action_files: Optional[bool] = Field(
+        default=None,
+        title="Node Action Files",
+        description="Whether the node supports sending action files.",
+    )
+    send_admin_commands: Optional[bool] = Field(
+        default=None,
+        title="Node Send Admin Commands",
+        description="Whether the node supports sending admin commands.",
+    )
+    set_config: Optional[bool] = Field(
+        default=None,
+        title="Node Set Config",
+        description="Whether the node supports setting configuration.",
+    )
+    get_resources: Optional[bool] = Field(
+        default=None,
+        title="Node Get Resources",
+        description="Whether the node supports querying its resources.",
+    )
+    get_log: Optional[bool] = Field(
+        default=None,
+        title="Node Get Log",
+        description="Whether the node supports querying its log.",
+    )
+
+    @model_serializer(mode="wrap")
+    def exclude_unset_by_default(
+        self, nxt: SerializerFunctionWrapHandler, info: SerializationInfo
+    ) -> dict[str, Any]:
+        """Exclude unset fields by default."""
+        serialized = nxt(self, info)
+        return {k: v for k, v in serialized.items() if v is not None}
+
+
+class NodeCapabilities(NodeClientCapabilities):
+    """Capabilities of a MADSci Node."""
+
+    events: Optional[bool] = Field(
+        default=None,
+        title="Node Events",
+        description="Whether the node supports raising MADSci events.",
+    )
+    resources: Optional[bool] = Field(
+        default=None,
+        title="Node Resources",
+        description="Whether the node supports MADSci-compatible resource management.",
+    )
+    admin_commands: set[AdminCommands] = Field(
+        default=set(),
+        title="Node Admin Commands",
+        description="Which admin commands the node supports, if any.",
+    )
+
+    @field_serializer("admin_commands")
+    def order_admin_commands(
+        self, admin_commands: set[AdminCommands]
+    ) -> list[AdminCommands]:
+        """Ensure sorted admin commands."""
+        return sorted(admin_commands)
+
+
+class NodeDefinition(MadsciBaseModel):
+    """Definition of a MADSci Node, a unique instance of a MADSci Node Module.
+
+    .. deprecated:: 0.7.0
+        Definition files are removed. Use :class:`NodeConfig` instead.
+    """
+
+    node_name: str = Field(title="Node Name", description="The name of the node.")
+    node_id: str = Field(
+        title="Node ID", description="The ID of the node.", default_factory=new_ulid_str
+    )
+    node_description: Optional[str] = Field(
+        title="Description",
+        description="A description of the node.",
+        default=None,
+    )
+    node_type: NodeType = Field(
+        title="Node Type",
+        description="The type of thing this node provides an interface for.",
+        default=NodeType.DEVICE,
+    )
+    module_name: str = Field(
+        title="Node Module Name",
+        description="The name of the node module.",
+    )
+    module_version: SemanticVersion = Field(
+        default=Version.parse("0.0.1"),
+        title="Module Version",
+        description="The version of the node module.",
+        examples=["1.0.0"],
+    )
+    capabilities: Optional["NodeCapabilities"] = Field(
+        default=None,
+        title="Node Capabilities",
+        description="Explicitly override the capabilities of the node.",
+    )
+
+    is_ulid = field_validator("node_id")(ulid_validator)
+
+    def model_post_init(self, __context: Any) -> None:
+        """Emit deprecation warning when NodeDefinition is instantiated directly."""
+        # Only warn for NodeDefinition itself, not subclasses like NodeInfo
+        if type(self) is NodeDefinition:
+            from madsci.common.deprecation import (  # noqa: PLC0415
+                MadsciDeprecationWarning,
+            )
+
+            warnings.warn(
+                "NodeDefinition is deprecated and removed in v0.7.0. "
+                "Use NodeConfig instead.",
+                MadsciDeprecationWarning,
+                stacklevel=4,
+            )
+
+
+class Node(MadsciBaseModel, arbitrary_types_allowed=True):
+    """A runtime representation of a MADSci Node used in a Workcell."""
+
+    node_url: AnyUrl = Field(
+        title="Node URL",
+        description="The URL used to communicate with the node.",
+    )
+    status: Optional["NodeStatus"] = Field(
+        default=None,
+        title="Node Status",
+        description="The status of the node. Set to None if the node does not support status reporting or the status is unknown (e.g. if it hasn't reported/responded to status requests).",
+    )
+    info: Optional["NodeInfo"] = Field(
+        default=None,
+        title="Node Info",
+        description="Information about the node, provided by the node itself.",
+    )
+    state: Optional[dict[str, Any]] = Field(
+        default=None,
+        title="Node State",
+        description="Detailed nodes specific state information",
+    )
+
+    reservation: Optional["NodeReservation"] = Field(
+        default=None,
+        title="Node Reservation",
+        description="Information about the current reservation of the node, if any",
+    )
+
+
+class NodeInfo(NodeDefinition):
+    """Information about a MADSci Node."""
+
+    node_url: Optional[AnyUrl] = Field(
+        title="Node URL",
+        description="The URL used to communicate with the node.",
+        default=None,
+    )
+    actions: dict[str, "ActionDefinition"] = Field(
+        title="Node Actions",
+        description="The actions that the node supports.",
+        default_factory=dict,
+    )
+    config: Optional[Any] = Field(
+        default=None,
+        title="Node Configuration",
+        description="The current configuration of the node.",
+    )
+    config_schema: Optional[dict[str, Any]] = Field(
+        title="Node Configuration Schema",
+        description="JSON Schema for the configuration of the node.",
+        default_factory=NodeConfig.model_json_schema,
+    )
+    intrinsic_locations: list["NodeIntrinsicLocationDefinition"] = Field(
+        title="Intrinsic Locations",
+        description="Locations intrinsic to this node's hardware, auto-created on startup.",
+        default_factory=list,
+    )
+    location_representation_templates: list["NodeRepresentationTemplateDefinition"] = (
+        Field(
+            title="Location Representation Templates",
+            description="Location representation template definitions that this node registers.",
+            default_factory=list,
+        )
+    )
+
+    @classmethod
+    def from_node_def_and_config(
+        cls,
+        node: NodeDefinition,
+        config: Optional[NodeConfig] = None,
+    ) -> "NodeInfo":
+        """Create a NodeInfo from a NodeDefinition and config.
+
+        .. deprecated:: 0.7.0
+            Use :meth:`from_config` when possible. This method is maintained
+            for backwards compatibility with existing code that passes a
+            ``NodeDefinition`` object.
+        """
+        return cls(
+            **node.model_dump(exclude={"commands"}),
+            config=config,
+            config_schema=config.model_json_schema() if config else None,
+        )
+
+    @classmethod
+    def from_config(
+        cls,
+        config: NodeConfig,
+        *,
+        node_name: Optional[str] = None,
+        module_name: Optional[str] = None,
+        module_version: Optional[str] = None,
+        node_definition: Optional[NodeDefinition] = None,
+    ) -> "NodeInfo":
+        """Create a NodeInfo from settings and optional module metadata.
+
+        This factory builds a NodeInfo from ``NodeConfig`` settings fields
+        without requiring a separate ``NodeDefinition`` file.  Identity
+        fields are resolved with the following priority:
+
+        1. Explicit keyword arguments (``node_name``, ``module_name``, etc.)
+        2. Values from ``config`` identity fields (if set)
+        3. Values from ``node_definition`` (if provided, for backwards compat)
+        4. Sensible defaults
+
+        Args:
+            config: The node's configuration settings.
+            node_name: Explicit node name override.
+            module_name: Explicit module name override.
+            module_version: Explicit module version override.
+            node_definition: Optional legacy definition for backwards compat.
+
+        Returns:
+            NodeInfo: A new NodeInfo instance.
+        """
+        # Build identity from config -> definition -> defaults
+        identity: dict[str, Any] = {}
+
+        # Start with definition values if available
+        if node_definition is not None:
+            identity.update(node_definition.model_dump(exclude={"commands"}))
+
+        # Override with config identity fields (if set)
+        if config.node_name is not None:
+            identity["node_name"] = config.node_name
+        if config.node_id is not None:
+            identity["node_id"] = config.node_id
+        if config.node_type is not None:
+            identity["node_type"] = config.node_type
+        if config.module_name is not None:
+            identity["module_name"] = config.module_name
+        if config.module_version is not None:
+            identity["module_version"] = Version.parse(config.module_version)
+
+        # Override with explicit keyword arguments
+        if node_name is not None:
+            identity["node_name"] = node_name
+        if module_name is not None:
+            identity["module_name"] = module_name
+        if module_version is not None:
+            identity["module_version"] = Version.parse(module_version)
+
+        # Ensure required fields have defaults
+        identity.setdefault("node_name", "unnamed_node")
+        identity.setdefault("module_name", "unknown_module")
+        identity.setdefault("node_id", new_ulid_str())
+
+        return cls(
+            **identity,
+            config=config,
+            config_schema=config.model_json_schema(),
+        )
+
+
+class NodeStatus(MadsciBaseModel):
+    """Status of a MADSci Node."""
+
+    busy: bool = Field(
+        default=False,
+        title="Node Busy",
+        description="Whether the node is currently at capacity, i.e. running the maximum number of actions allowed.",
+    )
+    running_actions: set[str] = Field(
+        default_factory=set,
+        title="Running Action IDs",
+        description="The IDs of the actions that the node is currently running.",
+    )
+    paused: bool = Field(
+        default=False,
+        title="Node Paused",
+        description="Whether the node is paused.",
+    )
+    locked: bool = Field(
+        default=False,
+        title="Node Locked",
+        description="Whether the node is locked, preventing it from accepting any actions.",
+    )
+    stopped: bool = Field(
+        default=False,
+        title="Node Stopped",
+        description="Whether the node has been stopped (e.g. due to a safety stop).",
+    )
+    errored: bool = Field(
+        default=False,
+        title="Node Errored",
+        description="Whether the node is in an errored state.",
+    )
+    disconnected: bool = Field(
+        default=False,
+        title="Node Disconnected",
+        description="Whether the node is disconnected from the workcell manager",
+    )
+    errors: list[Error] = Field(
+        default_factory=list,
+        title="Node Errors",
+        description="A list of errors that the node has encountered.",
+    )
+    initializing: bool = Field(
+        default=False,
+        title="Node Initializing",
+        description="Whether the node is currently initializing.",
+    )
+    waiting_for_config: set[str] = Field(
+        default_factory=set,
+        title="Node Waiting for Configuration",
+        description="Set of configuration parameters that the node is waiting for.",
+    )
+    config_values: dict[str, Any] = Field(
+        default_factory=dict,
+        title="Node Configuration Values",
+        description="The current configuration values of the node.",
+    )
+
+    @computed_field
+    @property
+    def ready(self) -> bool:
+        """Whether the node is ready to accept actions."""
+        ready = True
+        if self.busy:
+            ready = False
+        if self.locked:
+            ready = False
+        if self.stopped:
+            ready = False
+        if self.errored:
+            ready = False
+        if self.initializing:
+            ready = False
+        if self.paused:
+            ready = False
+        if self.disconnected:
+            ready = False
+        if len(self.waiting_for_config) > 0:
+            ready = False
+        return ready
+
+    @computed_field
+    @property
+    def description(self) -> str:
+        """A description of the node's status."""
+        reasons = []
+        if self.busy:
+            reasons.append("Node is busy")
+        if self.locked:
+            reasons.append("Node is locked")
+        if self.errored:
+            reasons.append("Node is in an error state")
+        if self.disconnected:
+            reasons.append("Node is disconnected")
+        if self.initializing:
+            reasons.append("Node is initializing")
+        if self.paused:
+            reasons.append("Node is paused")
+        if len(self.waiting_for_config) > 0:
+            reasons.append(
+                f"Node is missing configuration values: {self.waiting_for_config}",
+            )
+        if reasons:
+            return "; ".join(reasons)
+        return "Node is ready"
+
+
+class NodeReservation(MadsciBaseModel):
+    """Reservation of a MADSci Node."""
+
+    owned_by: OwnershipInfo = Field(
+        title="Owned By",
+        description="Who has ownership of the reservation.",
+    )
+    created: datetime = Field(
+        title="Created Datetime",
+        description="When the reservation was created.",
+    )
+    start: datetime = Field(
+        title="Start Datetime",
+        description="When the reservation starts.",
+    )
+    end: datetime = Field(
+        title="End Datetime",
+        description="When the reservation ends.",
+    )
+
+    def check(self, ownership: OwnershipInfo) -> bool:
+        """Check if the reservation is 1.) active or not, and 2.) owned by the given ownership."""
+        return not (
+            not self.owned_by.check(ownership)
+            and self.start <= datetime.now()
+            and self.end >= datetime.now()
+        )
+
+
+class NodeSetConfigResponse(MadsciBaseModel):
+    """Response from a Node Set Config Request"""
+
+    success: bool = Field(
+        title="Success",
+        description="Whether the config was successfully set.",
+    )
+
+
+class NodeResourceTemplateDefinition(MadsciBaseModel):
+    """Declarative resource template definition for node startup registration."""
+
+    resource: ResourceDataModels = Field(
+        title="Resource",
+        description="The resource model to use as the template.",
+    )
+    template_name: str = Field(
+        title="Template Name",
+        description="Unique name for the template.",
+    )
+    description: str = Field(
+        title="Description",
+        description="Description of what this template creates.",
+        default="",
+    )
+    required_overrides: Optional[list[str]] = Field(
+        title="Required Overrides",
+        description="Fields that must be provided when using the template.",
+        default=None,
+    )
+    tags: Optional[list[str]] = Field(
+        title="Tags",
+        description="Tags for categorization.",
+        default=None,
+    )
+    version: str = Field(
+        title="Version",
+        description="Semantic version of this template.",
+        default="1.0.0",
+    )
+
+
+class NodeRepresentationTemplateDefinition(MadsciBaseModel):
+    """Declarative location representation template definition for node startup registration."""
+
+    template_name: str = Field(
+        title="Template Name",
+        description="Unique name for the representation template.",
+    )
+    default_values: dict[str, Any] = Field(
+        title="Default Values",
+        description="Default field values for this representation.",
+        default_factory=dict,
+    )
+    schema_def: Optional[dict[str, Any]] = Field(
+        title="JSON Schema",
+        description="Optional JSON Schema for validating representation data.",
+        default=None,
+    )
+    required_overrides: Optional[list[str]] = Field(
+        title="Required Overrides",
+        description="Fields that must be provided when instantiating from this template.",
+        default=None,
+    )
+    tags: Optional[list[str]] = Field(
+        title="Tags",
+        description="Tags for categorization.",
+        default=None,
+    )
+    version: str = Field(
+        title="Version",
+        description="Semantic version of this template.",
+        default="1.0.0",
+    )
+    description: Optional[str] = Field(
+        title="Description",
+        description="Human-readable description of this representation template.",
+        default=None,
+    )
+
+
+class NodeIntrinsicLocationDefinition(MadsciBaseModel):
+    """A location intrinsic to this node's hardware, auto-created on startup.
+
+    The location_name is automatically prefixed with '{node_name}.' to ensure
+    uniqueness across node instances. For example, location_name="deck_1" on a
+    node named "liquidhandler_1" becomes "liquidhandler_1.deck_1".
+    """
+
+    location_name: str = Field(
+        title="Location Name",
+        description="Suffix for the location name (auto-prefixed with '{node_name}.'). "
+        "For example, 'deck_1' becomes 'liquidhandler_1.deck_1'.",
+    )
+    description: Optional[str] = Field(
+        title="Description",
+        description="Human-readable description of this location.",
+        default=None,
+    )
+    representation_template_name: str = Field(
+        title="Representation Template Name",
+        description="Name of the representation template this node uses for this location.",
+    )
+    representation_overrides: dict[str, Any] = Field(
+        title="Representation Overrides",
+        description="Per-location overrides merged with representation template defaults.",
+        default_factory=dict,
+    )
+    resource_template_name: Optional[str] = Field(
+        title="Resource Template Name",
+        description="Optional resource template for creating a resource at this location.",
+        default=None,
+    )
+    resource_template_overrides: Optional[dict[str, Any]] = Field(
+        title="Resource Template Overrides",
+        description="Default overrides to apply when creating a resource from the template.",
+        default=None,
+    )
+    allow_transfers: bool = Field(
+        title="Allow Transfers",
+        description="Whether this location participates in transfer planning.",
+        default=True,
+    )
+    tags: Optional[list[str]] = Field(
+        title="Tags",
+        description="Tags for categorization.",
+        default=None,
+    )

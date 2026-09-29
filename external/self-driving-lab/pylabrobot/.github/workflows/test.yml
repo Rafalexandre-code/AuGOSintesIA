@@ -1,0 +1,47 @@
+name: Unit Tests
+
+on:
+  push:
+    branches:
+     - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test-all:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        version: [3.9, "3.10", 3.11, 3.12, 3.13, 3.14]
+
+    name: Tests (all, py${{ matrix.version }})
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+      - name: Run Tests
+        uses: ./.github/actions/run-tests
+        with:
+          version: ${{ matrix.version }}
+          extra: all
+
+  test-extras:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        extra: ["<none>", serial, usb, ftdi, hid, btx, modbus, opentrons, sila, cytation-microscopy, pico]
+
+    name: Tests (${{ matrix.extra }}, py3.12)
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+      - name: Run Tests
+        uses: ./.github/actions/run-tests
+        with:
+          version: "3.12"
+          extra: ${{ matrix.extra }}
