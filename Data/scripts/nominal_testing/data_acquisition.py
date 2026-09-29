@@ -6,6 +6,8 @@
 # ## Import Required Libraries
 
 #%% IMPORTS
+import os
+import serial
 import serial.tools.list_ports
 import time
 from datetime import datetime
@@ -23,7 +25,10 @@ for port, desc, hwid in sorted(ports):
 
 #%% Connect to Mitutoyo gauge
 
-gauge = serial.Serial('', 2400) # Update with correct COM port
+GAUGE_PORT = os.environ.get('GAUGE_PORT', '')  # e.g. 'COM3' (Windows) or '/dev/ttyUSB0' (Linux)
+if not GAUGE_PORT:
+    raise ValueError("Set the Mitutoyo gauge serial port: GAUGE_PORT='COM3' (or edit GAUGE_PORT above).")
+gauge = serial.Serial(GAUGE_PORT, 2400)
 time.sleep(2)
 
 #%% [markdown]
@@ -35,15 +40,19 @@ device_name = ''
 axis = ''
 step_size = ''
 
-data = []  # List to store captured data
-df = pd.DataFrame(columns=['Time', 'Gauge'])  # DataFrame to organize captured data
+data = []  # List of [time, gauge reading] rows
 
-while True:
-    now = datetime.now().strftime("%H:%M:%S")
-    gauge.write(bytes("1\r", 'utf-8'))
-    reading = gauge.read_until(b'\r')
-    print(reading)
+# Stop the capture with Ctrl+C (or the "interrupt" button of the notebook/IDE)
+try:
+    while True:
+        now = datetime.now().strftime("%H:%M:%S")
+        gauge.write(bytes("1\r", 'utf-8'))
+        reading = gauge.read_until(b'\r')
+        print(reading)
 
-    data.loc[len(data.index)] = [now, float(reading[-7:-1])]
+        data.append([now, float(reading[-7:-1])])
+except KeyboardInterrupt:
+    print(f"Capture stopped: {len(data)} readings")
 #%% Save captured data to CSV file
-data.to_csv(f'{device_name} {axis}-ladder{step_size}.csv', index=False)
+df = pd.DataFrame(data, columns=['Time', 'Gauge'])  # DataFrame to organize captured data
+df.to_csv(f'{device_name} {axis}-ladder{step_size}.csv', index=False)

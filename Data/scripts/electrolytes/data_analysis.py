@@ -16,6 +16,7 @@
 #  We also build the root data path and enumerate the experiment folders that are analyzed throughout this notebook.
 #%% IMPORTS AND LOAD DATA PATHS
 import math
+import cmath
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -34,8 +35,13 @@ PATH2ROOT = os.getcwd().split(FOLDER)[0]
 
 
 # Obtain data directory for all the experiments
-main_dir = f'{PATH2ROOT}\Data\electrolytes'
-experiment_paths = [p for p in Path(main_dir).glob("*") if p.is_dir()]
+# (portable across Windows/Linux/macOS; override with QUBOT_DATA_DIR if data/ lives elsewhere)
+main_dir = os.environ.get('QUBOT_DATA_DIR', os.path.join(PATH2ROOT, 'data'))
+main_dir = os.path.join(main_dir, 'electrolytes')
+experiment_paths = sorted(p for p in Path(main_dir).glob("*") if p.is_dir())
+
+# Set EIS_INTERACTIVE=0 to skip the manual review prompts for poor EIS fits (they are marked 'Bad')
+EIS_INTERACTIVE = os.environ.get('EIS_INTERACTIVE', '1') == '1'
 
 #%% [markdown]
 # # Mass transfer measurements
@@ -49,10 +55,10 @@ df_summary_rt = pd.DataFrame() # Create dataframe to aggregate results from each
 for path in experiment_paths:
     
     try:
-        df = pd.read_csv(str(path) + r'\Summary_transfers.csv') # Read summary of transfer for each experiment
-    
+        df = pd.read_csv(os.path.join(path, 'Summary_transfers.csv')) # Read summary of transfer for each experiment
+
     except FileNotFoundError:
-        print(f"File not found: {str(path) + r'\Summary_transfers.csv'}")
+        print(f"File not found: {os.path.join(path, 'Summary_transfers.csv')}")
         continue
     
     # Clean data   
@@ -81,10 +87,10 @@ df_summary_ft = pd.DataFrame() # Create dataframe to aggregate results from each
 # Iterate through experiment files
 for path in experiment_paths:
     try:
-        df = pd.read_csv(str(path) + r'\Distributed_coincell.csv') # Read summary of transfer for each experiment
-    
+        df = pd.read_csv(os.path.join(path, 'Distributed_coincell.csv')) # Read summary of transfer for each experiment
+
     except FileNotFoundError:
-        print(f"File not found: {str(path) + r'\Distributed_coincell.csv'}")
+        print(f"File not found: {os.path.join(path, 'Distributed_coincell.csv')}")
         continue
     
     # Clean data   
@@ -110,10 +116,10 @@ df_summary_t = pd.DataFrame()
 # Loop through each experiment path
 for path in experiment_paths:
     try:
-        df = pd.read_excel(str(path) + r'\Coincell_thickness.xlsx', sheet_name='Sheet1') # Read summary of thickness for each experiment
+        df = pd.read_excel(os.path.join(path, 'Coincell_thickness.xlsx'), sheet_name='Sheet1') # Read summary of thickness for each experiment
 
     except FileNotFoundError:
-        print(f"File not found: {str(path) + r'\Coincell_thickness.csv'}")
+        print(f"File not found: {os.path.join(path, 'Coincell_thickness.xlsx')}")
         continue
     # Clean data
     df.dropna(how='all', inplace=True)
@@ -170,8 +176,8 @@ def measure_displacement(df:pd.DataFrame, n_baseline:int=100, tolerance:int=5):
 
 # iterate through experiment paths to read coincell and electrolyte displacement data
 for path in experiment_paths:
-    coincell_paths = glob.glob(str(path) + r'\displacement\*coincell*.csv') # empty coincell
-    electrolyte_paths = glob.glob(str(path) + r'\displacement\*electrolyte*.csv') # coincell + electrolyte
+    coincell_paths = sorted(glob.glob(os.path.join(path, 'displacement', '*coincell*.csv'))) # empty coincell
+    electrolyte_paths = sorted(glob.glob(os.path.join(path, 'displacement', '*electrolyte*.csv'))) # coincell + electrolyte
     
     for coincell_path, electrolyte_path in zip(coincell_paths, electrolyte_paths):
         try:
@@ -181,7 +187,7 @@ for path in experiment_paths:
             print(f"File not found: {coincell_path} or {electrolyte_path}")
             continue
         
-        log = coincell_path.split('\\')[-3]
+        log = Path(coincell_path).parts[-3]
         well = coincell_path.split('_')[-4]+ coincell_path.split('_')[-3]
 
         df_subset = df_summary_t.where(df_summary_t['Log'] == log).dropna(how='all')
@@ -200,10 +206,10 @@ df_summary_t['Difference'] = df_summary_t['Electrolyte Thickness Manual'] - df_s
 df_summary_d = pd.DataFrame()
 for path in experiment_paths: 
     try:
-        df = pd.read_excel(str(path) + r'\Coincell_digestion.xlsx',sheet_name='Sheet1')
-    
+        df = pd.read_excel(os.path.join(path, 'Coincell_digestion.xlsx'),sheet_name='Sheet1')
+
     except FileNotFoundError:
-        print(f"File not found: {str(path) + r'\Coincell_digestion.xlsx'}")
+        print(f"File not found: {os.path.join(path, 'Coincell_digestion.xlsx')}")
         continue
         
     df['Log'] = path.name
@@ -228,6 +234,10 @@ from impedance.models import circuits
 from impedance.models.circuits.fitting import rmse
 from sklearn.linear_model import LinearRegression
 from scipy.signal import find_peaks
+
+# impedance 1.7.1 builds a circuit string with str(list of numpy scalars) and eval()s it; with NumPy >= 2
+# that string contains "np.float64(...)" and eval fails. Legacy printing keeps plain numbers.
+np.set_printoptions(legacy='1.25')
 
 
 def load_df(df):
@@ -256,10 +266,16 @@ def load_df(df):
         df['Impedance'] = df['Real'] + 1j*df['Imaginary']
         df['Magnitude'] = df['Impedance'].abs()
         df['Magnitude_log10'] = np.log10(df['Magnitude'])
-        df['Phase'] = df['Impedance'].map(lambda z : math.phase(z)/math.pi*180)
+        df['Phase'] = df['Impedance'].map(lambda z : cmath.phase(z)/math.pi*180)
         df['Impedance_polar'] = list(zip(df['Magnitude'], df['Phase']))
         return df
-    
+
+
+class EISData:
+    """Container for a processed EIS spectrum (the analysis loop reads/overwrites `.df`)."""
+    def __init__(self, df: pd.DataFrame):
+        self.df = df
+
 
 # Utility functions 
 def nudge_points(x_values:np.ndarray, y_values:np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -498,7 +514,8 @@ def chi_squared_eis(
     chi2_imag= ((Z_exp.imag - Z_fit.imag)/np.abs(Z_exp))**2
     
    # Calculate chi2    
-    if alpha and  (frequency != None): # Bias chi2 to be sensitive to discrepancies at high frequency values 
+    if alpha and frequency is not None: # Bias chi2 to be sensitive to discrepancies at high frequency values
+        frequency = np.asarray(frequency, dtype=float)
         chi2 = np.sum(chi2_real*frequency**alpha)+np.sum(chi2_imag*frequency**alpha)
 
     else:
@@ -535,10 +552,11 @@ counter_good = 0
 counter_bad = 0
 counter_fail = 0
 for i,directory in enumerate(experiment_paths[:]):
-    for j,csv in enumerate(glob.glob(main_dir + rf'\{directory}\EIS\*.csv')[:]):
+    for j,csv in enumerate(sorted(glob.glob(os.path.join(directory, 'EIS', '*.csv')))):
+        segments = {}
         df = pd.read_csv(csv, header=0)
         df=df.rename(columns={'abs_voltage':'abs( Voltage ) [V]','abs_current':'abs( Current ) [A]','impedance_phase':'Impedance phase [rad]','impedance_modulus':'Impedance magnitude [ohm]','frequency':'Frequency [Hz]'})
-        eis_analysis = load_df(df, instrument='Biologic')
+        eis_analysis = EISData(load_df(df))
         test2 = eis_analysis.df.copy()        
         # 2. Filter data to positive imaginary
         test2['Imaginary'] = test2['Imaginary'] * -1
@@ -605,7 +623,10 @@ for i,directory in enumerate(experiment_paths[:]):
 
             if  (chi_value!=[np.nan] and chi_value_HF!=[np.nan]):
 
-                if (chi_value>0.001 and chi_value_HF>15):
+                if (chi_value>0.001 and chi_value_HF>15) and not EIS_INTERACTIVE:
+                    outcome = 'Bad'
+
+                elif (chi_value>0.001 and chi_value_HF>15):
                     fig = make_subplots(specs=[[{"secondary_y": True}]])
                     fig.update_layout(title=f'Real Residual: {np.abs(res_real).mean()*100:.2f} Imag Residual:{np.abs(res_imag).mean()*100:.2f}')
                     
@@ -725,7 +746,7 @@ for i,directory in enumerate(experiment_paths[:]):
                     outcome = 'Good'
 
         well = csv.split('_channel_')[0][-1] + str(int(csv.split('_channel_')[1][0])+1)
-        log = directory
+        log = directory.name
         strain = csv.split('_strain_')[-1].split('_')[0]
         
         eis_summary_df = pd.concat([eis_summary_df, pd.DataFrame({'log':[log],'well':[well],'strain':[strain],'parameters':[parameters],'chi_value':[chi_value],'chi_value_HF':[chi_value_HF], 'segments':str(segments), 'outcome':outcome})], ignore_index=True)
@@ -766,8 +787,8 @@ for log in df_summary.Log.unique():
     recipes_idx = df_summary.where(df_summary.Log==log).dropna(how='all').index
     
     df_log_recipe_thickness = df_summary_t.where(df_summary_t.Log==log).dropna(how='all').copy()
-    df_summary.loc[recipes_idx, 'Electrolyte Thickness Automated'] = df_log_recipe_thickness['Electrolyte Thickness High Boundary'].values
-    df_summary.loc[recipes_idx, 'Electrolyte Thickness Manual'] = df_log_recipe_thickness['Electrolyte Thickness'].values
+    df_summary.loc[recipes_idx, 'Electrolyte Thickness Automated'] = df_log_recipe_thickness['Electrolyte Thickness Automated'].values
+    df_summary.loc[recipes_idx, 'Electrolyte Thickness Manual'] = df_log_recipe_thickness['Electrolyte Thickness Manual'].values
     
     df_log_recipe_digestion = df_summary_d.where(df_summary_d.Log==log).dropna(how='all').copy()    
     df_summary.loc[recipes_idx, 'Electrolyte initial'] = df_log_recipe_digestion['Electrolyte initial'].values
@@ -784,7 +805,7 @@ for log in df_summary.Log.unique():
             df_summary.loc[recipes_idx, f'EIS chi_value strain {strain}'] = df_recipe_eis.loc[strain,'chi_value']
             df_summary.loc[recipes_idx, f'EIS chi_value_HF strain {strain}'] = df_recipe_eis.loc[strain,'chi_value_HF']
             df_summary.loc[recipes_idx, f'EIS fitting outcome {strain}'] = df_recipe_eis.loc[strain,'outcome']
-df_summary.to_csv(main_dir + r'\summary.csv', index=False)
+df_summary.to_csv(os.path.join(main_dir, 'summary.csv'), index=False)
 
 
 

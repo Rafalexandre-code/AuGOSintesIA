@@ -43,13 +43,16 @@ for port, desc, hwid in sorted(ports):
 
 #%% Connect to Mitutoyo gauge
 
-gauge = serial.Serial('', 2400) # Update with correct COM port
+import os
+GAUGE_PORT = os.environ.get('GAUGE_PORT', '')    # e.g. 'COM3' or '/dev/ttyUSB0'
+DEVICE_PORT = os.environ.get('DEVICE_PORT', '')  # device under test (GRBL, 115200 baud)
+gauge = serial.Serial(GAUGE_PORT, 2400) # Update with correct COM port (or set GAUGE_PORT)
 time.sleep(2)
 
 
 #%% Connect to device under test
 
-device = serial.Serial('', 115200) # Update with correct COM port
+device = serial.Serial(DEVICE_PORT, 115200) # Update with correct COM port (or set DEVICE_PORT)
 device.flushInput()
 
 time.sleep(2)

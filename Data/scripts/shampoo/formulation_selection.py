@@ -19,7 +19,8 @@ PATH2ROOT = os.getcwd().split(FOLDER)[0]
 
 
 # Obtain data directory for all the experiments
-main_dir = f'{PATH2ROOT}\data\shampoo'
+# (portable across Windows/Linux/macOS; override with QUBOT_DATA_DIR if data/ lives elsewhere)
+main_dir = os.path.join(os.environ.get('QUBOT_DATA_DIR', os.path.join(PATH2ROOT, 'data')), 'shampoo')
 
 
 
@@ -123,14 +124,19 @@ def greedy_selection_custom_score(
 
 #%% LOAD FORMULATION DATASET 
 
-with open(fr'{main_dir}/LiquidFormulationsDataset_2023.json') as f:
+dataset_path = os.path.join(main_dir, 'LiquidFormulationsDataset_2023.json')
+if not os.path.exists(dataset_path):
+    raise FileNotFoundError(
+        f"{dataset_path} not found. Download the Liquid Formulations Dataset (Chitre et al., Sci Data 11, 728, 2024; "
+        "https://doi.org/10.6084/m9.figshare.c.7132624) and save it with this name.")
+with open(dataset_path) as f:
     data = json.load(f)
 df_all = pd.DataFrame(data)
              
 df_all.set_index('ID', inplace=True,drop=True)
 
 #%% LOAD DICTIONARY CONTAINING THE REAGENTS USED FOR THIS STUDY
-with open(fr'{main_dir}/viscous_liquids_parameters.json') as f:
+with open(os.path.join(main_dir, 'viscous_liquids_parameters.json')) as f:
     solvents_dict = json.load(f) 
 
 solvents = [solvent.split('Diluted')[-1].strip() for solvent in solvents_dict.keys()]

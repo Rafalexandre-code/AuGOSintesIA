@@ -27,7 +27,8 @@ plt.style.use("seaborn-v0_8-colorblind")
 FOLDER = 'scripts'
 PATH2REPO = os.getcwd().split(FOLDER)[0]
 
-df_summary = pd.read_csv(f'{PATH2REPO}'+r'data/electrolytes/summary.csv')
+DATA_DIR = os.environ.get('QUBOT_DATA_DIR', os.path.join(PATH2REPO, 'data'))
+df_summary = pd.read_csv(os.path.join(DATA_DIR, 'electrolytes', 'summary.csv'))
 #%% [markdown]
 # # Plot transfer data for liquid mass transfers
 # In this section, we plot the transfer data obtained from the liquid mass transfers of the polymer workflow experiments.
