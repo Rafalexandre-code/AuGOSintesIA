@@ -1,0 +1,3239 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+# pyre-strict
+
+from __future__ import annotations
+
+import logging
+import os
+import re
+import time
+from collections.abc import Callable, Iterable
+from datetime import datetime, timedelta
+from math import ceil
+from tempfile import NamedTemporaryFile
+from typing import Any, cast
+from unittest.mock import call, Mock, patch
+
+import pandas as pd
+from ax.adapter.cross_validation import compute_model_fit_metrics_from_adapter
+from ax.adapter.registry import Generators, MBM_MTGP_trans
+from ax.core.arm import Arm
+from ax.core.base_trial import BaseTrial, TrialStatus
+from ax.core.batch_trial import BatchTrial
+from ax.core.data import Data, MAP_KEY
+from ax.core.experiment import Experiment
+from ax.core.experiment_status import ExperimentStatus
+from ax.core.generator_run import GeneratorRun
+from ax.core.metric import Metric, MetricFetchE
+from ax.core.multi_type_experiment import MultiTypeExperiment
+from ax.core.objective import Objective
+from ax.core.observation import ObservationFeatures
+from ax.core.optimization_config import OptimizationConfig
+from ax.core.outcome_constraint import OutcomeConstraint
+from ax.core.runner import Runner
+from ax.core.utils import (
+    extract_pending_observations,
+    get_pending_observation_features_based_on_trial_status,
+)
+from ax.early_stopping.strategies import BaseEarlyStoppingStrategy
+from ax.exceptions.core import OptimizationComplete, UnsupportedError, UserInputError
+from ax.exceptions.generation_strategy import AxGenerationException
+from ax.generation_strategy.dispatch_utils import choose_generation_strategy_legacy
+from ax.generation_strategy.generation_strategy import (
+    GenerationNode,
+    GenerationStep,
+    GenerationStrategy,
+)
+from ax.generation_strategy.generator_spec import GeneratorSpec
+from ax.generation_strategy.transition_criterion import MaxGenerationParallelism
+from ax.metrics.branin import BraninMetric
+from ax.metrics.branin_map import BraninTimestampMapMetric
+from ax.orchestration.orchestrator import (
+    FailureRateExceededError,
+    get_fitted_adapter,
+    MessageOutput,
+    OptimizationResult,
+    Orchestrator,
+    OrchestratorInternalError,
+    StatusQuoInfeasibleError,
+)
+from ax.orchestration.orchestrator_options import OrchestratorOptions, TrialType
+from ax.orchestration.tests.orchestrator_test_utils import (
+    BrokenRunnerRuntimeError,
+    BrokenRunnerValueError,
+    DUMMY_EXCEPTION,
+    InfinitePollRunner,
+    MockOrchestrator,
+    NoReportResultsRunner,
+    RunnerToAllowMultipleMapMetricFetches,
+    RunnerWithAllFailedTrials,
+    RunnerWithAllPollsFailing,
+    RunnerWithEarlyStoppingStrategy,
+    RunnerWithFailedAndAbandonedTrials,
+    RunnerWithFailingPollTrialStatus,
+    RunnerWithFrequentFailedTrials,
+    SyntheticRunnerWithPredictableStatusPolling,
+    SyntheticRunnerWithSingleRunningTrial,
+    SyntheticRunnerWithStatusPolling,
+    TEST_MEAN,
+)
+from ax.storage.json_store.encoders import runner_to_dict
+from ax.storage.json_store.registry import CORE_DECODER_REGISTRY, CORE_ENCODER_REGISTRY
+from ax.storage.metric_registry import CORE_METRIC_REGISTRY
+from ax.storage.runner_registry import CORE_RUNNER_REGISTRY
+from ax.storage.sqa_store.db import init_test_engine_and_session_factory
+from ax.storage.sqa_store.decoder import Decoder
+from ax.storage.sqa_store.encoder import Encoder
+from ax.storage.sqa_store.save import save_experiment
+from ax.storage.sqa_store.sqa_config import SQAConfig
+from ax.storage.sqa_store.structs import DBSettings
+from ax.storage.sqa_store.with_db_settings_base import WithDBSettingsBase
+from ax.utils.common.constants import Keys
+from ax.utils.common.logger import AX_ROOT_LOGGER_NAME
+from ax.utils.common.result import Err
+from ax.utils.common.testutils import TestCase
+from ax.utils.common.timeutils import current_timestamp_in_millis
+from ax.utils.testing.core_stubs import (
+    CustomTestMetric,
+    CustomTestRunner,
+    DummyEarlyStoppingStrategy,
+    DummyGlobalStoppingStrategy,
+    get_branin_experiment,
+    get_branin_experiment_with_multi_objective,
+    get_branin_experiment_with_timestamp_map_metric,
+    get_branin_metric,
+    get_branin_multi_objective_optimization_config,
+    get_branin_search_space,
+    get_generator_run,
+    get_map_metric,
+    get_multi_type_experiment,
+    get_online_sobol_mbm_generation_strategy,
+    get_sobol,
+)
+from ax.utils.testing.mock import mock_botorch_optimize
+from pyre_extensions import assert_is_instance, none_throws
+from sqlalchemy.orm.exc import StaleDataError
+
+
+class TestAxOrchestrator(TestCase):
+    """Tests base `Orchestrator` functionality.  This test case is meant to
+    test Orchestrator using `GenerationStrategy` but it can be subclassed
+    to test various other functionality, such as compatibility with
+    multi-type experiments below.
+    """
+
+    # TODO[@mgarrard]: Change this to `str(GenerationStrategy.__module__)`
+    # once we are no longer splitting which `GS.gen` to call into based on
+    # `Trial` vs. `BatchTrial`
+    PENDING_FEATURES_EXTRACTOR: tuple[
+        str,
+        Callable[
+            # pyrefly: ignore [invalid-argument]
+            [...],
+            dict[str, list[ObservationFeatures]] | None,
+        ],
+    ] = (
+        f"{get_pending_observation_features_based_on_trial_status.__module__}."
+        + "get_pending_observation_features_based_on_trial_status",
+        get_pending_observation_features_based_on_trial_status,
+    )
+    PENDING_FEATURES_BATCH_EXTRACTOR: tuple[
+        str,
+        Callable[
+            # pyrefly: ignore [invalid-argument]
+            [...],
+            dict[str, list[ObservationFeatures]] | None,
+        ],
+    ] = (
+        f"{GenerationStrategy.__module__}.extract_pending_observations",
+        extract_pending_observations,
+    )
+    ALWAYS_USE_DB = False
+    # After D80128678, choose_generation_strategy_legacy returns node-based GS.
+    EXPECTED_orchestrator_REPR: str = (
+        "Orchestrator(experiment=Experiment(branin_test_experiment), "
+        "generation_strategy=GenerationStrategy("
+        "name='GenerationStep_0_Sobol+GenerationStep_1_BoTorch', "
+        "nodes=[GenerationNode(name='GenerationStep_0_Sobol', "
+        "generator_specs=[GeneratorSpec(generator_enum=Sobol, "
+        "generator_key_override=None)], "
+        "transition_criteria="
+        "[MinTrials(transition_to='GenerationStep_1_BoTorch'), "
+        "MinTrials(transition_to='GenerationStep_1_BoTorch')], "
+        "suggested_experiment_status=ExperimentStatus.INITIALIZATION, "
+        "pausing_criteria="
+        "[MaxTrialsAwaitingData(threshold=5)]), "
+        "GenerationNode(name='GenerationStep_1_BoTorch', "
+        "generator_specs=[GeneratorSpec(generator_enum=BoTorch, "
+        "generator_key_override=None)], "
+        "transition_criteria=None, "
+        "suggested_experiment_status=ExperimentStatus.OPTIMIZATION, "
+        "pausing_criteria="
+        "[MaxGenerationParallelism(threshold=3)])]), "
+        "options=OrchestratorOptions(max_pending_trials=10, "
+        "trial_type=<TrialType.TRIAL: 0>, batch_size=None, "
+        "total_trials=0, tolerated_trial_failure_rate=0.2, "
+        "min_failed_trials_for_failure_rate_check=5, log_filepath=None, "
+        "logging_level=20, ttl_seconds_for_trials=None, init_seconds_between_"
+        "polls=10, min_seconds_before_poll=1.0, seconds_between_polls_backoff_"
+        "factor=1.5, run_trials_in_batches=False, "
+        "debug_log_run_metadata=False, early_stopping_strategy=None, "
+        "global_stopping_strategy=None, suppress_storage_errors_after_"
+        "retries=False, wait_for_running_trials=True, fetch_kwargs={}, "
+        "validate_metrics=True, status_quo_weight=0.0, "
+        "enforce_immutable_search_space_and_opt_config=True, "
+        "mt_experiment_trial_type=None, "
+        "terminate_if_status_quo_infeasible=False))"
+    )
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.branin_experiment = get_branin_experiment()
+        self.branin_timestamp_map_metric_experiment = (
+            get_branin_experiment_with_timestamp_map_metric()
+        )
+        self.branin_timestamp_map_metric_experiment.runner = (
+            RunnerToAllowMultipleMapMetricFetches()
+        )
+
+        self.runner = SyntheticRunnerWithStatusPolling()
+        self.branin_experiment.runner = self.runner
+        self.branin_experiment_no_impl_runner_or_metrics = Experiment(
+            search_space=get_branin_search_space(),
+            optimization_config=OptimizationConfig(
+                objective=Objective(metric=Metric(name="branin"), minimize=False)
+            ),
+            name="branin_experiment_no_impl_runner_or_metrics",
+        )
+        self.sobol_MBM_GS = choose_generation_strategy_legacy(
+            search_space=get_branin_search_space()
+        )
+        self.two_sobol_steps_GS = GenerationStrategy(  # Contrived GS to ensure
+            nodes=[  # that `DataRequiredError` is property handled in orchestrator.
+                GenerationStep(  # This error is raised when not enough trials
+                    generator=Generators.SOBOL,  # have been observed to proceed to next
+                    num_trials=5,  # geneneration step.
+                    min_trials_observed=3,
+                    max_parallelism=2,
+                ),
+                GenerationStep(
+                    generator=Generators.SOBOL, num_trials=-1, max_parallelism=3
+                ),
+            ]
+        )
+        # GS to force the orchestrator to poll completed trials after each ran trial.
+        self.sobol_GS_no_parallelism = GenerationStrategy(
+            nodes=[
+                GenerationStep(
+                    generator=Generators.SOBOL, num_trials=-1, max_parallelism=1
+                )
+            ]
+        )
+        self.orchestrator_options_kwargs = {}
+        self._mock_orchestrator_poll_sleep()
+
+    def _mock_orchestrator_poll_sleep(self) -> None:
+        """Patch out wall-clock sleeps that only slow tests down.
+
+        Two sources of pure idle time are removed:
+
+        1. The orchestrator's polling loop (``ax.orchestration.orchestrator.sleep``).
+           Many tests leave ``init_seconds_between_polls`` / ``min_seconds_before_poll``
+           at their (non-zero) defaults, so the loop spends most of its wall-clock time
+           sleeping. Loop termination depends on ``total_seconds_elapsed`` (which
+           accumulates the configured interval regardless of actual sleeping), so
+           removing the wait is behavior-preserving.
+        2. The exponential backoff between DB-save retries in
+           ``retry_on_exception`` (``initial_wait_seconds=5`` → 5s + 10s = 15s for
+           ``test_suppress_all_storage_errors``). Only the ``sleep`` is mocked; the
+           retry count and all other ``time`` functions are untouched, so retry
+           assertions still hold. A ``wraps``-ed copy of the ``time`` module is used so
+           that tests relying on real elapsed time (e.g. trial-TTL expiry via
+           ``time.sleep``) are unaffected.
+        """
+        poll_patcher = patch("ax.orchestration.orchestrator.sleep")
+        self.addCleanup(poll_patcher.stop)
+        poll_patcher.start()
+
+        fake_time = Mock(wraps=time)
+        fake_time.sleep = Mock()
+        retry_patcher = patch("ax.utils.common.executils.time", fake_time)
+        self.addCleanup(retry_patcher.stop)
+        retry_patcher.start()
+
+    @property
+    def runner_registry(self) -> dict[type[Runner], int]:
+        return {
+            SyntheticRunnerWithStatusPolling: 1998,
+            InfinitePollRunner: 1999,
+            RunnerWithFailedAndAbandonedTrials: 2000,
+            RunnerWithEarlyStoppingStrategy: 2001,
+            RunnerWithFrequentFailedTrials: 2002,
+            NoReportResultsRunner: 2003,
+            BrokenRunnerValueError: 2004,
+            RunnerWithAllFailedTrials: 2005,
+            BrokenRunnerRuntimeError: 2006,
+            SyntheticRunnerWithSingleRunningTrial: 2007,
+            SyntheticRunnerWithPredictableStatusPolling: 2008,
+            RunnerToAllowMultipleMapMetricFetches: 2009,
+            CustomTestRunner: 2010,
+            **CORE_RUNNER_REGISTRY,
+        }
+
+    @property
+    def db_config(self) -> SQAConfig:
+        encoder_registry = {
+            SyntheticRunnerWithStatusPolling: runner_to_dict,
+            **CORE_ENCODER_REGISTRY,
+        }
+        decoder_registry = {
+            SyntheticRunnerWithStatusPolling.__name__: SyntheticRunnerWithStatusPolling,
+            **CORE_DECODER_REGISTRY,
+        }
+
+        return SQAConfig(
+            json_encoder_registry=encoder_registry,
+            json_decoder_registry=decoder_registry,
+            runner_registry=self.runner_registry,
+            metric_registry={
+                CustomTestMetric: 3000,
+                **CORE_METRIC_REGISTRY,
+            },
+        )
+
+    @property
+    def db_settings(self) -> DBSettings:
+        """If db_settings in used on orchestrator, it is expected that the
+        test calls `init_test_engine_and_session_factory(force_init=True)`
+        prior to instantiating the orchestrator.
+        """
+        config = self.db_config
+        encoder = Encoder(config=config)
+        decoder = Decoder(config=config)
+        return DBSettings(encoder=encoder, decoder=decoder)
+
+    @property
+    def db_settings_if_always_needed(self) -> DBSettings | None:
+        if self.ALWAYS_USE_DB:
+            return self.db_settings
+        return None
+
+    def test_init_with_no_impl(self) -> None:
+        with self.assertRaisesRegex(
+            UnsupportedError,
+            "`Orchestrator` requires that experiment specifies a `Runner`.",
+        ):
+            Orchestrator(
+                experiment=self.branin_experiment_no_impl_runner_or_metrics,
+                generation_strategy=self.sobol_MBM_GS,
+                options=OrchestratorOptions(
+                    total_trials=10, **self.orchestrator_options_kwargs
+                ),
+                db_settings=self.db_settings_if_always_needed,
+            )
+
+    def test_init_with_no_impl_with_runner(self) -> None:
+        self.branin_experiment_no_impl_runner_or_metrics.runner = self.runner
+        generation_strategy = (self.sobol_MBM_GS,)
+        with self.assertRaisesRegex(
+            UnsupportedError,
+            ".*Metrics {'branin'} do not implement fetching logic.",
+        ):
+            Orchestrator(
+                experiment=self.branin_experiment_no_impl_runner_or_metrics,
+                # pyrefly: ignore [bad-argument-type]
+                generation_strategy=generation_strategy,
+                options=OrchestratorOptions(
+                    total_trials=10, **self.orchestrator_options_kwargs
+                ),
+                db_settings=self.db_settings_if_always_needed,
+            )
+
+        self.branin_experiment_no_impl_runner_or_metrics._optimization_config = None
+        with self.assertRaisesRegex(
+            UnsupportedError,
+            "do not implement fetching logic",
+        ):
+            Orchestrator(
+                experiment=self.branin_experiment_no_impl_runner_or_metrics,
+                # pyrefly: ignore [bad-argument-type]
+                generation_strategy=generation_strategy,
+                options=OrchestratorOptions(
+                    total_trials=10, **self.orchestrator_options_kwargs
+                ),
+                db_settings=self.db_settings_if_always_needed,
+            )
+
+    def test_init_with_branin_experiment(self) -> None:
+        gs = self.sobol_MBM_GS
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                total_trials=0,
+                tolerated_trial_failure_rate=0.2,
+                init_seconds_between_polls=10,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        self.assertEqual(orchestrator.experiment, self.branin_experiment)
+        self.assertEqual(orchestrator.generation_strategy, gs)
+        self.assertEqual(orchestrator.options.total_trials, 0)
+        self.assertEqual(orchestrator.options.tolerated_trial_failure_rate, 0.2)
+        self.assertEqual(orchestrator.options.init_seconds_between_polls, 10)
+        self.assertIsNone(orchestrator._latest_optimization_start_timestamp)
+        orchestrator.run_all_trials()  # Runs no trials since total trials is 0.
+        # `_latest_optimization_start_timestamp` should be set now.
+        # pyrefly: ignore [no-matching-overload]
+        self.assertLessEqual(
+            orchestrator._latest_optimization_start_timestamp,
+            # pyre-fixme[6]: For 2nd param expected `SupportsDunderGT[Variable[_T]]`
+            #  but got `int`.
+            current_timestamp_in_millis(),
+        )
+
+    def test_repr(self) -> None:
+        branin_gs = self.sobol_MBM_GS
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=branin_gs,
+            options=OrchestratorOptions(
+                total_trials=0,
+                tolerated_trial_failure_rate=0.2,
+                init_seconds_between_polls=10,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        self.maxDiff = None
+        self.assertEqual(
+            f"{orchestrator}",
+            self.EXPECTED_orchestrator_REPR,
+        )
+
+    def test_validate_early_stopping_strategy(self) -> None:
+        branin_gs = self.sobol_MBM_GS
+        with (
+            patch(
+                f"{BraninMetric.__module__}.BraninMetric.is_available_while_running",
+                return_value=False,
+            ),
+            self.assertRaises(ValueError),
+        ):
+            Orchestrator(
+                experiment=self.branin_experiment,
+                generation_strategy=branin_gs,
+                options=OrchestratorOptions(
+                    early_stopping_strategy=DummyEarlyStoppingStrategy(),
+                    **self.orchestrator_options_kwargs,
+                ),
+                db_settings=self.db_settings_if_always_needed,
+            )
+
+        # should not error
+        Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=branin_gs,
+            options=OrchestratorOptions(
+                early_stopping_strategy=DummyEarlyStoppingStrategy(),
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+
+    def test_run_multi_arm_generator_run_error(self) -> None:
+        branin_gs = self.sobol_MBM_GS
+        with patch.object(
+            type(branin_gs),
+            "gen",
+            return_value=[[get_generator_run()]],
+        ) as patch_gen:
+            orchestrator = Orchestrator(
+                experiment=self.branin_experiment,
+                generation_strategy=branin_gs,
+                options=OrchestratorOptions(
+                    total_trials=1,
+                    **self.orchestrator_options_kwargs,
+                ),
+                db_settings=self.db_settings_if_always_needed,
+            )
+            with self.assertRaisesRegex(
+                OrchestratorInternalError, ".* only one was expected"
+            ):
+                orchestrator.run_all_trials()
+            patch_gen.assert_called_once()
+
+    def test_run_all_trials_using_runner_and_metrics(self) -> None:
+        branin_gs = self.two_sobol_steps_GS
+        # With runners & metrics, `Orchestrator.run_all_trials` should run.
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,  # Has runner and metrics.
+            generation_strategy=branin_gs,
+            options=OrchestratorOptions(
+                total_trials=8,
+                init_seconds_between_polls=0,  # Short between polls so test is fast.
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        orchestrator.run_all_trials()
+        self.assertTrue(  # Make sure all trials got to complete.
+            all(
+                t.completed_successfully
+                for t in orchestrator.experiment.trials.values()
+            )
+        )
+        self.assertEqual(len(orchestrator.experiment.trials), 8)
+        # Check that all the data, fetched during optimization, was attached to the
+        # experiment.
+        dat = orchestrator.experiment.fetch_data().df
+        self.assertEqual(set(dat["trial_index"].values), set(range(8)))
+        self.assertNotIn(
+            Keys.RESUMED_FROM_STORAGE_TS.value,
+            orchestrator.experiment._properties,
+        )
+
+    def test_run_all_trials_callback(self) -> None:
+        n_total_trials = 8
+
+        gs = self.two_sobol_steps_GS
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,  # Has runner and metrics.
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                total_trials=n_total_trials,
+                init_seconds_between_polls=0,  # Short between polls so test is fast.
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        trials_info: dict[str, int] = {"n_completed": 0}
+
+        def write_n_trials(orchestrator: Orchestrator) -> None:
+            trials_info["n_completed"] = len(orchestrator.experiment.trials)
+
+        self.assertTrue(trials_info["n_completed"] == 0)
+        orchestrator.run_all_trials(idle_callback=write_n_trials)
+        self.assertTrue(trials_info["n_completed"] == n_total_trials)
+
+    def base_run_n_trials(
+        self, idle_callback: Callable[[Orchestrator], Any] | None
+    ) -> None:
+        gs = self.two_sobol_steps_GS
+        # With runners & metrics, `Orchestrator.run_all_trials` should run.
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,  # Has runner and metrics.
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                init_seconds_between_polls=0,  # Short between polls so test is fast.
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        orchestrator.run_n_trials(max_trials=1, idle_callback=idle_callback)
+        self.assertEqual(len(orchestrator.experiment.trials), 1)
+        orchestrator.run_n_trials(max_trials=10, idle_callback=idle_callback)
+        self.assertTrue(  # Make sure all trials got to complete.
+            all(
+                t.completed_successfully
+                for t in orchestrator.experiment.trials.values()
+            )
+        )
+        # Check that all the data, fetched during optimization, was attached to the
+        # experiment.
+        dat = orchestrator.experiment.fetch_data().df
+        self.assertEqual(set(dat["trial_index"].values), set(range(11)))
+
+    def test_run_n_trials(self) -> None:
+        self.base_run_n_trials(None)
+
+    def test_run_n_trials_callback(self) -> None:
+        test_obj: list[int | str | None] = [0, 0]
+
+        def _callback(orchestrator: Orchestrator) -> None:
+            test_obj[0] = orchestrator._latest_optimization_start_timestamp
+            test_obj[1] = "apple"
+            return
+
+        self.base_run_n_trials(_callback)
+
+        self.assertFalse(test_obj[0] == 0)
+        self.assertTrue(test_obj[1] == "apple")
+
+    def test_run_n_trials_single_step_existing_experiment(
+        self, all_completed_trials: bool = False
+    ) -> None:
+        # Test using the Orchestrator to run a single experiment update step.
+        self.branin_experiment.runner = SyntheticRunnerWithSingleRunningTrial()
+        sobol_generator = get_sobol(search_space=self.branin_experiment.search_space)
+        sobol_run = sobol_generator.gen(n=1)
+        trial = self.branin_experiment.new_trial(generator_run=sobol_run)
+        trial.mark_running(no_runner_required=True)
+        trial.mark_completed()
+        _ = self.branin_experiment.trials[0]
+        sobol_generator = get_sobol(search_space=self.branin_experiment.search_space)
+        sobol_run = sobol_generator.gen(n=15)
+        trial1 = self.branin_experiment.new_batch_trial()
+        trial1.add_generator_run(sobol_run)
+        trial1.mark_running()
+        if all_completed_trials:
+            trial1.mark_completed()
+        gs = self.two_sobol_steps_GS
+        # With runners & metrics, `Orchestrator.run_all_trials` should run.
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,  # Has runner and metrics.
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                # pyrefly: ignore [bad-argument-type]
+                init_seconds_between_polls=0.1,  # Short between polls so test is fast.
+                wait_for_running_trials=False,
+                enforce_immutable_search_space_and_opt_config=False,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        with (
+            patch.object(
+                Orchestrator,
+                "poll_and_process_results",
+                wraps=orchestrator.poll_and_process_results,
+            ) as mock_poll_and_process_results,
+            patch.object(
+                Orchestrator,
+                "run_trials_and_yield_results",
+                wraps=orchestrator.run_trials_and_yield_results,
+            ) as mock_run_trials_and_yield_results,
+        ):
+            manager = Mock()
+            manager.attach_mock(
+                mock_poll_and_process_results, "poll_and_process_results"
+            )
+            manager.attach_mock(
+                mock_run_trials_and_yield_results, "run_trials_and_yield_results"
+            )
+            orchestrator.run_n_trials(max_trials=1)
+            # test order of calls
+            expected_calls = [
+                call.poll_and_process_results(),
+                call.run_trials_and_yield_results(
+                    max_trials=1,
+                    ignore_global_stopping_strategy=False,
+                    timeout_hours=None,
+                    idle_callback=None,
+                ),
+            ]
+            self.assertEqual(manager.mock_calls, expected_calls)
+            self.assertEqual(len(orchestrator.experiment.trials), 3)
+            # check status
+            # Note: there is a one step delay here since we do no poll again
+            # after running a new trial. So the previous trial is only marked as
+            # completed when orchestrator.run_n_trials is called again.
+            self.assertEqual(
+                orchestrator.experiment.trials[0].status, TrialStatus.COMPLETED
+            )
+            self.assertEqual(
+                orchestrator.experiment.trials[1].status,
+                TrialStatus.COMPLETED if all_completed_trials else TrialStatus.RUNNING,
+            )
+            self.assertEqual(
+                orchestrator.experiment.trials[2].status, TrialStatus.RUNNING
+            )
+            orchestrator.run_n_trials(max_trials=1)
+            self.assertEqual(len(orchestrator.experiment.trials), 4)
+            self.assertEqual(
+                orchestrator.experiment.trials[0].status, TrialStatus.COMPLETED
+            )
+            self.assertEqual(
+                orchestrator.experiment.trials[1].status, TrialStatus.COMPLETED
+            )
+            self.assertEqual(
+                orchestrator.experiment.trials[2].status,
+                TrialStatus.RUNNING,
+            )
+            self.assertEqual(
+                orchestrator.experiment.trials[3].status, TrialStatus.RUNNING
+            )
+
+    def test_run_n_trials_single_step_all_completed_trials(self) -> None:
+        # test that orchestrator does not continue to loop, but rather exits it
+        # immediately if wait_for_running_trials is False
+        self.test_run_n_trials_single_step_existing_experiment(
+            all_completed_trials=True
+        )
+
+    def test_run_preattached_trials_only(self) -> None:
+        gs = self.two_sobol_steps_GS
+        # assert that pre-attached trials run when max_trials = number of
+        # pre-attached trials
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,  # Has runner and metrics.
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                init_seconds_between_polls=0,  # Short between polls so test is fast.
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        trial = orchestrator.experiment.new_trial()
+        parameter_dict = {"x1": 5, "x2": 5}
+        trial.add_arm(Arm(parameters=parameter_dict))
+
+        # check no new trials are run, when max_trials = 0
+        orchestrator.run_n_trials(max_trials=0)
+        self.assertEqual(trial.status, TrialStatus.CANDIDATE)
+        # check that candidate trial is run, when max_trials = 1
+        orchestrator.run_n_trials(max_trials=1)
+        self.assertEqual(len(orchestrator.experiment.trials), 1)
+        self.assertDictEqual(
+            # pyre-fixme[16]: `BaseTrial` has no attribute `arm`.
+            orchestrator.experiment.trials[0].arm.parameters,
+            parameter_dict,
+        )
+        self.assertTrue(  # Make sure all trials got to complete.
+            all(
+                t.completed_successfully
+                for t in orchestrator.experiment.trials.values()
+            )
+        )
+
+    def test_run_multiple_preattached_trials_only(self) -> None:
+        gs = self.two_sobol_steps_GS
+        # assert that pre-attached trials run when max_trials = number of
+        # pre-attached trials
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,  # Has runner and metrics.
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                init_seconds_between_polls=0,  # Short between polls so test is fast.
+                trial_type=TrialType.BATCH_TRIAL,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        trial1 = orchestrator.experiment.new_trial()
+        trial1.add_arm(Arm(parameters={"x1": 5, "x2": 5}))
+        trial2 = orchestrator.experiment.new_trial()
+        trial2.add_arm(Arm(parameters={"x1": 6, "x2": 3}))
+
+        # check that first candidate trial is run when called with max_trials = 1
+        with self.assertLogs(logger="ax.orchestration.orchestrator") as lg:
+            orchestrator.run_n_trials(max_trials=1)
+            self.assertIn(
+                "Found 1 non-terminal trials on branin_test_experiment: [1]",
+                lg.output[-1],
+            )
+        self.assertIn(trial1.status, [TrialStatus.RUNNING, TrialStatus.COMPLETED])
+        self.assertEqual(trial2.status, TrialStatus.CANDIDATE)
+        # check that next candidate trial is run, when max_trials = 1
+        orchestrator.run_n_trials(max_trials=1)
+        self.assertEqual(len(orchestrator.experiment.trials), 2)
+        self.assertTrue(  # Make sure all trials got to complete.
+            all(
+                t.completed_successfully
+                for t in orchestrator.experiment.trials.values()
+            )
+        )
+
+    def test_global_stopping(self) -> None:
+        gs = self.sobol_GS_no_parallelism
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,  # Has runner and metrics.
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                # Stops the optimization after 5 trials.
+                global_stopping_strategy=DummyGlobalStoppingStrategy(
+                    min_trials=2, trial_to_stop=5
+                ),
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        orchestrator.run_n_trials(max_trials=10)
+        self.assertEqual(len(orchestrator.experiment.trials), 5)
+        gss = orchestrator.options.global_stopping_strategy
+        self.assertIsNotNone(gss)
+        self.assertEqual(
+            gss.estimate_global_stopping_savings(
+                orchestrator.experiment, orchestrator._num_remaining_requested_trials
+            ),
+            0.5,
+        )
+
+    def test_ignore_global_stopping(self) -> None:
+        gs = self.sobol_GS_no_parallelism
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,  # Has runner and metrics.
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                # Stops the optimization after 5 trials.
+                global_stopping_strategy=DummyGlobalStoppingStrategy(
+                    min_trials=2, trial_to_stop=5
+                ),
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        orchestrator.run_n_trials(max_trials=10, ignore_global_stopping_strategy=True)
+        self.assertEqual(len(orchestrator.experiment.trials), 10)
+
+    @patch(f"{Orchestrator.__module__}.MAX_SECONDS_BETWEEN_REPORTS", 2)
+    def test_stop_at_MAX_SECONDS_BETWEEN_REPORTS(self) -> None:
+        self.branin_experiment.runner = InfinitePollRunner()
+        gs = self.sobol_GS_no_parallelism
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,  # Has runner and metrics.
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                total_trials=8,
+                init_seconds_between_polls=0,  # No wait between polls so test is fast.
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        with patch.object(
+            orchestrator,
+            "wait_for_completed_trials_and_report_results",
+            return_value=None,
+        ) as mock_await_trials:
+            orchestrator.run_all_trials(timeout_hours=1 / 60 / 15)  # 4 second timeout.
+            # We should be calling `wait_for_completed_trials_and_report_results`
+            # N = total runtime / `test_stop_at_MAX_SECONDS_BETWEEN_REPORTS` times.
+            self.assertEqual(
+                len(mock_await_trials.call_args),
+                2,  # test_stop_at_MAX_SECONDS_BETWEEN_REPORTS as patched in decorator
+            )
+
+    def test_timeout(self) -> None:
+        gs = self.two_sobol_steps_GS
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                total_trials=8,
+                init_seconds_between_polls=0,  # No wait between polls so test is fast.
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        orchestrator.run_all_trials(
+            timeout_hours=0
+        )  # Forcing optimization to time out.
+        self.assertEqual(len(orchestrator.experiment.trials), 0)
+
+    def test_logging(self) -> None:
+        gs = self.sobol_MBM_GS
+        with NamedTemporaryFile() as temp_file:
+            Orchestrator(
+                experiment=self.branin_experiment,
+                generation_strategy=gs,
+                options=OrchestratorOptions(
+                    total_trials=1,
+                    init_seconds_between_polls=0,  # No wait bw polls so test is fast.
+                    log_filepath=temp_file.name,
+                    **self.orchestrator_options_kwargs,
+                ),
+                db_settings=self.db_settings_if_always_needed,
+            ).run_all_trials()
+            self.assertGreater(os.stat(temp_file.name).st_size, 0)
+            self.assertIn("Running trials [0]", str(temp_file.read()))
+            temp_file.close()
+
+    def test_logging_level_is_set(self) -> None:
+        gs = self.sobol_MBM_GS
+
+        Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                logging_level=logging.DEBUG,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+
+        for logger in logging.Logger.manager.loggerDict.values():
+            if isinstance(logger, logging.Logger) and logger.name.startswith(
+                AX_ROOT_LOGGER_NAME
+            ):
+                self.assertTrue(logger.isEnabledFor(logging.DEBUG))
+
+    def test_logging_file_stream(self) -> None:
+        gs = self.sobol_MBM_GS
+        testDebugMessage = "testDebugMessage"
+
+        with NamedTemporaryFile() as temp_file:
+            testOrchestrator = Orchestrator(
+                experiment=self.branin_experiment,
+                generation_strategy=gs,
+                options=OrchestratorOptions(
+                    logging_level=logging.DEBUG,
+                    log_filepath=temp_file.name,
+                    **self.orchestrator_options_kwargs,
+                ),
+                db_settings=self.db_settings_if_always_needed,
+            )
+
+            testOrchestrator.logger.debug(testDebugMessage)
+
+            with open(temp_file.name) as f:
+                log_contents = f.read()
+                self.assertIn(testDebugMessage, log_contents)
+            temp_file.close()
+
+    def test_logging_levels(self) -> None:
+        gs = self.sobol_MBM_GS
+        testDebugMessage = "testDebugMessage"
+        testInfoMessage = "testInfoMessage"
+
+        testOrchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+
+        with self.assertLogs(AX_ROOT_LOGGER_NAME, level=logging.DEBUG) as lg:
+            testOrchestrator.logger.info(testInfoMessage)
+            testOrchestrator.logger.debug(testDebugMessage)
+
+        self.assertFalse(any(testDebugMessage in log for log in lg.output))
+        self.assertTrue(any(testInfoMessage in log for log in lg.output))
+
+    def test_retries(self) -> None:
+        gs = self.two_sobol_steps_GS
+        # Check that retries will be performed for a retriable error.
+        self.branin_experiment.runner = BrokenRunnerRuntimeError()
+        self.branin_experiment.runner = BrokenRunnerRuntimeError()
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                total_trials=1,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        # Check that retries will be performed for a retriable error.
+        # Should raise after 3 retries.
+        with self.assertRaisesRegex(RuntimeError, ".* testing .*"):
+            orchestrator.run_all_trials()
+            # pyre-fixme[16]: `Orchestrator` has no attribute `run_trial_call_count`.
+            self.assertEqual(orchestrator.run_trial_call_count, 3)
+
+    def test_retries_nonretriable_error(self) -> None:
+        gs = self.two_sobol_steps_GS
+        # Check that no retries will be performed for `ValueError`, since we
+        # exclude it from the retriable errors.
+        self.branin_experiment.runner = BrokenRunnerValueError()
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                total_trials=1,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        # Should raise right away since ValueError is non-retriable.
+        with self.assertRaisesRegex(ValueError, ".* testing .*"):
+            orchestrator.run_all_trials()
+            # pyre-fixme[16]: `Orchestrator` has no attribute `run_trial_call_count`.
+            self.assertEqual(orchestrator.run_trial_call_count, 1)
+
+    def test_set_ttl(self) -> None:
+        gs = self.two_sobol_steps_GS
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                total_trials=2,
+                ttl_seconds_for_trials=1,
+                init_seconds_between_polls=0,  # No wait between polls so test is fast.
+                min_seconds_before_poll=0.0,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        orchestrator.run_all_trials()
+        self.assertTrue(
+            all(t.ttl_seconds == 1 for t in orchestrator.experiment.trials.values())
+        )
+
+    def test_failure_rate_some_failed(self) -> None:
+        options = OrchestratorOptions(
+            total_trials=8,
+            tolerated_trial_failure_rate=0.5,
+            init_seconds_between_polls=0,  # No wait between polls so test is fast.
+            min_failed_trials_for_failure_rate_check=2,
+            **self.orchestrator_options_kwargs,
+        )
+        self.branin_experiment.runner = RunnerWithFrequentFailedTrials()
+        gs = self.sobol_GS_no_parallelism
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=options,
+            db_settings=self.db_settings_if_always_needed,
+        )
+        with self.assertRaises(FailureRateExceededError):
+            orchestrator.run_all_trials()
+        # Trials will have statuses: 0, 2 - FAILED, 1 - COMPLETED. Failure rate
+        # is 0.5, and so if 2 of the first 3 trials are failed, we can fail
+        # immediately.
+        self.assertEqual(len(orchestrator.experiment.trials), 3)
+
+    def test_failure_rate_all_failed(self) -> None:
+        options = OrchestratorOptions(
+            total_trials=8,
+            tolerated_trial_failure_rate=0.5,
+            init_seconds_between_polls=0,  # No wait between polls so test is fast.
+            min_failed_trials_for_failure_rate_check=2,
+            **self.orchestrator_options_kwargs,
+        )
+        # If all trials fail, we can be certain that the sweep will
+        # fail after only 2 trials.
+        self.branin_experiment.runner = RunnerWithAllFailedTrials()
+        gs = self.sobol_GS_no_parallelism
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=options,
+            db_settings=self.db_settings_if_always_needed,
+        )
+        with self.assertRaises(FailureRateExceededError):
+            orchestrator.run_all_trials()
+        self.assertEqual(len(orchestrator.experiment.trials), 2)
+
+    def test_failure_rate_error_uses_trigger_counts_for_incomplete_data(self) -> None:
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=self.sobol_GS_no_parallelism,
+            options=OrchestratorOptions(
+                tolerated_trial_failure_rate=0.2,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        trial = self.branin_experiment.new_trial()
+        trial.mark_running(no_runner_required=True).mark_completed()
+
+        with self.assertRaisesRegex(
+            FailureRateExceededError,
+            "at least 1 out of the first 1 trials",
+        ):
+            orchestrator.error_if_failure_rate_exceeded(force_check=True)
+
+        later_trial = self.branin_experiment.new_trial()
+        later_trial.mark_running(no_runner_required=True).mark_completed()
+        with self.assertRaisesRegex(
+            FailureRateExceededError,
+            "at least 1 out of the first 1 trials",
+        ):
+            orchestrator.error_if_failure_rate_exceeded(force_check=True)
+
+        self.assertEqual(trial.status, TrialStatus.COMPLETED)
+        self.assertEqual(later_trial.status, TrialStatus.COMPLETED)
+
+    def test_sqa_storage_without_experiment_name(self) -> None:
+        init_test_engine_and_session_factory(force_init=True)
+        gs = self.two_sobol_steps_GS
+        # Orchestrator currently requires that the experiment be pre-saved.
+        with self.assertRaisesRegex(ValueError, ".* must specify a name"):
+            self.branin_experiment._name = None
+            Orchestrator(
+                experiment=self.branin_experiment,
+                generation_strategy=gs,
+                options=OrchestratorOptions(
+                    total_trials=1,
+                    **self.orchestrator_options_kwargs,
+                ),
+                db_settings=self.db_settings,
+            )
+
+    def test_sqa_storage_map_metric_experiment(self) -> None:
+        init_test_engine_and_session_factory(force_init=True)
+        gs = self.two_sobol_steps_GS
+        self.assertIsNotNone(self.branin_timestamp_map_metric_experiment)
+        NUM_TRIALS = 5
+        options = OrchestratorOptions(
+            total_trials=NUM_TRIALS,
+            init_seconds_between_polls=0,  # No wait between polls so test is fast.
+            **self.orchestrator_options_kwargs,
+        )
+        orchestrator = Orchestrator(
+            experiment=self.branin_timestamp_map_metric_experiment,
+            generation_strategy=gs,
+            options=options,
+            db_settings=self.db_settings,
+        )
+        with patch.object(
+            orchestrator.experiment,
+            "attach_data",
+            Mock(wraps=orchestrator.experiment.attach_data),
+        ) as mock_experiment_attach_data:
+            orchestrator.run_all_trials()
+        # Check that experiment and GS were saved and test reloading with reduced state.
+        exp, _ = orchestrator._load_experiment_and_generation_strategy(
+            self.branin_timestamp_map_metric_experiment.name, reduced_state=True
+        )
+        exp = none_throws(exp)
+        self.assertEqual(len(exp.trials), NUM_TRIALS)
+
+        # We also should have attempted the fetch more times
+        # than there are trials because we have a `MapMetric` (many more since we are
+        # waiting 3 seconds for each trial).
+        self.assertGreater(mock_experiment_attach_data.call_count, NUM_TRIALS)
+        df = self.branin_timestamp_map_metric_experiment.lookup_data().full_df
+        # At least one step present from each `attach`
+        self.assertGreaterEqual(len(df), mock_experiment_attach_data.call_count)
+
+    def test_sqa_storage_with_experiment_name(self) -> None:
+        init_test_engine_and_session_factory(force_init=True)
+        gs = self.two_sobol_steps_GS
+        self.assertIsNotNone(self.branin_experiment)
+        NUM_TRIALS = 5
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                total_trials=NUM_TRIALS,
+                init_seconds_between_polls=0,  # No wait between polls so test is fast.
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings,
+        )
+        # Check that experiment and GS were saved.
+        exp, loaded_gs = orchestrator._load_experiment_and_generation_strategy(
+            self.branin_experiment.name
+        )
+        self.assertEqual(exp, self.branin_experiment)
+        exp = none_throws(exp)
+        self.assertEqual(
+            len(gs._generator_runs), len(none_throws(loaded_gs)._generator_runs)
+        )
+        orchestrator.run_all_trials()
+        # Check that experiment and GS were saved and test reloading with reduced state.
+        exp, loaded_gs = orchestrator._load_experiment_and_generation_strategy(
+            self.branin_experiment.name, reduced_state=True
+        )
+        exp = none_throws(exp)
+        self.assertEqual(len(exp.trials), NUM_TRIALS)
+        # Because of RGS, gs has queued additional unused candidates
+        self.assertGreaterEqual(len(gs._generator_runs), NUM_TRIALS)
+        new_orchestrator = Orchestrator.from_stored_experiment(
+            experiment_name=self.branin_experiment.name,
+            options=OrchestratorOptions(
+                total_trials=NUM_TRIALS + 1,
+                init_seconds_between_polls=0,  # No wait between polls so test is fast.
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings,
+        )
+        self.assertEqual(new_orchestrator.experiment, exp)
+        self.assertLessEqual(
+            len(gs._generator_runs),
+            len(new_orchestrator.generation_strategy._generator_runs),
+        )
+
+    def test_from_stored_experiment(self) -> None:
+        init_test_engine_and_session_factory(force_init=True)
+        self.branin_experiment.runner = self.runner
+        save_experiment(self.branin_experiment, config=self.db_config)
+        with self.subTest("it errors by default without a generation strategy"):
+            with self.assertRaisesRegex(
+                ValueError,
+                "did not have a generation strategy",
+            ):
+                Orchestrator.from_stored_experiment(
+                    experiment_name=self.branin_experiment.name,
+                    options=OrchestratorOptions(
+                        **self.orchestrator_options_kwargs,
+                    ),
+                    db_settings=self.db_settings,
+                )
+
+    def test_unknown_generation_errors_eventually_exit(self) -> None:
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=self.two_sobol_steps_GS,
+            options=OrchestratorOptions(
+                total_trials=8,
+                init_seconds_between_polls=0,  # No wait between polls so test is fast.
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        orchestrator.run_n_trials(max_trials=1)
+        with patch.object(
+            GenerationStrategy,
+            "_gen_with_multiple_nodes",
+            side_effect=AxGenerationException("model error"),
+        ):
+            with self.assertRaises(OrchestratorInternalError):
+                orchestrator.run_n_trials(max_trials=3)
+
+    def test_run_trials_and_yield_results(self) -> None:
+        total_trials = 3
+        gs = self.two_sobol_steps_GS
+        orchestrator = MockOrchestrator(
+            experiment=self.branin_experiment,  # Has runner and metrics.
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                init_seconds_between_polls=0,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        # `BaseBonesOrchestrator.poll_trial_status` is written to mark one
+        # trial as `COMPLETED` at a time, so we should be obtaining results
+        # at least as many times as `total_trials` and yielding from generator
+        # after obtaining each new result. Note that
+        # BraninMetric.is_available_while_running evaluates to True, so we may
+        # generate more than `total_trials` results if any intermediate fetching
+        # occurs.
+        total_trials_completed_so_far = 0
+        for res in orchestrator.run_trials_and_yield_results(max_trials=total_trials):
+            # The number of trials has either stayed the same or increased by 1.
+            self.assertIn(
+                len(res["trials_completed_so_far"]),
+                [total_trials_completed_so_far, total_trials_completed_so_far + 1],
+            )
+            # If the number of trials has changed, increase our counter.
+            if len(res["trials_completed_so_far"]) == total_trials_completed_so_far + 1:
+                total_trials_completed_so_far += 1
+        self.assertEqual(total_trials_completed_so_far, total_trials)
+
+    def test_run_trials_and_yield_results_with_early_stopper(self) -> None:
+        total_trials = 3
+        self.branin_experiment.runner = InfinitePollRunner()
+        gs = self.two_sobol_steps_GS
+        orchestrator = MockOrchestrator(
+            experiment=self.branin_experiment,  # Has runner and metrics.
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                init_seconds_between_polls=0,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        # All trials should be marked complete after one run.
+        with (
+            patch(
+                "ax.service.utils.early_stopping.should_stop_trials_early",
+                wraps=lambda trial_indices, **kwargs: dict.fromkeys(trial_indices),
+            ) as mock_should_stop_trials_early,
+            patch.object(
+                InfinitePollRunner, "stop", return_value=None
+            ) as mock_stop_trial_run,
+        ):
+            res_list = list(
+                orchestrator.run_trials_and_yield_results(max_trials=total_trials)
+            )
+            expected_num_polls = 2
+            self.assertEqual(len(res_list), expected_num_polls + 1)
+            # Both trials in first batch of parallelism will be early stopped
+            # Extract max_parallelism from pausing_criteria
+            node0_max_parallelism = None
+            for pc in self.two_sobol_steps_GS._nodes[0].pausing_criteria:
+                if isinstance(pc, MaxGenerationParallelism):
+                    node0_max_parallelism = pc.threshold
+                    break
+            self.assertEqual(
+                len(res_list[0]["trials_early_stopped_so_far"]),
+                node0_max_parallelism,
+            )
+            # Third trial in second batch of parallelism will be early stopped
+            self.assertEqual(len(res_list[1]["trials_early_stopped_so_far"]), 3)
+            self.assertEqual(
+                mock_should_stop_trials_early.call_count, expected_num_polls
+            )
+            self.assertEqual(
+                mock_stop_trial_run.call_count,
+                len(res_list[1]["trials_early_stopped_so_far"]),
+            )
+
+    def test_early_stopping_not_called_without_new_data(self) -> None:
+        """Test that ESS is only called when new data is available."""
+        total_trials = 2
+
+        # Create a runner that simulates polls without new data
+        class RunnerWithIntermittentData(SyntheticRunnerWithStatusPolling):
+            def __init__(self) -> None:
+                super().__init__()
+                self.poll_count = 0
+
+            def poll_trial_status(
+                self, trials: Iterable[BaseTrial]
+            ) -> dict[TrialStatus, set[int]]:
+                """Return RUNNING for several polls before completing trials."""
+                self.poll_count += 1
+                # Only complete trials on specific polls to create gaps
+                if self.poll_count == 5:  # Complete first trial late
+                    return {TrialStatus.COMPLETED: {0}, TrialStatus.RUNNING: {1}}
+                elif self.poll_count == 10:  # Complete second trial even later
+                    return {TrialStatus.COMPLETED: {0, 1}}
+                # Most polls return RUNNING (no status change = no new data to fetch)
+                return {
+                    TrialStatus.RUNNING: {
+                        t.index for t in trials if t.status.is_running
+                    }
+                }
+
+        self.branin_experiment.runner = RunnerWithIntermittentData()
+        gs = self.two_sobol_steps_GS
+        orchestrator = MockOrchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                init_seconds_between_polls=0,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+
+        # Track fetch results
+        fetch_results: list[set[int]] = []
+        original_fetch: Callable[[set[int]], set[int]] = (
+            orchestrator._fetch_data_and_return_trial_indices_with_new_data
+        )
+
+        def track_fetch_results(*args: Any, **kwargs: Any) -> set[int]:
+            result = original_fetch(*args, **kwargs)
+            fetch_results.append(result)
+            return result
+
+        with (
+            patch(
+                "ax.service.utils.early_stopping.should_stop_trials_early",
+                return_value={},
+            ) as mock_should_stop,
+            patch.object(
+                orchestrator,
+                "_fetch_data_and_return_trial_indices_with_new_data",
+                side_effect=track_fetch_results,
+            ) as mock_fetch,
+        ):
+            orchestrator.run_n_trials(max_trials=total_trials)
+            # Calculate fetches with actual new data
+            num_fetches_with_new_data = sum(1 for r in fetch_results if len(r) > 0)
+            # ESS should only be called when there's new data
+            self.assertEqual(mock_should_stop.call_count, num_fetches_with_new_data)
+            # Verify we actually had polls without new data
+            self.assertLess(num_fetches_with_new_data, mock_fetch.call_count)
+
+    def test_orchestrator_with_odd_index_early_stopping_strategy(self) -> None:
+        total_trials = 3
+
+        class OddIndexEarlyStoppingStrategy(BaseEarlyStoppingStrategy):
+            def _is_harmful(
+                self,
+                trial_indices: set[int],
+                experiment: Experiment,
+            ) -> bool:
+                return False
+
+            # Trials with odd indices will be early stopped
+            # Thus, with 3 total trials, trial #1 will be early stopped
+            def _should_stop_trials_early(
+                self,
+                trial_indices: set[int],
+                experiment: Experiment,
+                current_node: GenerationNode | None = None,
+            ) -> dict[int, str | None]:
+                return {
+                    idx: f"Trial {idx} stopped by OddIndexEarlyStoppingStrategy"
+                    for idx in trial_indices
+                    if idx % 2 == 1
+                }
+
+        self.branin_timestamp_map_metric_experiment.runner = (
+            RunnerWithEarlyStoppingStrategy()
+        )
+        gs = self.two_sobol_steps_GS
+        orchestrator = MockOrchestrator(
+            experiment=self.branin_timestamp_map_metric_experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                init_seconds_between_polls=0,
+                early_stopping_strategy=OddIndexEarlyStoppingStrategy(),
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        with patch.object(
+            RunnerWithEarlyStoppingStrategy, "stop", return_value=None
+        ) as mock_stop_trial_run:
+            res_list = list(
+                orchestrator.run_trials_and_yield_results(max_trials=total_trials)
+            )
+            expected_num_steps = 3
+            self.assertEqual(len(res_list), expected_num_steps + 1)
+            # Trial #1 early stopped in first step
+            self.assertEqual(res_list[0]["trials_early_stopped_so_far"], {1})
+            # All trials completed by end of second step
+            self.assertEqual(res_list[1]["trials_early_stopped_so_far"], {1})
+            self.assertEqual(res_list[1]["trials_completed_so_far"], {2})
+            self.assertEqual(res_list[2]["trials_completed_so_far"], {0, 2})
+            self.assertEqual(
+                mock_stop_trial_run.call_count,
+                len(res_list[1]["trials_early_stopped_so_far"]),
+            )
+
+        looked_up_data = orchestrator.experiment.lookup_data()
+        fetched_data = orchestrator.experiment.fetch_data()
+        num_metrics = 2
+        expected_num_rows = num_metrics * total_trials
+        # There are 3 trials and two metrics for "type1" for MT experiments
+        self.assertEqual(len(looked_up_data.df), expected_num_rows)
+        self.assertEqual(len(fetched_data.df), expected_num_rows)
+
+        # expect number of rows in map df to equal:
+        #   num_non_map_metrics * num_trials +
+        #   num_map_metrics * num_trials + an extra row, since trial 0 runs
+        #   longer and gets results for an extra timestamp.
+        # For MultiTypeExperiment there are two metrics
+        # for trial type "type1"
+        expected_num_rows = 7
+        self.assertEqual(len(looked_up_data.full_df), expected_num_rows)
+        self.assertEqual(len(fetched_data.full_df), expected_num_rows)
+        ess = orchestrator.options.early_stopping_strategy
+        self.assertIsNotNone(ess)
+        self.assertAlmostEqual(
+            ess.estimate_early_stopping_savings(orchestrator.experiment),
+            1.0 / 3.0,
+        )
+
+        # Verify that the status reason from early stopping strategy is retained.
+        early_stopped_trial = orchestrator.experiment.trials[1]
+        self.assertEqual(early_stopped_trial.status, TrialStatus.EARLY_STOPPED)
+        self.assertEqual(
+            early_stopped_trial.status_reason,
+            "Trial 1 stopped by OddIndexEarlyStoppingStrategy",
+        )
+
+    def test_orchestrator_with_metric_with_new_data_after_completion(self) -> None:
+        init_test_engine_and_session_factory(force_init=True)
+        branin_gs = self.two_sobol_steps_GS
+        # With runners & metrics, `Orchestrator.run_all_trials` should run.
+        if isinstance(self.branin_experiment, MultiTypeExperiment):
+            self.branin_experiment.update_runner(
+                "type1", SyntheticRunnerWithPredictableStatusPolling()
+            )
+        else:
+            self.branin_experiment.runner = (
+                SyntheticRunnerWithPredictableStatusPolling()
+            )
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,  # Has runner and metrics.
+            generation_strategy=branin_gs,
+            options=OrchestratorOptions(
+                # total_trials must be at least 2x generation strategy parallelism
+                # to cause the possibility of multiple fetches on completed trials
+                total_trials=5,
+                init_seconds_between_polls=0,  # Short between polls so test is fast.
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings,
+        )
+        with patch.object(
+            BraninMetric,
+            "period_of_new_data_after_trial_completion",
+            return_value=timedelta(hours=1),
+        ):
+            orchestrator.run_all_trials()
+        self.assertFalse(orchestrator.experiment.lookup_data(trial_indices={0}).empty)
+
+    def test_run_trials_in_batches(self) -> None:
+        gs = self.two_sobol_steps_GS
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,  # Has runner and metrics.
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                init_seconds_between_polls=0,
+                run_trials_in_batches=True,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        with patch.object(
+            type(orchestrator.runner),
+            "poll_available_capacity",
+            return_value=2,
+        ):
+            with patch.object(
+                orchestrator, "run_trials", side_effect=orchestrator.run_trials
+            ) as mock_run_trials:
+                orchestrator.run_n_trials(max_trials=3)
+                # Trials should be dispatched twice, as total of three trials
+                # should be dispatched but capacity is limited to 2.
+                self.assertEqual(mock_run_trials.call_count, ceil(3 / 2))
+
+    def test_base_report_results(self) -> None:
+        self.branin_experiment.runner = NoReportResultsRunner()
+        gs = self.two_sobol_steps_GS
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,  # Has runner and metrics.
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                init_seconds_between_polls=0,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        self.assertEqual(orchestrator.run_n_trials(max_trials=3), OptimizationResult())
+
+    def test_optimization_complete(self) -> None:
+        # With runners & metrics, `Orchestrator.run_all_trials` should run.
+        gs = self.two_sobol_steps_GS
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,  # Has runner and metrics.
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                max_pending_trials=100,
+                init_seconds_between_polls=0,  # Short between polls so test is fast.
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        with patch.object(
+            GenerationStrategy,
+            "gen",
+            side_effect=OptimizationComplete("test error"),
+        ) as mock_gen:
+            orchestrator.run_n_trials(max_trials=1)
+        # no trials should run if _gen_multiple throws an OptimizationComplete error
+        mock_gen.assert_called_once()
+        self.assertEqual(len(orchestrator.experiment.trials), 0)
+
+    @patch(
+        f"{WithDBSettingsBase.__module__}.WithDBSettingsBase."
+        "_save_generation_strategy_to_db_if_possible"
+    )
+    @patch(
+        f"{WithDBSettingsBase.__module__}._save_experiment", side_effect=StaleDataError
+    )
+    def test_suppress_all_storage_errors(self, mock_save_exp: Mock, _) -> None:
+        init_test_engine_and_session_factory(force_init=True)
+        config = SQAConfig()
+        encoder = Encoder(config=config)
+        decoder = Decoder(config=config)
+        db_settings = DBSettings(encoder=encoder, decoder=decoder)
+        gs = self.two_sobol_steps_GS
+        Orchestrator(
+            experiment=self.branin_experiment,  # Has runner and metrics.
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                max_pending_trials=100,
+                init_seconds_between_polls=0,  # Short between polls so test is fast.
+                suppress_storage_errors_after_retries=True,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=db_settings,
+        )
+        self.assertEqual(mock_save_exp.call_count, 3)
+
+    def test_max_pending_trials(self) -> None:
+        # With runners & metrics, `BareBonesTestOrchestrator.run_all_trials` should run.
+        gs = self.sobol_MBM_GS
+        orchestrator = MockOrchestrator(
+            experiment=self.branin_experiment,  # Has runner and metrics.
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                max_pending_trials=1,
+                init_seconds_between_polls=0,  # Short between polls so test is fast.
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        last_n_completed = 0
+        idx = 0
+        for _res in orchestrator.run_trials_and_yield_results(max_trials=3):
+            curr_n_completed = len(
+                self.branin_experiment.trial_indices_by_status[TrialStatus.COMPLETED]
+            )
+            # Skip if no new trials were completed.
+            if last_n_completed == curr_n_completed:
+                continue
+            idx += 1
+            # Trials should be scheduled one-at-a-time w/ parallelism limit of 1.
+            self.assertEqual(len(self.branin_experiment.trials), idx)
+            # Trials also should be getting completed one-at-a-time.
+            self.assertEqual(
+                len(
+                    self.branin_experiment.trial_indices_by_status[
+                        TrialStatus.COMPLETED
+                    ]
+                ),
+                idx,
+            )
+            last_n_completed = curr_n_completed
+
+    def test_get_best_trial(self) -> None:
+        gs = self.two_sobol_steps_GS
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,  # Has runner and metrics.
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                init_seconds_between_polls=0,  # Short between polls so test is fast.
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+
+        self.assertIsNone(orchestrator.get_best_parameters())
+
+        orchestrator.run_n_trials(max_trials=1)
+
+        trial, params, _arm = none_throws(orchestrator.get_best_trial())
+        just_params, _just_arm = none_throws(orchestrator.get_best_parameters())
+        just_params_unmodeled, _just_arm_unmodled = none_throws(
+            orchestrator.get_best_parameters(use_model_predictions=False)
+        )
+        with self.assertRaisesRegex(
+            NotImplementedError, "Please use `get_best_parameters`"
+        ):
+            orchestrator.get_pareto_optimal_parameters()
+
+        with self.assertRaisesRegex(
+            NotImplementedError, "Please use `get_pareto_optimal_parameters`"
+        ):
+            orchestrator.get_best_trial(
+                optimization_config=get_branin_multi_objective_optimization_config()
+            )
+
+        # We override the optimization config but not objectives, so a
+        # ValueError results when extract_objective_weights tries to find
+        # the MOO metric signature in the outcomes list.
+        with self.assertRaisesRegex(ValueError, "not in list"):
+            orchestrator.get_pareto_optimal_parameters(
+                optimization_config=get_branin_multi_objective_optimization_config(
+                    has_objective_thresholds=True
+                )
+            )
+
+        self.assertEqual(trial, 0)
+        self.assertIn("x1", params)
+        self.assertIn("x2", params)
+
+        self.assertEqual(params, just_params)
+        self.assertEqual(params, just_params_unmodeled)
+
+    def test_get_best_trial_moo(self) -> None:
+        for name in ["branin_a", "branin_b"]:
+            self.branin_experiment.add_tracking_metric(get_branin_metric(name=name))
+        self.branin_experiment.optimization_config = (
+            get_branin_multi_objective_optimization_config()
+        )
+
+        gs = self.sobol_MBM_GS
+
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                init_seconds_between_polls=0,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+
+        orchestrator.run_n_trials(max_trials=1)
+
+        with self.assertRaisesRegex(
+            NotImplementedError, "Please use `get_pareto_optimal_parameters`"
+        ):
+            orchestrator.get_best_trial()
+
+        with self.assertRaisesRegex(
+            NotImplementedError, "Please use `get_pareto_optimal_parameters`"
+        ):
+            orchestrator.get_best_parameters()
+
+        self.assertIsNotNone(orchestrator.get_pareto_optimal_parameters())
+
+    def test_batch_trial(self, status_quo_weight: float = 0.0) -> None:
+        gs = self.two_sobol_steps_GS
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,  # Has runner and metrics.
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                init_seconds_between_polls=0,  # Short between polls so test is fast.
+                trial_type=TrialType.BATCH_TRIAL,
+                batch_size=2,
+                status_quo_weight=status_quo_weight,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        self.branin_experiment.status_quo = Arm(parameters={"x1": 0.0, "x2": 0.0})
+        gs = orchestrator.generation_strategy
+        gm = gs.gen
+        with (
+            patch(  # Record calls to functions, but still execute them.
+                self.PENDING_FEATURES_BATCH_EXTRACTOR[0],
+                side_effect=self.PENDING_FEATURES_BATCH_EXTRACTOR[1],
+            ) as mock_get_pending,
+            patch.object(
+                gs,
+                "gen",
+                wraps=gm,
+            ) as mock_gen,
+        ):
+            orchestrator.run_n_trials(max_trials=1)
+            mock_gen.assert_called_once()
+            mock_get_pending.assert_called()
+        self.assertEqual(len(orchestrator.experiment.trials), 1)
+        trial = assert_is_instance(orchestrator.experiment.trials[0], BatchTrial)
+        self.assertEqual(
+            len(trial.arms),
+            2 if status_quo_weight == 0.0 else 3,
+        )
+        if status_quo_weight > 0:
+            self.assertEqual(
+                # pyrefly: ignore [bad-index]
+                trial.arm_weights[self.branin_experiment.status_quo],
+                1.0,
+            )
+
+    def test_batch_trial_with_status_quo(self) -> None:
+        self.test_batch_trial(status_quo_weight=1.0)
+
+    def test_poll_and_process_results_with_reasons(self) -> None:
+        options = OrchestratorOptions(
+            total_trials=4,
+            tolerated_trial_failure_rate=0.9,
+            init_seconds_between_polls=0,
+            **self.orchestrator_options_kwargs,
+        )
+
+        self.branin_experiment.runner = RunnerWithFailedAndAbandonedTrials()
+        gs = self.sobol_GS_no_parallelism
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=options,
+            db_settings=self.db_settings_if_always_needed,
+        )
+
+        with patch.object(
+            orchestrator.runner,
+            "poll_exception",
+            return_value=DUMMY_EXCEPTION,
+        ):
+            orchestrator.run_all_trials()
+
+        abandoned_idx = list(
+            orchestrator.experiment.trial_indices_by_status[TrialStatus.ABANDONED]
+        )[0]
+        failed_idx = list(
+            orchestrator.experiment.trial_indices_by_status[TrialStatus.FAILED]
+        )[0]
+        completed_idx = list(
+            orchestrator.experiment.trial_indices_by_status[TrialStatus.COMPLETED]
+        )[0]
+
+        self.assertEqual(
+            orchestrator.experiment.trials[failed_idx].status_reason,
+            DUMMY_EXCEPTION,
+        )
+        self.assertEqual(
+            orchestrator.experiment.trials[abandoned_idx].status_reason,
+            DUMMY_EXCEPTION,
+        )
+        self.assertIsNone(orchestrator.experiment.trials[completed_idx].status_reason)
+
+    def test_apply_trial_statuses_staged_to_running(self) -> None:
+        """Test that _apply_trial_statuses processes STAGED->RUNNING
+        transitions and uses time_started from run_metadata."""
+        gs = self.sobol_GS_no_parallelism
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                init_seconds_between_polls=0,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        grs = gs.gen(experiment=orchestrator.experiment)
+        trial = orchestrator.experiment.new_trial(generator_run=grs[0][0])
+        trial.mark_staged(unsafe=True)
+        self.assertEqual(trial.status, TrialStatus.STAGED)
+
+        custom_time_str = "2026-05-30 04:54:38"
+        custom_time = datetime(2026, 5, 30, 4, 54, 38)
+        trial.update_run_metadata({Keys.START_TIME_STR: custom_time_str})
+
+        updated = orchestrator._apply_trial_statuses(
+            {TrialStatus.RUNNING: {trial.index}}
+        )
+        self.assertIn(trial.index, updated)
+        self.assertEqual(trial.status, TrialStatus.RUNNING)
+        self.assertEqual(trial.time_run_started, custom_time)
+
+    def test_apply_trial_statuses_skips_running_noop(self) -> None:
+        """Test that _apply_trial_statuses skips RUNNING->RUNNING no-ops."""
+        gs = self.sobol_GS_no_parallelism
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                init_seconds_between_polls=0,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        grs = gs.gen(experiment=orchestrator.experiment)
+        trial = orchestrator.experiment.new_trial(generator_run=grs[0][0])
+        trial.mark_running(no_runner_required=True)
+        original_time = trial.time_run_started
+
+        updated = orchestrator._apply_trial_statuses(
+            {TrialStatus.RUNNING: {trial.index}}
+        )
+        self.assertEqual(len(updated), 0)
+        self.assertEqual(trial.time_run_started, original_time)
+
+    def test_apply_trial_statuses_staged_to_running_no_time_started(self) -> None:
+        """Test that STAGED->RUNNING defaults to datetime.now() when
+        time_started is not in run_metadata."""
+        gs = self.sobol_GS_no_parallelism
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                init_seconds_between_polls=0,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        grs = gs.gen(experiment=orchestrator.experiment)
+        trial = orchestrator.experiment.new_trial(generator_run=grs[0][0])
+        trial.mark_staged(unsafe=True)
+
+        before = datetime.now()
+        updated = orchestrator._apply_trial_statuses(
+            {TrialStatus.RUNNING: {trial.index}}
+        )
+        after = datetime.now()
+
+        self.assertIn(trial.index, updated)
+        self.assertEqual(trial.status, TrialStatus.RUNNING)
+        started = trial.time_run_started
+        self.assertIsNotNone(started)
+        assert started is not None
+        self.assertGreaterEqual(started, before)
+        self.assertLessEqual(started, after)
+
+    def test_apply_trial_statuses_staged_to_running_int_timestamp(self) -> None:
+        """Test that STAGED->RUNNING handles integer timestamps in
+        run_metadata by converting from epoch seconds."""
+        gs = self.sobol_GS_no_parallelism
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                init_seconds_between_polls=0,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        grs = gs.gen(experiment=orchestrator.experiment)
+        trial = orchestrator.experiment.new_trial(generator_run=grs[0][0])
+        trial.mark_staged(unsafe=True)
+
+        epoch = 1748580878
+        trial.update_run_metadata({Keys.START_TIME_STR: epoch})
+
+        updated = orchestrator._apply_trial_statuses(
+            {TrialStatus.RUNNING: {trial.index}}
+        )
+        self.assertIn(trial.index, updated)
+        self.assertEqual(trial.status, TrialStatus.RUNNING)
+        self.assertEqual(
+            trial.time_run_started,
+            datetime.fromtimestamp(epoch),
+        )
+
+    def test_poll_trial_status_fallback_to_individual_polling(self) -> None:
+        """Test that poll_trial_status falls back to individual polling when
+        batch polling fails, and successfully completes trials."""
+        self.branin_experiment.runner = RunnerWithFailingPollTrialStatus()
+        gs = self.two_sobol_steps_GS
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                total_trials=3,
+                init_seconds_between_polls=0,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        with self.assertLogs(logger="ax.orchestration.orchestrator") as lg:
+            orchestrator.run_all_trials()
+
+        # Check that the fallback warning was logged
+        self.assertTrue(
+            any(
+                "Failed to poll all trial statuses at once" in msg
+                and "Falling back to polling trials individually" in msg
+                for msg in lg.output
+            ),
+            f"Expected fallback warning not found in logs: {lg.output}",
+        )
+
+        # All trials should have completed successfully despite batch poll failures
+        self.assertTrue(
+            all(
+                t.completed_successfully
+                for t in orchestrator.experiment.trials.values()
+            )
+        )
+        self.assertEqual(len(orchestrator.experiment.trials), 3)
+
+    def test_poll_trial_status_abandons_trial_on_individual_failure(self) -> None:
+        """Test that poll_trial_status marks individual trials as ABANDONED when
+        their status cannot be retrieved."""
+        self.branin_experiment.runner = RunnerWithAllPollsFailing()
+        gs = self.sobol_GS_no_parallelism
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                total_trials=2,
+                tolerated_trial_failure_rate=0.9,
+                init_seconds_between_polls=0,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        with self.assertLogs(logger="ax.orchestration.orchestrator") as lg:
+            # Expect FailureRateExceededError since all trials are ABANDONED
+            with self.assertRaises(FailureRateExceededError):
+                orchestrator.run_all_trials()
+
+        # Check that the abandonment warning was logged
+        self.assertTrue(
+            any(
+                "Failed to retrieve status of trial" in msg
+                and "Setting trial status to ABANDONED" in msg
+                for msg in lg.output
+            ),
+            f"Expected abandonment warning not found in logs: {lg.output}",
+        )
+
+        # All trials should be abandoned due to poll failures
+        self.assertTrue(
+            all(
+                t.status == TrialStatus.ABANDONED
+                for t in orchestrator.experiment.trials.values()
+            )
+        )
+
+    def test_fetch_error_for_running_metric_with_distinct_signature(self) -> None:
+        gs = self.two_sobol_steps_GS
+        self.branin_timestamp_map_metric_experiment.metrics[
+            "branin_map"
+        ].signature_override = "branin_map_signature"
+        with (
+            patch(
+                f"{BraninTimestampMapMetric.__module__}.BraninTimestampMapMetric.f",
+                side_effect=[Exception("yikes!"), {"mean": 0, MAP_KEY: 12345}],
+            ),
+            patch(
+                f"{BraninMetric.__module__}.BraninMetric.f",
+                side_effect=[Exception("yikes!"), 0],
+            ),
+            patch(
+                f"{RunnerToAllowMultipleMapMetricFetches.__module__}."
+                "RunnerToAllowMultipleMapMetricFetches.poll_trial_status",
+                side_effect=[
+                    {TrialStatus.RUNNING: {0}},
+                    {TrialStatus.COMPLETED: {0}},
+                ],
+            ),
+            self.assertLogs(logger="ax.orchestration.orchestrator", level="INFO") as lg,
+        ):
+            orchestrator = Orchestrator(
+                experiment=self.branin_timestamp_map_metric_experiment,
+                generation_strategy=gs,
+                options=OrchestratorOptions(
+                    **self.orchestrator_options_kwargs,
+                ),
+                db_settings=self.db_settings_if_always_needed,
+            )
+            orchestrator.run_n_trials(max_trials=1)
+            self.assertTrue(
+                any("Waiting for completed trials" in msg for msg in lg.output)
+            )
+            logs = "\n".join(lg.output)
+            self.assertIn(
+                "continuing after failing to fetch branin_map_signature and retrying",
+                logs,
+            )
+            self.assertNotIn("Failed to fetch branin_map_signature for trial 0", logs)
+        self.assertEqual(
+            orchestrator.experiment.trials[0].status, TrialStatus.COMPLETED
+        )
+
+    def test_fetch_and_process_trials_data_results_failed_non_objective(
+        self,
+    ) -> None:
+        gs = self.two_sobol_steps_GS
+        with (
+            patch(
+                f"{BraninMetric.__module__}.BraninMetric.f",
+                side_effect=Exception("yikes!"),
+            ),
+            self.assertLogs(logger="ax.orchestration.orchestrator") as lg,
+        ):
+            orchestrator = Orchestrator(
+                experiment=self.branin_timestamp_map_metric_experiment,
+                generation_strategy=gs,
+                options=OrchestratorOptions(
+                    **self.orchestrator_options_kwargs,
+                ),
+                db_settings=self.db_settings_if_always_needed,
+            )
+            orchestrator.run_n_trials(max_trials=1)
+
+            self.assertTrue(
+                any(
+                    re.search(r"Failed to fetch branin for trial 0", warning)
+                    is not None
+                    for warning in lg.output
+                )
+            )
+            self.assertEqual(
+                orchestrator.experiment.trials[0].status, TrialStatus.COMPLETED
+            )
+
+    def test_fetch_and_process_trials_data_results_unregistered_metric(self) -> None:
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=self.two_sobol_steps_GS,
+            options=OrchestratorOptions(**self.orchestrator_options_kwargs),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        trial = self.branin_experiment.new_trial()
+        trial.mark_running(no_runner_required=True).mark_completed()
+        results = {
+            trial.index: {
+                "collection_member": Err(
+                    MetricFetchE(message="fetch failed", exception=None)
+                )
+            }
+        }
+
+        with patch.object(
+            self.branin_experiment,
+            "fetch_trials_data_results",
+            return_value=results,
+        ):
+            actual = orchestrator._fetch_and_process_trials_data_results(
+                trial_indices=[trial.index]
+            )
+
+        self.assertEqual(actual, results)
+        self.assertEqual(trial.status, TrialStatus.COMPLETED)
+        self.assertEqual(orchestrator._num_metric_fetch_e_encountered, 1)
+
+    def test_fetch_error_does_not_change_completed_trial_status(self) -> None:
+        gs = self.two_sobol_steps_GS
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        with (
+            patch(
+                f"{BraninMetric.__module__}.BraninMetric.f",
+                side_effect=Exception("yikes!"),
+            ),
+            patch(
+                f"{BraninMetric.__module__}.BraninMetric.is_available_while_running",
+                return_value=False,
+            ),
+            self.assertLogs(logger="ax.orchestration.orchestrator") as lg,
+        ):
+            with self.assertRaises(FailureRateExceededError):
+                orchestrator.run_n_trials(max_trials=1)
+        self.assertTrue(
+            any(
+                re.search(r"Failed to fetch (branin|m1) for trial 0", warning)
+                is not None
+                for warning in lg.output
+            )
+        )
+        self.assertEqual(
+            orchestrator.experiment.trials[0].status, TrialStatus.COMPLETED
+        )
+        self.assertEqual(orchestrator._num_trials_bad_due_to_err, 1)
+
+    def test_should_consider_optimization_complete(self) -> None:
+        # Tests non-GSS parts of the completion criterion.
+        gs = self.sobol_MBM_GS
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                total_trials=None,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        # With total_trials=None.
+        should_stop, message = orchestrator.should_consider_optimization_complete()
+        self.assertFalse(should_stop)
+        self.assertEqual(message, "")
+
+        # With total_trials=5.
+        orchestrator.options = OrchestratorOptions(
+            total_trials=5,
+            **self.orchestrator_options_kwargs,
+        )
+        # Experiment has fewer trials.
+        should_stop, message = orchestrator.should_consider_optimization_complete()
+        self.assertFalse(should_stop)
+        self.assertEqual(message, "")
+        # Experiment has 5 trials.
+        sobol_generator = get_sobol(search_space=self.branin_experiment.search_space)
+        for _ in range(5):
+            sobol_run = sobol_generator.gen(n=1)
+            self.branin_experiment.new_trial(generator_run=sobol_run)
+        self.assertEqual(len(self.branin_experiment.trials), 5)
+        should_stop, message = orchestrator.should_consider_optimization_complete()
+        self.assertTrue(should_stop)
+        self.assertEqual(message, "Exceeding the total number of trials.")
+
+    @mock_botorch_optimize
+    def test_get_fitted_adapter(self) -> None:
+        self.branin_experiment._properties[Keys.IMMUTABLE_SEARCH_SPACE_AND_OPT_CONF] = (
+            True
+        )
+        # generation strategy
+        NUM_SOBOL = 5
+        generation_strategy = GenerationStrategy(
+            nodes=[
+                GenerationStep(
+                    generator=Generators.SOBOL,
+                    num_trials=NUM_SOBOL,
+                    max_parallelism=NUM_SOBOL,
+                ),
+                GenerationStep(generator=Generators.BOTORCH_MODULAR, num_trials=-1),
+            ]
+        )
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=generation_strategy,
+            options=OrchestratorOptions(
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        # need to run some trials to initialize the Adapter
+        orchestrator.run_n_trials(max_trials=NUM_SOBOL + 1)
+        self._helper_path_that_refits_the_model_if_it_is_not_already_initialized(
+            orchestrator=orchestrator,
+        )
+
+    def _helper_path_that_refits_the_model_if_it_is_not_already_initialized(
+        self,
+        orchestrator: Orchestrator,
+    ) -> None:
+        # testing get_fitted_adapter
+        adapter = get_fitted_adapter(orchestrator)
+
+        # testing compatibility with compute_model_fit_metrics_from_adapter
+        fit_metrics = compute_model_fit_metrics_from_adapter(
+            adapter=adapter,
+            untransform=False,
+        )
+        r2 = fit_metrics.get("coefficient_of_determination")
+        self.assertIsInstance(r2, dict)
+        r2 = cast(dict[str, float], r2)
+        self.assertTrue("branin" in r2 or "m1" in r2)
+        r2_branin = r2.get("branin", r2.get("m1"))
+        self.assertIsInstance(r2_branin, float)
+
+        std = fit_metrics.get("std_of_the_standardized_error")
+        self.assertIsInstance(std, dict)
+        std = cast(dict[str, float], std)
+        self.assertTrue("branin" in std or "m1" in std)
+        std_branin = std.get("branin", std.get("m1"))
+        self.assertIsInstance(std_branin, float)
+
+        # testing with empty metrics dict
+        empty_metrics = compute_model_fit_metrics_from_adapter(
+            adapter=adapter,
+            fit_metrics_dict={},
+            untransform=False,
+        )
+        self.assertIsInstance(empty_metrics, dict)
+        self.assertTrue(len(empty_metrics) == 0)
+
+    def test_generation_strategy(self) -> None:
+        with self.subTest("with a `GenerationStrategy"):
+            # Tests standard GS creation.
+            orchestrator = Orchestrator(
+                experiment=self.branin_experiment,
+                generation_strategy=self.sobol_MBM_GS,
+                options=OrchestratorOptions(
+                    **self.orchestrator_options_kwargs,
+                ),
+                db_settings=self.db_settings_if_always_needed,
+            )
+            self.assertEqual(orchestrator.generation_strategy, self.sobol_MBM_GS)
+
+    def test_get_improvement_over_baseline(self) -> None:
+        n_total_trials = 8
+        gs = self.two_sobol_steps_GS
+
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,  # Has runner and metrics.
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                total_trials=n_total_trials,
+                init_seconds_between_polls=0,  # Short between polls so test is fast.
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+
+        orchestrator.run_all_trials()
+
+        first_trial_name = (
+            orchestrator.experiment.trials[0].lookup_data().df["arm_name"].iloc[0]
+        )
+        percent_improvement = orchestrator.get_improvement_over_baseline(
+            experiment=orchestrator.experiment,
+            generation_strategy=orchestrator.generation_strategy,
+            baseline_arm_name=first_trial_name,
+        )
+
+        # Assert that the best trial improves, or
+        # at least doesn't regress, over the first trial.
+        self.assertGreaterEqual(percent_improvement, 0.0)
+
+    def test_get_improvement_over_baseline_robustness_not_implemented(self) -> None:
+        """Test edge cases for get_improvement_over_baseline"""
+        for name in ["branin_a", "branin_b"]:
+            self.branin_experiment.add_tracking_metric(get_branin_metric(name=name))
+        self.branin_experiment.optimization_config = (
+            get_branin_multi_objective_optimization_config()
+        )
+        gs = self.sobol_MBM_GS
+
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                init_seconds_between_polls=0,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+
+        with self.assertRaises(NotImplementedError):
+            orchestrator.get_improvement_over_baseline(
+                experiment=orchestrator.experiment,
+                generation_strategy=orchestrator.generation_strategy,
+                baseline_arm_name=None,
+            )
+
+    def test_get_improvement_over_baseline_robustness_user_input_error(self) -> None:
+        """Test edge cases for get_improvement_over_baseline"""
+        experiment = get_branin_experiment_with_multi_objective()
+        experiment.name = f"{self.branin_experiment.name}_but_moo"
+        experiment.runner = self.runner
+
+        gs = self.two_sobol_steps_GS
+        self.branin_experiment.status_quo = None
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,  # Has runner and metrics.
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                total_trials=2,
+                init_seconds_between_polls=0,  # Short between polls so test is fast.
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+
+        with self.assertRaises(UserInputError):
+            orchestrator.get_improvement_over_baseline(
+                experiment=orchestrator.experiment,
+                generation_strategy=orchestrator.generation_strategy,
+                baseline_arm_name=None,
+            )
+
+        exp = orchestrator.experiment
+        exp_copy = Experiment(
+            search_space=exp.search_space,
+            name=exp.name,
+            optimization_config=None,
+            tracking_metrics=exp.tracking_metrics,
+            runner=exp.runner,
+        )
+        orchestrator.experiment = exp_copy
+
+        with self.assertRaises(ValueError):
+            orchestrator.get_improvement_over_baseline(
+                experiment=orchestrator.experiment,
+                generation_strategy=orchestrator.generation_strategy,
+                baseline_arm_name="baseline",
+            )
+
+    def test_get_improvement_over_baseline_no_baseline(self) -> None:
+        """Test that get_improvement_over_baseline returns UserInputError when
+        baseline is not found in data."""
+        n_total_trials = 8
+        experiment = self.branin_experiment
+        gs = self.two_sobol_steps_GS
+        orchestrator = Orchestrator(
+            experiment=experiment,  # Has runner and metrics.
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                total_trials=n_total_trials,
+                init_seconds_between_polls=0,  # Short between polls so test is fast.
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+
+        orchestrator.run_all_trials()
+
+        with self.assertRaises(UserInputError):
+            orchestrator.get_improvement_over_baseline(
+                experiment=experiment,
+                generation_strategy=gs,
+                baseline_arm_name="baseline_arm_not_in_data",
+            )
+
+    def test_it_can_skip_metric_validation(self) -> None:
+        gs = self.two_sobol_steps_GS
+        self.branin_experiment._optimization_config = None
+        for metric in self.branin_experiment.metrics:
+            self.branin_experiment.remove_tracking_metric(metric)
+
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,  # Has runner and metrics.
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                validate_metrics=False,
+                early_stopping_strategy=DummyEarlyStoppingStrategy(),
+                # Avoids error because `seconds_between_polls`
+                # is not defined on `DummyEarlyStoppingStrategy`
+                # init_seconds_between_polls=0,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+
+        orchestrator.run_n_trials(max_trials=1)
+
+        self.assertEqual(len(orchestrator.experiment.completed_trials), 1)
+
+    def test_it_does_not_overwrite_data(self) -> None:
+        gs = self.two_sobol_steps_GS
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,  # Has runner and metrics.
+            generation_strategy=gs,
+            options=OrchestratorOptions(**self.orchestrator_options_kwargs),
+            db_settings=self.db_settings_if_always_needed,
+        )
+
+        orchestrator.run_n_trials(max_trials=1)
+
+        self.assertEqual(len(self.branin_experiment.completed_trials), 1)
+
+        initial_df = self.branin_experiment.lookup_data().df
+        metric_name = initial_df["metric_name"].iloc[0]
+        self.branin_experiment.attach_data(
+            Data(
+                df=pd.DataFrame(
+                    {
+                        "arm_name": ["0_0"],
+                        "metric_name": [metric_name],
+                        "mean": [TEST_MEAN],
+                        "sem": [0.1],
+                        "trial_index": [0],
+                        "metric_signature": [metric_name],
+                    }
+                )
+            )
+        )
+
+        attached_means = (
+            self.branin_experiment.lookup_data()
+            .df.loc[lambda x: x["metric_name"] == metric_name, "mean"]
+            .unique()
+        )
+        expected_means = {TEST_MEAN}
+        self.assertEqual(expected_means, set(attached_means))
+
+        orchestrator.run_n_trials(max_trials=1)
+        attached_means = (
+            self.branin_experiment.lookup_data()
+            .df.loc[lambda x: x["metric_name"] == metric_name, "mean"]
+            .unique()
+        )
+        self.assertIn(TEST_MEAN, attached_means)
+        self.assertEqual(len(attached_means), len(self.branin_experiment.trials))
+
+    @mock_botorch_optimize
+    def test_it_works_with_multitask_models(
+        self,
+    ) -> None:
+        gs = GenerationStrategy(
+            nodes=[
+                GenerationStep(generator=Generators.SOBOL, num_trials=1),
+                GenerationStep(generator=Generators.BOTORCH_MODULAR, num_trials=1),
+                GenerationStep(
+                    generator=Generators.BOTORCH_MODULAR,
+                    generator_kwargs={
+                        # this will cause an error if the model
+                        # doesn't get fixed features
+                        "transforms": MBM_MTGP_trans,
+                        "transform_configs": {
+                            "TrialAsTask": {
+                                "trial_level_map": {
+                                    "trial_index": {str(i): str(i) for i in range(3)}
+                                }
+                            }
+                        },
+                    },
+                    num_trials=1,
+                ),
+            ]
+        )
+
+        experiment = self.branin_experiment
+        experiment.status_quo = Arm(parameters={"x1": 0.0, "x2": 0.0})
+
+        orchestrator = Orchestrator(
+            experiment=experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                total_trials=3,
+                # pyrefly: ignore [bad-argument-type]
+                init_seconds_between_polls=0.1,  # Short between polls so test is fast.
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        # Mock to have Sobol return SQ arm, to have a valid target trial index
+        # for the MTGP step.
+        with patch(
+            "ax.adapter.random.RandomAdapter.gen",
+            # pyrefly: ignore [bad-argument-type]
+            return_value=GeneratorRun(arms=[experiment.status_quo]),
+        ):
+            orchestrator.run_n_trials(max_trials=3)
+
+        # This is to ensure it generated from all nodes
+        self.assertTrue(orchestrator.generation_strategy.optimization_complete)
+        self.assertEqual(len(experiment.trials), 3)
+
+    def test_update_options_with_validate_metrics(self) -> None:
+        experiment = self.branin_experiment_no_impl_runner_or_metrics
+        experiment.runner = self.runner
+        orchestrator = Orchestrator(
+            experiment=experiment,
+            generation_strategy=self.sobol_MBM_GS,
+            options=OrchestratorOptions(
+                total_trials=10,
+                validate_metrics=False,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        with self.assertRaisesRegex(
+            UnsupportedError,
+            ".*Metrics {'branin'} do not implement fetching logic.",
+        ):
+            orchestrator.options = OrchestratorOptions(
+                total_trials=10,
+                validate_metrics=True,
+                **self.orchestrator_options_kwargs,
+            )
+
+    def test_generate_candidates_works_for_sobol(self) -> None:
+        init_test_engine_and_session_factory(force_init=True)
+        # GIVEN a orchestrator using a GS with MBM.
+        gs = get_online_sobol_mbm_generation_strategy()
+
+        # this is a HITL experiment, so we don't want trials completing on their own.
+        if isinstance(self.branin_experiment, MultiTypeExperiment):
+            self.branin_experiment.update_runner("type1", InfinitePollRunner())
+        else:
+            self.branin_experiment.runner = InfinitePollRunner()
+        options = OrchestratorOptions(
+            init_seconds_between_polls=0,  # No wait bw polls so test is fast.
+            batch_size=10,
+            trial_type=TrialType.BATCH_TRIAL,
+            **self.orchestrator_options_kwargs,
+        )
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=options,
+            db_settings=self.db_settings,
+        )
+
+        # WHEN generating candidates on a new experiment
+        orchestrator.generate_candidates(num_trials=1)
+
+        # THEN the experiment should have a Sobol generated trial in the database
+        orchestrator = Orchestrator.from_stored_experiment(
+            experiment_name=self.branin_experiment.name,
+            options=options,
+            db_settings=self.db_settings,
+        )
+        self.assertEqual(len(orchestrator.experiment.trials), 1)
+        self.assertEqual(
+            len(orchestrator.experiment.trial_indices_by_status[TrialStatus.CANDIDATE]),
+            1,
+        )
+        candidate_trial = orchestrator.experiment.trials[0]
+        self.assertEqual(len(candidate_trial.generator_runs), 1)
+        self.assertEqual(
+            candidate_trial.generator_runs[0]._generator_key,
+            Generators.SOBOL.value,
+        )
+        self.assertEqual(
+            len(candidate_trial.arms),
+            options.batch_size,
+        )
+
+    def test_generate_candidates_can_remove_stale_candidates_with_ttl(
+        self,
+    ) -> None:
+        init_test_engine_and_session_factory(force_init=True)
+        # GIVEN a orchestrator using a GS with MBM and TTL configured.
+        gs = self.two_sobol_steps_GS
+
+        # this is a HITL experiment, so we don't want trials completing on their own.
+        if isinstance(self.branin_experiment, MultiTypeExperiment):
+            self.branin_experiment.update_runner("type1", InfinitePollRunner())
+        else:
+            self.branin_experiment.runner = InfinitePollRunner()
+        options = OrchestratorOptions(
+            init_seconds_between_polls=0,  # No wait bw polls so test is fast.
+            batch_size=10,
+            trial_type=TrialType.BATCH_TRIAL,
+            ttl_seconds_for_trials=2,  # Set TTL to 2 seconds
+            **self.orchestrator_options_kwargs,
+        )
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=options,
+            db_settings=self.db_settings,
+        )
+
+        # WHEN generating candidates on a new experiment
+        # Generate first candidate
+        orchestrator.generate_candidates(num_trials=1)
+
+        # Wait for 2.1 seconds to ensure TTL is expired for first candidate
+        time.sleep(2.1)
+
+        # Generate second candidate
+        orchestrator.generate_candidates(num_trials=1)
+
+        # The first candidate should be marked as STALE
+        orchestrator = Orchestrator.from_stored_experiment(
+            experiment_name=self.branin_experiment.name,
+            options=options,
+            db_settings=self.db_settings,
+        )
+        self.assertEqual(len(orchestrator.experiment.trials), 2)
+
+        self.assertEqual(
+            orchestrator.experiment.trials[1].status,
+            TrialStatus.CANDIDATE,
+        )
+        self.assertEqual(
+            orchestrator.experiment.trials[0].status,
+            TrialStatus.STALE,
+        )
+
+    def test_generate_candidates_can_remove_stale_candidates(self) -> None:
+        # Check if candidate trials with and without TTL are marked stale correctly
+        init_test_engine_and_session_factory(force_init=True)
+
+        # GIVEN an orchestrator using a GS with MBM
+        gs = self.two_sobol_steps_GS
+
+        # this is a HITL experiment, so we don't want trials completing on their own.
+        if isinstance(self.branin_experiment, MultiTypeExperiment):
+            self.branin_experiment.update_runner("type1", InfinitePollRunner())
+        else:
+            self.branin_experiment.runner = InfinitePollRunner()
+
+        # STEP 1: Generate initial candidate WITHOUT TTL
+        options_no_ttl = OrchestratorOptions(
+            init_seconds_between_polls=0,  # No wait bw polls so test is fast.
+            batch_size=10,
+            trial_type=TrialType.BATCH_TRIAL,
+            **self.orchestrator_options_kwargs,
+        )
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=options_no_ttl,
+            db_settings=self.db_settings,
+        )
+
+        # Generate first candidate without TTL
+        orchestrator.generate_candidates(num_trials=1)
+
+        # STEP 2: Change orchestrator to use TTL and generate second candidate WITH TTL
+        options_with_ttl = OrchestratorOptions(
+            init_seconds_between_polls=0,  # No wait bw polls so test is fast.
+            batch_size=10,
+            trial_type=TrialType.BATCH_TRIAL,
+            ttl_seconds_for_trials=2,
+            **self.orchestrator_options_kwargs,
+        )
+        orchestrator.options = options_with_ttl
+
+        # Generate second candidate with TTL
+        orchestrator.generate_candidates(num_trials=1)
+
+        # STEP 3: Wait for TTL to expire
+        time.sleep(2.1)
+
+        # STEP 4: Generate third candidate
+        orchestrator.generate_candidates(num_trials=1)
+
+        # STEP 5: Verify results - reload from storage to get fresh state
+        orchestrator = Orchestrator.from_stored_experiment(
+            experiment_name=self.branin_experiment.name,
+            options=options_with_ttl,
+            db_settings=self.db_settings,
+        )
+
+        # THEN we should have 3 trials total
+        self.assertEqual(len(orchestrator.experiment.trials), 3)
+
+        # The third candidate (newest) should remain as CANDIDATE
+        self.assertEqual(
+            orchestrator.experiment.trials[2].status,
+            TrialStatus.CANDIDATE,
+        )
+
+        # The second candidate (with TTL, expired) should be marked as STALE
+        self.assertEqual(
+            orchestrator.experiment.trials[1].status,
+            TrialStatus.STALE,
+        )
+
+        # The first candidate (no TTL) will remain as CANDIDATE
+        self.assertEqual(
+            orchestrator.experiment.trials[0].status,
+            TrialStatus.CANDIDATE,
+        )
+
+    def test_generate_candidates_does_not_fail_stale_candidates_if_fails_to_gen(
+        self,
+    ) -> None:
+        init_test_engine_and_session_factory(force_init=True)
+        # GIVEN a orchestrator using a GS with MBM.
+        gs = self.two_sobol_steps_GS
+
+        # this is a HITL experiment, so we don't want trials completing on their own.
+        if isinstance(self.branin_experiment, MultiTypeExperiment):
+            self.branin_experiment.update_runner("type1", InfinitePollRunner())
+        else:
+            self.branin_experiment.runner = InfinitePollRunner()
+        options = OrchestratorOptions(
+            init_seconds_between_polls=0,  # No wait bw polls so test is fast.
+            batch_size=10,
+            trial_type=TrialType.BATCH_TRIAL,
+            **self.orchestrator_options_kwargs,
+        )
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=options,
+            db_settings=self.db_settings,
+        )
+
+        # WHEN generating candidates on a new experiment twice
+        orchestrator.generate_candidates(num_trials=1)
+        with patch.object(
+            Orchestrator, "_gen_new_trials_from_generation_strategy", return_value=[]
+        ):
+            orchestrator.generate_candidates(num_trials=1)
+
+        # THEN the first candidate should be failed
+        orchestrator = Orchestrator.from_stored_experiment(
+            experiment_name=self.branin_experiment.name,
+            options=options,
+            db_settings=self.db_settings,
+        )
+        self.assertEqual(len(orchestrator.experiment.trials), 1)
+        self.assertEqual(
+            len(orchestrator.experiment.trials_by_status[TrialStatus.CANDIDATE]),
+            1,
+        )
+
+    def test_generate_candidates_works_with_status_quo(self) -> None:
+        # GIVEN a orchestrator with an experiment that has a status quo
+        self.branin_experiment.status_quo = Arm(parameters={"x1": 0.0, "x2": 0.0})
+        gs = get_online_sobol_mbm_generation_strategy()
+        # this is a HITL experiment, so we don't want trials completing on their own.
+        self.branin_experiment.runner = InfinitePollRunner()
+        options = OrchestratorOptions(
+            init_seconds_between_polls=0,  # No wait bw polls so test is fast.
+            batch_size=10,
+            trial_type=TrialType.BATCH_TRIAL,
+            status_quo_weight=1,
+            **self.orchestrator_options_kwargs,
+        )
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=options,
+            db_settings=self.db_settings_if_always_needed,
+        )
+
+        # WHEN generating candidates on a new experiment
+        orchestrator.generate_candidates(num_trials=1)
+
+        # THEN the experiment should have a Sobol generated trial with a status quo arm
+        self.assertEqual(len(orchestrator.experiment.trials), 1)
+        self.assertEqual(
+            len(orchestrator.experiment.trial_indices_by_status[TrialStatus.CANDIDATE]),
+            1,
+        )
+        candidate_trial = orchestrator.experiment.trials[0]
+        self.assertEqual(
+            len(candidate_trial.arms),
+            none_throws(options.batch_size) + 1,
+        )
+        self.assertIn(self.branin_experiment.status_quo, candidate_trial.arms)
+        self.assertIsNotNone(
+            assert_is_instance(candidate_trial, BatchTrial).status_quo, BatchTrial
+        )
+
+    @mock_botorch_optimize
+    def test_generate_candidates_works_for_iteration(self) -> None:
+        # GIVEN a orchestrator using a GS with MBM.
+        gs = get_online_sobol_mbm_generation_strategy()
+
+        # this is a HITL experiment, so we don't want trials completing on their own.
+        self.branin_experiment.runner = InfinitePollRunner()
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                init_seconds_between_polls=0,  # No wait bw polls so test is fast.
+                batch_size=10,
+                trial_type=TrialType.BATCH_TRIAL,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        # AND GIVEN a sobol trial is running with data
+        orchestrator.run(max_new_trials=1)
+        orchestrator.poll_and_process_results()
+
+        # WHEN generating candidates
+        orchestrator.generate_candidates(num_trials=1)
+
+        # THEN the experiment should have a MBM generated trial.
+        self.assertFalse(orchestrator.experiment.lookup_data().df.empty)
+        self.assertEqual(
+            len(orchestrator.experiment.trials), 2, str(orchestrator.experiment.trials)
+        )
+        self.assertEqual(
+            len(orchestrator.experiment.running_trial_indices),
+            1,
+            str(orchestrator.experiment.trials),
+        )
+        self.assertEqual(
+            len(orchestrator.experiment.trial_indices_by_status[TrialStatus.CANDIDATE]),
+            1,
+        )
+        candidate_trial = orchestrator.experiment.trials[1]
+        self.assertEqual(candidate_trial.status, TrialStatus.CANDIDATE)
+        self.assertEqual(len(candidate_trial.generator_runs), 1)
+        self.assertEqual(
+            candidate_trial.generator_runs[0]._generator_key,
+            Generators.BOTORCH_MODULAR.value,
+        )
+        # MBM may generate less than the requested batch size.
+        self.assertLessEqual(
+            len(candidate_trial.arms), none_throws(orchestrator.options.batch_size)
+        )
+
+    def test_generate_candidates_updates_experiment_status(self) -> None:
+        init_test_engine_and_session_factory(force_init=True)
+        node_with_status = GenerationNode(
+            name="test_node",
+            generator_specs=[
+                GeneratorSpec(
+                    generator_enum=Generators.SOBOL,
+                    model_kwargs={},
+                )
+            ],
+            suggested_experiment_status=ExperimentStatus.INITIALIZATION,
+        )
+        gs = GenerationStrategy(nodes=[node_with_status])
+
+        # Create orchestrator with this generation strategy
+        self.branin_experiment.runner = InfinitePollRunner()
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                init_seconds_between_polls=0,
+                batch_size=1,
+                trial_type=TrialType.BATCH_TRIAL,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings,
+        )
+
+        # Verify the experiment status is not currently ExperimentStatus.INITIALIZATION
+        self.assertNotEqual(
+            orchestrator.experiment.status, ExperimentStatus.INITIALIZATION
+        )
+
+        # Execute: generate candidates
+        orchestrator.generate_candidates(num_trials=1)
+
+        # Assert: verify experiment status was updated
+        self.assertEqual(
+            orchestrator.experiment.status, ExperimentStatus.INITIALIZATION
+        )
+
+    def test_generate_candidates_does_not_generate_if_missing_data(self) -> None:
+        # GIVEN a orchestrator that can't fetch data
+        custom_metric = CustomTestMetric(
+            name="custom_test_metric", test_attribute="test"
+        )
+        self.branin_experiment.add_tracking_metric(custom_metric)
+        self.branin_experiment.optimization_config = OptimizationConfig(
+            Objective(
+                metric=CustomTestMetric(
+                    name="custom_test_metric", test_attribute="test"
+                ),
+                minimize=False,
+            )
+        )
+        gs = get_online_sobol_mbm_generation_strategy()
+        self.branin_experiment.runner = InfinitePollRunner()
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                init_seconds_between_polls=0,  # No wait bw polls so test is fast.
+                batch_size=10,
+                trial_type=TrialType.BATCH_TRIAL,
+                validate_metrics=False,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        # AND GIVEN a sobol trial is running
+        orchestrator.run(max_new_trials=1)
+        # assert `run()` worked without fetching data
+        self.assertEqual(len(orchestrator.experiment.running_trial_indices), 1)
+        self.assertTrue(orchestrator.experiment.lookup_data().df.empty)
+
+        # WHEN generating candidates
+        orchestrator.generate_candidates(num_trials=1)
+
+        # THEN the experiment should have no new trials
+        self.assertTrue(orchestrator.experiment.lookup_data().df.empty)
+        self.assertEqual(len(orchestrator.experiment.trials), 1)
+
+    def test_generate_candidates_does_not_generate_if_missing_opt_config(self) -> None:
+        # GIVEN a orchestrator using a GS with MBM.
+        self.branin_experiment._optimization_config = None
+        # this is a HITL experiment, so we don't want trials completing on their own.
+        self.branin_experiment.runner = InfinitePollRunner()
+        if "branin" not in self.branin_experiment.metrics.keys():
+            self.branin_experiment.add_tracking_metric(get_branin_metric())
+        gs = get_online_sobol_mbm_generation_strategy()
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                init_seconds_between_polls=0,  # No wait bw polls so test is fast.
+                batch_size=10,
+                trial_type=TrialType.BATCH_TRIAL,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        # AND GIVEN a sobol trial is running
+        orchestrator.run(max_new_trials=1)
+        # assert `run()` worked
+        self.assertEqual(len(orchestrator.experiment.running_trial_indices), 1)
+
+        # WHEN generating candidates
+        orchestrator.generate_candidates(num_trials=1)
+
+        # THEN the experiment should have not generated candidates
+        self.assertEqual(len(orchestrator.experiment.trials), 1)
+
+    def test_validate_options_not_none_mt_trial_type(
+        self, msg: str | None = None
+    ) -> None:
+        # test that error is raised if `mt_experiment_trial_type` is not
+        # compatible with the type of experiment (single or multi-type)
+        if msg is None:
+            msg = (
+                "`mt_experiment_trial_type` must be None unless the experiment is a "
+                "MultiTypeExperiment."
+            )
+        options = OrchestratorOptions(
+            init_seconds_between_polls=0,  # No wait bw polls so test is fast.
+            batch_size=10,
+            trial_type=TrialType.BATCH_TRIAL,
+            mt_experiment_trial_type=self.orchestrator_options_kwargs.get(
+                "mt_experiment_trial_type",
+                "type1",
+            ),
+        )
+        gs = self.two_sobol_steps_GS
+        with self.assertRaisesRegex(UserInputError, msg):
+            Orchestrator(
+                experiment=self.branin_experiment,
+                generation_strategy=gs,
+                options=options,
+                db_settings=self.db_settings,
+            )
+
+    def test_markdown_messages(self) -> None:
+        gs = self.sobol_MBM_GS
+        orchestrator = Orchestrator(
+            experiment=self.branin_experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                total_trials=0,
+                tolerated_trial_failure_rate=0.2,
+                init_seconds_between_polls=10,
+                **self.orchestrator_options_kwargs,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+        self.assertDictEqual(
+            orchestrator.markdown_messages,
+            {
+                "Generation strategy": MessageOutput(
+                    text=(
+                        "This optimization run uses a 'GenerationStep_0_Sobol+"
+                        "GenerationStep_1_BoTorch' generation strategy."
+                    ),
+                    priority=10,
+                )
+            },
+        )
+        orchestrator.markdown_messages["Generation strategy"].append("foo")
+        self.assertEqual(
+            orchestrator.markdown_messages["Generation strategy"].text[-3:], "foo"
+        )
+        self.assertEqual(
+            orchestrator.markdown_messages["Generation strategy"].priority, 10
+        )
+
+    def test_seconds_between_polls_backoff_factor_is_set(self) -> None:
+        options = OrchestratorOptions(
+            **self.orchestrator_options_kwargs,
+        )
+
+        self.assertEqual(options.seconds_between_polls_backoff_factor, 1.5)
+
+        options_with_ess = OrchestratorOptions(
+            early_stopping_strategy=DummyEarlyStoppingStrategy(),
+            **self.orchestrator_options_kwargs,
+        )
+        self.assertEqual(options_with_ess.seconds_between_polls_backoff_factor, 1.0)
+
+    def test_terminate_if_status_quo_infeasible(self) -> None:
+        # Create experiment with status quo and absolute constraint
+        experiment = get_branin_experiment(
+            with_status_quo=True, with_absolute_constraint=True
+        )
+        none_throws(experiment.optimization_config).outcome_constraints[0] = (
+            OutcomeConstraint(
+                expression="branin_e >= 100.0",
+                metric_name_to_signature={"branin_e": "branin_e"},
+            )
+        )
+
+        status_quo_trial = experiment.new_trial()
+        status_quo_trial.add_arm(experiment.status_quo)
+        status_quo_trial.mark_running(no_runner_required=True)
+        status_quo_trial.mark_completed()
+        experiment.attach_data(experiment.fetch_data())
+
+        # Verify data exists for status quo
+        data = experiment.lookup_data()
+        self.assertFalse(data.df.empty)
+        self.assertIn("status_quo", data.df["arm_name"].values)
+
+        gs = self.two_sobol_steps_GS
+        orchestrator = MockOrchestrator(
+            experiment=experiment,
+            generation_strategy=gs,
+            options=OrchestratorOptions(
+                terminate_if_status_quo_infeasible=True,
+                init_seconds_between_polls=0,
+            ),
+            db_settings=self.db_settings_if_always_needed,
+        )
+
+        with self.assertRaisesRegex(
+            StatusQuoInfeasibleError,
+            "Status-quo arm 'status_quo' is infeasible",
+        ):
+            orchestrator.run_n_trials(max_trials=1)
+
+
+class TestAxOrchestratorMultiTypeExperiment(TestAxOrchestrator):
+    # After D80128678, choose_generation_strategy_legacy returns node-based GS.
+    EXPECTED_orchestrator_REPR: str = (
+        "Orchestrator(experiment=MultiTypeExperiment(branin_test_experiment), "
+        "generation_strategy=GenerationStrategy("
+        "name='GenerationStep_0_Sobol+GenerationStep_1_BoTorch', "
+        "nodes=[GenerationNode(name='GenerationStep_0_Sobol', "
+        "generator_specs=[GeneratorSpec(generator_enum=Sobol, "
+        "generator_key_override=None)], "
+        "transition_criteria="
+        "[MinTrials(transition_to='GenerationStep_1_BoTorch'), "
+        "MinTrials(transition_to='GenerationStep_1_BoTorch')], "
+        "suggested_experiment_status=ExperimentStatus.INITIALIZATION, "
+        "pausing_criteria="
+        "[MaxTrialsAwaitingData(threshold=5)]), "
+        "GenerationNode(name='GenerationStep_1_BoTorch', "
+        "generator_specs=[GeneratorSpec(generator_enum=BoTorch, "
+        "generator_key_override=None)], "
+        "transition_criteria=None, "
+        "suggested_experiment_status=ExperimentStatus.OPTIMIZATION, "
+        "pausing_criteria="
+        "[MaxGenerationParallelism(threshold=3)])]), "
+        "options=OrchestratorOptions(max_pending_trials=10, "
+        "trial_type=<TrialType.TRIAL: 0>, batch_size=None, "
+        "total_trials=0, tolerated_trial_failure_rate=0.2, "
+        "min_failed_trials_for_failure_rate_check=5, log_filepath=None, "
+        "logging_level=20, ttl_seconds_for_trials=None, init_seconds_between_"
+        "polls=10, min_seconds_before_poll=1.0, seconds_between_polls_backoff_"
+        "factor=1.5, run_trials_in_batches=False, "
+        "debug_log_run_metadata=False, early_stopping_strategy=None, "
+        "global_stopping_strategy=None, suppress_storage_errors_after_"
+        "retries=False, wait_for_running_trials=True, fetch_kwargs={}, "
+        "validate_metrics=True, status_quo_weight=0.0, "
+        "enforce_immutable_search_space_and_opt_config=True, "
+        "mt_experiment_trial_type='type1', "
+        "terminate_if_status_quo_infeasible=False))"
+    )
+
+    def setUp(self) -> None:
+        TestCase.setUp(self)
+        self.branin_experiment = get_multi_type_experiment()
+        self.branin_experiment.name = "branin_test_experiment"
+        self.branin_experiment.update_metric(BraninMetric("m1", ["x1", "x2"]))
+        self.branin_experiment.optimization_config = OptimizationConfig(
+            objective=Objective(metric=BraninMetric("m1", ["x1", "x2"]), minimize=True)
+        )
+
+        self.runner = SyntheticRunnerWithStatusPolling()
+        self.branin_experiment.update_runner(trial_type="type1", runner=self.runner)
+
+        self.branin_timestamp_map_metric_experiment = get_multi_type_experiment()
+        self.branin_timestamp_map_metric_experiment.add_tracking_metric(
+            get_map_metric(name="branin_map")
+        )
+        self.branin_timestamp_map_metric_experiment.optimization_config = (
+            OptimizationConfig(
+                objective=Objective(
+                    metric=get_map_metric(name="branin_map"), minimize=True
+                )
+            )
+        )
+        self.branin_timestamp_map_metric_experiment.update_runner(
+            trial_type="type1", runner=RunnerToAllowMultipleMapMetricFetches()
+        )
+
+        self.branin_experiment_no_impl_runner_or_metrics = MultiTypeExperiment(
+            search_space=get_branin_search_space(),
+            optimization_config=OptimizationConfig(
+                Objective(metric=Metric(name="branin"), minimize=True)
+            ),
+            default_trial_type="type1",
+            default_runner=None,
+            name="branin_experiment_no_impl_runner_or_metrics",
+        )
+        self.sobol_MBM_GS = choose_generation_strategy_legacy(
+            search_space=get_branin_search_space()
+        )
+        self.two_sobol_steps_GS = GenerationStrategy(  # Contrived GS to ensure
+            nodes=[  # that `DataRequiredError` is property handled in orchestrator.
+                GenerationStep(  # This error is raised when not enough trials
+                    generator=Generators.SOBOL,  # have been observed to proceed to next
+                    num_trials=5,  # geneneration step.
+                    min_trials_observed=3,
+                    max_parallelism=2,
+                ),
+                GenerationStep(
+                    generator=Generators.SOBOL, num_trials=-1, max_parallelism=3
+                ),
+            ]
+        )
+        # GS to force the Orchestrator to poll completed trials after each ran trial.
+        self.sobol_GS_no_parallelism = GenerationStrategy(
+            nodes=[
+                GenerationStep(
+                    generator=Generators.SOBOL, num_trials=-1, max_parallelism=1
+                )
+            ]
+        )
+        self.orchestrator_options_kwargs: dict[str, str | None] = {
+            "mt_experiment_trial_type": "type1"
+        }
+        self._mock_orchestrator_poll_sleep()
+
+    def test_init_with_no_impl_with_runner(self) -> None:
+        # pyrefly: ignore [missing-attribute]
+        self.branin_experiment_no_impl_runner_or_metrics.update_runner(
+            trial_type="type1", runner=self.runner
+        )
+        super().test_init_with_no_impl_with_runner()
+
+    def test_update_options_with_validate_metrics(self) -> None:
+        # pyrefly: ignore [missing-attribute]
+        self.branin_experiment_no_impl_runner_or_metrics.update_runner(
+            trial_type="type1", runner=self.runner
+        )
+        super().test_update_options_with_validate_metrics()
+
+    def test_retries(self) -> None:
+        # pyrefly: ignore [missing-attribute]
+        self.branin_experiment.update_runner("type1", BrokenRunnerRuntimeError())
+        super().test_retries()
+
+    def test_retries_nonretriable_error(self) -> None:
+        # pyrefly: ignore [missing-attribute]
+        self.branin_experiment.update_runner("type1", BrokenRunnerValueError())
+        super().test_retries_nonretriable_error()
+
+    def test_failure_rate_some_failed(self) -> None:
+        # pyrefly: ignore [missing-attribute]
+        self.branin_experiment.update_runner("type1", RunnerWithFrequentFailedTrials())
+        super().test_failure_rate_some_failed()
+
+    def test_failure_rate_all_failed(self) -> None:
+        # pyrefly: ignore [missing-attribute]
+        self.branin_experiment.update_runner("type1", RunnerWithAllFailedTrials())
+        super().test_failure_rate_all_failed()
+
+    def test_run_trials_and_yield_results_with_early_stopper(self) -> None:
+        # pyrefly: ignore [missing-attribute]
+        self.branin_experiment.update_runner("type1", InfinitePollRunner())
+        super().test_run_trials_and_yield_results_with_early_stopper()
+
+    def test_orchestrator_with_metric_with_new_data_after_completion(self) -> None:
+        # pyrefly: ignore [missing-attribute]
+        self.branin_experiment.update_runner(
+            "type1", SyntheticRunnerWithPredictableStatusPolling()
+        )
+        super().test_orchestrator_with_metric_with_new_data_after_completion()
+
+    def test_poll_and_process_results_with_reasons(self) -> None:
+        # pyrefly: ignore [missing-attribute]
+        self.branin_experiment.update_runner(
+            "type1", RunnerWithFailedAndAbandonedTrials()
+        )
+        super().test_poll_and_process_results_with_reasons()
+
+    def test_poll_trial_status_fallback_to_individual_polling(self) -> None:
+        # pyrefly: ignore [missing-attribute]
+        self.branin_experiment.update_runner(
+            "type1", RunnerWithFailingPollTrialStatus()
+        )
+        super().test_poll_trial_status_fallback_to_individual_polling()
+
+    def test_poll_trial_status_abandons_trial_on_individual_failure(self) -> None:
+        # pyrefly: ignore [missing-attribute]
+        self.branin_experiment.update_runner("type1", RunnerWithAllPollsFailing())
+        super().test_poll_trial_status_abandons_trial_on_individual_failure()
+
+    def test_generate_candidates_works_for_iteration(self) -> None:
+        # pyrefly: ignore [missing-attribute]
+        self.branin_experiment.update_runner("type1", InfinitePollRunner())
+        super().test_generate_candidates_works_for_iteration()
+
+    def test_orchestrator_with_odd_index_early_stopping_strategy(self) -> None:
+        # pyrefly: ignore [missing-attribute]
+        self.branin_timestamp_map_metric_experiment.update_runner(
+            "type1", RunnerWithEarlyStoppingStrategy()
+        )
+        super().test_orchestrator_with_odd_index_early_stopping_strategy()
+
+    def test_fetch_and_process_trials_data_results_failed_non_objective(
+        self,
+    ) -> None:
+        # add a tracking metric
+        self.branin_timestamp_map_metric_experiment.add_tracking_metric(
+            BraninMetric("branin", ["x1", "x2"]),
+            # pyrefly: ignore [unexpected-keyword]
+            trial_type="type1",
+        )
+        super().test_fetch_and_process_trials_data_results_failed_non_objective()
+
+    def test_validate_options_not_none_mt_trial_type(
+        self, msg: str | None = None
+    ) -> None:
+        # test if a MultiTypeExperiment with `mt_experiment_trial_type=None`
+        self.orchestrator_options_kwargs["mt_experiment_trial_type"] = None
+        super().test_validate_options_not_none_mt_trial_type(
+            msg="Must specify `mt_experiment_trial_type` for MultiTypeExperiment."
+        )
+
+    def test_run_n_trials_single_step_existing_experiment(
+        self, all_completed_trials: bool = False
+    ) -> None:
+        # pyrefly: ignore [missing-attribute]
+        self.branin_experiment.update_runner(
+            "type1", SyntheticRunnerWithSingleRunningTrial()
+        )
+        super().test_run_n_trials_single_step_existing_experiment()
+        metric_names = list(
+            self.branin_experiment.lookup_data().df.metric_name.unique()
+        )
+        # assert only metric m1 is fetched (the metric for the current
+        # trial_type)
+        self.assertEqual(metric_names, ["m1"])
+
+    def test_generate_candidates_does_not_generate_if_missing_data(self) -> None:
+        # pyrefly: ignore [missing-attribute]
+        self.branin_experiment.update_runner("type1", InfinitePollRunner())
+        super().test_generate_candidates_does_not_generate_if_missing_data()
+
+    def test_generate_candidates_does_not_generate_if_missing_opt_config(self) -> None:
+        # pyrefly: ignore [missing-attribute]
+        self.branin_experiment.update_runner("type1", InfinitePollRunner())
+        self.branin_experiment.add_tracking_metric(
+            get_branin_metric(),
+            # pyrefly: ignore [unexpected-keyword]
+            trial_type="type1",
+        )
+        super().test_generate_candidates_does_not_generate_if_missing_opt_config()

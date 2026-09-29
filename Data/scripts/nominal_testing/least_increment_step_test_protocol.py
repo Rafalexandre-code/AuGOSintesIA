@@ -44,7 +44,9 @@ for port, desc, hwid in sorted(ports):
 #%%
 # Connect to device under test
 
-device = serial.Serial('', 115200) # Update with correct COM port
+import os
+DEVICE_PORT = os.environ.get('DEVICE_PORT', '')  # e.g. 'COM4' or '/dev/ttyUSB1' (GRBL, 115200 baud)
+device = serial.Serial(DEVICE_PORT, 115200) # Update with correct COM port (or set DEVICE_PORT)
 device.flushInput()
 
 time.sleep(2)

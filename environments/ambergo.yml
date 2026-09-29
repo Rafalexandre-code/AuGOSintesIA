@@ -1,0 +1,10 @@
+# AmberGO: AmberTools (tleap, antechamber, parmchk2) + utilitários Python do tutorial.
+# VMD e BIOVIA Discovery Studio Visualizer são programas externos (download manual, licenças próprias).
+name: ambergo
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - ambertools
+  - numpy
+  - pip

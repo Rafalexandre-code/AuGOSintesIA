@@ -1,0 +1,49 @@
+*.py[cod]
+
+# C extensions
+*.so
+
+#testimages
+test/testimages
+
+# Packages
+*.egg
+*.egg-info
+dist
+build
+eggs
+parts
+bin
+var
+sdist
+develop-eggs
+.installed.cfg
+lib
+lib64
+
+# Installer logs
+pip-log.txt
+
+# Unit test / coverage reports
+.coverage
+.tox
+nosetests.xml
+
+# Translations
+*.mo
+
+# Mr Developer
+.mr.developer.cfg
+.project
+.pydevproject
+.settings
+
+# generated c files, i.e. all except the ones in the src directory
+*.c
+!fabio/ext/src/*.c
+
+# uv files
+uv.lock
+
+# VSCode
+.vscode

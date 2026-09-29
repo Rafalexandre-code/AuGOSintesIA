@@ -1,0 +1,446 @@
+#!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+# pyre-strict
+
+from collections.abc import Sequence
+from typing import Any
+
+from ax.core.optimization_config import MultiObjectiveOptimizationConfig
+from ax.core.parameter import (
+    ChoiceParameter,
+    FixedParameter,
+    ParameterType,
+    RangeParameter,
+)
+from ax.core.types import TParamValue
+from ax.runners.synthetic import SyntheticRunner
+from ax.service.utils.instantiation import InstantiationBase
+from ax.utils.common.testutils import TestCase
+from pyre_extensions import assert_is_instance
+
+
+class TestInstantiationtUtils(TestCase):
+    """Testing the instantiation utilities functionality that is not tested in
+    main `AxClient` testing suite (`TestServiceAPI`)."""
+
+    def test_parameter_type_validation(self) -> None:
+        with self.assertRaisesRegex(ValueError, "No AE parameter type"):
+            # pyre-fixme[6]: For 1st param expected `Union[Type[bool], Type[float],
+            #  Type[int], Type[str]]` but got `Type[list]`.
+            InstantiationBase._get_parameter_type(list)
+
+    def test_make_search_space(self) -> None:
+        # Parameter names with spaces should be allowed in search spaces
+        # (only rejected in constraint string parsing).
+        ss = InstantiationBase.make_search_space(
+            parameters=[
+                {
+                    "name": "x space 1",
+                    "type": "range",
+                    "bounds": [0.0, 1.0],
+                }
+            ],
+            parameter_constraints=None,
+        )
+        self.assertIn("x space 1", ss.parameters)
+
+    def test_constraint_from_str(self) -> None:
+        x1 = RangeParameter(
+            name="x1", parameter_type=ParameterType.FLOAT, lower=0.1, upper=4.0
+        )
+        x2 = RangeParameter(
+            name="x2", parameter_type=ParameterType.FLOAT, lower=0.1, upper=4.0
+        )
+        x3 = RangeParameter(
+            name="x3", parameter_type=ParameterType.FLOAT, lower=0.1, upper=4.0
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            (
+                r"Received invalid parameter constraint format: "
+                r"`x1 \+ x2 <= not_numerical_bound`\. "
+                r"Please use one of the following forms:\n"
+            ),
+        ):
+            InstantiationBase.constraint_from_str(
+                "x1 + x2 <= not_numerical_bound", {"x1": x1, "x2": x2}
+            )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            r"OrderConstraint token\(s\) \['x_na'\] are not present in parameters list "
+            r"\['x1', 'x2'\]\.",
+        ):
+            InstantiationBase.constraint_from_str("x1 <= x_na", {"x1": x1, "x2": x2})
+
+        with self.assertRaisesRegex(
+            ValueError,
+            r"OrderConstraint token\(s\) \['x_na'\] are not present in parameters list "
+            r"\['x1', 'x2'\]\.",
+        ):
+            InstantiationBase.constraint_from_str("x_na >= x1", {"x1": x1, "x2": x2})
+
+        with self.assertRaisesRegex(
+            ValueError,
+            r"OrderConstraint token\(s\) \['x_na', 'x_naa'\] are not present in "
+            r"parameters list \['x1', 'x2'\]\.",
+        ):
+            InstantiationBase.constraint_from_str("x_na >= x_naa", {"x1": x1, "x2": x2})
+
+        with self.assertRaisesRegex(ValueError, "Outcome constraint bound"):
+            InstantiationBase.outcome_constraint_from_str("m1 <= not_numerical_bound")
+        three_val_constaint = InstantiationBase.constraint_from_str(
+            "x1 + x2 + x3 <= 3", {"x1": x1, "x2": x2, "x3": x3}
+        )
+
+        with self.assertRaisesRegex(ValueError, "Outcome constraint 'm1"):
+            InstantiationBase.outcome_constraint_from_str("m1 == 2*m2")
+
+        self.assertEqual(three_val_constaint.bound, 3.0)
+        with self.assertRaisesRegex(
+            ValueError,
+            (
+                r"Received invalid parameter constraint format: "
+                r"`x1 \+ x2 \+ <= 3`\. "
+                r"Please use one of the following forms:\n"
+            ),
+        ):
+            InstantiationBase.constraint_from_str(
+                "x1 + x2 + <= 3", {"x1": x1, "x2": x2, "x3": x3}
+            )
+        with self.assertRaisesRegex(
+            ValueError,
+            r"Received invalid parameter constraint format: `x1 \+ x2 \+ x3 = 3`",
+        ):
+            InstantiationBase.constraint_from_str(
+                "x1 + x2 + x3 = 3", {"x1": x1, "x2": x2, "x3": x3}
+            )
+        one_val_constraint = InstantiationBase.constraint_from_str(
+            "x1 <= 0", {"x1": x1, "x2": x2}
+        )
+        self.assertEqual(one_val_constraint.bound, 0.0)
+        self.assertEqual(one_val_constraint.constraint_dict, {"x1": 1.0})
+        one_val_constraint = InstantiationBase.constraint_from_str(
+            "-0.5*x1 >= -0.1", {"x1": x1, "x2": x2}
+        )
+        self.assertEqual(one_val_constraint.bound, 0.1)
+        self.assertEqual(one_val_constraint.constraint_dict, {"x1": 0.5})
+        three_val_constaint2 = InstantiationBase.constraint_from_str(
+            "-x1 + 2.1*x2 - 4*x3 <= 3",
+            {"x1": x1, "x2": x2, "x3": x3},
+        )
+
+        self.assertEqual(three_val_constaint2.bound, 3.0)
+        self.assertEqual(
+            three_val_constaint2.constraint_dict, {"x1": -1.0, "x2": 2.1, "x3": -4.0}
+        )
+        with self.assertRaisesRegex(ValueError, "Multiplier should be float"):
+            InstantiationBase.constraint_from_str(
+                "x1 - e*x2 + x3 <= 3", {"x1": x1, "x2": x2, "x3": x3}
+            )
+        with self.assertRaisesRegex(ValueError, "A linear constraint should be"):
+            InstantiationBase.constraint_from_str(
+                "x1 - 2 *x2 + 3 *x3 <= 3", {"x1": x1, "x2": x2, "x3": x3}
+            )
+        with self.assertRaisesRegex(ValueError, "A linear constraint should be"):
+            InstantiationBase.constraint_from_str(
+                "x1 - 2* x2 + 3* x3 <= 3", {"x1": x1, "x2": x2, "x3": x3}
+            )
+        with self.assertRaisesRegex(ValueError, "A linear constraint should be"):
+            InstantiationBase.constraint_from_str(
+                "x1 - 2 * x2 + 3*x3 <= 3", {"x1": x1, "x2": x2, "x3": x3}
+            )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            r"Only ordered ChoiceParameters can be used in parameter constraints",
+        ):
+            InstantiationBase.constraint_from_str(
+                "x1 + x2 <= 3",
+                {
+                    "x1": x1,
+                    "x2": ChoiceParameter(
+                        name="x2",
+                        parameter_type=ParameterType.FLOAT,
+                        values=[0.0, 1.0, 2.0],
+                        is_ordered=False,
+                    ),
+                },
+            )
+        with self.assertRaisesRegex(
+            ValueError,
+            r"Constraint parameter 'x_na' is not present in this experiment's search "
+            r"space parameters: \['x1', 'x2', 'x3'\]\.",
+        ):
+            InstantiationBase.constraint_from_str(
+                "x1 + x_na >= 3", {"x1": x1, "x2": x2, "x3": x3}
+            )
+
+        with self.assertRaisesRegex(
+            ValueError, r"Expected a mixed constraint, found operator `/`\."
+        ):
+            InstantiationBase.constraint_from_str(
+                "x1 + x2 / 2.0 + x3 >= 3", {"x1": x1, "x2": x2, "x3": x3}
+            )
+
+        # --- Equality constraints ---
+        eq_constraint = InstantiationBase.constraint_from_str(
+            "x1 + x2 == 1", {"x1": x1, "x2": x2}
+        )
+        self.assertTrue(eq_constraint.is_equality)
+        self.assertEqual(eq_constraint.constraint_dict, {"x1": 1.0, "x2": 1.0})
+        self.assertEqual(eq_constraint.bound, 1.0)
+
+        # Weighted equality
+        eq_weighted = InstantiationBase.constraint_from_str(
+            "2*x1 + 3*x2 == 5", {"x1": x1, "x2": x2}
+        )
+        self.assertTrue(eq_weighted.is_equality)
+        self.assertEqual(eq_weighted.constraint_dict, {"x1": 2.0, "x2": 3.0})
+        self.assertEqual(eq_weighted.bound, 5.0)
+
+        # Single parameter equality
+        eq_single = InstantiationBase.constraint_from_str(
+            "x1 == 3", {"x1": x1, "x2": x2}
+        )
+        self.assertTrue(eq_single.is_equality)
+        self.assertEqual(eq_single.constraint_dict, {"x1": 1.0})
+        self.assertEqual(eq_single.bound, 3.0)
+
+        # Order equality constraint should error
+        with self.assertRaisesRegex(ValueError, "DerivedParameter"):
+            InstantiationBase.constraint_from_str("x1 == x2", {"x1": x1, "x2": x2})
+
+        # Linear equality that equates two params should also error
+        with self.assertRaisesRegex(ValueError, "DerivedParameter"):
+            InstantiationBase.constraint_from_str("x1 - x2 == 0", {"x1": x1, "x2": x2})
+
+    def test_spaces_in_metric_and_parameter_names(self) -> None:
+        # Metric and parameter names with spaces are allowed everywhere
+        # except in constraint string parsing, where split() would break.
+        metric = InstantiationBase._make_metric(name="my metric")
+        self.assertEqual(metric.name, "my metric")
+
+        experiment = InstantiationBase.make_experiment(
+            parameters=[{"name": "x", "type": "range", "bounds": [0, 1]}],
+            tracking_metric_names=["my metric", "another metric"],
+        )
+        tracking_metric_names = [m.name for m in experiment.tracking_metrics]
+        self.assertIn("my metric", tracking_metric_names)
+        self.assertIn("another metric", tracking_metric_names)
+
+        # Constraint string parsing rejects spaces (can't tokenize correctly).
+        x1 = RangeParameter(
+            name="x 1", parameter_type=ParameterType.FLOAT, lower=0.1, upper=4.0
+        )
+        with self.assertRaisesRegex(ValueError, "cannot contain spaces"):
+            InstantiationBase.constraint_from_str("x 1 <= 3", {"x 1": x1})
+        with self.assertRaisesRegex(ValueError, "cannot contain spaces"):
+            InstantiationBase.outcome_constraint_from_str("my metric <= 3")
+
+    def test_add_tracking_metrics(self) -> None:
+        experiment = InstantiationBase.make_experiment(
+            parameters=[{"name": "x", "type": "range", "bounds": [0, 1]}],
+            tracking_metric_names=None,
+        )
+        self.assertEqual(experiment.tracking_metrics, [])
+
+        metrics_names = ["metric_1", "metric_2"]
+        experiment = InstantiationBase.make_experiment(
+            parameters=[{"name": "x", "type": "range", "bounds": [0, 1]}],
+            tracking_metric_names=metrics_names,
+        )
+        self.assertCountEqual(
+            [m.name for m in experiment.tracking_metrics],
+            metrics_names,
+        )
+
+    def test_make_objectives(self) -> None:
+        with self.assertRaisesRegex(ValueError, "specify 'minimize' or 'maximize'"):
+            InstantiationBase.make_objectives({"branin": "unknown"})
+
+        # Metric names with spaces should be allowed in objectives
+        # (only rejected in constraint string parsing).
+        objectives_with_spaces = InstantiationBase.make_objectives(
+            {"branin space": "maximize"}
+        )
+        self.assertEqual(objectives_with_spaces[0].metric_names[0], "branin space")
+
+        objectives = InstantiationBase.make_objectives(
+            {"branin": "minimize", "currin": "maximize"}
+        )
+        branin_obj = [o for o in objectives if o.metric_names[0] == "branin"]
+        self.assertTrue(branin_obj[0].minimize)
+        currin_obj = [o for o in objectives if o.metric_names[0] == "currin"]
+        self.assertFalse(currin_obj[0].minimize)
+
+    def test_make_optimization_config(self) -> None:
+        objectives = {"branin": "minimize", "currin": "maximize"}
+        objective_thresholds = ["branin <= 0", "currin >= 0"]
+        with self.subTest("Single-objective optimizations with objective thresholds"):
+            with self.assertRaisesRegex(ValueError, "not specify objective thresholds"):
+                InstantiationBase.make_optimization_config(
+                    {"branin": "minimize"},
+                    objective_thresholds,
+                    outcome_constraints=[],
+                    status_quo_defined=False,
+                )
+
+        with self.subTest("MOO with partial objective thresholds"):
+            multi_optimization_config = InstantiationBase.make_optimization_config(
+                objectives,
+                objective_thresholds=objective_thresholds[:1],
+                outcome_constraints=[],
+                status_quo_defined=False,
+            )
+            self.assertEqual(len(multi_optimization_config.objective.metric_names), 2)
+            self.assertEqual(
+                len(
+                    assert_is_instance(
+                        multi_optimization_config, MultiObjectiveOptimizationConfig
+                    ).objective_thresholds
+                ),
+                1,
+            )
+
+        with self.subTest("MOO with all objective threshold"):
+            multi_optimization_config = InstantiationBase.make_optimization_config(
+                objectives,
+                objective_thresholds,
+                outcome_constraints=[],
+                status_quo_defined=False,
+            )
+            self.assertEqual(len(multi_optimization_config.objective.metric_names), 2)
+            self.assertEqual(
+                len(
+                    assert_is_instance(
+                        multi_optimization_config, MultiObjectiveOptimizationConfig
+                    ).objective_thresholds
+                ),
+                2,
+            )
+
+        with self.subTest(
+            "Single-objective optimizations without objective thresholds"
+        ):
+            single_optimization_config = InstantiationBase.make_optimization_config(
+                {"branin": "minimize"},
+                objective_thresholds=[],
+                outcome_constraints=[],
+                status_quo_defined=False,
+            )
+            self.assertEqual(
+                single_optimization_config.objective.metric_names[0], "branin"
+            )
+            self.assertEqual(
+                single_optimization_config.objective.metric_names[0], "branin"
+            )
+
+    def test_single_valued_choice_to_fixed_param_conversion(self) -> None:
+        for use_dependents in [True, False]:
+            representation: dict[str, Any] = {
+                "name": "test",
+                "type": "choice",
+                "values": [1.0],
+            }
+            if use_dependents:
+                representation["dependents"] = {1.0: ["foo_or_bar", "bazz"]}
+            output = assert_is_instance(
+                InstantiationBase.parameter_from_json(representation), FixedParameter
+            )
+            self.assertIsInstance(output, FixedParameter)
+            self.assertEqual(output.value, 1.0)
+            if use_dependents:
+                self.assertEqual(output.dependents, {1.0: ["foo_or_bar", "bazz"]})
+
+    def test_choice_with_is_sorted(self) -> None:
+        for sort_values in [True, False, None]:
+            representation: dict[str, Any] = {
+                "name": "foo_or_bar",
+                "type": "choice",
+                "values": ["Foo", "Bar"],
+                "sort_values": sort_values,
+                "is_ordered": True,
+            }
+            output = assert_is_instance(
+                InstantiationBase.parameter_from_json(representation), ChoiceParameter
+            )
+            self.assertIsInstance(output, ChoiceParameter)
+            self.assertEqual(output.is_ordered, True)
+            if sort_values is None:
+                self.assertIsNone(sort_values)
+            else:
+                self.assertEqual(output.sort_values, sort_values)
+
+        with self.assertRaisesRegex(
+            TypeError,
+            r"obj is not an instance of cls: obj=\['Foo'\] cls=<class 'bool'>",
+        ):
+            representation: dict[str, Any] = {
+                "name": "foo_or_bar",
+                "type": "choice",
+                "values": ["Foo", "Bar"],
+                "sort_values": ["Foo"],
+                "is_ordered": True,
+            }
+            _ = InstantiationBase.parameter_from_json(representation)
+
+    def test_hss(self) -> None:
+        parameter_dicts: list[
+            dict[str, TParamValue | Sequence[TParamValue] | dict[str, list[str]]]
+        ] = [
+            {
+                "name": "root",
+                "type": "fixed",
+                "value": "HierarchicalSearchSpace",
+                "dependents": {"HierarchicalSearchSpace": ["foo_or_bar", "bazz"]},
+            },
+            {
+                "name": "foo_or_bar",
+                "type": "choice",
+                "values": ["Foo", "Bar"],
+                "dependents": {"Foo": ["an_int"], "Bar": ["a_float"]},
+            },
+            {
+                "name": "an_int",
+                "type": "choice",
+                "values": [1, 2, 3],
+                "dependents": None,
+            },
+            {"name": "a_float", "type": "range", "bounds": [1.0, 1000.0]},
+            {
+                "name": "bazz",
+                "type": "fixed",
+                "value": "Bazz",
+                "dependents": {"Bazz": ["another_int"]},
+            },
+            {"name": "another_int", "type": "fixed", "value": "2"},
+        ]
+        search_space = InstantiationBase.make_search_space(
+            parameters=parameter_dicts,
+            parameter_constraints=[],
+        )
+        self.assertTrue(search_space.is_hierarchical)
+
+    def test_make_multitype_experiment_with_default_trial_type(self) -> None:
+        experiment = InstantiationBase.make_experiment(
+            name="test_make_experiment",
+            parameters=[{"name": "x", "type": "range", "bounds": [0, 1]}],
+            tracking_metric_names=None,
+            default_trial_type="test_trial_type",
+            default_runner=SyntheticRunner(),
+        )
+        self.assertEqual(experiment.__class__.__name__, "MultiTypeExperiment")
+
+    def test_make_single_type_experiment_with_no_default_trial_type(self) -> None:
+        experiment = InstantiationBase.make_experiment(
+            name="test_make_experiment",
+            parameters=[{"name": "x", "type": "range", "bounds": [0, 1]}],
+            tracking_metric_names=None,
+        )
+        self.assertEqual(experiment.__class__.__name__, "Experiment")

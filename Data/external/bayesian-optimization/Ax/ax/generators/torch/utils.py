@@ -1,0 +1,578 @@
+#!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+# pyre-strict
+
+import logging
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+
+import numpy.typing as npt
+import torch
+from ax.exceptions.core import UnsupportedError
+from ax.generators.utils import filter_constraints_and_fixed_features, get_observed
+from botorch.acquisition.acquisition import AcquisitionFunction
+from botorch.acquisition.analytic import PosteriorMean
+from botorch.acquisition.logei import qLogProbabilityOfFeasibility
+from botorch.acquisition.monte_carlo import (
+    MCAcquisitionFunction,
+    qSimpleRegret,
+    SampleReducingMCAcquisitionFunction,
+)
+from botorch.acquisition.multi_objective.base import (
+    MultiObjectiveAnalyticAcquisitionFunction,
+    MultiObjectiveMCAcquisitionFunction,
+)
+from botorch.acquisition.multi_objective.objective import WeightedMCMultiOutputObjective
+from botorch.acquisition.objective import (
+    ConstrainedMCObjective,
+    GenericMCObjective,
+    LearnedObjective,
+    MCAcquisitionObjective,
+    PosteriorTransform,
+    ScalarizedPosteriorTransform,
+)
+from botorch.acquisition.utils import get_infeasible_cost
+from botorch.models.model import Model, ModelList
+from botorch.posteriors.ensemble import EnsemblePosterior
+from botorch.posteriors.fully_bayesian import GaussianMixturePosterior
+from botorch.utils.constraints import get_outcome_constraint_transforms
+from botorch.utils.datasets import SupervisedDataset
+from botorch.utils.objective import get_objective_weights_transform
+from botorch.utils.transforms import is_ensemble
+from pyre_extensions import none_throws
+from torch import Tensor
+from torch.nn import ModuleList  # @manual
+
+logger: logging.Logger = logging.getLogger(__name__)
+
+
+def extract_objectives(
+    objective_weights: Tensor,
+) -> tuple[Tensor, Tensor]:
+    """Extract per-objective outcome indices and weights from the weight matrix.
+
+    Iterates over rows of objective_weights. Each row is one objective;
+    the nonzero entries indicate which outcome(s) it uses and the weights.
+
+    For standard MOO each row has exactly one nonzero entry, yielding
+    one (outcome_index, weight) pair per objective.
+
+    Args:
+        objective_weights: ``(n_objectives, n_outcomes)`` tensor.
+
+    Returns:
+        A tuple of (outcome_indices, weights):
+        - outcome_indices: 1D tensor of int outcome column indices
+        - weights: 1D tensor of corresponding weight values
+    """
+    outcome_indices: list[int] = []
+    weights_list: list[Tensor] = []
+    for row in objective_weights:
+        nz = row.nonzero().view(-1)
+        outcome_indices.extend(nz.tolist())
+        weights_list.append(row[nz])
+    return (
+        torch.tensor(outcome_indices, device=objective_weights.device),
+        torch.cat(weights_list),
+    )
+
+
+@dataclass
+class SubsetModelData:
+    model: Model
+    objective_weights: Tensor
+    outcome_constraints: tuple[Tensor, Tensor] | None
+    indices: Tensor
+
+
+def _filter_X_observed(
+    Xs: list[Tensor],
+    objective_weights: Tensor,
+    bounds: list[tuple[float, float]],
+    outcome_constraints: tuple[Tensor, Tensor] | None = None,
+    linear_constraints: tuple[Tensor, Tensor] | None = None,
+    fixed_features: dict[int, float] | None = None,
+    fit_out_of_design: bool = False,
+) -> Tensor | None:
+    r"""Filter input points to those appearing in objective or constraints.
+
+    Args:
+        Xs: The input tensors of a model.
+        objective_weights: A ``(n_objectives, n_outcomes)`` tensor of objective
+            weights.
+        bounds: A list of (lower, upper) tuples for each column of X.
+        outcome_constraints: A tuple of (A, b). For k outcome constraints
+            and m outputs at f(x), A is (k x m) and b is (k x 1) such that
+            A f(x) <= b. (Not used by single task models)
+        linear_constraints: A tuple of (A, b). For k linear constraints on
+            d-dimensional x, A is (k x d) and b is (k x 1) such that
+            A x <= b. (Not used by single task models)
+        fixed_features: A map {feature_index: value} for features that
+            should be fixed to a particular value during generation.
+        fit_out_of_design: If specified, all training data is returned.
+            Otherwise, only in design points are returned.
+
+    Returns:
+        Tensor: All points that are feasible and appear in the objective or
+            the constraints. None if there are no such points.
+    """
+    # Get points observed for all objective and constraint outcomes
+    X_obs = get_observed(
+        Xs=Xs,
+        objective_weights=objective_weights,
+        outcome_constraints=outcome_constraints,
+    )
+    if not fit_out_of_design:
+        # Filter to those that satisfy constraints.
+        X_obs = filter_constraints_and_fixed_features(
+            X=X_obs,
+            bounds=bounds,
+            linear_constraints=linear_constraints,
+            fixed_features=fixed_features,
+        )
+    if len(X_obs) > 0:
+        return torch.as_tensor(X_obs)  # please the linter
+
+
+def _get_X_pending_and_observed(
+    Xs: list[Tensor],
+    objective_weights: Tensor,
+    bounds: list[tuple[float, float]],
+    pending_observations: list[Tensor] | None = None,
+    outcome_constraints: tuple[Tensor, Tensor] | None = None,
+    linear_constraints: tuple[Tensor, Tensor] | None = None,
+    fixed_features: dict[int, float] | None = None,
+    fit_out_of_design: bool = False,
+) -> tuple[Tensor | None, Tensor | None]:
+    r"""Get pending and observed points.
+
+    If all points would otherwise be filtered, remove `linear_constraints`
+    and `fixed_features` from filter and retry.
+
+    Args:
+        Xs: The input tensors of a model.
+        objective_weights: A ``(n_objectives, n_outcomes)`` tensor of objective
+            weights.
+        bounds: A list of (lower, upper) tuples for each column of X.
+        pending_observations:  A list of m (k_i x d) feature tensors X
+            for m outcomes and k_i pending observations for outcome i.
+            (Only used if n > 1).
+        outcome_constraints: A tuple of (A, b). For k outcome constraints
+            and m outputs at f(x), A is (k x m) and b is (k x 1) such that
+            A f(x) <= b. (Not used by single task models)
+        linear_constraints: A tuple of (A, b). For k linear constraints on
+            d-dimensional x, A is (k x d) and b is (k x 1) such that
+            A x <= b. (Not used by single task models)
+        fixed_features: A map {feature_index: value} for features that
+            should be fixed to a particular value during generation.
+        fit_out_of_design: If specified, all training data is returned.
+            Otherwise, only in design points are returned.
+
+    Returns:
+        Tensor: Pending points that are feasible and appear in the objective or
+            the constraints. None if there are no such points.
+        Tensor: Observed points that are feasible and appear in the objective or
+            the constraints. None if there are no such points.
+    """
+    if pending_observations is None:
+        X_pending = None
+    else:
+        X_pending = _filter_X_observed(
+            Xs=pending_observations,
+            objective_weights=objective_weights,
+            outcome_constraints=outcome_constraints,
+            bounds=bounds,
+            linear_constraints=linear_constraints,
+            fixed_features=fixed_features,
+        )
+    filtered_X_observed = _filter_X_observed(
+        Xs=Xs,
+        objective_weights=objective_weights,
+        outcome_constraints=outcome_constraints,
+        bounds=bounds,
+        linear_constraints=linear_constraints,
+        fixed_features=fixed_features,
+        fit_out_of_design=fit_out_of_design,
+    )
+    if filtered_X_observed is not None and len(filtered_X_observed) > 0:
+        return X_pending, filtered_X_observed
+    else:
+        unfiltered_X_observed = _filter_X_observed(
+            Xs=Xs,
+            objective_weights=objective_weights,
+            bounds=bounds,
+            outcome_constraints=outcome_constraints,
+            fit_out_of_design=fit_out_of_design,
+        )
+        return X_pending, unfiltered_X_observed
+
+
+def subset_model(
+    model: Model,
+    objective_weights: Tensor,
+    outcome_constraints: tuple[Tensor, Tensor] | None = None,
+) -> SubsetModelData:
+    """Subset a botorch model to the outputs used in the optimization.
+
+    Args:
+        model: A BoTorch Model. If the model does not implement the
+            `subset_outputs` method, this function is a null-op and returns the
+            input arguments.
+        objective_weights: A ``(n_objectives, n_outcomes)`` tensor of objective
+            weights.
+        outcome_constraints: A tuple of (A, b). For k outcome constraints
+            and m outputs at f(x), A is (k x m) and b is (k x 1) such that
+            A f(x) <= b. (Not used by single task models)
+
+    Returns:
+        A SubsetModelData dataclass containing the model, objective_weights,
+        outcome_constraints, all subset to only those outputs that appear in
+        either the objective weights or the outcome constraints, along with
+        the indices of the outputs.
+    """
+    nonzero = (objective_weights != 0).any(dim=0)
+    if outcome_constraints is not None:
+        A, _ = outcome_constraints
+        nonzero = nonzero | torch.any(A != 0, dim=0)
+    idcs_t = torch.arange(nonzero.size(0), device=objective_weights.device)[nonzero]
+    idcs = idcs_t.tolist()
+    # note that the number of metrics can be different than
+    # model.num_outputs which counts multiple tasks per
+    # outcome as separate outputs
+    num_outcomes = objective_weights.shape[1]
+    if len(idcs) == num_outcomes:
+        # if we use all model outputs, just return the inputs
+        return SubsetModelData(
+            model=model,
+            objective_weights=objective_weights,
+            outcome_constraints=outcome_constraints,
+            indices=torch.arange(
+                num_outcomes,
+                device=objective_weights.device,
+            ),
+        )
+    elif len(idcs) > model.num_outputs:
+        raise RuntimeError(
+            "Model size inconsistency. Trying to subset a model with "
+            f"{model.num_outputs} outputs to {len(idcs)} outputs"
+        )
+    try:
+        model = model.subset_output(idcs=idcs)
+        objective_weights = objective_weights[:, nonzero]
+        if outcome_constraints is not None:
+            A, b = outcome_constraints
+            outcome_constraints = A[:, nonzero], b
+    except NotImplementedError:
+        idcs_t = torch.arange(
+            model.num_outputs,
+            device=objective_weights.device,
+        )
+    return SubsetModelData(
+        model=model,
+        objective_weights=objective_weights,
+        outcome_constraints=outcome_constraints,
+        indices=idcs_t,
+    )
+
+
+def _to_botorch_constraints(
+    constraints: tuple[Tensor, Tensor] | None,
+    negate: bool,
+) -> list[tuple[Tensor, Tensor, float]] | None:
+    """Convert (A, b) constraint tensors to BoTorch's (indices, coeffs, rhs) format.
+
+    Args:
+        constraints: A tuple (A, b) where A is ``k x d`` and b is ``k x 1``.
+        negate: If True, negate coefficients and rhs. Used for inequality
+            constraints where Ax uses ``Ax <= b`` but BoTorch uses
+            ``sum(coeffs * X) >= rhs``.
+    """
+    if constraints is None:
+        return None
+    A, b = constraints
+    result = []
+    k, d = A.shape
+    sign = -1.0 if negate else 1.0
+    for i in range(k):
+        indices = torch.atleast_1d(A[i, :].nonzero(as_tuple=False).squeeze())
+        coefficients = torch.atleast_1d(sign * A[i, indices])
+        rhs = sign * b[i, 0].item()
+        result.append((indices, coefficients, rhs))
+    return result
+
+
+def _to_inequality_constraints(
+    linear_constraints: tuple[Tensor, Tensor] | None = None,
+) -> list[tuple[Tensor, Tensor, float]] | None:
+    return _to_botorch_constraints(linear_constraints, negate=True)
+
+
+def _to_equality_constraints(
+    equality_constraints: tuple[Tensor, Tensor] | None = None,
+) -> list[tuple[Tensor, Tensor, float]] | None:
+    return _to_botorch_constraints(equality_constraints, negate=False)
+
+
+def tensor_callable_to_array_callable(
+    tensor_func: Callable[[Tensor], Tensor],
+    device: torch.device,
+) -> Callable[[npt.NDArray], npt.NDArray]:
+    """transfer a tensor callable to an array callable"""
+
+    def array_func(x: npt.NDArray) -> npt.NDArray:
+        return tensor_func(torch.from_numpy(x).to(device)).detach().cpu().numpy()
+
+    return array_func
+
+
+def _get_weighted_mo_objective(
+    objective_weights: Tensor,
+) -> WeightedMCMultiOutputObjective:
+    """Constructs the `WeightedMCMultiOutputObjective` for the given
+    objective weights.
+    """
+    outcome_indices, weights = extract_objectives(objective_weights)
+    return WeightedMCMultiOutputObjective(
+        weights=weights, outcomes=outcome_indices.tolist()
+    )
+
+
+def get_botorch_objective_and_transform(
+    botorch_acqf_class: type[AcquisitionFunction],
+    model: Model,
+    objective_weights: Tensor,
+    outcome_constraints: tuple[Tensor, Tensor] | None = None,
+    X_observed: Tensor | None = None,
+    learned_objective_preference_model: Model | None = None,
+) -> tuple[MCAcquisitionObjective | None, PosteriorTransform | None]:
+    """Constructs a BoTorch `AcquisitionObjective` object.
+
+    Args:
+        botorch_acqf_class: The acquisition function class the objective
+            and posterior transform are to be used with. This is mainly
+            used to determine whether to construct a multi-output or a
+            single-output objective.
+        model: A BoTorch Model.
+        objective_weights: A ``(n_objectives, n_outcomes)`` tensor of objective
+            weights.
+        outcome_constraints: A tuple of (A, b). For k outcome constraints
+            and m outputs at f(x), A is (k x m) and b is (k x 1) such that
+            A f(x) <= b. (Not used by single task models)
+        X_observed: Observed points that are feasible and appear in the
+            objective or the constraints. None if there are no such points.
+
+    Returns:
+        A two-tuple containing (optionally) an `MCAcquisitionObjective` and
+        (optionally) a `PosteriorTransform`.
+    """
+
+    if learned_objective_preference_model is not None:
+        objective = LearnedObjective(pref_model=learned_objective_preference_model)
+        return objective, None
+    # qLogProbabilityOfFeasibility uses constraints only, not objectives or
+    # posterior transforms.
+    if issubclass(botorch_acqf_class, qLogProbabilityOfFeasibility):
+        return None, None
+
+    if issubclass(
+        botorch_acqf_class,
+        (
+            MultiObjectiveMCAcquisitionFunction,
+            MultiObjectiveAnalyticAcquisitionFunction,
+        ),
+    ):
+        # We are doing multi-objective optimization.
+        return _get_weighted_mo_objective(objective_weights=objective_weights), None
+    if outcome_constraints and issubclass(botorch_acqf_class, MCAcquisitionFunction):
+        # If there are outcome constraints, we use MC Acquisition functions.
+        weights_1d = objective_weights.sum(dim=0)
+        obj_tf: Callable[[Tensor, Tensor | None], Tensor] = (
+            get_objective_weights_transform(weights_1d)
+        )
+
+        def objective(samples: Tensor, X: Tensor | None = None) -> Tensor:
+            return obj_tf(samples, X)
+
+        # SampleReducingMCAcquisitionFunctions take care of the constraint handling
+        # directly, and the constraints get passed in the constructor of an MBM
+        # Acquisition object.
+        if issubclass(botorch_acqf_class, SampleReducingMCAcquisitionFunction):
+            return GenericMCObjective(objective=objective), None
+        # this is still used by KG
+        if X_observed is None:
+            raise UnsupportedError(
+                "X_observed is required to construct a constrained BoTorch objective."
+            )
+        con_tfs = get_outcome_constraint_transforms(outcome_constraints)
+        inf_cost = get_infeasible_cost(X=X_observed, model=model, objective=obj_tf)
+        objective = ConstrainedMCObjective(
+            objective=objective, constraints=con_tfs or [], infeasible_cost=inf_cost
+        )
+        return objective, None
+    # Default: single-objective, unconstrained — scalarize to weighted sum.
+    logger.debug(
+        f"Using ScalarizedPosteriorTransform for {botorch_acqf_class.__name__}."
+    )
+    weights_1d = objective_weights.sum(dim=0)
+    transform = ScalarizedPosteriorTransform(weights=weights_1d)
+    return None, transform
+
+
+def pick_best_out_of_sample_point_acqf_class(
+    outcome_constraints: tuple[Tensor, Tensor] | None = None,
+) -> type[AcquisitionFunction]:
+    if outcome_constraints is None:
+        return PosteriorMean
+    return qSimpleRegret
+
+
+def predict_from_model(
+    model: Model, X: Tensor, use_posterior_predictive: bool = False
+) -> tuple[Tensor, Tensor]:
+    r"""Predicts outcomes given a model and input tensor.
+
+    For a `GaussianMixturePosterior` and a `BoundedRiemannPosterior` we currently use
+    a Gaussian approximation where we compute the mean and variance of the Gaussian
+    mixture. This should ideally be changed to compute quantiles instead when Ax
+    supports non-Gaussian distributions.
+
+    Args:
+        model: A BoTorch Model.
+        X: A `n x d` tensor of input parameters.
+        use_posterior_predictive: A boolean indicating if the predictions
+            should be from the posterior predictive (i.e. including
+            observation noise).
+
+    Returns:
+        Tensor: The predicted posterior mean as an `n x o`-dim tensor.
+        Tensor: The predicted posterior covariance as a `n x o x o`-dim tensor.
+    """
+    with torch.no_grad():
+        means, variances = [], []
+        for x_ in X.split(4096):
+            # NOTE: Do not unsqueeze x_ here. Likely due to a matmul issue
+            # this ends up using a lot of memory with batched models.
+            # See https://github.com/pytorch/botorch/issues/2310.
+            posterior = model.posterior(x_, observation_noise=use_posterior_predictive)
+            if isinstance(posterior, GaussianMixturePosterior):
+                mean = posterior.mixture_mean.cpu().detach()
+                var = posterior.mixture_variance.cpu().detach().clamp_min(0)
+            elif isinstance(posterior, EnsemblePosterior):
+                # Always use mixture_mean and mixture_variance for ensemble
+                # predictions - provides prediction from mixture, not just average
+                mean = posterior.mixture_mean.cpu().detach()
+                var = posterior.mixture_variance.cpu().detach().clamp_min(0)
+            else:
+                try:
+                    mean = posterior.mean.cpu().detach()  # type: ignore
+                    var = posterior.variance.cpu().detach().clamp_min(0)  # type: ignore
+                except AttributeError as e:
+                    raise UnsupportedError(
+                        "Predicting from a model requires the posterior to implement"
+                        f"`mean` and `variance` properties. Original error message: {e}"
+                    )
+                # PosteriorList may introduce extra batch dimensions from
+                # broadcasting (e.g., PairwiseGP + SAAS ensemble in a
+                # ModelList). Average over leading batch dims to get the
+                # expected (n, o) shape per chunk before concatenation.
+                if mean.ndim > 2:
+                    mean = mean.reshape(-1, *mean.shape[-2:]).mean(dim=0)
+                    var = var.reshape(-1, *var.shape[-2:]).mean(dim=0)
+            means.append(mean)
+            variances.append(var)
+        mean = torch.cat(means, dim=0)
+        var = torch.cat(variances, dim=0)
+    cov = torch.diag_embed(var)
+    return mean, cov
+
+
+def _datasets_to_legacy_inputs(
+    datasets: Sequence[SupervisedDataset],
+) -> tuple[list[Tensor], list[Tensor], list[Tensor]]:
+    """Convert a dictionary of dataset containers to legacy X, Y, Yvar inputs"""
+    Xs, Ys, Yvars = [], [], []
+    for dataset in datasets:
+        if not isinstance(dataset, SupervisedDataset):
+            raise UnsupportedError("Legacy setup only supports `SupervisedDataset`s")
+        for i, _ in enumerate(dataset.outcome_names):
+            Xs.append(dataset.X)
+            Ys.append(dataset.Y[:, i].unsqueeze(-1))
+            if dataset.Yvar is not None:
+                Yvars.append(dataset.Yvar[:, i].unsqueeze(-1))
+            else:
+                Yvars.append(torch.full_like(Ys[-1], float("nan")))
+    return Xs, Ys, Yvars
+
+
+def get_feature_importances_from_botorch_model(
+    model: Model | ModuleList | None,
+) -> npt.NDArray:
+    """Get feature importances from a list of BoTorch models.
+
+    Args:
+        models: BoTorch model to get feature importances from.
+
+    Returns:
+        The feature importances as a numpy array where each row sums to 1.
+    """
+    if model is None:
+        raise RuntimeError(
+            "Cannot calculate feature_importances without a fitted model."
+            "Call `fit` first."
+        )
+    elif isinstance(model, ModelList):
+        models = model.models
+    else:
+        models = [model]
+    lengthscales = []
+    for m in models:
+        try:
+            # this can be a ModelList of a SAAS and STGP, so this is a necessary way
+            # to get the lengthscale
+            if hasattr(m.covar_module, "base_kernel"):
+                # pyre-fixme[16]: Undefined attribute: Item `torch._tensor.Tensor` of...
+                ls = m.covar_module.base_kernel.lengthscale
+            else:
+                # pyre-fixme[16]: Undefined attribute: Item `torch._tensor.Tensor` of...
+                ls = m.covar_module.lengthscale
+        except AttributeError:
+            ls = None
+        # pyre-fixme[29]: Call error: `typing.Union[BoundMethod[typing.Callable(torch...
+        if ls is None or ls.shape[-1] != m.train_inputs[0].shape[-1]:
+            # TODO: We could potentially set the feature importances to NaN in this
+            # case, but this require knowing the batch dimension of this model.
+            # Consider supporting in the future.
+            raise NotImplementedError(
+                "Failed to extract lengthscales from `m.covar_module` "
+                "and `m.covar_module.base_kernel`"
+            )
+        if ls.ndim == 2:
+            ls = ls.unsqueeze(0)
+        # pyre-fixme[6]: Incompatible parameter type: In call `is_ensemble`, for 1st ...
+        if is_ensemble(m):  # Take the median over the model batch dimension
+            ls = torch.quantile(ls, q=0.5, dim=0, keepdim=True)
+        lengthscales.append(ls)
+    lengthscales_t: Tensor = torch.cat(lengthscales, dim=0)
+    feature_importances = torch.reciprocal(lengthscales_t).detach().cpu()
+    # Make sure the sum of feature importances is 1.0 for each metric
+    feature_importances /= feature_importances.sum(dim=-1, keepdim=True)
+    return feature_importances.numpy()
+
+
+def get_rounding_func(
+    rounding_func: Callable[[Tensor], Tensor] | None,
+) -> Callable[[Tensor], Tensor] | None:
+    if rounding_func is None:
+        return None
+
+    # make sure rounding_func is properly applied to q- and t-batches
+    def botorch_rounding_func(X: Tensor) -> Tensor:
+        batch_shape, d = X.shape[:-1], X.shape[-1]
+        X_round = torch.stack([none_throws(rounding_func)(x) for x in X.view(-1, d)])
+        return X_round.view(*batch_shape, d)
+
+    return botorch_rounding_func

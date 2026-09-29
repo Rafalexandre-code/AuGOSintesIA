@@ -1,0 +1,66 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+*.egg-info/
+
+# virtual environments
+.venv/
+
+# pytest
+.pytest_cache/
+
+# mypy
+.mypy_cache/
+
+# IDE
+.idea/
+.vscode/
+*.txt
+!requirements/*.txt
+*.log
+
+# Distribution
+dist/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# DS_Store
+.DS_Store
+*.models
+*.pt
+/wandb
+*.xyz
+/checkpoints
+*.model
+/results
+*.db
+
+# The golden references are committed on purpose: they are the numerical
+# contract the test suite asserts against, so the structures and the tiny
+# anchor checkpoints have to travel with the repository. The patterns above
+# (*.xyz, *.model, *.pt) would otherwise silently refuse them, and a golden
+# that is not in the clone is not a golden.
+!tests/golden/fixtures/*.xyz
+!tests/golden/models/*.model
+!tests/golden/models/*.pt
+
+.benchmarks
+*.png
+# Personal/scratch scripts stay untracked; the repo's own wrappers in
+# scripts/ remain tracked (gitignore does not affect already-tracked files).
+/scripts
+*.cube
+
+# coverage artifacts
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# local planning docs (not for the public repo)
+/doc

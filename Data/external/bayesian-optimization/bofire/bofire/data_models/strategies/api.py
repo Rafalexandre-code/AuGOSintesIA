@@ -1,0 +1,98 @@
+from bofire.data_models.strategies._register import register_strategy
+from bofire.data_models.strategies.actual_strategy_type import (
+    _ACTUAL_STRATEGY_TYPES,
+    ActualStrategy,
+)
+from bofire.data_models.strategies.doe import (
+    AnyDoEOptimalityCriterion,
+    AnyOptimalityCriterion,
+    AOptimalityCriterion,
+    DoEStrategy,
+    DOptimalityCriterion,
+    EOptimalityCriterion,
+    GOptimalityCriterion,
+    KOptimalityCriterion,
+    SpaceFillingCriterion,
+)
+from bofire.data_models.strategies.factorial import FactorialStrategy
+from bofire.data_models.strategies.fractional_factorial import (
+    FractionalFactorialStrategy,
+)
+from bofire.data_models.strategies.llm import LLMStrategy
+from bofire.data_models.strategies.meta_strategy_type import MetaStrategy
+from bofire.data_models.strategies.predictives.acqf_optimization import (
+    LSRBO,
+    AcquisitionOptimizer,
+    AnyAcqfOptimizer,
+    BotorchOptimizer,
+    GeneticAlgorithmOptimizer,
+)
+from bofire.data_models.strategies.predictives.active_learning import (
+    ActiveLearningStrategy,
+)
+from bofire.data_models.strategies.predictives.botorch import BotorchStrategy
+from bofire.data_models.strategies.predictives.enting import EntingStrategy
+from bofire.data_models.strategies.predictives.mobo import (
+    AbsoluteMovingReferenceValue,
+    ExplicitReferencePoint,
+    FixedReferenceValue,
+    MoboStrategy,
+    RelativeMovingReferenceValue,
+    RelativeToMaxMovingReferenceValue,
+)
+from bofire.data_models.strategies.predictives.multi_fidelity import (
+    MultiFidelityVarianceBasedStrategy,
+)
+from bofire.data_models.strategies.predictives.multi_fidelity_knowledge_gradient import (
+    MultiFidelityHVKGStrategy,
+)
+from bofire.data_models.strategies.predictives.multiobjective import (
+    MultiobjectiveStrategy,
+)
+from bofire.data_models.strategies.predictives.predictive import PredictiveStrategy
+from bofire.data_models.strategies.predictives.qparego import QparegoStrategy
+from bofire.data_models.strategies.predictives.sobo import (
+    AdditiveSoboStrategy,
+    CustomSoboStrategy,
+    MultiplicativeAdditiveSoboStrategy,
+    MultiplicativeSoboStrategy,
+    SoboStrategy,
+)
+from bofire.data_models.strategies.random import RandomStrategy
+from bofire.data_models.strategies.shortest_path import ShortestPathStrategy
+from bofire.data_models.strategies.stepwise.conditions import (
+    AlwaysTrueCondition,
+    AnyCondition,
+    CombiCondition,
+    FeasibleExperimentCondition,
+    NumberOfExperimentsCondition,
+    StrategyHasConvergedCondition,
+)
+from bofire.data_models.strategies.stepwise.stepwise import Step, StepwiseStrategy
+from bofire.data_models.strategies.strategy import Strategy
+from bofire.data_models.transforms.api import (
+    AnyTransform,
+    DropDataTransform,
+    ManipulateDataTransform,
+)
+from bofire.data_models.unions import tagged_union
+
+
+_ANY_STRATEGY_TYPES = (*_ACTUAL_STRATEGY_TYPES, MetaStrategy)
+AnyStrategy = tagged_union(*_ANY_STRATEGY_TYPES)
+
+AnyPredictive = tagged_union(
+    SoboStrategy,
+    ActiveLearningStrategy,
+    AdditiveSoboStrategy,
+    MultiplicativeSoboStrategy,
+    MultiplicativeAdditiveSoboStrategy,
+    CustomSoboStrategy,
+    QparegoStrategy,
+    EntingStrategy,
+    MoboStrategy,
+    MultiFidelityVarianceBasedStrategy,
+    MultiFidelityHVKGStrategy,
+)
+
+AnyLocalSearchConfig = LSRBO

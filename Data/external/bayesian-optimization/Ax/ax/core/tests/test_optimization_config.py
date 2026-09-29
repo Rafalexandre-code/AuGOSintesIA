@@ -1,0 +1,763 @@
+#!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+# pyre-strict
+
+import warnings
+
+from ax.core.metric import Metric
+from ax.core.objective import MultiObjective, Objective, ScalarizedObjective
+from ax.core.optimization_config import (
+    MultiObjectiveOptimizationConfig,
+    OptimizationConfig,
+    PreferenceOptimizationConfig,
+)
+from ax.core.outcome_constraint import (
+    ObjectiveThreshold,
+    OutcomeConstraint,
+    ScalarizedOutcomeConstraint,
+)
+from ax.core.types import ComparisonOp
+from ax.exceptions.core import UserInputError
+from ax.utils.common.testutils import TestCase
+from pyre_extensions import assert_is_instance
+
+
+OC_STR = (
+    "OptimizationConfig("
+    'objective=Objective(expression="m1"), '
+    "outcome_constraints=[OutcomeConstraint(m3 >= -0.25), "
+    "OutcomeConstraint(m4 <= 0.25), "
+    "ScalarizedOutcomeConstraint(0.5*m3 + 0.5*m4 >= 0.9975 * baseline)])"
+)
+
+MOOC_STR = (
+    "MultiObjectiveOptimizationConfig("
+    'objective=Objective(expression="-m1, m2"), '
+    "outcome_constraints=[OutcomeConstraint(m3 >= -0.25), "
+    "OutcomeConstraint(m3 <= 0.25)], objective_thresholds=[])"
+)
+
+
+class OptimizationConfigTest(TestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.metrics = {
+            "m1": Metric(name="m1"),
+            "m2": Metric(name="m2"),
+            "m3": Metric(name="m3"),
+            "m4": Metric(name="m4"),
+        }
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            self.objective = Objective(metric=self.metrics["m1"], minimize=False)
+            self.alt_objective = Objective(metric=self.metrics["m3"], minimize=False)
+            self.multi_objective = MultiObjective(
+                objectives=[self.objective, self.alt_objective],
+            )
+            self.m2_objective = ScalarizedObjective(
+                metrics=[self.metrics["m1"], self.metrics["m2"]]
+            )
+            self.outcome_constraint = OutcomeConstraint(
+                metric=self.metrics["m3"], op=ComparisonOp.GEQ, bound=-0.25
+            )
+            self.additional_outcome_constraint = OutcomeConstraint(
+                metric=self.metrics["m4"], op=ComparisonOp.LEQ, bound=0.25
+            )
+            self.scalarized_outcome_constraint = ScalarizedOutcomeConstraint(
+                metrics=[self.metrics["m3"], self.metrics["m4"]],
+                weights=[0.5, 0.5],
+                op=ComparisonOp.GEQ,
+                bound=-0.25,
+            )
+        self.outcome_constraints = [
+            self.outcome_constraint,
+            self.additional_outcome_constraint,
+            self.scalarized_outcome_constraint,
+        ]
+
+    def test_Init(self) -> None:
+        config1 = OptimizationConfig(
+            objective=self.objective, outcome_constraints=self.outcome_constraints
+        )
+        self.assertEqual(str(config1), OC_STR)
+        with self.assertRaises(ValueError):
+            config1.objective = self.alt_objective  # constrained Objective.
+        # updating constraints is fine.
+        config1.outcome_constraints = [self.outcome_constraint]
+        self.assertEqual(len(config1.metric_names), 2)
+
+        # objective without outcome_constraints is also supported
+        config2 = OptimizationConfig(objective=self.objective)
+        self.assertEqual(config2.outcome_constraints, [])
+
+        # setting objective is fine too, if it's compatible with constraints..
+        config2.objective = self.m2_objective
+        # setting constraints on objectives is fine for MultiObjective components.
+
+        config2.outcome_constraints = self.outcome_constraints
+        self.assertEqual(config2.outcome_constraints, self.outcome_constraints)
+
+    def test_Eq(self) -> None:
+        config1 = OptimizationConfig(
+            objective=self.objective,
+            outcome_constraints=self.outcome_constraints,
+        )
+        config2 = OptimizationConfig(
+            objective=self.objective,
+            outcome_constraints=self.outcome_constraints,
+        )
+        self.assertEqual(config1, config2)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            new_outcome_constraint = OutcomeConstraint(
+                metric=self.metrics["m2"], op=ComparisonOp.LEQ, bound=0.5
+            )
+        config3 = OptimizationConfig(
+            objective=self.objective,
+            outcome_constraints=[self.outcome_constraint, new_outcome_constraint],
+        )
+        self.assertNotEqual(config1, config3)
+
+    def test_ConstraintValidation(self) -> None:
+        # Can build OptimizationConfig with MultiObjective
+        with self.assertRaises(ValueError):
+            OptimizationConfig(objective=self.multi_objective)
+
+        # Can't constrain on objective metric.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            objective_constraint = OutcomeConstraint(
+                metric=self.metrics["m1"], op=ComparisonOp.GEQ, bound=0
+            )
+        with self.assertRaises(ValueError):
+            OptimizationConfig(
+                objective=self.objective, outcome_constraints=[objective_constraint]
+            )
+        # Using an outcome constraint for ScalarizedObjective should also raise
+        with self.assertRaisesRegex(
+            ValueError, "Cannot constrain on objective metric."
+        ):
+            OptimizationConfig(
+                objective=self.m2_objective,
+                outcome_constraints=[objective_constraint],
+            )
+        # Two outcome_constraints on the same metric with the same op
+        # should raise.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            duplicate_constraint = OutcomeConstraint(
+                metric=self.metrics["m3"],
+                op=self.outcome_constraint.op,
+                bound=self.outcome_constraint.bound + 1,
+            )
+        with self.assertRaises(ValueError):
+            OptimizationConfig(
+                objective=self.objective,
+                outcome_constraints=[self.outcome_constraint, duplicate_constraint],
+            )
+
+        # Three outcome_constraints on the same metric should raise.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            opposite_op = (
+                ComparisonOp.LEQ
+                if self.outcome_constraint.op == ComparisonOp.GEQ
+                else ComparisonOp.GEQ
+            )
+            opposing_constraint = OutcomeConstraint(
+                metric=self.metrics["m3"],
+                op=opposite_op,
+                bound=self.outcome_constraint.bound,
+            )
+        with self.assertRaises(ValueError):
+            OptimizationConfig(
+                objective=self.objective,
+                outcome_constraints=self.outcome_constraints + [opposing_constraint],
+            )
+
+        # Two outcome_constraints on the same metric with different ops and
+        # flipped bounds (lower < upper) should raise.
+        add_bound = 1 if self.outcome_constraint.op == ComparisonOp.LEQ else -1
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            opposite_op = (
+                ComparisonOp.LEQ
+                if self.outcome_constraint.op == ComparisonOp.GEQ
+                else ComparisonOp.GEQ
+            )
+            opposing_constraint = OutcomeConstraint(
+                metric=self.metrics["m3"],
+                op=opposite_op,
+                bound=self.outcome_constraint.bound + add_bound,
+            )
+        with self.assertRaises(ValueError):
+            OptimizationConfig(
+                objective=self.objective,
+                outcome_constraints=([self.outcome_constraint, opposing_constraint]),
+            )
+
+        # Two outcome_constraints on the same metric with different ops and
+        # bounds should not raise.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            opposite_op = (
+                ComparisonOp.LEQ
+                if self.outcome_constraint.op == ComparisonOp.GEQ
+                else ComparisonOp.GEQ
+            )
+            opposing_constraint = OutcomeConstraint(
+                metric=self.metrics["m3"],
+                op=opposite_op,
+                bound=self.outcome_constraint.bound + 1,
+            )
+        config = OptimizationConfig(
+            objective=self.objective,
+            outcome_constraints=([self.outcome_constraint, opposing_constraint]),
+        )
+        self.assertEqual(
+            config.outcome_constraints, [self.outcome_constraint, opposing_constraint]
+        )
+
+        # Test with ScalarizedOutcomeConstraint
+        # should work when not constraining obj
+        config_with_scalarized = OptimizationConfig(
+            objective=self.objective,
+            outcome_constraints=[self.scalarized_outcome_constraint],
+        )
+        self.assertEqual(len(config_with_scalarized.outcome_constraints), 1)
+
+        # Can't constrain on metric in ScalarizedOutcomeConstraint
+        # that overlaps with objective
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            scalarized_with_objective_metric = ScalarizedOutcomeConstraint(
+                metrics=[
+                    self.metrics["m1"],
+                    self.metrics["m4"],
+                ],  # m1 is objective metric
+                weights=[0.5, 0.5],
+                op=ComparisonOp.GEQ,
+                bound=0.0,
+            )
+        with self.assertRaisesRegex(
+            ValueError, "Cannot constrain on objective metric."
+        ):
+            OptimizationConfig(
+                objective=self.objective,
+                outcome_constraints=[scalarized_with_objective_metric],
+            )
+
+    def test_Clone(self) -> None:
+        config1 = OptimizationConfig(
+            objective=self.objective,
+            outcome_constraints=self.outcome_constraints,
+        )
+        self.assertEqual(config1, config1.clone())
+
+    def test_CloneWithArgs(self) -> None:
+        config1 = OptimizationConfig(
+            objective=self.objective,
+            outcome_constraints=self.outcome_constraints,
+        )
+        config2 = OptimizationConfig(
+            objective=self.objective,
+        )
+
+        # Empty args produce exact clone
+        self.assertEqual(
+            config1.clone_with_args(),
+            config1,
+        )
+
+        # None args not treated as default
+        self.assertEqual(
+            config1.clone_with_args(
+                outcome_constraints=None,
+            ),
+            config2,
+        )
+
+
+class MultiObjectiveOptimizationConfigTest(TestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.metrics = {
+            "m1": Metric(name="m1", lower_is_better=True),
+            "m2": Metric(name="m2", lower_is_better=False),
+            "m3": Metric(name="m3", lower_is_better=False),
+        }
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            self.objectives = {
+                "o1": Objective(metric=self.metrics["m1"]),
+                "o2": Objective(metric=self.metrics["m2"], minimize=False),
+                "o3": Objective(metric=self.metrics["m3"], minimize=False),
+            }
+            self.objective = Objective(metric=self.metrics["m1"], minimize=True)
+            self.multi_objective = MultiObjective(
+                objectives=[self.objectives["o1"], self.objectives["o2"]]
+            )
+            self.scalarized_objective = ScalarizedObjective(
+                metrics=list(self.metrics.values()),
+                weights=[-1.0, 1.0, 1.0],
+                minimize=False,
+            )
+            self.outcome_constraint = OutcomeConstraint(
+                metric=self.metrics["m3"], op=ComparisonOp.GEQ, bound=-0.25
+            )
+            self.additional_outcome_constraint = OutcomeConstraint(
+                metric=self.metrics["m3"], op=ComparisonOp.LEQ, bound=0.25
+            )
+        self.outcome_constraints = [
+            self.outcome_constraint,
+            self.additional_outcome_constraint,
+        ]
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            self.objective_thresholds = [
+                ObjectiveThreshold(
+                    metric=self.metrics["m1"], bound=-1.0, relative=False
+                ),
+                ObjectiveThreshold(
+                    metric=self.metrics["m2"], bound=-1.0, relative=False
+                ),
+            ]
+            self.relative_objective_thresholds = [
+                ObjectiveThreshold(
+                    metric=self.metrics["m1"], bound=-1.0, relative=True
+                ),
+                ObjectiveThreshold(
+                    metric=self.metrics["m2"],
+                    op=ComparisonOp.GEQ,
+                    bound=-1.0,
+                    relative=True,
+                ),
+            ]
+            self.m3_constraint = OutcomeConstraint(
+                metric=self.metrics["m3"],
+                op=ComparisonOp.GEQ,
+                bound=0.1,
+                relative=True,
+            )
+
+    def test_Init(self) -> None:
+        config1 = MultiObjectiveOptimizationConfig(
+            objective=self.multi_objective, outcome_constraints=self.outcome_constraints
+        )
+        self.assertEqual(str(config1), MOOC_STR)
+        with self.assertRaisesRegex(
+            TypeError,
+            "`MultiObjectiveOptimizationConfig` requires an objective of type "
+            "`MultiObjective` or `ScalarizedObjective`.",
+        ):
+            config1.objective = self.objective  # Wrong objective type
+        # updating constraints is fine.
+        config1.outcome_constraints = [self.outcome_constraint]
+        self.assertEqual(len(config1.metric_names), 3)
+
+        # objective without outcome_constraints is also supported
+        config2 = MultiObjectiveOptimizationConfig(objective=self.multi_objective)
+
+        # setting objective is fine too, if it's compatible with constraints.
+        config2.objective = self.multi_objective
+
+        # setting constraints on objectives is fine for MultiObjective components.
+        config2.outcome_constraints = [self.outcome_constraint]
+        self.assertEqual(config2.outcome_constraints, [self.outcome_constraint])
+
+        # construct constraints with objective_thresholds:
+        config3 = MultiObjectiveOptimizationConfig(
+            objective=self.multi_objective,
+            # pyrefly: ignore [bad-argument-type]
+            objective_thresholds=self.objective_thresholds,
+        )
+        self.assertEqual(config3.all_constraints, self.objective_thresholds)
+
+        # objective_thresholds and outcome constraints together.
+        config4 = MultiObjectiveOptimizationConfig(
+            objective=self.multi_objective,
+            # pyrefly: ignore [bad-argument-type]
+            objective_thresholds=self.objective_thresholds,
+            outcome_constraints=[self.m3_constraint],
+        )
+        self.assertEqual(
+            config4.all_constraints, [self.m3_constraint] + self.objective_thresholds
+        )
+        self.assertEqual(config4.outcome_constraints, [self.m3_constraint])
+        self.assertEqual(config4.objective_thresholds, self.objective_thresholds)
+
+        # verify relative_objective_thresholds works:
+        config5 = MultiObjectiveOptimizationConfig(
+            objective=self.multi_objective,
+            # pyrefly: ignore [bad-argument-type]
+            objective_thresholds=self.relative_objective_thresholds,
+        )
+        threshold = config5.objective_thresholds[0]
+        self.assertTrue(threshold.relative)
+        self.assertEqual(threshold.bound, -1.0)
+
+        # ValueError on wrong direction constraints
+        with self.assertRaises(UserInputError):
+            MultiObjectiveOptimizationConfig(
+                objective=self.multi_objective,
+                objective_thresholds=[self.additional_outcome_constraint],
+            )
+
+    def test_Eq(self) -> None:
+        config1 = MultiObjectiveOptimizationConfig(
+            objective=self.multi_objective, outcome_constraints=self.outcome_constraints
+        )
+        config2 = MultiObjectiveOptimizationConfig(
+            objective=self.multi_objective, outcome_constraints=self.outcome_constraints
+        )
+        self.assertEqual(config1, config2)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            new_outcome_constraint = OutcomeConstraint(
+                metric=self.metrics["m3"], op=ComparisonOp.LEQ, bound=0.5
+            )
+        config3 = MultiObjectiveOptimizationConfig(
+            objective=self.multi_objective,
+            outcome_constraints=[self.outcome_constraint, new_outcome_constraint],
+        )
+        self.assertNotEqual(config1, config3)
+
+    def test_ConstraintValidation(self) -> None:
+        # Cannot build with non-MultiObjective
+        with self.assertRaisesRegex(
+            TypeError,
+            "`MultiObjectiveOptimizationConfig` requires an objective of type "
+            "`MultiObjective` or `ScalarizedObjective`.",
+        ):
+            # pyre-ignore[6]: Intentionally testing wrong type for error path.
+            MultiObjectiveOptimizationConfig(objective=self.objective)
+
+        # Two outcome_constraints on the same metric with the same op
+        # should raise.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            duplicate_constraint = OutcomeConstraint(
+                metric=self.metrics["m3"],
+                op=self.outcome_constraint.op,
+                bound=self.outcome_constraint.bound + 1,
+            )
+        with self.assertRaises(ValueError):
+            MultiObjectiveOptimizationConfig(
+                objective=self.multi_objective,
+                outcome_constraints=[self.outcome_constraint, duplicate_constraint],
+            )
+
+        # Three outcome_constraints on the same metric should raise.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            opposite_op = (
+                ComparisonOp.LEQ
+                if self.outcome_constraint.op == ComparisonOp.GEQ
+                else ComparisonOp.GEQ
+            )
+            opposing_constraint = OutcomeConstraint(
+                metric=self.metrics["m3"],
+                op=opposite_op,
+                bound=self.outcome_constraint.bound,
+            )
+        with self.assertRaises(ValueError):
+            MultiObjectiveOptimizationConfig(
+                objective=self.multi_objective,
+                outcome_constraints=self.outcome_constraints + [opposing_constraint],
+            )
+
+        # Two outcome_constraints on the same metric with different ops and
+        # flipped bounds (lower < upper) should raise.
+        add_bound = 1 if self.outcome_constraint.op == ComparisonOp.LEQ else -1
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            opposing_constraint = OutcomeConstraint(
+                metric=self.metrics["m3"],
+                op=opposite_op,
+                bound=self.outcome_constraint.bound + add_bound,
+            )
+        with self.assertRaises(ValueError):
+            MultiObjectiveOptimizationConfig(
+                objective=self.multi_objective,
+                outcome_constraints=([self.outcome_constraint, opposing_constraint]),
+            )
+
+        # Two outcome_constraints on the same metric with different ops and
+        # bounds should not raise.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            opposing_constraint = OutcomeConstraint(
+                metric=self.metrics["m3"],
+                op=opposite_op,
+                bound=self.outcome_constraint.bound + 1,
+            )
+        config = MultiObjectiveOptimizationConfig(
+            objective=self.multi_objective,
+            outcome_constraints=([self.outcome_constraint, opposing_constraint]),
+        )
+        self.assertEqual(
+            config.outcome_constraints, [self.outcome_constraint, opposing_constraint]
+        )
+
+        # Test with ScalarizedOutcomeConstraint
+        #  should work when not constraining objective
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            scalarized_constraint = ScalarizedOutcomeConstraint(
+                metrics=[self.metrics["m3"]],  # m3 is not in multi_objective (m1, m2)
+                weights=[1.0],
+                op=ComparisonOp.GEQ,
+                bound=0.0,
+            )
+        config_with_scalarized = MultiObjectiveOptimizationConfig(
+            objective=self.multi_objective,
+            outcome_constraints=[scalarized_constraint],
+        )
+        self.assertEqual(len(config_with_scalarized.outcome_constraints), 1)
+
+        # ScalarizedOutcomeConstraint that overlaps with objective is also
+        # allowed in MOO.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            scalarized_with_objective_metric = ScalarizedOutcomeConstraint(
+                metrics=[
+                    self.metrics["m1"],
+                    self.metrics["m3"],
+                ],  # m1 is in multi_objective
+                weights=[0.5, 0.5],
+                op=ComparisonOp.GEQ,
+                bound=0.0,
+            )
+        config_scalarized_obj = MultiObjectiveOptimizationConfig(
+            objective=self.multi_objective,
+            outcome_constraints=[scalarized_with_objective_metric],
+        )
+        self.assertEqual(
+            config_scalarized_obj.outcome_constraints,
+            [scalarized_with_objective_metric],
+        )
+
+    def test_ConstraintAgainstOptimizationDirection(self) -> None:
+        """Verify that an objective can be constrained against its optimization
+        direction, e.g. FLOPs >= threshold while minimizing FLOPs. This is
+        useful in MOO to prevent the acquisition function from exploring
+        regions of the objective space that are known to be uninteresting.
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            # m1 is minimized, m2 is maximized in self.multi_objective
+            # Constraint m1 from below (against minimize direction)
+            lower_bound_on_m1 = OutcomeConstraint(
+                metric=self.metrics["m1"],
+                op=ComparisonOp.GEQ,
+                bound=100.0,
+                relative=False,
+            )
+        config = MultiObjectiveOptimizationConfig(
+            objective=self.multi_objective,
+            outcome_constraints=[lower_bound_on_m1],
+            # pyrefly: ignore [bad-argument-type]
+            objective_thresholds=self.objective_thresholds,
+        )
+        self.assertEqual(config.outcome_constraints, [lower_bound_on_m1])
+        self.assertEqual(config.objective_thresholds, self.objective_thresholds)
+        self.assertEqual(
+            config.all_constraints, [lower_bound_on_m1] + self.objective_thresholds
+        )
+
+    def test_Clone(self) -> None:
+        config1 = MultiObjectiveOptimizationConfig(
+            objective=self.multi_objective, outcome_constraints=self.outcome_constraints
+        )
+        cloned1 = config1.clone()
+        # Clone normalizes MultiObjective to plain Objective; compare by
+        # expression and constraints instead of assertEqual.
+        self.assertEqual(config1.objective.expression, cloned1.objective.expression)
+        self.assertEqual(config1.outcome_constraints, cloned1.outcome_constraints)
+        cloned1_moo = assert_is_instance(cloned1, MultiObjectiveOptimizationConfig)
+        self.assertEqual(config1.objective_thresholds, cloned1_moo.objective_thresholds)
+
+        config2 = MultiObjectiveOptimizationConfig(
+            objective=self.multi_objective,
+            # pyrefly: ignore [bad-argument-type]
+            objective_thresholds=self.objective_thresholds,
+        )
+        cloned2 = config2.clone()
+        self.assertEqual(config2.objective.expression, cloned2.objective.expression)
+        self.assertEqual(config2.outcome_constraints, cloned2.outcome_constraints)
+        cloned2_moo = assert_is_instance(cloned2, MultiObjectiveOptimizationConfig)
+        self.assertEqual(config2.objective_thresholds, cloned2_moo.objective_thresholds)
+
+    def test_CloneWithArgs(self) -> None:
+        config1 = MultiObjectiveOptimizationConfig(
+            objective=self.multi_objective,
+            # pyrefly: ignore [bad-argument-type]
+            objective_thresholds=self.objective_thresholds,
+            outcome_constraints=self.outcome_constraints,
+        )
+        config2 = MultiObjectiveOptimizationConfig(
+            objective=self.multi_objective,
+        )
+
+        # Empty args produce clone with same expression and constraints
+        cloned = config1.clone_with_args()
+        self.assertEqual(config1.objective.expression, cloned.objective.expression)
+        self.assertEqual(config1.outcome_constraints, cloned.outcome_constraints)
+        self.assertEqual(config1.objective_thresholds, cloned.objective_thresholds)
+
+        # None args not treated as default
+        cloned_none = config1.clone_with_args(
+            outcome_constraints=None,
+            objective_thresholds=None,
+        )
+        self.assertEqual(config2.objective.expression, cloned_none.objective.expression)
+        self.assertEqual(cloned_none.outcome_constraints, [])
+        self.assertEqual(cloned_none.objective_thresholds, [])
+
+
+class PreferenceOptimizationConfigTest(TestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.metrics = {
+            "metric1": Metric(name="metric1", lower_is_better=True),
+            "metric2": Metric(name="metric2", lower_is_better=False),
+            "metric3": Metric(name="metric3", lower_is_better=False),
+        }
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            self.objectives = {
+                "o1": Objective(metric=self.metrics["metric1"], minimize=True),
+                "o2": Objective(metric=self.metrics["metric2"], minimize=False),
+                "o3": Objective(metric=self.metrics["metric3"], minimize=False),
+            }
+            self.multi_objective = MultiObjective(
+                objectives=[self.objectives["o2"], self.objectives["o3"]]
+            )
+        self.preference_profile_name = "pe_exp"
+
+    def test_Init(self) -> None:
+        # Test basic initialization
+        config = PreferenceOptimizationConfig(
+            objective=self.multi_objective,
+            preference_profile_name=self.preference_profile_name,
+        )
+        self.assertEqual(config.preference_profile_name, self.preference_profile_name)
+        self.assertEqual(config.objective, self.multi_objective)
+        self.assertEqual(config.outcome_constraints, [])
+
+        # Test that outcome_constraints are not supported
+        with self.assertRaisesRegex(
+            NotImplementedError, "Outcome constraints are not yet supported"
+        ):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                PreferenceOptimizationConfig(
+                    objective=self.multi_objective,
+                    preference_profile_name=self.preference_profile_name,
+                    outcome_constraints=[
+                        OutcomeConstraint(
+                            metric=self.metrics["metric1"],
+                            op=ComparisonOp.LEQ,
+                            bound=0.5,
+                        )
+                    ],
+                )
+
+    def test_Eq(self) -> None:
+        config1 = PreferenceOptimizationConfig(
+            objective=self.multi_objective,
+            preference_profile_name=self.preference_profile_name,
+        )
+        config2 = PreferenceOptimizationConfig(
+            objective=self.multi_objective,
+            preference_profile_name=self.preference_profile_name,
+        )
+        self.assertEqual(config1, config2)
+
+        # Different preference_profile_name
+        config3 = PreferenceOptimizationConfig(
+            objective=self.multi_objective,
+            preference_profile_name="different_profile",
+        )
+        self.assertNotEqual(config1, config3)
+
+        # Different objective
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            different_objective = MultiObjective(
+                objectives=[self.objectives["o1"], self.objectives["o2"]]
+            )
+        config4 = PreferenceOptimizationConfig(
+            objective=different_objective,
+            preference_profile_name=self.preference_profile_name,
+        )
+        self.assertNotEqual(config1, config4)
+
+    def test_Clone(self) -> None:
+        config = PreferenceOptimizationConfig(
+            objective=self.multi_objective,
+            preference_profile_name=self.preference_profile_name,
+        )
+        cloned_config = assert_is_instance(config.clone(), PreferenceOptimizationConfig)
+        self.assertIsNot(config, cloned_config)
+        self.assertEqual(
+            cloned_config.preference_profile_name, self.preference_profile_name
+        )
+        # Clone normalizes MultiObjective to plain Objective; compare
+        # by expression instead of assertEqual.
+        self.assertEqual(
+            config.objective.expression, cloned_config.objective.expression
+        )
+
+        config = PreferenceOptimizationConfig(
+            objective=self.multi_objective,
+            preference_profile_name=self.preference_profile_name,
+        )
+
+        # ======= Clone with args =======
+        # Empty args produce clone with matching properties
+        cloned_config = config.clone_with_args()
+        self.assertIsNot(config, cloned_config)
+        self.assertEqual(
+            config.objective.expression, cloned_config.objective.expression
+        )
+        self.assertEqual(
+            cloned_config.preference_profile_name, self.preference_profile_name
+        )
+
+        # Clone with different objective
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            different_objective = MultiObjective(
+                objectives=[self.objectives["o1"], self.objectives["o3"]]
+            )
+        cloned_with_diff_objective = config.clone_with_args(
+            objective=different_objective
+        )
+        self.assertEqual(
+            cloned_with_diff_objective.objective.expression,
+            different_objective.expression,
+        )
+        self.assertEqual(
+            cloned_with_diff_objective.preference_profile_name,
+            self.preference_profile_name,
+        )
+
+        # Clone with different preference_profile_name
+        different_profile = "different_profile"
+        cloned_with_diff_profile = config.clone_with_args(
+            preference_profile_name=different_profile
+        )
+        self.assertEqual(
+            cloned_with_diff_profile.objective.expression,
+            self.multi_objective.expression,
+        )
+        self.assertEqual(
+            cloned_with_diff_profile.preference_profile_name, different_profile
+        )

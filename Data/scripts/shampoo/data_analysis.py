@@ -29,8 +29,9 @@ PATH2ROOT = os.getcwd().split(FOLDER)[0]
 
 
 # Obtain data directory for all the experiments
-main_dir = f'{PATH2ROOT}\data\shampoo'
-experiment_paths = [p for p in Path(main_dir).glob("*") if p.is_dir()]
+# (portable across Windows/Linux/macOS; override with QUBOT_DATA_DIR if data/ lives elsewhere)
+main_dir = os.path.join(os.environ.get('QUBOT_DATA_DIR', os.path.join(PATH2ROOT, 'data')), 'shampoo')
+experiment_paths = sorted(p for p in Path(main_dir).glob("*") if p.is_dir())
 
 #%% [markdown]
 # ## Mass transfer measurements
@@ -44,10 +45,10 @@ df_summary_rt = pd.DataFrame()
 
 for path in experiment_paths:
     try:
-        df = pd.read_csv(str(path) + r'\Summary_transfers.csv')
-    
+        df = pd.read_csv(os.path.join(path, 'Summary_transfers.csv'))
+
     except FileNotFoundError:
-        print(f"File not found: {str(path) + r'\Summary_transfers.csv'}")
+        print(f"File not found: {os.path.join(path, 'Summary_transfers.csv')}")
         continue
         
     df['Log'] = path.name
@@ -70,13 +71,13 @@ for path in experiment_paths:
 df_ph_summary = pd.DataFrame()
 
 for path in experiment_paths:
-    ph_csvs = glob.glob(fr'{path}\*pH_adjustment.csv')
+    ph_csvs = sorted(glob.glob(os.path.join(path, '*pH_adjustment.csv')))
     for csv in ph_csvs:
         ph_adjustment_df = pd.read_csv(csv)
         df_ph = pd.DataFrame(columns=['Log', 'Recipe', 'Well', 'Initial_pH', 'Final_pH', 'Number of additions'])
         df_ph['Log'] = [path.name]
-        df_ph['Recipe'] = [csv.split('\\')[-1].split('_')[2]]
-        df_ph['Well'] = [csv.split('\\')[-1].split('_')[1]]
+        df_ph['Recipe'] = [os.path.basename(csv).split('_')[2]]
+        df_ph['Well'] = [os.path.basename(csv).split('_')[1]]
         df_ph['Initial_pH'] = [ph_adjustment_df['pH of Sample'].iloc[0]]
         df_ph['Final_pH'] = [ph_adjustment_df['pH of Sample'].iloc[-1]]
         df_ph['Number of additions'] = [len(ph_adjustment_df) - 1]  # Subtract 1 to exclude the initial measurement
@@ -94,7 +95,7 @@ for path in experiment_paths:
 # It also extracts the associated log and well identifiers from the input file names.
 
 # %% Stability analysis of formulation experiments
-df_analysis = pd.read_csv(main_dir+r'\stability.csv')
+df_analysis = pd.read_csv(os.path.join(main_dir, 'stability.csv'))
 df_analysis_24h = df_analysis.where(df_analysis['description'].str.contains('24h')).dropna().copy()
 df_analysis_24h.reset_index(inplace=True,drop=True)
 df_analysis_24h['Log']= df_analysis_24h['input'].apply(lambda x: re.findall(r'\d{8}_\d{4}',x)[0])

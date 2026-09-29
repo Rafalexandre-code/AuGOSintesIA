@@ -6,7 +6,10 @@ import os
 folderpath = os.getcwd()
 ndSurrogateList = ['ackley', 'griewank', 'levy', 'rastrigin', 'michalewicz']
 
-beliefmodel = 'GPR'
+os.makedirs('./save plots', exist_ok=True)
+
+# Must match the model used in main.py (both read SDL_BELIEF_MODEL; default 'BRMLPR_EGS')
+beliefmodel = os.environ.get('SDL_BELIEF_MODEL', 'BRMLPR_EGS')
 noisevals = [0, 0.1, 0.2]
 randsampnumb = [5]
 dimensions = [2, 4, 6]

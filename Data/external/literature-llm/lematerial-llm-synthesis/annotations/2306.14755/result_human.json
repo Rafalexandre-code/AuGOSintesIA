@@ -1,0 +1,157 @@
+{
+  "schema_version": "multi_llm_v1",
+  "paper_id": "2306.14755",
+  "paper_url": "http://arxiv.org/pdf/2306.14755v2",
+  "extractor_order": [
+    "claude-sonnet-4.6",
+    "gemini-3-flash",
+    "qwen3.5-397b-a17b",
+    "deepseek-v3.2"
+  ],
+  "materials": [
+    {
+      "material_name": "No materials synthesized",
+      "human_recipe": {
+        "target_compound": "No materials synthesized",
+        "target_compound_type": "other",
+        "synthesis_method": "other",
+        "starting_materials": [],
+        "steps": [],
+        "equipment": [],
+        "notes": null
+      },
+      "evaluations": [
+        {
+          "evaluation": {
+            "reasoning": "The extraction is incorrect. The paper does not describe synthesis of a new material — the single synthesis sentence defers entirely to references (1,2) with no details provided in this paper. The LLM hallucinated a synthesis recipe for ErTe3 by inferring starting materials, steps, and notes from context rather than recognizing the absence of synthesis content.",
+            "scores": {
+              "structural_completeness_score": 1.0,
+              "structural_completeness_reasoning": "All fields should be empty/null. The LLM populated target_compound, starting_materials, steps, and a large notes field — none of which reflect a synthesis described in this paper.",
+              "material_extraction_score": 1.0,
+              "material_extraction_reasoning": "Er and Te are not listed as starting materials in this paper. The LLM inferred them from the compound formula, but no synthesis is described here to extract from.",
+              "process_steps_score": 1.0,
+              "process_steps_reasoning": "Steps array should be empty. One step was hallucinated from the single-sentence reference to prior work.",
+              "equipment_extraction_score": 5.0,
+              "equipment_extraction_reasoning": "Correctly empty. No synthesis equipment mentioned.",
+              "conditions_extraction_score": 5.0,
+              "conditions_extraction_reasoning": "Correctly null. No synthesis conditions mentioned.",
+              "semantic_accuracy_score": 1.0,
+              "semantic_accuracy_reasoning": "Does not capture the core semantic fact: no synthesis is described in this paper. Extracting ErTe3 as a synthesized compound misrepresents the paper's content.",
+              "format_compliance_score": 1.0,
+              "format_compliance_reasoning": "Format is technically valid JSON but fundamentally wrong — fields are populated when the correct answer is all-empty.",
+              "overall_score": 2.1,
+              "overall_reasoning": "The extraction is incorrect because it does not identify the absence of synthesis. The paper is a characterization and strain-tuning study; synthesis is deferred to external references. All populated fields should be empty."
+            },
+            "confidence_level": "high",
+            "missing_information": [],
+            "extraction_errors": [
+              "Extracted a synthesis recipe for ErTe3 when no synthesis is described in this paper.",
+              "Starting materials, steps, and notes are hallucinated from compound formula and context, not from synthesis content."
+            ],
+            "improvement_suggestions": [
+              "Recognize when a paper defers synthesis entirely to external references and return the no-synthesis schema."
+            ]
+          }
+        },
+        {
+          "evaluation": {
+            "reasoning": "The extraction is incorrect. The paper does not describe synthesis of a new material — the single synthesis sentence defers entirely to references (1,2). The LLM hallucinated a two-step recipe including a cleaving step derived from sample preparation context, not from any synthesis procedure described in this paper.",
+            "scores": {
+              "structural_completeness_score": 1.0,
+              "structural_completeness_reasoning": "All fields should be empty/null. The LLM populated starting_materials, two steps, and notes — none of which correspond to a synthesis described in this paper.",
+              "material_extraction_score": 1.0,
+              "material_extraction_reasoning": "Erbium and Tellurium are not listed as starting materials in this paper. Extraction from compound formula is not appropriate when no synthesis is described.",
+              "process_steps_score": 1.0,
+              "process_steps_reasoning": "Steps array should be empty. Both extracted steps (flux growth and cleaving) are fabricated — one from a reference to prior work, one from sample preparation context.",
+              "equipment_extraction_score": 5.0,
+              "equipment_extraction_reasoning": "Correctly empty. No synthesis equipment mentioned.",
+              "conditions_extraction_score": 5.0,
+              "conditions_extraction_reasoning": "Correctly null. No synthesis conditions mentioned.",
+              "semantic_accuracy_score": 1.0,
+              "semantic_accuracy_reasoning": "Does not capture that no synthesis is described in this paper. Populating a two-step recipe misrepresents the paper's content.",
+              "format_compliance_score": 1.0,
+              "format_compliance_reasoning": "Format is technically valid JSON but fundamentally wrong — fields are populated when the correct answer is all-empty.",
+              "overall_score": 2.1,
+              "overall_reasoning": "The extraction is incorrect because it does not identify the absence of synthesis. Worse than some other LLMs — adds a sample preparation step not even related to synthesis."
+            },
+            "confidence_level": "high",
+            "missing_information": [],
+            "extraction_errors": [
+              "Extracted a two-step synthesis recipe when no synthesis is described in this paper.",
+              "Cleaving step is sample preparation context, not synthesis.",
+              "Starting materials inferred from compound formula, not from described synthesis."
+            ],
+            "improvement_suggestions": [
+              "Recognize when a paper defers synthesis entirely to external references and return the no-synthesis schema.",
+              "Do not conflate sample preparation steps with synthesis steps."
+            ]
+          }
+        },
+        {
+          "evaluation": {
+            "reasoning": "The extraction is partially correct. The LLM correctly left starting_materials, steps, and equipment empty — closest to the ground truth among all four LLMs. However, it still populated target_compound as ErTe3 and synthesis_method as 'flux growth' rather than recognizing that no synthesis is described in this paper and returning the no-synthesis schema.",
+            "scores": {
+              "structural_completeness_score": 3.0,
+              "structural_completeness_reasoning": "starting_materials, steps, and equipment correctly empty. However, target_compound and synthesis_method are populated when they should reflect the no-synthesis state.",
+              "material_extraction_score": 3.0,
+              "material_extraction_reasoning": "No starting materials extracted — correct. But target_compound 'ErTe3' implies synthesis was described, which it was not.",
+              "process_steps_score": 4.0,
+              "process_steps_reasoning": "Steps correctly empty. Best process step score among all LLMs since no hallucinated steps.",
+              "equipment_extraction_score": 5.0,
+              "equipment_extraction_reasoning": "Correctly empty.",
+              "conditions_extraction_score": 5.0,
+              "conditions_extraction_reasoning": "Correctly null/empty.",
+              "semantic_accuracy_score": 2.0,
+              "semantic_accuracy_reasoning": "Does not capture the absence of synthesis. Naming ErTe3 as target compound and 'flux growth' as method still misrepresents the paper's synthesis content.",
+              "format_compliance_score": 2.0,
+              "format_compliance_reasoning": "Structurally valid but target_compound and synthesis_method should match the no-synthesis pattern.",
+              "overall_score": 3.4,
+              "overall_reasoning": "Best extraction among the four LLMs — correctly avoids hallucinating starting materials and steps. Loses points for still naming a target compound and synthesis method when the correct answer is the no-synthesis schema."
+            },
+            "confidence_level": "high",
+            "missing_information": [],
+            "extraction_errors": [
+              "target_compound should be 'No materials synthesized', not 'ErTe3'.",
+              "synthesis_method should be 'other' in the no-synthesis context, not 'flux growth'."
+            ],
+            "improvement_suggestions": [
+              "Recognize when synthesis is fully deferred to external references and return the no-synthesis schema with all fields empty."
+            ]
+          }
+        },
+        {
+          "evaluation": {
+            "reasoning": "The extraction is incorrect. The paper does not describe synthesis of a new material — the single synthesis sentence defers entirely to references (1,2). The LLM extracted ErTe3 as target compound with a single step and classified the method as 'other', failing to recognize the absence of synthesis content.",
+            "scores": {
+              "structural_completeness_score": 1.0,
+              "structural_completeness_reasoning": "All fields should be empty/null. target_compound, one step, and notes are populated when no synthesis is described in this paper.",
+              "material_extraction_score": 1.0,
+              "material_extraction_reasoning": "Starting materials correctly empty, but target_compound ErTe3 implies a synthesis was described. No synthesis is described in this paper.",
+              "process_steps_score": 1.0,
+              "process_steps_reasoning": "Steps array should be empty. One step was hallucinated from the single-sentence reference to prior work.",
+              "equipment_extraction_score": 5.0,
+              "equipment_extraction_reasoning": "Correctly empty.",
+              "conditions_extraction_score": 5.0,
+              "conditions_extraction_reasoning": "Correctly null.",
+              "semantic_accuracy_score": 1.0,
+              "semantic_accuracy_reasoning": "Does not capture the core semantic fact: no synthesis is described in this paper.",
+              "format_compliance_score": 1.0,
+              "format_compliance_reasoning": "Format is technically valid JSON but fundamentally wrong — fields are populated when the correct answer is all-empty.",
+              "overall_score": 2.1,
+              "overall_reasoning": "The extraction is incorrect because it does not identify the absence of synthesis. The single populated step is hallucinated from a reference to prior work, not from synthesis described in this paper."
+            },
+            "confidence_level": "high",
+            "missing_information": [],
+            "extraction_errors": [
+              "Extracted ErTe3 as a synthesized compound when no synthesis is described in this paper.",
+              "One step hallucinated from a single-sentence reference to prior work."
+            ],
+            "improvement_suggestions": [
+              "Recognize when a paper defers synthesis entirely to external references and return the no-synthesis schema."
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

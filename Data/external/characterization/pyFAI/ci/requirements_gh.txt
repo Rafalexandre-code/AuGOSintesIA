@@ -1,0 +1,29 @@
+
+#List of dependencies used by pyFAI.
+# PIP installs them from pre-compiled wheels, optimized for Github-Actions Python environment.
+--find-links http://www.edna-site.org/pub/wheelhouse
+--trusted-host www.edna-site.org
+
+wheel
+numpy > 1.10
+cython >3
+pillow
+lxml
+unittest2
+h5py
+fabio
+scipy
+matplotlib
+mako
+pybind11
+siphash24
+pyopencl
+numexpr != 2.8.6
+silx >= 2
+psutil
+# Needed for ImageD11:
+numba; python_version < '3.14'
+numba>=0.63.0b1; python_version >= '3.14'
+ImageD11
+pytest
+pytest-xdist

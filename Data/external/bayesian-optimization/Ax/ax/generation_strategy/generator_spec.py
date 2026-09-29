@@ -1,0 +1,391 @@
+#!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+# pyre-strict
+
+from __future__ import annotations
+
+import json
+import warnings
+from copy import deepcopy
+from dataclasses import dataclass, field, InitVar
+from typing import Any
+
+from ax.adapter.base import Adapter
+from ax.adapter.cross_validation import (
+    compute_diagnostics,
+    cross_validate,
+    CVDiagnostics,
+    CVResult,
+)
+from ax.adapter.registry import GeneratorRegistryBase
+from ax.core.data import Data
+from ax.core.experiment import Experiment
+from ax.core.generator_run import GeneratorRun
+from ax.core.observation import ObservationFeatures
+from ax.exceptions.core import UserInputError
+from ax.utils.common.base import SortableBase
+from ax.utils.common.kwargs import consolidate_kwargs, get_function_argument_names
+from ax.utils.common.serialization import SerializationMixin
+from pyre_extensions import none_throws
+
+
+class GeneratorSpecJSONEncoder(json.JSONEncoder):
+    """Generic encoder to avoid JSON errors in GeneratorSpec.__repr__"""
+
+    def default(self, o: Any) -> str:
+        return repr(o)
+
+
+@dataclass
+class GeneratorSpec(SortableBase, SerializationMixin):
+    generator_enum: GeneratorRegistryBase
+    # Kwargs to pass into the `Adapter` + `Generator` constructors in
+    # `GeneratorRegistryBase.__call__`.
+    generator_kwargs: dict[str, Any] = field(default_factory=dict)
+    # Kwargs to pass to `Adapter.gen`.
+    generator_gen_kwargs: dict[str, Any] = field(default_factory=dict)
+    # Kwargs to pass to `cross_validate`.
+    cv_kwargs: dict[str, Any] = field(default_factory=dict)
+    # An optional override for the generator key. Each `GeneratorSpec` in a
+    # `GenerationNode` must have a unique key to ensure identifiability.
+    generator_key_override: str | None = None
+    # Deprecated: Use `generator_kwargs` instead.
+    # pyre-ignore [16]: Pyre doesn't understand InitVars.
+    model_kwargs: InitVar[dict[str, Any] | None] = None
+    # Deprecated: Use `generator_gen_kwargs` instead.
+    # pyre-ignore [16]: Pyre doesn't understand InitVars.
+    model_gen_kwargs: InitVar[dict[str, Any] | None] = None
+    # Deprecated: Use `cv_kwargs` instead.
+    # pyre-ignore [16]: Pyre doesn't understand InitVars.
+    model_cv_kwargs: InitVar[dict[str, Any] | None] = None
+
+    # Fitted model, constructed using specified `generator_kwargs` and `Data`
+    # on `GeneratorSpec.fit`
+    _fitted_adapter: Adapter | None = None
+
+    # Stored cross validation results set in cross validate.
+    _cv_results: list[CVResult] | None = None
+
+    # Stored cross validation diagnostics set in cross validate.
+    _diagnostics: CVDiagnostics | None = None
+
+    # Stored to check if the CV result & diagnostic cache is safe to reuse.
+    _last_cv_kwargs: dict[str, Any] | None = None
+
+    # Stored to check if the model can be safely updated in fit.
+    _last_fit_arg_ids: dict[str, int] | None = None
+
+    def __post_init__(
+        self,
+        model_kwargs: dict[str, Any] | None,
+        model_gen_kwargs: dict[str, Any] | None,
+        model_cv_kwargs: dict[str, Any] | None,
+    ) -> None:
+        # Handle deprecated `model_kwargs` argument.
+        if model_kwargs is not None:
+            warnings.warn(
+                "`model_kwargs` argument and similarly named attributes are "
+                "deprecated and will be removed in Ax 1.4. "
+                "Use `generator_kwargs` instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            if self.generator_kwargs:
+                raise UserInputError(
+                    "Cannot specify both `model_kwargs` and `generator_kwargs`."
+                )
+            self.generator_kwargs = model_kwargs
+
+        # Handle deprecated `model_gen_kwargs` argument.
+        if model_gen_kwargs is not None:
+            warnings.warn(
+                "`model_gen_kwargs` argument and similarly named attributes are "
+                "deprecated and will be removed in Ax 1.4. "
+                "Use `generator_gen_kwargs` instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            if self.generator_gen_kwargs:
+                raise UserInputError(
+                    "Cannot specify both `model_gen_kwargs` and `generator_gen_kwargs`."
+                )
+            self.generator_gen_kwargs = model_gen_kwargs
+
+        # Handle deprecated `model_cv_kwargs` argument.
+        if model_cv_kwargs is not None:
+            warnings.warn(
+                "`model_cv_kwargs` argument and similarly named attributes are "
+                "deprecated and will be removed in Ax 1.4. "
+                "Use `cv_kwargs` instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            if self.cv_kwargs:
+                raise UserInputError(
+                    "Cannot specify both `model_cv_kwargs` and `cv_kwargs`."
+                )
+            self.cv_kwargs = model_cv_kwargs
+
+        self.generator_kwargs = self.generator_kwargs or {}
+        self.generator_gen_kwargs = self.generator_gen_kwargs or {}
+        self.cv_kwargs = self.cv_kwargs or {}
+
+    @property
+    def fitted_adapter(self) -> Adapter:
+        """Returns the fitted adapter, asserting fit() was called"""
+        self._assert_fitted()
+        return none_throws(self._fitted_adapter)
+
+    @property
+    def fixed_features(self) -> ObservationFeatures | None:
+        """
+        Fixed generation features to pass into the Model's `.gen` function.
+        """
+        return self.generator_gen_kwargs.get("fixed_features", None)
+
+    @fixed_features.setter
+    def fixed_features(self, value: ObservationFeatures | None) -> None:
+        """
+        Fixed generation features to pass into the Model's `.gen` function.
+        """
+        self.generator_gen_kwargs["fixed_features"] = value
+
+    @property
+    def generator_key(self) -> str:
+        """Key string to identify the generator used by this ``GeneratorSpec``."""
+        if self.generator_key_override is not None:
+            return self.generator_key_override
+        else:
+            return self.generator_enum.value
+
+    def fit(
+        self,
+        experiment: Experiment,
+        data: Data | None = None,
+        **generator_kwargs: Any,
+    ) -> None:
+        """Fits the specified generator on the given experiment + data using the
+        generator kwargs set on the generator spec, alongside any passed down as
+        kwargs to this function (local kwargs take precedent)
+        """
+        # unset any cross validation cache
+        self._cv_results, self._diagnostics = None, None
+        # NOTE: It's important to copy `self.generator_kwargs` here to avoid actually
+        # adding contents of `generator_kwargs` passed to this method, to
+        # `self.generator_kwargs`.
+        combined_generator_kwargs = {**self.generator_kwargs, **generator_kwargs}
+        if self._fitted_adapter is not None and self._safe_to_update(
+            experiment=experiment, combined_generator_kwargs=combined_generator_kwargs
+        ):
+            # Update the data on the adapter and call `_fit`.
+            # This will skip model fitting if the data has not changed.
+            experiment_data, search_space = (
+                self.fitted_adapter._process_and_transform_data(
+                    experiment=experiment, data=data
+                )
+            )
+            self.fitted_adapter._fit_if_implemented(
+                search_space=search_space,
+                experiment_data=experiment_data,
+                time_so_far=0.0,
+            )
+
+        else:
+            # Fit from scratch.
+            self._fitted_adapter = self.generator_enum(
+                experiment=experiment,
+                data=data,
+                generator_key_override=self.generator_key_override,
+                **combined_generator_kwargs,
+            )
+            self._last_fit_arg_ids = self._get_fit_arg_ids(
+                experiment=experiment,
+                combined_generator_kwargs=combined_generator_kwargs,
+            )
+
+    def cross_validate(
+        self,
+        cv_kwargs: dict[str, Any] | None = None,
+    ) -> tuple[list[CVResult] | None, CVDiagnostics | None]:
+        """
+        Call cross_validate, compute_diagnostics and cache the results.
+        If the model cannot be cross validated, warn and return None.
+
+        NOTE: If there are cached results, and the cache was computed using
+        the same kwargs, this will return the cached results.
+
+        Args:
+            cv_kwargs: Optional kwargs to pass into `cross_validate` call.
+                These are combined with `self.cv_kwargs`, with the
+                `cv_kwargs` taking precedence over `self.cv_kwargs`.
+
+        Returns:
+            A tuple of CV results (observed vs predicted values) and the
+            corresponding diagnostics.
+        """
+        cv_kwargs = {**self.cv_kwargs, **(cv_kwargs or {})}
+        if (
+            self._cv_results is not None
+            and self._diagnostics is not None
+            and cv_kwargs == self._last_cv_kwargs
+        ):
+            return self._cv_results, self._diagnostics
+
+        self._assert_fitted()
+        try:
+            self._cv_results = cross_validate(adapter=self.fitted_adapter, **cv_kwargs)
+        except NotImplementedError:
+            warnings.warn(
+                f"{self.generator_enum.value} cannot be cross validated", stacklevel=2
+            )
+            return None, None
+
+        self._diagnostics = compute_diagnostics(self._cv_results)
+        self._last_cv_kwargs = cv_kwargs
+        return self._cv_results, self._diagnostics
+
+    @property
+    def cv_results(self) -> list[CVResult] | None:
+        """
+        Cached CV results from `self.cross_validate()`
+        if it has been successfully called
+        """
+        return self._cv_results
+
+    @property
+    def diagnostics(self) -> CVDiagnostics | None:
+        """
+        Cached CV diagnostics from `self.cross_validate()`
+        if it has been successfully called
+        """
+        return self._diagnostics
+
+    def gen(self, **generator_gen_kwargs: Any) -> GeneratorRun:
+        """Generates candidates from the fitted model, using the model gen
+        kwargs set on the model spec, alongside any passed as kwargs
+        to this function (local kwargs take precedent)
+
+        NOTE: Model must have been fit prior to calling gen()
+
+        Args:
+            n: Integer representing how many arms should be in the generator run
+                produced by this method. NOTE: Some underlying models may ignore
+                the ``n`` and produce a model-determined number of arms. In that
+                case this method will also output a generator run with number of
+                arms that can differ from ``n``.
+            pending_observations: A map from metric signature to pending
+                observations for that metric, used by some models to avoid
+                resuggesting points that are currently being evaluated.
+        """
+        fitted_adapter = self.fitted_adapter
+        generator_gen_kwargs = consolidate_kwargs(
+            kwargs_iterable=[self.generator_gen_kwargs, generator_gen_kwargs],
+            keywords=get_function_argument_names(fitted_adapter.gen),
+        )
+        # copy to ensure there is no in-place modification
+        generator_gen_kwargs = deepcopy(generator_gen_kwargs)
+        generator_run = fitted_adapter.gen(**generator_gen_kwargs)
+
+        generator_run._gen_metadata = (
+            {} if generator_run.gen_metadata is None else generator_run.gen_metadata
+        )
+
+        return generator_run
+
+    def copy(self) -> GeneratorSpec:
+        """`GeneratorSpec` is both a spec and an object that performs actions.
+        Copying is useful to avoid changes to a singleton model spec.
+        """
+        return self.__class__(
+            generator_enum=self.generator_enum,
+            generator_kwargs=deepcopy(self.generator_kwargs),
+            generator_gen_kwargs=deepcopy(self.generator_gen_kwargs),
+            cv_kwargs=deepcopy(self.cv_kwargs),
+            generator_key_override=self.generator_key_override,
+        )
+
+    def _safe_to_update(
+        self,
+        experiment: Experiment,
+        combined_generator_kwargs: dict[str, Any],
+    ) -> bool:
+        """Checks if the object id of any of the non-data fit arguments has changed.
+
+        This is a cheap way of checking that we're attempting to re-fit the same
+        model for the same experiment, which is a very reasonable expectation
+        since this all happens on the same `GeneratorSpec` instance.
+        """
+        if self.generator_key == "TRBO":
+            # Temporary hack to unblock TRBO.
+            # TODO[T167756515] Remove when TRBO revamp diff lands.
+            return True
+        return self._last_fit_arg_ids == self._get_fit_arg_ids(
+            experiment=experiment, combined_generator_kwargs=combined_generator_kwargs
+        )
+
+    def _get_fit_arg_ids(
+        self,
+        experiment: Experiment,
+        combined_generator_kwargs: dict[str, Any],
+    ) -> dict[str, int]:
+        """Construct a dictionary mapping arg name to object id."""
+        return {
+            "experiment": id(experiment),
+            **{k: id(v) for k, v in combined_generator_kwargs.items()},
+        }
+
+    def _assert_fitted(self) -> None:
+        """Helper that verifies a model was fitted, raising an error if not"""
+        if self._fitted_adapter is None:
+            raise UserInputError("No fitted model found. Call fit() to generate one")
+
+    def _brief_repr(self) -> str:
+        """Returns a brief string representation of this model spec.
+        Includes just name and override, but not the various kwargs"""
+        return (
+            "GeneratorSpec("
+            f"\tgenerator_enum={self.generator_enum.value}, "
+            f"\tgenerator_key_override={self.generator_key_override}"
+            ")"
+        )
+
+    def __repr__(self) -> str:
+        generator_kwargs = json.dumps(
+            self.generator_kwargs, sort_keys=True, cls=GeneratorSpecJSONEncoder
+        )
+        generator_gen_kwargs = json.dumps(
+            self.generator_gen_kwargs, sort_keys=True, cls=GeneratorSpecJSONEncoder
+        )
+        cv_kwargs = json.dumps(
+            self.cv_kwargs, sort_keys=True, cls=GeneratorSpecJSONEncoder
+        )
+        return (
+            "GeneratorSpec("
+            f"\tgenerator_enum={self.generator_enum.value}, "
+            f"\tgenerator_kwargs={generator_kwargs}, "
+            f"\tgenerator_gen_kwargs={generator_gen_kwargs}, "
+            f"\tcv_kwargs={cv_kwargs}, "
+            f"\tgenerator_key_override={self.generator_key_override}"
+            ")"
+        )
+
+    def __hash__(self) -> int:
+        return hash(repr(self))
+
+    # pyrefly: ignore [bad-override]
+    def __eq__(self, other: GeneratorSpec) -> bool:
+        return repr(self) == repr(other)
+
+    @property
+    def _unique_id(self) -> str:
+        """Returns the unique ID of this model spec"""
+        # The `_unique_id` needs to be unique w.r.t. nearest parent class in
+        # storage; in this case, a `GenerationNode`. This hash uses all components
+        # of a `GeneratorSpec` and should therefore be sufficiently unique, since
+        # there is no reason why two `GeneratorSpec`-s that are exactly the same,
+        # would appear on the same `GenNode`.
+        return str(hash(self))

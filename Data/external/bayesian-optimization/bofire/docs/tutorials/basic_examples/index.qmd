@@ -1,0 +1,38 @@
+---
+title: "Basic Examples"
+---
+
+# Basic Examples
+
+These notebooks demonstrate the basic functionality of BoFire, including:
+
+- Setting up reaction domains
+- Defining objectives
+- Running Bayesian optimization loops
+- Model fitting and analysis
+- Outlier detection and robust Gaussian Processes
+- Unknown constraint classification
+
+## Available Tutorials
+
+### [Basic Terminology](basic_terminology.qmd)
+Introduction to fundamental concepts and terminology used throughout BoFire.
+
+### [Reaction Optimization Example](Reaction_Optimization_Example.qmd)
+A comprehensive example showing how to optimize chemical reactions using BoFire.
+
+### [Model Building with BoFire](Model_Fitting_and_analysis.qmd)
+Learn how to fit surrogate models and analyze their performance.
+
+### [Outlier Detection and Robust GP](Outlier_Detection_and_Robust_GP.qmd)
+Techniques for detecting outliers and building robust Gaussian Process models.
+
+### [Unknown Constraint Classification](Unknown_Constraint_Classification.qmd)
+Handling and classifying unknown constraints in optimization problems.
+
+### [Introduction to Index Kernel and Positive Index Kernel](index_kernel.qmd)
+Learn how to use Index Kernel and Positive Index Kernel for categorical variables.
+
+### [Estimating a Pareto Front from Surrogate Models](pareto_front_estimation.qmd)
+Compare Sobol and GA front estimates and validate fitted GP models against a
+known benchmark.

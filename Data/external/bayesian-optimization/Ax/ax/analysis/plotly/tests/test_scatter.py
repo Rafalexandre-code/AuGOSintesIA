@@ -1,0 +1,536 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+# pyre-strict
+
+
+import json
+from itertools import product
+
+from ax.adapter.registry import Generators
+from ax.analysis.plotly.scatter import compute_scatter_adhoc, ScatterPlot
+from ax.api.client import Client
+from ax.api.configs import RangeParameterConfig
+from ax.core.arm import Arm
+from ax.core.trial_status import DEFAULT_ANALYSIS_STATUSES, TrialStatus
+from ax.exceptions.core import UserInputError
+from ax.utils.common.testutils import TestCase
+from ax.utils.testing.core_stubs import (
+    get_non_failed_arm_names,
+    get_offline_experiments,
+    get_online_experiments,
+)
+from ax.utils.testing.mock import mock_botorch_optimize
+from ax.utils.testing.modeling_stubs import get_default_generation_strategy_at_MBM_node
+from pyre_extensions import assert_is_instance, none_throws
+
+
+class TestScatterPlot(TestCase):
+    @mock_botorch_optimize
+    def setUp(self) -> None:
+        super().setUp()
+
+        self.client = Client()
+        self.client.configure_experiment(
+            name="test_experiment",
+            parameters=[
+                RangeParameterConfig(
+                    name="x1",
+                    parameter_type="float",
+                    bounds=(0, 1),
+                ),
+                RangeParameterConfig(
+                    name="x2",
+                    parameter_type="float",
+                    bounds=(0, 1),
+                ),
+            ],
+        )
+        self.client.configure_optimization(
+            objective="foo", outcome_constraints=["bar >= -0.5"]
+        )
+
+        # Get two trials and fail one, giving us a ragged structure
+        self.client.get_next_trials(max_trials=2)
+        self.client.complete_trial(trial_index=0, raw_data={"foo": 1.0, "bar": 2.0})
+        self.client.mark_trial_failed(trial_index=1)
+
+        # Complete 5 trials successfully
+        for _ in range(5):
+            for trial_index, parameterization in self.client.get_next_trials(
+                max_trials=1
+            ).items():
+                self.client.complete_trial(
+                    trial_index=trial_index,
+                    raw_data={
+                        "foo": assert_is_instance(parameterization["x1"], float),
+                        "bar": assert_is_instance(parameterization["x1"], float)
+                        - 2 * assert_is_instance(parameterization["x2"], float),
+                    },
+                )
+
+    def test_trial_statuses_behavior(self) -> None:
+        # When neither trial_statuses nor trial_index is provided,
+        # should use default statuses (excluding ABANDONED, STALE, and FAILED)
+        analysis = ScatterPlot(x_metric_name="foo", y_metric_name="bar")
+        self.assertEqual(
+            set(none_throws(analysis.trial_statuses)),
+            DEFAULT_ANALYSIS_STATUSES,
+        )
+
+        # When trial_statuses is explicitly provided, it should be used
+        explicit_statuses = [TrialStatus.COMPLETED, TrialStatus.RUNNING]
+        analysis = ScatterPlot(
+            x_metric_name="foo", y_metric_name="bar", trial_statuses=explicit_statuses
+        )
+        self.assertEqual(analysis.trial_statuses, explicit_statuses)
+
+        # When trial_index is provided (and trial_statuses is None),
+        # trial_statuses should be None to allow filtering by trial_index
+        analysis = ScatterPlot(x_metric_name="foo", y_metric_name="bar", trial_index=0)
+        self.assertIsNone(analysis.trial_statuses)
+
+    def test_validation(self) -> None:
+        with self.assertRaisesRegex(
+            UserInputError, "Requested metrics .* are not present in the experiment."
+        ):
+            ScatterPlot(x_metric_name="foo", y_metric_name="baz").compute(
+                experiment=self.client._experiment,
+                generation_strategy=self.client._generation_strategy,
+            )
+
+        with self.assertRaisesRegex(
+            UserInputError, "Trial with index .* not found in experiment."
+        ):
+            ScatterPlot(
+                x_metric_name="foo", y_metric_name="bar", trial_index=1998
+            ).compute(
+                experiment=self.client._experiment,
+                generation_strategy=self.client._generation_strategy,
+            )
+
+    def test_compute_raw(self) -> None:
+        default_analysis = ScatterPlot(
+            x_metric_name="foo", y_metric_name="bar", use_model_predictions=False
+        )
+
+        card = default_analysis.compute(
+            experiment=self.client._experiment,
+            generation_strategy=self.client._generation_strategy,
+        )
+
+        self.assertEqual(
+            set(card.df.columns),
+            {
+                "trial_index",
+                "arm_name",
+                "trial_status",
+                "status_reason",
+                "generation_node",
+                "generator_run_key",
+                "p_feasible_mean",
+                "p_feasible_sem",
+                "foo_mean",
+                "foo_sem",
+                "bar_mean",
+                "bar_sem",
+            },
+        )
+        self.assertIsNotNone(card.blob)
+
+        # Check that we have one row per arm from non-failed trials and that each
+        # arm appears only once
+        non_failed_arms = get_non_failed_arm_names(self.client._experiment)
+        self.assertEqual(len(card.df), len(non_failed_arms))
+        for arm_name in non_failed_arms:
+            self.assertEqual((card.df["arm_name"] == arm_name).sum(), 1)
+
+        # Check that all SEMs are NaN
+        self.assertTrue(card.df["foo_sem"].isna().all())
+        self.assertTrue(card.df["bar_sem"].isna().all())
+
+    def test_show_pareto_frontier(self) -> None:
+        analysis = ScatterPlot(
+            x_metric_name="foo",
+            y_metric_name="bar",
+            show_pareto_frontier=True,
+            use_model_predictions=False,
+        )
+        card = analysis.compute(
+            experiment=self.client._experiment,
+            generation_strategy=self.client._generation_strategy,
+        )
+        fig_data = json.loads(none_throws(card.blob))
+        pareto_traces = [
+            trace
+            for trace in fig_data.get("data", [])
+            if trace.get("name") == "Pareto Frontier"
+        ]
+        self.assertEqual(len(pareto_traces), 1)
+        self.assertTrue(pareto_traces[0].get("showlegend"))
+
+    def test_compute_with_modeled(self) -> None:
+        default_analysis = ScatterPlot(
+            x_metric_name="foo", y_metric_name="bar", use_model_predictions=True
+        )
+
+        card = default_analysis.compute(
+            experiment=self.client._experiment,
+            generation_strategy=self.client._generation_strategy,
+        )
+
+        self.assertEqual(
+            set(card.df.columns),
+            {
+                "trial_index",
+                "arm_name",
+                "trial_status",
+                "status_reason",
+                "generation_node",
+                "generator_run_key",
+                "p_feasible_mean",
+                "p_feasible_sem",
+                "foo_mean",
+                "foo_sem",
+                "bar_mean",
+                "bar_sem",
+            },
+        )
+
+        self.assertIsNotNone(card.blob)
+
+        # Check that we have one row per arm from non-failed trials and that each
+        # arm appears only once
+        non_failed_arms = get_non_failed_arm_names(self.client._experiment)
+        self.assertEqual(len(card.df), len(non_failed_arms))
+        for arm_name in non_failed_arms:
+            self.assertEqual((card.df["arm_name"] == arm_name).sum(), 1)
+
+        # Check that all SEMs are not NaN
+        self.assertFalse(card.df["foo_sem"].isna().any())
+        self.assertFalse(card.df["bar_sem"].isna().any())
+
+    def test_compute_adhoc(self) -> None:
+        # Use the same kwargs for typical and adhoc
+        kwargs = {
+            "x_metric_name": "foo",
+            "y_metric_name": "bar",
+            "use_model_predictions": True,
+            "additional_arms": [Arm(parameters={"x1": 0, "x2": 0})],
+            "labels": {"foo": "f"},
+        }
+        analysis = ScatterPlot(**kwargs)
+
+        cards = analysis.compute(
+            experiment=self.client._experiment,
+            generation_strategy=self.client._generation_strategy,
+        )
+
+        adhoc_cards = compute_scatter_adhoc(
+            experiment=self.client._experiment,
+            generation_strategy=self.client._generation_strategy,
+            **kwargs,
+        )
+
+        # Normalize timestamps since cards are computed at different times
+        for card, adhoc_card in zip(cards.flatten(), adhoc_cards.flatten()):
+            adhoc_card._timestamp = card._timestamp
+        self.assertEqual(cards, adhoc_cards)
+
+    @TestCase.ax_long_test(
+        reason=(
+            "Adapter.predict still too slow under @mock_botorch_optimize for this test"
+        )
+    )
+    @mock_botorch_optimize
+    def test_online(self) -> None:
+        # Test ScatterPlot can be computed for a variety of experiments which
+        # resemble those we see in an online setting.
+
+        for experiment in get_online_experiments():
+            # Skip experiments with fewer than 2 metrics
+            if len(experiment.metrics) < 2:
+                continue
+            arm = Generators.SOBOL(experiment=experiment).gen(n=1).arms[0]
+            arm.name = "additional_arm"
+
+            generation_strategy = get_default_generation_strategy_at_MBM_node(
+                experiment=experiment
+            )
+            generation_strategy.current_node._fit(experiment=experiment)
+            adapter = none_throws(generation_strategy.adapter)
+
+            metric_names = [
+                experiment.signature_to_metric[signature].name
+                for signature in adapter.metric_signatures
+            ]
+            x_metric_name, y_metric_name = metric_names[:2]
+
+            for (
+                use_model_predictions,
+                trial_index,
+                with_additional_arms,
+                show_pareto_frontier,
+            ) in product(
+                [True, False],
+                [None, 0],
+                [True, False],
+                [True, False],
+            ):
+                if use_model_predictions and with_additional_arms:
+                    additional_arms = [arm]
+                else:
+                    additional_arms = None
+
+                analysis = ScatterPlot(
+                    x_metric_name=x_metric_name,
+                    y_metric_name=y_metric_name,
+                    use_model_predictions=use_model_predictions,
+                    trial_index=trial_index,
+                    additional_arms=additional_arms,
+                    show_pareto_frontier=show_pareto_frontier,
+                )
+
+                cards = analysis.compute(
+                    experiment=experiment,
+                    adapter=adapter,
+                )
+                if with_additional_arms and use_model_predictions:
+                    # validate that we plotted the additional arm
+                    self.assertTrue(
+                        all(
+                            any(
+                                arm.name in dat["text"][0]
+                                for dat in json.loads(card.blob)["data"]
+                            )
+                            for card in cards.flatten()
+                        )
+                    )
+
+    @TestCase.ax_long_test(
+        reason=(
+            "Adapter.predict still too slow under @mock_botorch_optimize for this test"
+        )
+    )
+    @mock_botorch_optimize
+    def test_offline(self) -> None:
+        # Test ScatterPlot can be computed for a variety of experiments which
+        # resemble those we see in an offline setting.
+
+        for experiment in get_offline_experiments():
+            # Skip experiments with fewer than 2 metrics
+            if len(experiment.metrics) < 2:
+                continue
+
+            generation_strategy = get_default_generation_strategy_at_MBM_node(
+                experiment=experiment
+            )
+            generation_strategy.current_node._fit(experiment=experiment)
+            adapter = none_throws(generation_strategy.adapter)
+
+            metric_names = [
+                experiment.signature_to_metric[signature].name
+                for signature in adapter.metric_signatures
+            ]
+            x_metric_name, y_metric_name = metric_names[:2]
+
+            for use_model_predictions in [True, False]:
+                for trial_index in [None, 0]:
+                    for with_additional_arms in [True, False]:
+                        for show_pareto_frontier in [True, False]:
+                            if use_model_predictions and with_additional_arms:
+                                additional_arms = [
+                                    Arm(
+                                        parameters={
+                                            parameter_name: 0
+                                            for parameter_name in (
+                                                experiment.search_space.parameters.keys()  # noqa E501
+                                            )
+                                        }
+                                    )
+                                ]
+                            else:
+                                additional_arms = None
+
+                            analysis = ScatterPlot(
+                                x_metric_name=x_metric_name,
+                                y_metric_name=y_metric_name,
+                                use_model_predictions=use_model_predictions,
+                                trial_index=trial_index,
+                                additional_arms=additional_arms,
+                                show_pareto_frontier=show_pareto_frontier,
+                            )
+
+                            _ = analysis.compute(
+                                experiment=experiment,
+                                adapter=adapter,
+                            )
+
+
+class TestScatterPlotInfeasibility(TestCase):
+    def setUp(self) -> None:
+        super().setUp()
+
+        self.client = Client()
+        self.client.configure_experiment(
+            name="test_infeasibility",
+            parameters=[
+                RangeParameterConfig(
+                    name="x1",
+                    parameter_type="float",
+                    bounds=(0, 1),
+                ),
+                RangeParameterConfig(
+                    name="x2",
+                    parameter_type="float",
+                    bounds=(0, 1),
+                ),
+            ],
+        )
+        # Constraint on "bar" (non-objective) so it stays as an OutcomeConstraint.
+        self.client.configure_optimization(
+            objective="foo",
+            outcome_constraints=["bar >= 0.5"],
+        )
+
+        # Trial data: (foo, bar). Arms with bar < 0.5 are infeasible.
+        trial_data = [
+            {"foo": 1.0, "bar": (0.9, 0.01)},  # feasible
+            {"foo": 0.5, "bar": (0.8, 0.01)},  # feasible
+            {"foo": 0.8, "bar": (0.1, 0.01)},  # infeasible
+            {"foo": 0.3, "bar": (0.2, 0.01)},  # infeasible
+        ]
+
+        for raw_data in trial_data:
+            for trial_index, _ in self.client.get_next_trials(max_trials=1).items():
+                self.client.complete_trial(trial_index=trial_index, raw_data=raw_data)
+
+    def test_infeasible_arms_have_red_outline(self) -> None:
+        card = ScatterPlot(
+            x_metric_name="foo",
+            y_metric_name="bar",
+            use_model_predictions=False,
+        ).compute(
+            experiment=self.client._experiment,
+            generation_strategy=self.client._generation_strategy,
+        )
+        fig_data = json.loads(none_throws(card.blob))
+
+        # All infeasible arms are in a single trace with legendgroup="infeasible"
+        infeasible_traces = [
+            t for t in fig_data["data"] if t.get("legendgroup") == "infeasible"
+        ]
+        # Single trace containing all infeasible arms
+        self.assertEqual(len(infeasible_traces), 1)
+        trace = infeasible_traces[0]
+        self.assertEqual(trace["marker"]["line"]["color"], "rgba(255, 0, 0, 0.6)")
+        self.assertGreater(trace["marker"]["line"]["width"], 0)
+        # The trace should contain 2 infeasible points
+        self.assertEqual(len([x for x in trace["x"] if x is not None]), 2)
+        # Legend entry is on the same trace
+        self.assertTrue(trace["showlegend"])
+        self.assertEqual(trace["legendgroup"], "infeasible")
+
+    def test_no_infeasible_legend_when_all_feasible(self) -> None:
+        client = Client()
+        client.configure_experiment(
+            name="all_feasible",
+            parameters=[
+                RangeParameterConfig(
+                    name="x1",
+                    parameter_type="float",
+                    bounds=(0, 1),
+                ),
+                RangeParameterConfig(
+                    name="x2",
+                    parameter_type="float",
+                    bounds=(0, 1),
+                ),
+            ],
+        )
+        client.configure_optimization(
+            objective="foo",
+            outcome_constraints=["bar >= 0.5"],
+        )
+
+        for bar_val in [0.9, 0.8, 0.7, 0.6]:
+            for trial_index, _ in client.get_next_trials(max_trials=1).items():
+                client.complete_trial(
+                    trial_index=trial_index,
+                    raw_data={"foo": 1.0, "bar": (bar_val, 0.01)},
+                )
+
+        card = ScatterPlot(
+            x_metric_name="foo",
+            y_metric_name="bar",
+            use_model_predictions=False,
+        ).compute(
+            experiment=client._experiment,
+            generation_strategy=client._generation_strategy,
+        )
+        fig_data = json.loads(none_throws(card.blob))
+
+        legend_traces = [
+            t for t in fig_data["data"] if t.get("name") == "Likely Infeasible"
+        ]
+        self.assertEqual(len(legend_traces), 0)
+
+    def test_infeasible_when_constraint_metric_not_plotted(self) -> None:
+        """Red outlines should appear even when the constraint metric is not
+        one of the plotted metrics."""
+        client = Client()
+        client.configure_experiment(
+            name="constraint_not_plotted",
+            parameters=[
+                RangeParameterConfig(
+                    name="x1",
+                    parameter_type="float",
+                    bounds=(0, 1),
+                ),
+                RangeParameterConfig(
+                    name="x2",
+                    parameter_type="float",
+                    bounds=(0, 1),
+                ),
+            ],
+        )
+        # Constraint on "bar", but we will plot "foo" vs "baz"
+        client.configure_optimization(
+            objective="foo",
+            outcome_constraints=["bar >= 0.5"],
+        )
+        client.configure_tracking_metrics(metric_names=["baz"])
+
+        trial_data = [
+            {"foo": 1.0, "baz": 5.0, "bar": (0.9, 0.01)},  # feasible
+            {"foo": 0.5, "baz": 3.0, "bar": (0.8, 0.01)},  # feasible
+            {"foo": 0.8, "baz": 4.0, "bar": (0.1, 0.01)},  # infeasible
+            {"foo": 0.3, "baz": 2.0, "bar": (0.2, 0.01)},  # infeasible
+        ]
+
+        for raw_data in trial_data:
+            for trial_index, _ in client.get_next_trials(max_trials=1).items():
+                client.complete_trial(trial_index=trial_index, raw_data=raw_data)
+
+        card = ScatterPlot(
+            x_metric_name="foo",
+            y_metric_name="baz",
+            use_model_predictions=False,
+        ).compute(
+            experiment=client._experiment,
+            generation_strategy=client._generation_strategy,
+        )
+        fig_data = json.loads(none_throws(card.blob))
+
+        # All infeasible arms are in a single trace with legendgroup="infeasible"
+        infeasible_traces = [
+            t for t in fig_data["data"] if t.get("legendgroup") == "infeasible"
+        ]
+        # Single trace containing all infeasible arms
+        self.assertEqual(len(infeasible_traces), 1)
+        # The trace should contain 2 infeasible points
+        self.assertEqual(
+            len([x for x in infeasible_traces[0]["x"] if x is not None]), 2
+        )

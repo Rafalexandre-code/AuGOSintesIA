@@ -1,0 +1,14 @@
+# nome	tipo	python	especificação	uso
+core	uv	3.12	core.in	Projeto GO–AuNP: BoTorch/Ax/BayBE/BoFire, SHAP, DoWhy, lmfit, pyFAI, Mie, Bgolearn
+go-mace	uv	3.11	go-mace.in	Data/GO-MACE-23-main (gerador de GO, potencial MACE, banco amorfo)
+sdl	uv	3.11	sdl.in	Data/SDL-main
+text-mined	uv	3.11	text-mined.in	Data/text-mined-aunp-synthesis_public-main
+qubot-scripts	uv	3.11	qubot-scripts.in	Data/scripts (eletrólitos/EIS, shampoo, testes nominais)
+bgolearn	uv	3.11	bgolearn.in	Data/Bgolearn-main
+chem-mfbo	uv	3.10	chem-mfbo.in	Data/chem-MFBO-main
+bocode	uv	3.12	bocode.in	Data/BOCoDe-main
+ramboau	uv	3.9	ramboau.in	Data/RAMBOAU-main
+matdesinne	uv	3.8	matdesinne.in	Data/MatDesINNe-main (torch 1.7.1)
+qwen-llm	uv	3.12	qwen-llm.in	Data/Synthesis-Properties-Database-for-Nanomaterials-main (GPU)
+m2hub	conda	3.9	../Data/M2Hub-master/environment.yml	Data/M2Hub-master (PyG/DGL via conda)
+ambergo	conda	3.11	ambergo.yml	Data/AmberGO-main (AmberTools; VMD/Discovery Studio instalados à parte)

@@ -1,0 +1,255 @@
+{
+  "schema_version": "multi_llm_v1",
+  "paper_id": "1409.1070",
+  "paper_url": "http://arxiv.org/pdf/1409.1070v1",
+  "extractor_order": [
+    "claude-sonnet-4.6",
+    "gemini-3-flash",
+    "qwen3.5-397b-a17b",
+    "deepseek-v3.2"
+  ],
+  "materials": [
+    {
+      "material_name": "Cu3Nb2O8",
+      "human_recipe": {
+        "target_compound": "Cu3Nb2O8",
+        "target_compound_type": "ceramics & glasses",
+        "synthesis_method": "solid-state",
+        "starting_materials": [
+          {
+            "name": "CuO",
+            "vendor": null,
+            "amount": null,
+            "unit": null,
+            "purity": null
+          },
+          {
+            "name": "Nb2O5",
+            "vendor": null,
+            "amount": null,
+            "unit": null,
+            "purity": null
+          }
+        ],
+        "steps": [
+          {
+            "step_number": 1,
+            "action": "mix",
+            "description": "The starting materials CuO and Nb2O5 were taken in stoichiometric ratio and ground.",
+            "materials": [
+              {
+                "name": "CuO",
+                "vendor": null,
+                "amount": null,
+                "unit": null,
+                "purity": null
+              },
+              {
+                "name": "Nb2O5",
+                "vendor": null,
+                "amount": null,
+                "unit": null,
+                "purity": null
+              }
+            ],
+            "equipment": [],
+            "conditions": {
+              "temperature": null,
+              "duration": null,
+              "pressure": null,
+              "ph": null,
+              "temp_unit": null,
+              "time_unit": null,
+              "pressure_unit": null,
+              "atmosphere": null,
+              "stirring": null,
+              "stirring_speed": null
+            }
+          },
+          {
+            "step_number": 2,
+            "action": "pelletize",
+            "description": "The mixture was pelletized by applying hydrostatic pressure of 5 tonnes.",
+            "materials": [],
+            "equipment": [],
+            "conditions": {
+              "temperature": null,
+              "duration": null,
+              "pressure": null,
+              "ph": null,
+              "temp_unit": null,
+              "time_unit": null,
+              "pressure_unit": null,
+              "atmosphere": null,
+              "stirring": null,
+              "stirring_speed": null
+            }
+          },
+          {
+            "step_number": 3,
+            "action": "heat",
+            "description": "First sintering was done at 800°C for 36 hour.",
+            "materials": [],
+            "equipment": [],
+            "conditions": {
+              "temperature": 800.0,
+              "duration": 36.0,
+              "pressure": null,
+              "ph": null,
+              "temp_unit": "C",
+              "time_unit": "hour",
+              "pressure_unit": null,
+              "atmosphere": "air",
+              "stirring": null,
+              "stirring_speed": null
+            }
+          },
+          {
+            "step_number": 4,
+            "action": "heat",
+            "description": "Next sintering was done at 950°C for 40 hour.",
+            "materials": [],
+            "equipment": [],
+            "conditions": {
+              "temperature": 950.0,
+              "duration": 40.0,
+              "pressure": null,
+              "ph": null,
+              "temp_unit": "C",
+              "time_unit": "hour",
+              "pressure_unit": null,
+              "atmosphere": "air",
+              "stirring": null,
+              "stirring_speed": null
+            }
+          }
+        ],
+        "equipment": [],
+        "notes": null
+      },
+      "evaluations": [
+        {
+          "evaluation": {
+            "reasoning": "",
+            "scores": {
+              "structural_completeness_score": 4.75,
+              "structural_completeness_reasoning": "Step 1 has conditions: null (object absent) instead of an object with null-valued fields.",
+              "material_extraction_score": 5.0,
+              "material_extraction_reasoning": "",
+              "process_steps_score": 5.0,
+              "process_steps_reasoning": "",
+              "equipment_extraction_score": 5.0,
+              "equipment_extraction_reasoning": "Note: equipment that was involved in synthesis is not mentioned in the paper",
+              "conditions_extraction_score": 5.0,
+              "conditions_extraction_reasoning": "",
+              "semantic_accuracy_score": 4.5,
+              "semantic_accuracy_reasoning": "Action 'mix' for pelletizing step is semantically incorrect.",
+              "format_compliance_score": 4.5,
+              "format_compliance_reasoning": "unit: 'stoichiometric' is a schema deviation (should be a measurement unit or null)",
+              "overall_score": 4.5,
+              "overall_reasoning": ""
+            },
+            "confidence_level": 5,
+            "missing_information": [],
+            "extraction_errors": [
+              "Minor: type ceramics & glasses instead of functional materials & catalysts",
+              "Minor: unit 'stoichiometric' in starting materials is a schema deviation",
+              "Action 'mix' for pelletizing step is semantically wrong",
+              "Step 1 conditions: null (object absent)"
+            ],
+            "improvement_suggestions": []
+          }
+        },
+        {
+          "evaluation": {
+            "reasoning": "",
+            "scores": {
+              "structural_completeness_score": 4.75,
+              "structural_completeness_reasoning": "Step 1 has conditions: null (object absent) instead of an object with null-valued fields.",
+              "material_extraction_score": 5.0,
+              "material_extraction_reasoning": "",
+              "process_steps_score": 5.0,
+              "process_steps_reasoning": "",
+              "equipment_extraction_score": 5.0,
+              "equipment_extraction_reasoning": "Equipment is not explicitly stated in the paper. Not hallucinating unmentioned equipment is valid.",
+              "conditions_extraction_score": 5.0,
+              "conditions_extraction_reasoning": "",
+              "semantic_accuracy_score": 4.5,
+              "semantic_accuracy_reasoning": "Action 'add' for pelletizing step is semantically incorrect",
+              "format_compliance_score": 4.5,
+              "format_compliance_reasoning": "unit: 'stoichiometric' in step materials is a schema deviation",
+              "overall_score": 4.5,
+              "overall_reasoning": ""
+            },
+            "confidence_level": 5,
+            "missing_information": [],
+            "extraction_errors": [
+              "Minor: type ceramics & glasses instead of functional materials & catalysts",
+              "Action 'add' for pelletizing is semantically wrong",
+              "Minor: unit 'stoichiometric' in step materials"
+            ],
+            "improvement_suggestions": [
+              "Notes are too general"
+            ]
+          }
+        },
+        {
+          "evaluation": {
+            "reasoning": "",
+            "scores": {
+              "structural_completeness_score": 5.0,
+              "structural_completeness_reasoning": "",
+              "material_extraction_score": 5.0,
+              "material_extraction_reasoning": "",
+              "process_steps_score": 5.0,
+              "process_steps_reasoning": "",
+              "equipment_extraction_score": 5.0,
+              "equipment_extraction_reasoning": "",
+              "conditions_extraction_score": 5.0,
+              "conditions_extraction_reasoning": "",
+              "semantic_accuracy_score": 5.0,
+              "semantic_accuracy_reasoning": "",
+              "format_compliance_score": 5.0,
+              "format_compliance_reasoning": "",
+              "overall_score": 5.0,
+              "overall_reasoning": ""
+            },
+            "confidence_level": 5,
+            "missing_information": [],
+            "extraction_errors": [],
+            "improvement_suggestions": [
+              "Step 1 could've been splitted in 2. But this is not critical. Notes are too general."
+            ]
+          }
+        },
+        {
+          "evaluation": {
+            "reasoning": "",
+            "scores": {
+              "structural_completeness_score": 5.0,
+              "structural_completeness_reasoning": "",
+              "material_extraction_score": 5.0,
+              "material_extraction_reasoning": "",
+              "process_steps_score": 5.0,
+              "process_steps_reasoning": "",
+              "equipment_extraction_score": 5.0,
+              "equipment_extraction_reasoning": "",
+              "conditions_extraction_score": 5.0,
+              "conditions_extraction_reasoning": "",
+              "semantic_accuracy_score": 5.0,
+              "semantic_accuracy_reasoning": "",
+              "format_compliance_score": 5.0,
+              "format_compliance_reasoning": "",
+              "overall_score": 5.0,
+              "overall_reasoning": ""
+            },
+            "confidence_level": 5,
+            "missing_information": [],
+            "extraction_errors": [],
+            "improvement_suggestions": []
+          }
+        }
+      ]
+    }
+  ]
+}

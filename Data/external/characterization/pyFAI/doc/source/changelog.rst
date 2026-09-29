@@ -1,0 +1,930 @@
+:Author: Jérôme Kieffer
+:Date: 15/09/2026
+:Keywords: changelog
+
+Change-log of versions
+======================
+
+202X.YY
+-------------------
+
+- New features:
+
+- Bug fixes:
+
+- Documentation:
+
+- Code quality:
+
+- zzz commits over z month
+- Supports python 3.11-3.15
+
+2026.09 15/09/2026
+-------------------
+
+- New features:
+
+  * Detector `orientation` is now a pure re-indexing of the pixels.
+    For orientation != 3, `tth`, `q` and `r` are unchanged. `chi` and the fiber/grazing-incidence units could (WIP).
+  * New `pyFAI.geometry.utils` with `convert_orientation`, to re-express a geometry in another detector orientation,
+    and `detector_corner`, which reads the real corners of the detector from its pixel corners.
+  * Conversion to and from the ImageD11 parameter-file now takes the orientation of the detector into account (#2896)
+  * New `pyFAI.detectors.multi_module`: refinement of the position of the individual modules of a detector from powder rings
+    recorded at several beam-center positions, following the method developed at ID11 (doi:10.3390/cryst12020255).
+  * `NexusDetector` now handles the sensor configuration, the spline-based and other non-regular detectors (#2915)
+  * `PoniFile`, which is intentionally immutable, gains a copy-with API: `poni.with_params(dist=..., rot1=...)` and one `with_<parameter>` method per geometry parameter
+  * New `auto_gc` option, which disables the garbage collector around the resets of the geometry (#2894 Thanks for Wilson for spotting it)
+  * Better performances for the MultiGeometry integration (#2865)
+  * New and updated calibrants: Verneite, the two references of `alpha_Al2O3_SRM676a` (2008 and 2015 lattice parameters, #2856) and `CeO2`, recalculated with many more reflections (#2899).
+  * `pyFAI.method_registry.Method` is now a typed `NamedTuple` which validates and normalizes its content at construction time:
+    `None` is now the canonical wildcard; the former spellings `"*"`, `"any"`, `"all"` and `0` are still accepted as input.
+    It gains one copy-with method per field, like `PoniFile`: `with_dim`, `with_split`, `with_algo`, `with_impl` and `with_target`,
+    as well as a `Method.parse_any` constructor which accepts about any description of a method (#2757)
+
+- Bug fixes:
+
+  * `DiffMap.use_gpu` used to assign the implementation to the dimensionality of the method, which silently built
+    an inconsistent method and left the implementation unchanged
+  * `WorkerConfig.method` is now enforced to be an immutable `Method`, whatever it is built from: a de-serialized
+    JSON configuration provides a plain list, which used to be stored as is, hence mutable and unhashable (#2757).
+    The dimensionality and the OpenCL device are no longer duplicated in it: they are read from `nbpt_azim`
+    and `opencl_device`, which remain the single source of truth. The serialized format is unchanged.
+  * `Worker.method` gets the same treatment and is now a `Method` as well, whichever constructor is used;
+    `Worker.set_method` stores its result and rebuilds the processor, so that it takes effect immediately.
+  * Sub-pixel refinement of the peak position (`Bilinear.local_maxi`, used by the `massif` and `watershed` peak-pickers): the calibrations become more accurate.
+  * Change of behavior of `Calibrant` which raises `ValueError` when a file exist but does not d-spacing info / `IOError` when absent
+  * Fix serialization issue with Rayonix detectors (regression introduced with parallax, #2904)
+  * Fix hang when changing detector (size) after a first calibration or inconsistent detector shape (#2890)
+  * Fix `from pyFAI import *` and submodules: `__all__` contained objects instead of their names
+  * The `empty` value is now propagated to every integrator and registered in the results in `MultiGeometry`
+  * Fix the multiplicity of the reflections and the selection of the canonical `hkl` equivalent (#2883)
+  * `pyFAI-integrate --no-gui` no longer loses the `monitor_name` set in the JSON configuration (#2892, thanks to Jordi Aguilar)
+  * `BlobDetection`: fix a `RuntimeError` raised on some images (#2876)
+  * Goniometer: more explicit traceback (#2871) and fix of the iteration over the control points (#2869)
+  * Compatibility with numpy 2.5, where setting the shape of an ndarray is deprecated (#2872) and `numpy.cross` changed behavior; fix a casting issue with numexpr (#2860)
+  * `bootstrap.py` no longer mistakes a file for the build directory (#2886)
+
+- Documentation:
+
+  * New tutorial on modular detector calibration based on Debye-Scherrer rings (ID11's method)
+  * New tutorial on the calibration of an eccentric goniometer
+  * New chapter on the extraction of the control points, describing the three peak-picking algorithms and the sub-pixel refinement they share
+  * New tools to rebuild all tutorials, and all notebooks have been re-executed
+  * Deprecation warnings removed from the tutorials, in particular `scipy.spatial.distance_matrix` replaced by `scipy.spatial.distance.cdist` (#2910)
+
+- Code quality:
+
+  * Large Ruff clean-up over `src/`, `ruff check` enforced in pre-commit (>=0.16)
+  * Tests are by default without GUI display on Linux & MacOS, much cleaner now
+  * Cython compilation warnings removed
+
+- Addition of a AGENTS.md to drive agentic development: it states that an agent/LLM is never responsible for an error;
+  the owner of the account committing is the culprit for not reviewing properly the code.
+- 215 commits over 4 month
+- Supports python 3.10-3.15
+
+2026.05 19/05/2026
+-------------------
+
+- New features:
+
+  * Calib2: improve "recalib" like calibration, without peak-picking but a known geometry in input (#2840)
+  * Sensor: new CZT (Cadmium-Zinc-Telluride) detector material
+  * Support for logarithmic/sqrt/non-linear units binning space with formula-based conversions
+  * Multigeometry integration results now support `union()`
+
+- Bug Fixes & Code Quality:
+
+  * New `ImmutableDict`` class for immutable dictionary representation
+  * Fixed `Integrate1dResult.rebin1d()`` to properly handle `dummy` values and normalization
+  * PoniFile Enhancements: calibrant and image metadata are now saved to ease Recalibration
+  * Sensor Configuration now properly initializes material strings
+  * Wavelength is checked in `enable_parallax()`
+  * Several typos and grammar improvements in documentation/tutorials
+  * Improved kernel OpenCL compilation for silx v3+ compatibility
+
+- Supports python 3.10-3.14, 3.14t is untested.
+- 62 commits over 2 month
+
+2026.03 23/03/2026
+------------------
+
+- New features:
+
+  * Implement renormalization of integration results (#2737)
+  * Put the workerConfiguration in a scroll-area (#2779)
+
+- Bug fixes:
+
+  * Result of 2d integration from pyFAI-integrate has wrong interpretation "spectrum" not "image" in Nexus (#2812)
+  * Prevent the usage of compilers other than MSVC on Windows
+  * Ensure application's help is available on Windows too
+  * Prevent GUI exception, related to detector definition (#2828)
+  * Implement parallax correction for ring extraction, when requested
+  * Fix regression in recalculate_means, switch math to `numepr`
+  * Fix relative path issue under Windows (#2823)
+  * Fix RingExtractor calling message_box from a QThread, violating Qt threading rules.
+
+- Supports python 3.10-3.14, 3.14t is untested.
+- 32 commits over 1 month
+- Contributors for this release:
+
+  * Tianyi Ma
+  * Edgar Gutierrez-Fernandez
+  * Thomas Vincent
+  * Jérôme Kieffer
+
+2026.02 27/02/2026
+------------------
+- [Fiber/GrazingIncidence]
+
+  * Fix errors on numpy equations for fiber units
+  * Unify the calculation of rotation matrix for grazing incidence
+  * Shortcut for calculation of q in the lab frame (both numpy and numexpr)
+
+- [IO]
+
+  * UTF-8 encoding enforcement, fixes file saving issues on Windows systems with exotic locales
+  * Better handling of numpy types when serializing to JSON (saving of custom detectors)
+  * NeXus File Support: Added NXazint1d file writer for 1D integration results (Thanks Frederik)
+
+- [Bugs fixes]
+  * Fix bug with the binning of Eiger detectors
+  * Several minor improvements in the user interface (GUI)
+  * Propagate azimuthal uncertainties when merging integrated results.
+
+- [Doc]
+
+  * New policy on the usage of LLM when contributing to pyFAI
+  * Start converting certain RST files to MarkDown (both formats are equally acceptable for documentation)
+
+- [Detector]
+
+  * Fit module position in detector based on diffraction rings (experimental)
+
+- Supports python 3.10-3.14, 3.14t is untested.
+- 200+ commits over 2 months
+- Contributors for this release: Frederik H. Gjørup, Gudrun Lotze, Maciej Jankowski, Edgar Gutierrez-Fernandez, Thomas Vincent and Jérôme Kieffer
+
+
+2025.12.1 19/12/2025: bugfix
+----------------------------
+- Fix documentation for pixel-splitting + non-regression test on the Cython part
+- Fix pixel size for Pilatus4-CdTe
+- Fix CITATION.cff which prevented Zenodo upload
+- Clean-up repository from deprecated example/debug files
+
+2025.12 12/12/2025
+------------------
+- [Parallax] This effect shifts the pixel position when the inclination of the beam is large (>30°) making calibration challenging
+
+  * Provide absorption coefficients of most common sensor materials
+  * Update the database of detectors with sensor material and thickness (#2606)
+  * New PONI-file version (backwards compatible when possible)
+  * [Calib2] exposes the feature in detector configuration
+  * Performance regression while calibrating and geometry initialization (will be addressed in the future)
+
+- [GUI]
+
+  * Like `silx`, `pyFAI` moves from pyQt5 to pySide6 (or pyQt6). Several bugs were found
+    and addressed to increase compatibility with Qt6. PyQt5 is no more a priority and will be dropped in next release
+  * `Integrate` is now able to perform fiber integration.
+  * `Calib2` exposes the sensor definition in detector configuration
+  * `Pilx` is now compatible with files produced by mesh-scan on BM29 in addition to `diffmap`.
+- [Median filtering] fix an infinite loop in the OpenCL code
+- [Crystallography] improvements:
+
+  * Move most of the `calibrant` file into the crystallography module
+  * Calibrant have seen the IO part devoted to a dataclass called CalibrantConfig:
+
+    - Import/export of D-file, including now the relative intensity
+    - Import from diff-files available from the American Mineralogist Database
+
+  * `space_groups` contain an extensive list of 230 space-groups with their extinctions for use in the `Cell` class
+  * The `Cell` class can now be directly exported as calibrant
+  * Added new resolution functions for powder diffraction peak shapes with:
+
+    - Constant resolution
+    - Caglioti model (U, V, W parametrization)
+    - Langford model (4 parameters)
+    - Chernyshov model (3 parameters)
+
+  * Added `fake_xrpdp` method to generate 1D powder patterns with configurable resolution
+  * Refactoring of the `fake_image` method which takes benefit of `fake_xrpdp` improvements
+  * Documentation with a new tutorial on carbon polymorphs (diamond, graphite and C60)
+
+- [integrate1|2d] enforce arguments to be kwargs to limit user errors
+- [Doc] Improve the notebook about "flatfield" calculation.
+- [Fiber/GrazingIncidence]
+
+  * Compatibility with pyFAI-integrate GUI and Worker
+  * Build the missing wedge mask using percentile threshold of counts
+
+- [Integrate1/2dResult]
+
+  * Can perform some basic maths (+, -), uncertainties are propagated accordingly.
+  * 2D container can be rebinned in 1D containers.
+  * 1D container can calculate the spottiness of the initial frame (with azimuthal error-model).
+
+- [Fit2dGeometry] becomes a case-insensitive dataclass (thus mutable, was NamedTuple) which behaves like a dict.
+- [Deprecation]
+
+  * `splineFile` --> `splinefile` in most arguments and also as properties (PEP8 compliance)
+  * Replace python2.5 style properties with @property decorators. Deprecate former accessors where appropriate.
+  * Start to support type annotation in the code (proper doc-string is still mandatory).
+  * Prefer the `numexpr` (fallback on `numpy`) function evaluation in favor of the `Cython` path for geometry initialization, less prone to numerical noise.
+    `Cython` is still preferred for geometry optimization where performance is critical.
+
+- [Bugs] There are several known bugs:
+
+  * Regression in pixel-splitting methods when dealing with pixels on the boundary #2736
+  * `array_from_unit`` and `chiArray` are not consistent  #2589
+  * Uncollectable objects when using PySide6 GUI (PyQt6 is OK) #2523
+  * pyFAI-calib2 crashes when loading the image (PyQt5 only issue. Wont'fix, please upgrade) #2422
+
+- Supports python 3.10-3.14, 3.14t is untested.
+- 1600+ commits, 500+ files modified over 9 months: big baby.
+- List of contributors for this release: Gudrun Lotze, Loic Huder, Edgar Gutierrez-Fernandez and Jérôme Kieffer
+
+2025.03 14/03/2025
+------------------
+
+- Bug fix version (Thanks to Fred Picca/Debian for testing on many architectures)
+- Use automatically dynamic mask for Dectris detector data
+
+  * Automatically recognizes and masks out bad pixel
+  * `dummy` and `delta_dummy` values are already known from the manufacturer
+  * empty bins are no more marked with the `dummy` value (which can be very large for Eiger) but with the `empty` value which is fully under control of the user, 0.0 by default.
+
+- Improve the plot generated by the benchmarking tool (Thanks to Jon)
+- `MultiGeometry` allows the mixing of different kind of detectors (Thanks ThomasK)
+- `WorkerConfig` dataclass, many fixes at several places, Ewoks compatibility.
+- `Diffmap` compatibility with binned images
+- `Pilx` uses now the dynamic mask to hide hot/defective pixels
+- Improvement of the `fake_calibration_image` to provide both `Imin` and `Imax`
+- New Lambda 9M detector
+- Improved support of FiberIntegrator for using the correct fiber units and key parameters
+- Supports python 3.9 to 3.13. The GIL-free version on python 3.13 is untested.
+- Tested by the developers on Windows (amd64), linux (amd64, arm64 and ppc64le) and MacOS (amd64 and arm64).
+- A dozen of Pull-requests by Thomas Kluyver, Loic Huder, Edgar Gutierrez-Fernandez and Jérôme Kieffer
+
+2025.01 31/01/2025
+------------------
+
+- Refactoring of the integrator classes:
+
+  * Azimuthal integrator moved to ``pyFAI.integrator.azimuthal``
+  * Most common code into ``pyFAI.integrator.common`` (including a lot of *deprecated* stuff)
+  * New sub-module dedicated to fiber/surface diffraction (``pyFAI.integrator.fiber``)
+  * Engine loading is now in ``pyFAI.integrator.load_engines``
+  * Those are all (still) sub-classes of each-other but it will change in the futrure where they will need to be **promoted** to transfer all the geometry and enable other's class feature. For example: ``ai.promote("FiberIntegrator")`` or ``ai.promote("GeometryRefinement")``
+
+- Refactoring of the handling of the serialization of the ``pyFAI-integrate`` GUI and ``pyFAI.worker.Worker`` into a JSON file.
+
+  * Use a **dataclass** defined in ``pyFAI.io.integration_config.WorkerConfig`` to manage all parameters to configure the ``Worker``
+  * New format version 5, enables the handling of sigma-clip & median filtering
+  * Provides better compatibility with `Ewoks <https://ewoks.esrf.fr>`_
+
+- Median filtering for 1D filtering:
+
+  * includes quantile average
+  * available in Python, Cython & OpenCL
+  * `Performances charts for sigma-clip & median filter <https://github.com/silx-kit/pyFAI/blob/main/doc/source/usage/tutorial/AzimuthalFilter.ipynb>`_.
+
+- New FiberIntegrator class for grazing-incidence/fiber scattering data (former fiber/gi methods in a new API)
+
+  * FiberIntegrator located in ``pyFAI.integrator.fiber``
+  * Usage tutorial in `doc/source/usage/tutorial/FiberGrazingIncidence.ipynb` or https://www.silx.org/doc/pyFAI/dev/usage/tutorial/FiberGrazingIncidence.html
+  * `integrate2d_grazing_incidence` method to display qIP - qOOP patterns. New API with minimum inputs
+  * `integrate1d_grazing_incidence` method to perform qIP or qOOP slices. New API with minimum inputs
+  * Corrected equations to handle `incident_angle` and `tilt_angle` parameters
+  * 8 possible `sample_orientation` (1-8), to rotate and flip the qIP-qOOP maps (or other units)
+  * `integrate2d_polar` to represent the polar angle (arctan(qOOP/qIP)) versus the q modulus
+  * `integrate1d_polar` to integrate the polar angle map (vertical or horizontal)
+  * `integrate2d_exitangles` to reshape the diffraction pattern into horizontal and vertical exit angles, with the origin in the sample horizon
+  * `integrate1d_exitangles` to perform an integration across one of the exit angles
+  * Faster calculation with `numexpr` package formulas
+
+- New MultiGeometryFiber in `pyFAI.multi_geometry`
+
+  * Analog to MultiGeometry class.
+  * Instead of taking a list of AzimuthalIntegrators, it takes a list of FiberIntegrators
+  * Access to integrate1d and integrate2d grazing_incidence/fiber methods
+  * New tutorial of usage in doc/source/usage/tutorial/MultiGeometry/MultiGeometryFiber.ipynb`
+
+- Tool to rebin 2d-result into 1d-result (`pyFAI.containers.rebin1d`)
+- `pyFAI-diffmap-view` now displays the motor position in the the map.
+- Change documentation template to `pydata`
+- Several bug-fixes & better code coverage
+- Supports python 3.9 to 3.13. The GIL-free version on python 3.13 is untested.
+- Tested by the developers on Windows (amd64), linux (amd64, arm64 and ppc64le) and MacOS (amd64 and arm64). Thanks to Debian for extending this matrix.
+- More than 500 commits, by Thomas Vincent, Loic Huder,  Edgar Gutierrez Fernandez and Jérôme Kieffer
+
+2024.09 12/09/2024
+------------------
+- New tutorials:
+  + On flatfield calculation from several detector position (ID31)
+  + On dynamic masks when using sigma-clipping (ID15a)
+- New feature in pilx: the tool to view diffraction map
+  + fix/unfix curves
+  + Colors improved
+  + motor position can ge registered
+- Other new feature:
+  + Expose orientation in calib2
+  + Extra comments in PONI-file like the calibration file if available
+  + implement sigma-clipping in pure cython with hybrid error-model
+  + New calibrant (Lysozyme for MX)& integration into calib2
+  + Absorption kwarg in sigma-clip was missing
+  + Engineering notation when printing pixel size
+  + New JSON format for integration configuration (backward compatible)
+  + Import CrystFEL geom-file and generate a detector + geometry
+  + GIWAXS and sigma-clip impose *no* pixel splitting
+  + Sigma-clipping is possible from the GUI and via config files
+  + Peakfinding: discard peaks with masked pixels in the local region
+- New detector: Jungfrau 1M (ID09)
+- Bug fixed:
+  + Close HDF5 files ASAP (risk of hitting the max number of file open)
+  + Bug in medfilt (empty ensemble)
+  + Several bugs fixed in worker (heavily used by ewoks)
+  + Correct some tutorials which had typos
+  + Orientation of interate2d results *legacy* vs *ng*
+  + Compatibility with Numpy2
+  + Compatibility with Eiger2+Lima2 multi-threshold files
+  + Compatibility with GCC14, discarded some deprecated code
+- Validated with Python 3.8-3.12
+
+
+2024.05 21/05/2024
+------------------
+- Implemented unweighted average for 2D integration:
+  + Integration engines now handle the boolean 'weighted_average' to switch to unweighted mean, similar to legacy methods
+
+- Implementation of pilx (pyFAI-diffmap-view command): interactive viewer for pyFAI-diffmap files (thanks Loic Huder)
+- Creation of a RingExtraction class based on multi-threading (thanks Emily Massahud)
+- Flat-field and dark current corrections for pyFAI-calib2
+- Tunable units and integration methods for fiber/grazing-incidence scattering
+- Fix several bugs related to pyFAI-diffmap GUI/no-GUI options
+- Compatibility with numpy2
+- Fix numerical precision issue on MacOS/arm64
+- Build system moved from bob to cibuildwheels
+  + Windows wheels are build with openmp disabled
+
+2024.02 01/02/2024
+------------------
+- Include grazing-incidence capabilities + tutorial (thanks Edgar)
+- Fix segmentation-fault in calib2 application #2047 (thanks Thomas & Edgar)
+- Use the dynamic mask to mask-out dead pixels in Eiger images in calib2
+- Extend Poisson+azimuthal uncertainties to all Cython integrators (+ non regression tests)
+- Support for Python 3.7-3.12 (requires silx v2 for 3.12)
+
+2024.01 18/01/2024
+------------------
+- Possibility to define the detector orientation:
+  + It is the position of the origin of the detector at any of the 4 corners of the image
+  + Uses the EXIF nomenclature where pyFAI's (default) orientation is tagged *3*
+  + Offers compatibility with calibration made by Dioptas (where orientation=2 since images are flipped)
+  + Expose the feature in the `calib2` GUI for custom detectors.
+  + Tutorial on the usage
+  + New sub-version of the PoniFile API (2.1) for this feature
+- Expose the number of corners of a detector pixel (feature unused for now)
+- Refactor `pyFAI-benchmark` tool with better looking results (Thanks Edgar)
+- Possibility to integrate in 2D with any second dimension unit:
+  + No more limited to the azimuthal angle `chi`
+  + Several new units have been added
+  + Offers the qx/qy integration as example
+- Support for Dectris Pilatus4 detector both with Si and CdTe sensors (thanks to Max Burian)
+- Support XRDML format (compatibility with MAUD software)
+- Multigeometry gains a `reset()` method to free some memory with optimized garbage collection
+- Support pathlib when reading-PONI files
+- Change in the build system:
+  + Drop of `setup.py` the build system based on distutils/numpy.distutils/setuptools
+  + Enforce the use of meson-python
+  + Move the sources of the code into `src` directory
+  + Support for Python 3.7-3.12 (requires silx v2 for 3.12)
+  + Provide debian packages for debian12 but ubuntu 20.04 is too old and lack meson-python
+
+2023.09 08/09/2023
+------------------
+- Bug fix release over 2023.08
+- Fix calibrant selection in calib2 (Thanks Valentin)
+- Centralized control of Random Number Generator for tests, to make non-regression test more consistent for CI.
+- Correct behaviour of dynamic mask (was causing systematic crashes)
+- Correct spelling of several messages.
+- Compatibility with matplotlib 3.7
+- New application icon and launcher under linux
+- Updated notebook (addresses API changes)
+
+2023.08 30/08/2023 BUGGY, DO NOT USE !!!
+----------------------------------------
+- Minor release, mostly bug-fixes. 87 commits.
+- fix mal-formed headers in 1D ASCII export
+- Debian packaging without setup.py (at all)
+- Fix cache invalidation issue for polarization in geometry
+- More compact (+scrollable) calibrant widget in `Calib2` (Contribution from Valentin Valls)
+- Compatibility with PyQt6 and PySide6 bacckends (Contribution from malte-storm)
+- Comatibility with elder Matplotlib (<3.2)
+- Fix reproducibility issue with no-split sparse matrix multiplication (all 3)
+- Lower memory consumption of hexagonal detector instanciation.
+- Enforce the usage of the `detector_factory`. `Detector(**config)` stops working.
+
+2023.05 16/05/2023
+------------------
+- New detector: Jungfrau 8M used at SwissFEL
+- new method in `Geometry` to guess the number of bin (and avoid oversampling)
+- new method in `AzimuthalIntegrator` to guess the polarization factor
+- CSC-integrators (1D + 2D) implemented in pure python using scipy.sparse
+- Update documentation
+- Minor correction (remove debugging)
+- Packaging for debian12 using meson-python
+
+2023.03 22/03/2023
+------------------
+- Rework all 2D integrator to propagate variance, expose standard deviation and standard error of the mean.
+- Support all version of python between 3.7 and 3.11
+- Support Cython 3.0b1 (with performance degradation) in addition of cython 0.29.31+
+
+2023.02 27/02/2023
+------------------
+- Core:
+    + `sigma_clip_ng` is not the default `sigma_clip`
+    + expose documentation for `sigma_clip_legacy` in addition to `sigma_clip_ng`
+    + `Worker` can now use `sigma_clip_legacy` in addition to `sigma_clip_ng`, `integrate1d` or `integrate2d`
+    + New calibrant: Vanadinite (used in high-presure, often as single crystal)
+- GUI:
+    + Fix labels on axes for some rarely used units
+    + refactor IntegrationMethodDialog and share the IntegrationMethodTabs with pyFAI-calib2
+- Test:
+    + silent some noisy test (OpenCL on windows)
+
+2023.01 16/01/2023
+------------------
+- Developer and packager tools:
+    + Switch build system from ``numpy.distutils`` to ``meson-python``
+    + Keep the former ``setup.py`` for compatibility reasons: it will be removed in a future release
+    + Drop Python 3.6 (default parameters in namedtuple feature used)
+    + Require silx 1.1 (for OpenCL), scipy and matplotlib
+- GUI side:
+    + several minor improvements in pyFAI-calib2
+    + Fixed calibration in jupyter-lab
+- Core improvements:
+    + Refactoring of the Geometry class
+    + Geometry pseudo-inversion optimization
+    + Improved support from Medipix-based Lambda-detectors
+    + New detectors from Dectris (Pilatus 900k and Eiger 250k)
+    + Support Nexus format in output: NXmonpd and NXcansas
+    + Single-threaded CSC sparse matrix multiplication engine
+- Improved uncertainty propagation:
+    + Refactor error model management (uses enum)
+    + Hybrid error model (azimuthal for sigma-clipping but reports Poissonian noise)
+    + Export peakfinder data to the CXI format (used by CrystFEL)
+- Improvement in the doc:
+    + Update installation instructions
+    + Multi-threaded integration tutorial
+    + GPU implementation tutorial
+- Facts and figures:
+    + 400+ commits, 100 PR
+    + with the contribution of:
+        - Clemens Prescher,
+        - Elena Pascal,
+        - Jérôme Kieffer,
+        - Malte Storm,
+        - Marco Cammarata,
+        - Michael Hudson-Doyle,
+        - Picca Frédéric-Emmanuel,
+        - Rodrigo Telles,
+        - Thomas A Caswell,
+        - Tommaso Vinci,
+        - Valentin Valls,
+        - Wout de Nolf.
+
+0.21.3 24/03/2022
+-----------------
+- Support hexagonal pixels in splitbbox and nosplit mode (collaboration with EuXFEL)
+- Support extra dtype in OpenCL (contribution from Desy)
+- Fix version of setuptools (enables to build pyFAI -> python 3.12)
+- Support some of the Lambda detectors from XSpectrum (collaboration with Xmas)
+- Restore back compatibility in histoBBox1d and histoBBox2d (contribution from NSLS-II)
+- Fix bug in OpenCL distortion correction (collaboration with Soleil)
+- Several other bugs fixed
+
+0.21.2 03/02/2022
+-----------------
+Fix documentation of *sparsify-Bragg* and *peakfinder* CLI tools
+
+0.21.1 02/02/2022
+-----------------
+Bug-fix release with:
+- issue in propagated error not reported with certain engines
+- diff_map tool can now perform 2D integration
+- issue with dummy/dela_dummy in *Worker*
+- fix improper reset of the integrator due to cabling issue inside AzimuthalIntegrator
+- Remove deprecation warning about scipy
+- Use *silx* for median-filter which is faster than scipy
+- skip 3 tests which are known to be fragile on 32-bit platforms (spotted by debian on i386 and armel)
+
+0.21.0 20/01/2022
+-----------------
+* One year of development: 523 commits, close to 100 pull-requests. +53000 lines of code and 20000 suppressed.
+* Sigma-clipping allows separation of Bragg/amorphous signal:
+    - Implementation in Python, Cython and OpenCL with poissonian and azimuthal error-model
+    - Sparsification, compression of single crystal data
+	- Application to peak-picking and quality assessement of SSX data
+	- Analysis of grid-scan to find single crystal
+	- Single pass variance propagation in azimuthal bin
+	- Integration of the Jungfrau detector  (ID29)
+* 2D integration:
+	- New integrators with error propagation by default
+	- Full pixel splitting in addition to BBox and no splitting
+* Refactor of all LUT and CSR to share the same code base, makes tests more robust.
+* Calibration of experimental setup using Jupyter notebooks
+	- User interaction with plots in matplotlib (thanks Phil Hans)
+	- Factorize code between `pyFAI-calib` and jupyter calibration
+	- Tutorial as notebook and video recording
+* Parallax correction for thick detector (still experimental, thanks to Vadim)
+* Improved tutorial on detector geometry calibration (based on Kabsch alignment)
+* Better performances on HPC nodes by limiting simple OpenMP to fewer cores
+* Many improvement in test, typos fixed, doc ...
+* Deprecate all legacy integrators since the new version sees its matrix complete.
+* Supports Python 3.6 ... 3.10 under Windows, MacOS and Linux.
+
+0.20.0 22/01/2021
+-----------------
+* One year of development, about 500 commits & 370 files modified.
+* Generalization of the new generation 1D integrators (better error propagation)
+* Sigma clipping and sparsification of single crystal data (OpenCL only)
+* Fix issue introduced with the scipy 1.15 (constrained calibration broken)
+* Improved distortion correction (also on GPU, ...)
+* Major re-work of the documentation (thanks Thomas Kluyver and Loic Huder)
+* Improve the calibration of Pilatus and Eiger detectors based on a grid of holes.
+* New cylindrical detector from Rigaku
+* Drop deprecated OpenCL integrator
+* Support all Eiger2 detectors (thanks Clemens Weninger and Marie Ruat)
+* CI: move to Gihub workflow and gitlab-runners (bob) for building (thanks Thomas Vincent).
+* Build for debian 10 and 11 (also ubuntu 20.04), drop debian 9
+* Remove Python2 related code
+* Lower Numpy ABI dependency as much as possible (remains _distortion's C++ code)
+* Drop tests for Python 3.5, checked on 3.9 as well.
+
+0.19.0 31/01/2020
+-----------------
+* Minor revison with only 150 commits, mainly bug-fixes
+* Improvement on the GUI with many small bug-fixes
+* Support newer h5py (mode mandatory, [()], ...)
+* Build for debian 10 and 11 (also ubuntu 20.04)
+* Drop tests for Python 2 and 3.4, checked on 3.8
+* Improved compatibility with ImageD11
+* Use hdf5plugin to provide hdf5 io-filters in apps
+* Rework diffraction mapping tools to use a worker
+* New generation azimuthal integrator using CSR algorithm
+  implemented in Python, Cython and OpenCL.
+* Sigma-clipping implemented in OpenCL
+* Publication on new generation integration, the GUI for
+  calibration and the goniometers accepted in J. Synch. Rad.
+  DOI: 10.1107/S1600577520000776
+* A big thank to Florian from Germany, Bertrand from Xenocs,
+  Alex from Soleil and Jon from ESRF for their contributions.
+
+0.18.0 15/05/2019
+-----------------
+* Last release with Valentin as he finishes his contract soon
+* almost 800 commits, 60 PR since the last release: this is a huge release !
+* Major rework on all GUIs, mainly pyFAI-calib2 and pyFAI-integrate.
+* Possibility to integrate image stacks (i.e. from HDF5), ...
+* Rework the *method* to specify the algorithm, pixel splitting and implementation
+  with sensible fall-backs. Also available via the different GUIs
+* 3D visualization of detectors and experimental setup, useful for non flat detectors.
+* `integrate1d_ng` is available with histogramming without pixel splitting in
+  Python, Cython and OpenCL. Now, propagates the variance properly !
+* IO sub-packages with associated refactoring for ponifile, json, ...
+* Improved management of OpenMP: simplify the code for histograms.
+* Improved geometry description and tutorial for writing exchange with other
+  software (ImageD11, thanks to Carsten Detlefs).
+* More reliable simple ellipse fitting with tests and doc.
+* Better POCL integration (debugged on cuda, x87, Power9, ...)
+* Rely on *silx* mechanics for the build, test, download, GUI, opencl ...
+* Many new tutorials, now available on binder-hub: new calibrants, Pilatus calibration, ...
+* Fix many issues reported in third-party software (Dioptas, ...)
+* Drop support of debian8, Python 2.7 and Python 3.4 on all platforms.
+  It is likely most functionalities still work but without guaranty.
+
+0.17.0 19/12/2018
+-----------------
+* Only 200 commits in a couple of month, this is a small release
+* Fix major bugs in pyFAI-calib2 (double validator, initial guess, ring position)
+* Constrains have been added to the geometry fitting of pyFAI-calib2
+* New pyFAI-integrate graphical application
+* Much better support for user defined detector (HDF5)
+* Start the rewrite of all integrators to allow proper error propagation (2D done)
+* Factorize the preprocessing steps for many integrators
+* Remove tons of code which has been deprecated for years in AzimuthalIntegrator
+* Featuring contribution from Soleil and Berkeley
+* Stop supporting Python2.7 on Windows (there won't be wheels!)
+* All scripts are now using Python 3.x (x>=4)
+* This is the last release supporting Python 2.7, 3.4 hence debian 8
+
+0.16.0: 26/10/2018
+------------------
+* Almost 800 commits since 0.15 !
+* Huge improvements on the graphical application for calibration
+* New detector definition (with manufacturers)
+* Improved tests: the GUI is now tested
+* Preparation for changing all rebinning engines (see variance tutorials)
+* Azimuthal integrators (and most other objects) are now serializable with Pickle
+* New distortion correction using the SparseBuilder C++ code
+* New PONI-file format (detector definition changed)
+* Isocontour is now provided by *silx*
+* Peak-picker clean up (better peak selection near gaps)
+* new Goniometer refinement with enhanced rotation using Euler angles
+* Updated documentation: new cookbooks and tutorials about:
+  - The use of the calibration application (cookbook)
+  - log-scale integration of SAXS data (notebook)
+  - Variance propagation (notebook)
+
+
+0.15.0: 01/02/2018
+------------------
+* 150 commits since last revision
+* New tutorials on image inpainting, sensor thickness correction, ...
+* Improve scripts
+* Improve the new calibration GUI (pyFAI-calib2)
+* Use scipy physical constants instead of hard-coded values
+* Improved detector serialization and binning assessement
+* Update documentation (images, better rendering of notebook & tutorials)
+* Converge project with silx and fabio
+* Remove generated rst- and C-files from repository
+* This is the last version supporting python2.7
+
+0.14.2: 14/09/2017
+------------------
+* Fix seg-fault with manylinux1 wheels, in fastcrc module (thanks Thomas)
+* Fix Qt4-Qt5 compatibility (thanks Vadim)
+* Easier to understand geometry transformation (thanks Jon)
+* Lower memory consumption, better cache management
+* Unified debian packaging working for 6->9
+* New detector: Mythen & CirPad (thanks Fred)
+* Clean up debug code which avoid to use pyFAI-calib2
+* pyFAI-calib2 now expect fabio >= 0.5
+* Fix issue with metadata saving in 1d
+* Fix performance regression with pyopencl >2015.2 (Thanks Andreas)
+* pyFAI saxs and waxs scripts guess now the binning of the detector (thanks Fred).
+
+0.14.1: 25/07/2017
+------------------
+* Fixes Debian 7 and 8 packages
+
+0.14.0: 20/07/2017
+------------------
+* Graphical user interface for calibration (pyFAI-calib2)
+* Goniometer calibration tools and multi-geometry enhancements
+* Integration scripts and averaging scripts are now able to normalize the data
+  from monitors found in the header.
+* Propagate metadata information as part of the integrated data
+* Common pre-processing factorization on Python, Cython and OpenCL
+* Test clean up and acceleration (avoid tests on too large images)
+* Many new tutorials http://pyfai.readthedocs.io/en/latest/usage/tutorial/index.html
+* New averaging / integration methods:
+  - Azimuthal median filtering
+  - Azimuthal trimmed mean
+  - sigma-clipping on azimuthal angle
+  - Radial averaging
+* Diffraction image inpainting to fill-up the gaps with plausible values.
+* This release correspond to 572 commits
+* Change of license: now all pyFAI is MIT license.
+
+0.13.0: 01/12/2016
+------------------
+* Global improvement of tests, packaging, code quality, documentation and project tools
+* Scripts
+    - Add support for multiframe formats on pyFAI-average
+    - Add support for monitoring correction from header file (on pyFAI-average)
+    - Add progressbar in the shell (on pyFAI-average and pyFAI-integrate)
+    - Script drawMask_pymca is renamed into pyFAI-drawmask
+    - Rework of the drawmask GUI using silx
+    - pyFAI-drawmask do not have anymore hard dependency on PyMCA
+    - pyFAI-integrate can now be used without qt dependency (--no-gui)
+    - Fix the script to support both Python 2 and 3 (pyFAI-calib, pyFAI-benchmark)
+    - Fix selection of units on diff-map (the user selection was not propagated)
+* For users
+    - More source code in MIT license
+    - Update name and specification for cameras
+    - Add cameras: Eiger500k, RaspberryPi5M, RaspberryPi8M
+    - Fix Xpad S540 flat detector geometry
+    - Fix definition of CeO2 calibrant
+    - Add mask and flat on multi-geometry
+    - Fix solid angle of the multi-geometry
+    - Fix geometry processing for custom output space
+    - Fix normalization factor and variance
+    - Add support for Qt5
+    - Add support for Debian 9 packaging
+* For developers
+    - Create common preprocessing for distortion correction
+    - Create common image preprocessing using Cython (NaN filter, flatfield, dark, polarisation)
+    - Refactoring of units module. It allows to register custom units.
+    - Worker can now use Writer
+    - Worker polarization argument is renamed into polarization_factor
+    - Remove the dependency from python-fftw3, use numpy instead
+    - Remove QtWebKit dependency
+    - Fix un-correction of images using sparse matrix from scipy
+
+0.12.0: 06/06/2016
+------------------
+* Continuous integration on linux, windows using Python 2.7 and 3.4+
+* Drop support of Python 2.6, 3.2, 3.3 and debian6 packaging
+* New radial output units: Reciprocal spacing squared and log(q) **ID02**
+* GPU accelerate version of ai.separate (Bragg & amorphous) **ID13**
+* Quantile filtering in pyFAI-average **ID02**
+* New graphical application for diffraction imaging **ID21**
+* Migrate to a common structure with *silx* (reorganize tests, benchmarks, ...)
+* Extensions (binary sub-modules) have all been moved to *ext* directory
+* Many improvements multigeometry integrators
+* Compatibility with the copy module (copy.deepcopy) for azimuthal integrator **ID02**
+* Distortion correction works also for non-contiguous detectors
+* Update documentation and provide advanced tutorials:
+    - Introduction to pyFAI using the jupyter notebook
+    - detector calibration **ID15, BM02**
+    - Correction of detector distortion, examples of pixel detectors.
+    - calibrant calculation **ID30**
+    - error handling **ID02, BM29**
+* pyFAI-integrate can now be used with or without GUI
+* Many new detectors (ADSC, Pilatus CdTe, Apex II, Pixium):
+    - support for non-flat/curved detectors (Aarhus)
+    - non-contiguous detectors (WOS Xpad)
+* Include tests and benchmarking tools as part of the library
+* Better testing.
+
+0.11.0: 07/2015
+---------------
+* All calibrant from NIST are now available, + Nickel, Aluminum, ... with bibliographic references
+* The Cell class helps defining new calibrants.
+* OpenCL Bitonic sort (to be integrated into Bragg/Amorphous separation)
+* Calib is available from the Python interface (procedural API), not only from the shell script.
+* Many new options in calib for reset/assign/delete/validate/validate2/chiplot.
+    - reset: set the detector, orthogonal, centered and at 10cm
+    - assign: checks the assignment of groups of points to rings
+    - delete: remove a group of peaks
+    - validate: autocorrelation of images: error on the center
+    - validate2:  autocorrelation of patterns at 180° apart: error on the center function of chi
+    - chiplot: assesses the quality of control points of one/multiple rings.
+* Fix the regression of the initial guess in calib (Thanks Jon Wright)
+* New peak picking algorithm named "watershed" and based on inverse watershed for ridge recognition
+* start factorizing cython regridding engines (work ongoing)
+* Add "--poni" option for pyFAI-calib (Thanks Vadim Dyakin)
+* Improved "guess_binning", especially for Perkin Elmer flat panel detectors.
+* Support for non planar detectors like Curved Imaging plate developped at Aarhus
+* Support for Multi-geometry experiments (tested)
+* Speed improvement for detector initialization
+* better isotropy in peak picking (add penalization term)
+* enhanced documentation on http://pyfai.readthedocs.org
+
+0.10.3: 03/2015
+---------------
+* Image segmentation based on inverse watershed (only for recalib, not for calib)
+* Python3 compatibility
+* include testimages  into distribution
+
+
+0.10.2: 11/2014
+---------------
+* Update documentation
+* Packaging for debian 8
+
+0.10.1: 10/2014
+---------------
+* Fix issue in peak-picking
+* Improve doc & manpages
+* Compatibility with PyMca5
+
+0.10.0: 10/2014
+---------------
+* Correct Caglioti's formula
+* Update tests and OpenCL -> works with Beignet and pocl open source drivers
+* Compatibility with MacOSX and windows
+
+0.9.4:  06/2014
+---------------
+* include spec of Maxwell GPU
+* fix issues with intel OpenCL icd v4.4
+* introduce shape & max_shape in detectors
+* work on marchingsquares/sorted controurplot for calibration
+* Enforce the use the Qt4Agg for Matplotlib and other GUI stuff.
+* Update shape of detector in case of binning
+* unified distortion class: merge OpenCL & OpenMP implementation #108
+* Benchmarks for distortion
+* Raise the level to warning when inverting the mask
+* set of new ImXpad detectors Related issue #111
+* Fix issue with recalib within MX-calibrate
+* saving detector description in Nexus files issue #110
+* Update some calibrants: gold
+* about to make peak-picking more user-friendly
+* test for bragg separation
+* work on PEP8 compliance
+* Do not re-cythonize: makes debian package generation able to benefit from ccache
+* conversion to SPD (rotation is missing)
+* pixelwise worker
+* correct both LUT & OCL for memory error
+* replace os.linsep with "\n" when file file opened in text mode (not binary)
+* rework the Extension part to be explicit instead of "black magic" :)
+* implement Kahan summation in Cython (default still use Doubles: faster)
+* Preprocessing kernel containing all cast to float kernels  #120
+* update setup for no-openmp option related to issue #127
+* Add read-out mode for mar345 as "guess_binning" method for detector. Also for MAR and Rayonix #125
+* tool to benchmark HDF5 writing
+* try to be compatible with both PySide and PyQt4 ... the uic stuff is untested and probably buggy #130
+* Deactivate the automatic saturation correction by default. now it is opt-in #131
+
+0.9.3:  02/2014
+---------------
+* Better control for peak-picking (Contribution from Gero Flucke, Desy)
+* Precise Rayonix detectors description thanks to Michael Blum
+* Start integrating blob-detection algorithm for peak-picking: #70
+* Switch fron OptParse to ArgPrse: #83
+* Provide some calibrant by default: #91
+* Description of Mar345 detector + mask#92
+* Auto-registration of detectors: #97
+* Recalib and check-calib can be called from calib: #99
+* Fake diffraction image from calibrant: #101
+* Implementation of the CSR matrix representation to replace LUT
+* Tight pixel splitting: #43
+* Update documentation
+
+0.9.2: (01/2014)
+----------------
+* Fix memory leak in Cython part of the look-up table generation
+* Benchmarks with memory profiling
+
+0.9: 10/2013
+------------
+* Add detector S140 from ImXpad, Titan from Agilent, Rayonix
+* Fix issues: 61, 62, 68, 76, 81, 82, 85, 86, 87
+* Enhancement in LImA plugins (better structure)
+* IO module with Ascii/EDF/HDF5 writers
+* Switch some GUI to pyQtGraph in addition to Qt
+* Correction for solid-angle formula
+
+0.8: 10/2012
+------------
+* Detector object is member of the geometry
+* Binning of the detector, propagation to the spline if needed
+* Detector object know about their masks.
+* Automatic mask for some detectors like Pilatus or XPad
+* Implementation of sub-pixel position correction for Pilatus detectors
+* LUT implementation in 1D & 2D (fully tested) both with OpenMP and with OpenCL
+* Switch from C++/Cython OpenCL framework to PyOpenCL
+* Port opencl code to both Windows 32/64 bits and MacOSX
+* Add polarization corrections
+* Use fast-CRC checksum on x86 using SSE4 (when available) to track array change on GPU buffers
+* Support for flat 7*8 modules Xpad detectors.
+* Benchmark with live graphics (still a memory issue with python2.6)
+* Fat source distribution (python setup.py sdist --with-test-images) for debian
+* Enhanced tests, especially for Saxs and OpenCL
+* Recalibration tool for refining automatically parameters
+* Enhancement of peak picking (much faster, recoded in pure Cython)
+* Easy calibration for pixel detector (reconstruction of inter-module space)
+* Error-bar generation using Poisson law
+* Unified programming interface for all integration methods in 2theta, q or radius unit
+* Graphical interface for azimuthal integration (pyFAI-integrate)
+* Lots of test to prevent non regression
+* Tool for merging images using various method (mean, median) and with outlayer rejection
+* LImA plugin which can perform azimuthal integration live during the acquisition
+* Distortion correction is available alone and as LImA plugin
+* Recalibration can refine the wavelength in addition to 6 other parameters
+* Calibration always done vs calibrant's ring number, lots of new calibrant are available
+* Selection by hand of single peaks for calibration
+* New detectors: Dexela and Perkin-Elmer flat panel
+* Automatic refinement of multiple images at various geometries (for MX)
+* Many improvements requested by ID11 and ID13
+
+0.7.2: 08/2012
+--------------
+* Add diff_tomo script
+* Geometry calculation optimized in (parallel) cython
+
+0.7: 07/2012
+------------
+Implementation of look-up table based integration and OpenCL version of it
+
+0.6: 07/2012
+------------
+* OpenCL flavor works well on GPU in double precision with device selection
+
+0.5: 06/2012
+------------
+* Include OpenCL version of azimuthal integration (based on histograms)
+
+0.4: 06/2012
+------------
+* Global clean up of the code regarding options from command line and better design
+* Correct the orientation of the azimuthal angle chi
+* Rename scripts in pyFAI-calib, pyFAI-saxs and pyFAI-waxs
+
+0.3: 11/2011
+------------
+* Azimuthal integration splits pixels like fit2d
+
+0.2: 07/2011
+------------
+* Azimuthal integration using cython histogramming is working
+
+0.1: 05/2011
+------------
+ * Geometry is OK

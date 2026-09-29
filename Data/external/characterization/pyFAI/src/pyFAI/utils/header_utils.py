@@ -1,0 +1,168 @@
+# !/usr/bin/env python
+#
+#    Project: Azimuthal integration
+#             https://github.com/silx-kit/pyFAI
+#
+#    Copyright (C) 2019 European Synchrotron Radiation Facility, Grenoble, France
+#
+#    Principal author:       Jérôme Kieffer (Jerome.Kieffer@ESRF.eu)
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
+"""This modules contains helper function relative to image header.
+"""
+
+__author__ = "Valentin Valls"
+__contact__ = "valentin.valls@esrf.eu"
+__license__ = "MIT"
+__copyright__ = "European Synchrotron Radiation Facility, Grenoble, France"
+__date__ = "21/08/2026"
+
+import logging
+
+import fabio
+
+_logger = logging.getLogger(__name__)
+
+
+class MonitorNotFound(Exception):
+    """Raised when monitor information in not found or is not valid."""
+
+
+def _get_monitor_value_from_edf(image, monitor_key):
+    """Return the monitor value from an EDF image using an header key.
+
+    Take care of the counter and motor syntax using for example 'counter/bmon'
+    which reach 'bmon' value from 'counter_pos' key using index from
+    'counter_mne' key.
+
+    :param fabio.fabioimage.FabioImage image: Image containing the header
+    :param str monitor_key: Key containing the monitor
+    :return: returns the monitor else raise a MonitorNotFound
+    :rtype: float
+    :raise MonitorNotFound: when the expected monitor is not found on the
+        header
+    """
+    keys = image.header
+
+    if "/" in monitor_key:
+        base_key, mnemonic = monitor_key.split('/', 1)
+
+        mnemonic_values_key = base_key + "_mne"
+        mnemonic_values = keys.get(mnemonic_values_key, None)
+        if mnemonic_values is None:
+            raise MonitorNotFound(f"Monitor mnemonic key '{mnemonic_values_key}' not found in the header")
+
+        mnemonic_values = mnemonic_values.split()
+        pos_values_key = base_key + "_pos"
+        pos_values = keys.get(pos_values_key)
+        if pos_values is None:
+            raise MonitorNotFound(f"Monitor pos key '{pos_values_key}' not found in the header")
+
+        pos_values = pos_values.split()
+
+        try:
+            index = mnemonic_values.index(mnemonic)
+        except ValueError:
+            _logger.debug("Exception", exc_info=1)
+            raise MonitorNotFound(f"Monitor mnemonic '{mnemonic}' not found in the header key '{mnemonic_values_key}'")
+
+        if index >= len(pos_values):
+            raise MonitorNotFound(f"Monitor value {mnemonic} found in '{mnemonic_values_key}' at index {pos_values_key}. Not enough values!")
+
+        monitor = pos_values[index]
+
+    else:
+        if monitor_key not in keys:
+            raise MonitorNotFound(f"Monitor key '{monitor_key}' not found in the header")
+        monitor = keys[monitor_key]
+
+    try:
+        monitor = float(monitor)
+    except ValueError as _e:
+        _logger.debug("Exception", exc_info=1)
+        raise MonitorNotFound(f"Monitor value '{monitor}' is not valid")
+    return monitor
+
+
+def _get_monitor_value_from_hdf5(image, monitor_key):
+    """Return the monitor value from an HDF5 image using an header key.
+
+    The monitor_key is a path from the image path containing:
+
+    - A dataset containing a scalar (a constant monitor)
+    - A dataset containing a vector of values (it must contain enough values
+        than the amount of frames)
+
+    :param fabio.fabioimage.FabioImage image: Image containing the header
+    :param str monitor_key: Key identify the path of the monitor
+    :return: returns the monitor else raise a MonitorNotFound
+    :rtype: float
+    :raise MonitorNotFound: when the expected monitor is not found on the
+        header
+    """
+    if monitor_key not in image.hdf5:
+        raise MonitorNotFound(f"Monitor path '{monitor_key}' not found")
+
+    monitor_dataset = image.hdf5[monitor_key]
+    if not hasattr(monitor_dataset, "dtype"):
+        raise MonitorNotFound(f"Monitor path '{monitor_key}' is not a dataset")
+
+    if monitor_dataset.dtype.kind not in "fiu":
+        raise MonitorNotFound(f"Monitor path '{monitor_key}' does not contain a numerical value")
+
+    if monitor_dataset.shape == ():
+        # A constant monitor
+        return monitor_dataset[()]
+
+    if len(monitor_dataset.shape) != 1:
+        raise MonitorNotFound(f"Monitor path '{monitor_key}' expect a vector of values")
+
+    if image.currentframe >= monitor_dataset.size:
+        raise MonitorNotFound(f"Monitor path '{monitor_key}' does not provide enough values")
+
+    return monitor_dataset[image.currentframe]
+
+
+def get_monitor_value(image, monitor_key):
+    """Return the monitor value from an image using an header key.
+
+    :param fabio.fabioimage.FabioImage image: Image containing the header
+    :param str monitor_key: Key containing the monitor
+    :return: returns the monitor else raise an exception
+    :rtype: float
+    :raise MonitorNotFound: when the expected monitor is not found on the
+        header
+    """
+    if monitor_key is None:
+        return Exception("No monitor defined")
+
+    if fabio.version_info[0:2] < (0, 9):
+        # FIXME: Remove this dead code by upgrading the dependency to fabio>=0.9
+        if isinstance(image, fabio.edfimage.EdfImage) or isinstance(image, fabio.numpyimage.NumpyImage):
+            return _get_monitor_value_from_edf(image, monitor_key)
+        elif isinstance(image, fabio.hdf5image.Hdf5Image):
+            return _get_monitor_value_from_hdf5(image, monitor_key)
+    else:
+        if isinstance(image, (fabio.edfimage.EdfImage, fabio.edfimage.EdfFrame)) or isinstance(image, fabio.numpyimage.NumpyImage):
+            return _get_monitor_value_from_edf(image, monitor_key)
+        elif isinstance(image, (fabio.hdf5image.Hdf5Image, fabio.hdf5image.Hdf5Frame)):
+            return _get_monitor_value_from_hdf5(image, monitor_key)
+
+    raise Exception(f"File format '{type(image)}' unsupported")

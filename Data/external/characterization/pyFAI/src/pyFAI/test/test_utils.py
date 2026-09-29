@@ -1,0 +1,163 @@
+#!/usr/bin/env python
+#
+#    Project: Azimuthal integration
+#             https://github.com/silx-kit/pyFAI
+#
+#    Copyright (C) 2015-2025 European Synchrotron Radiation Facility, Grenoble, France
+#
+#    Principal author:       Jérôme Kieffer (Jerome.Kieffer@ESRF.eu)
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
+"""Test suite for utilities library"""
+
+__author__ = "Jérôme Kieffer"
+__contact__ = "Jerome.Kieffer@ESRF.eu"
+__license__ = "MIT"
+__copyright__ = "European Synchrotron Radiation Facility, Grenoble, France"
+__date__ = "14/11/2025"
+
+import logging
+import os
+import unittest
+
+import numpy
+
+# to increase test coverage of missing files:
+from .. import directories, utils
+from ..detectors import detector_factory
+from ..method_registry import IntegrationMethod
+from ..utils.dataclasses import case_insensitive_dataclass
+from ..utils.grid import Kabsch
+from ..utils.mask_utils import build_gaps, search_gaps
+from ..utils.multiprocessing import cpu_count
+from ..utils.stringutil import to_scientific_unicode
+from ..version import calc_hexversion
+from .utilstest import UtilsTest
+
+logger = logging.getLogger(__name__)
+
+
+class TestUtils(unittest.TestCase):
+
+    def test_set(self):
+        s = utils.FixedParameters()
+        self.assertEqual(len(s), 0, "initial set is empty")
+        s.add_or_discard("a", True)
+        self.assertEqual(len(s), 1, "a is in set")
+        s.add_or_discard("a", None)
+        self.assertEqual(len(s), 1, "set is untouched")
+        s.add_or_discard("a", False)
+        self.assertEqual(len(s), 0, "set is empty again")
+        s.add_or_discard("a", None)
+        self.assertEqual(len(s), 0, "set is untouched")
+        s.add_or_discard("a", False)
+        self.assertEqual(len(s), 0, "set is still empty")
+
+    def test_hexversion(self):
+        self.assertEqual(calc_hexversion(1), 1 << 24, "Major is OK")
+        self.assertEqual(calc_hexversion(0, 1), 1 << 16, "Minor is OK")
+        self.assertEqual(calc_hexversion(0, 0, 1), 1 << 8, "Micro is OK")
+        self.assertEqual(calc_hexversion(0, 0, 0, 1), 1 << 4, "Release level is OK")
+        self.assertEqual(calc_hexversion(0, 0, 0, 0, 1), 1, "Serial is OK")
+
+    def test_method_registry(self):
+        lst = IntegrationMethod.list_available()
+        logger.info("Found %s integration methods available on this computer: %s",
+                    len(lst), os.linesep.join([""] + lst))
+        self.assertGreater(len(lst), 2, "at least 2 integration methods are available")
+
+    def test_directories(self):
+        logger.info("data directories exists: %s %s", directories.PYFAI_DATA, os.path.exists(directories.PYFAI_DATA))
+
+    def test_grid(self):
+        "Test Kabsch rigid rotation algorithm"
+        # Test translation
+        Kabsch.test([[1, 2], [2, 3], [1, 4]], [[2, 3], [3, 4], [2, 5]], verbose=False)
+        # Test rotation
+        P = numpy.array([[2, 3], [3, 4], [2, 5]])
+        Q = -P
+        Kabsch.test(P, Q, verbose=False)
+        # test advanced 1
+        P = numpy.array([[1, 1], [2, 0], [3, 1], [2, 2]])
+        Q = numpy.array([[-1, 1], [0, 2], [-1, 3], [-2, 2]])
+        Kabsch.test(P, Q, verbose=False)
+
+        # test advanced 2
+        P = numpy.array([[1, 1], [2, 0], [3, 1], [2, 2]])
+        Q = numpy.array([[2, 0], [3, 1], [2, 2], [1, 1]])
+        Kabsch.test(P, Q, verbose=False)
+
+    def test_to_scientific(self):
+        self.assertEqual(to_scientific_unicode(numpy.pi), '3.142·10⁺⁰⁰', "pi is properly represented")
+        self.assertEqual(to_scientific_unicode(numpy.nan), 'nan', "NaN are properly represented")
+        self.assertEqual(to_scientific_unicode(numpy.inf), 'inf', "infinite values are properly represented")
+
+    def test_multiprocessing(self):
+        self.assertGreater(cpu_count(), 0)
+
+    def test_mask(self):
+        mask = detector_factory("Pilatus 1M").mask
+        mask[:, 0] =1
+        mask[0, :] =1
+        mask[:, -1] =1
+        mask[-1, :] =1
+        numpy.allclose(build_gaps(mask.shape, search_gaps(mask)), mask)
+
+    def test_case_insensitive_dataclass(self):
+        @case_insensitive_dataclass
+        class Person:
+            Name: str
+            Age: int = 0
+        a = Person("Alice", 10)
+        self.assertAlmostEqual(a.Name, "Alice")
+        self.assertAlmostEqual(a.name, "Alice")
+        self.assertAlmostEqual(a.Age, 10)
+        self.assertAlmostEqual(a.age, 10)
+
+        a = Person("Alice")
+        self.assertAlmostEqual(a.Name, "Alice")
+        self.assertAlmostEqual(a.name, "Alice")
+        self.assertAlmostEqual(a.Age, 0)
+        self.assertAlmostEqual(a.age, 0)
+
+        a = Person("Alice", age=10)
+        self.assertAlmostEqual(a.Name, "Alice")
+        self.assertAlmostEqual(a.name, "Alice")
+        self.assertAlmostEqual(a.Age, 10)
+        self.assertAlmostEqual(a.age, 10)
+
+        a = Person(age=10, name="Alice")
+        self.assertAlmostEqual(a.Name, "Alice")
+        self.assertAlmostEqual(a.name, "Alice")
+        self.assertAlmostEqual(a.Age, 10)
+        self.assertAlmostEqual(a.age, 10)
+
+
+def suite():
+    loader = unittest.defaultTestLoader.loadTestsFromTestCase
+    testsuite = unittest.TestSuite()
+    testsuite.addTest(loader(TestUtils))
+    return testsuite
+
+
+if __name__ == '__main__':
+    runner = unittest.TextTestRunner()
+    runner.run(suite())
+    UtilsTest.clean_up()

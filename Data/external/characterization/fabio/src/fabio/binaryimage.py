@@ -1,0 +1,149 @@
+#
+#    Project: X-ray image reader
+#             https://github.com/silx-kit/fabio
+#
+#
+#    Copyright (C) European Synchrotron Radiation Facility, Grenoble, France
+#
+#    Principal author:       Jérôme Kieffer (Jerome.Kieffer@ESRF.eu)
+#
+#  Permission is hereby granted, free of charge, to any person obtaining a copy
+#  of this software and associated documentation files (the "Software"), to deal
+#  in the Software without restriction, including without limitation the rights
+#  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+#  copies of the Software, and to permit persons to whom the Software is
+#  furnished to do so, subject to the following conditions:
+#  .
+#  The above copyright notice and this permission notice shall be included in
+#  all copies or substantial portions of the Software.
+#  .
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+#  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+#  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+#  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+#  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+#  THE SOFTWARE.
+
+"""
+Authors: Gael Goret, Jerome Kieffer, ESRF, France
+
+Emails: gael.goret@esrf.fr, jerome.kieffer@esrf.fr
+        Brian Richard Pauw <brian@stack.nl>
+
+Binary files images are simple none-compressed 2D images only defined by their :
+data-type, dimensions, byte order and offset
+
+This simple library has been made for manipulating exotic/unknown files format.
+"""
+
+__authors__ = ["Gaël Goret", "Jérôme Kieffer", "Brian Pauw"]
+__contact__ = "gael.goret@esrf.fr"
+__license__ = "MIT"
+__copyright__ = "European Synchrotron Radiation Facility, Grenoble, France"
+__date__ = "13/03/2026"
+
+import io
+import logging
+
+import numpy
+
+from .fabioimage import FabioImage
+from typing import ClassVar
+
+logger = logging.getLogger(__name__)
+
+
+class BinaryImage(FabioImage):
+    """
+    This simple library has been made for manipulating exotic/unknown files format.
+
+    Binary files images are simple none-compressed 2D images only defined by their:
+        data-type, dimensions, byte order and offset
+
+    if offset is set to a negative value, the image is read using the last data but n
+    data in the file, skipping any header.
+    """
+
+    DESCRIPTION = "Binary format (none-compressed 2D images)"
+
+    DEFAULT_EXTENSIONS: ClassVar[list] = ["bin"]
+
+    def __init__(self, *args, **kwargs):
+        FabioImage.__init__(self, *args, **kwargs)
+
+    @staticmethod
+    def swap_needed(endian):
+        """
+        Decide if we need to byteswap
+        """
+        if (endian == "<" and numpy.little_endian) or (
+            endian == ">" and not numpy.little_endian
+        ):
+            return False
+        if (endian == ">" and numpy.little_endian) or (
+            endian == "<" and not numpy.little_endian
+        ):
+            return True
+
+    def read(self, fname, dim1, dim2, offset=0, bytecode="int32", endian="<"):
+        """
+        Read a binary image
+
+        :param str fname: file name
+        :param int dim1: image dimensions (Fast index)
+        :param int dim2: image dimensions (Slow index)
+        :param int offset: starting position of the data-block. If negative, starts at the end.
+        :param bytecode: can be "int8","int16","int32","int64","uint8","uint16","uint32","uint64","float32","float64",...
+        :param endian:  among little or big endian ("<" or ">")
+
+        """
+        assert endian in ("<", ">", "=")
+        bytecode = numpy.dtype(bytecode)
+        if not bytecode.str.startswith(endian):
+            bytecode = numpy.dtype(endian + bytecode.str[1:])
+        self.filename = fname
+        self._shape = dim2, dim1
+        self._bytecode = bytecode
+        with open(self.filename, "rb") as f:
+            dims = [dim2, dim1]
+            bpp = numpy.dtype(bytecode).itemsize
+            size = dims[0] * dims[1] * bpp
+
+            if offset >= 0:
+                f.seek(offset)
+            else:
+                try:
+                    f.seek(-size + offset + 1, 2)  # seek from EOF backwards
+                except OSError:
+                    logger.warning(
+                        f"expected datablock too large, please check bytecode settings: {bytecode}"
+                    )
+                except Exception:
+                    logger.debug("Backtrace", exc_info=True)
+                    logger.error("Uncommon error encountered when reading file")
+            rawData = f.read(size)
+        data = numpy.frombuffer(rawData, bytecode).copy().reshape(tuple(dims))
+        self.data = data
+        self._shape = None
+        return self
+
+    def estimate_offset_value(self, fname, dim1, dim2, bytecode="int32"):
+        "Estimates the size of a file"
+        with open(fname, "rb") as f:
+            bpp = len(numpy.array(0, bytecode).tobytes())
+            size = dim1 * dim2 * bpp
+            totsize = len(f.read())
+        logger.info("total size (bytes): %s", totsize)
+        logger.info("expected data size given parameters (bytes): %s", size)
+        logger.info("estimation of the offset value (bytes): %s", totsize - size)
+
+    def write(self, fname):
+        with self._open(fname, mode="wb") as outfile:
+            if isinstance(outfile, io.BufferedWriter):
+                self.data.tofile(outfile)
+            else:
+                outfile.write(self.data.tobytes())
+
+
+binaryimage = BinaryImage

@@ -1,0 +1,666 @@
+#!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+# pyre-strict
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from copy import deepcopy
+from logging import Logger
+from typing import cast, TypeVar
+
+from ax.adapter.base import Adapter
+from ax.core.data import Data
+from ax.core.experiment import Experiment
+from ax.core.generator_run import GeneratorRun
+from ax.core.observation import ObservationFeatures
+from ax.core.utils import extend_pending_observations, extract_pending_observations
+from ax.exceptions.core import AxError, DataRequiredError, UnsupportedError
+from ax.exceptions.generation_strategy import (
+    GenerationStrategyCompleted,
+    GenerationStrategyMisconfiguredException,
+)
+from ax.generation_strategy.generation_node import (  # noqa: F401
+    GEN_STEP_NAME,
+    GenerationNode,
+    GenerationStep,  # Re-exported for backward compatibility.
+)
+from ax.utils.common.base import Base
+from ax.utils.common.logger import get_logger
+from pyre_extensions import none_throws
+
+logger: Logger = get_logger(__name__)
+
+
+T = TypeVar("T")
+
+
+class GenerationStrategy(Base):
+    """``GenerationStrategy`` describes which ``GenerationNode`` should be used to
+    generate new points for the next trials (as well as which node should be used for
+    predictions from the surrogate model etc.), enabling and automating use of
+    different nodes throughout the optimization process. An in-depth tutorial on
+    the Ax ``GenerationStrategy``: https://ax.dev/docs/generation_strategy.
+
+    For instance, it allows to use one node for the initialization trials, and
+    another one for all subsequent trials. In the general case, this allows to
+    automate use of an arbitrary number of nodes to generate an arbitrary
+    numbers of trials.
+
+    Args:
+        nodes: A list of `GenerationNode` (or legacy `GenerationStep`). Each
+            `GenerationNode` in the list represents a single node in a
+            `GenerationStrategy` which, when composed of `GenerationNodes`, can
+            be conceptualized as a graph instead of a linear list.
+            `TransitionCriterion` defined in each `GenerationNode` represent the
+            edges in the `GenerationStrategy` graph. `GenerationNodes` are more
+            flexible than `GenerationSteps` and new `GenerationStrategies`
+            should use nodes.
+        name: An optional name for this generation strategy. If not specified,
+            strategy's name will be names of its nodes' generators joined with '+'.
+    """
+
+    _nodes: list[GenerationNode]
+    _curr: GenerationNode  # Current node in the strategy.
+    # All generator runs created through this generation strategy, in chronological
+    # order.
+    _generator_runs: list[GeneratorRun]
+    # Experiment, for which this generation strategy has generated trials, if
+    # it exists.
+    _name: str
+    _experiment: Experiment | None = None
+
+    def __init__(
+        self,
+        *,
+        nodes: Sequence[GenerationNode | GenerationStep],
+        name: str | None = None,
+    ) -> None:
+        self._generator_runs = []
+        # GenerationStep.__new__ returns GenerationNode, so all elements
+        # are GenerationNode at runtime despite the union type signature.
+        self._validate_and_set_node_graph(nodes=cast(list[GenerationNode], list(nodes)))
+
+        # Set name to an explicit value ahead of time to avoid
+        # adding properties during equality checks
+        self._name = name or self._make_default_name()
+
+    @property
+    def nodes_by_name(self) -> dict[str, GenerationNode]:
+        """Returns a dictionary mapping node names to nodes."""
+        return {node.name: node for node in self._nodes}
+
+    @property
+    def name(self) -> str:
+        """Name of this generation strategy. Defaults to a combination of generator
+        names provided in generation steps, set at the time of the
+        ``GenerationStrategy`` creation.
+        """
+        return self._name
+
+    @name.setter
+    def name(self, name: str) -> None:
+        """Set generation strategy name."""
+        self._name = name
+
+    @property
+    def name(self) -> str:
+        """Name of this generation strategy."""
+        return self._name
+
+    @property
+    def current_node(self) -> GenerationNode:
+        """Current generation node."""
+        return self._curr
+
+    @property
+    def current_node_name(self) -> str:
+        """Current generation node name."""
+        return self._curr.name
+
+    @property
+    def adapter(self) -> Adapter | None:
+        """The adapter from the current node of this strategy. Returns None
+        if no adapter has been set yet. This can happen if no generator runs have
+        been produced from this GS or if the current node does not utilize
+        adapters (the case for ``ExternalGenerationNode``).
+        """
+        return self._curr._fitted_adapter
+
+    def fit(
+        self,
+        experiment: Experiment,
+        data: Data | None = None,
+    ) -> Adapter | None:
+        """Transition to the appropriate node and fit the model.
+
+        This is the public API for fitting a model outside the ``gen`` flow.
+        It first transitions to the appropriate node so the strategy
+        advances to the correct node based on the current experiment state
+        (e.g. selecting a transfer-learning node when auxiliary experiments
+        are present), then fits all ``GeneratorSpec``s on that node.
+
+        Args:
+            experiment: The experiment to fit the model to.
+            data: Optional data to use for fitting. If not provided, the
+                node will use ``experiment.lookup_data()``.
+
+        Returns:
+            The fitted ``Adapter`` from the selected node, or ``None`` if
+            no adapter was fitted (e.g. the node is not model-based).
+        """
+        self.experiment = experiment
+        self._maybe_transition_to_next_node(raise_data_required_error=False)
+        self._curr._fit(experiment=experiment, data=data)
+        return self.adapter
+
+    @property
+    def experiment(self) -> Experiment:
+        """Experiment, currently set on this generation strategy."""
+        if self._experiment is None:
+            raise ValueError("No experiment set on generation strategy.")
+        return none_throws(self._experiment)
+
+    @experiment.setter
+    def experiment(self, experiment: Experiment) -> None:
+        """If there is an experiment set on this generation strategy as the
+        experiment it has been generating generator runs for, check if the
+        experiment passed in is the same as the one saved and log an information
+        statement if its not. Set the new experiment on this generation strategy.
+        """
+        if self._experiment is None or experiment._name == self.experiment._name:
+            self._experiment = experiment
+        else:
+            raise UnsupportedError(
+                "This generation strategy has been used for experiment "
+                f"{self.experiment._name} so far; cannot reset experiment"
+                f" to {experiment._name}. If this is a new optimization, "
+                "a new generation strategy should be created instead."
+            )
+
+    @property
+    def last_generator_run(self) -> GeneratorRun | None:
+        """Latest generator run produced by this generation strategy.
+        Returns None if no generator runs have been produced yet.
+        """
+        # Used to restore current node when decoding a serialized GS.
+        return self._generator_runs[-1] if self._generator_runs else None
+
+    @property
+    def optimization_complete(self) -> bool:
+        """Checks whether optimization is complete.
+
+        A strategy is complete when the current node's transition criteria
+        are met and point back to itself (self-transition).
+
+        Nodes with no transition_criteria are infinite by design and never complete.
+        """
+        if len(self._curr.transition_criteria) == 0:
+            return False
+
+        can_transition, next_node = self._curr.should_transition_to_next_node(
+            raise_data_required_error=False
+        )
+        return can_transition and next_node == self._curr.name
+
+    def gen_single_trial(
+        self,
+        experiment: Experiment,
+        data: Data | None = None,
+        n: int = 1,
+        fixed_features: ObservationFeatures | None = None,
+    ) -> GeneratorRun:
+        """Produce the next points in the experiment. Additional kwargs passed to
+        this method are propagated directly to the underlying node's `gen`, along
+        with the `generator_gen_kwargs` set on the current generation node.
+
+        NOTE: Each generator run returned from this function must become a single
+        trial on the experiment to comply with assumptions made in generation
+        strategy. Do not split one generator run produced from generation strategy
+        into multiple trials (never making a generator run into a trial is allowed).
+
+        Args:
+            experiment: Experiment, for which the generation strategy is producing
+                a new generator run in the course of `gen`, and to which that
+                generator run will be added as trial(s). Information stored on the
+                experiment (e.g., trial statuses) is used to determine which node
+                will be used to produce the generator run returned from this method.
+            data: Optional data to be passed to the underlying node's `gen`, which
+                is called within this method and actually produces the resulting
+                generator run. By default, data is all data on the `experiment`.
+            n: Integer representing how many arms should be in the generator run
+                produced by this method. NOTE: Some underlying nodes may ignore
+                the `n` and produce a node-determined number of arms. In that
+                case this method will also output a generator run with number of
+                arms that can differ from `n`.
+            pending_observations: A map from metric signature to pending
+                observations for that metric, used by some nodes to avoid
+                resuggesting points that are currently being evaluated.
+        """
+        grs_for_trials = self.gen(
+            experiment=experiment,
+            data=data,
+            n=n,
+            fixed_features=fixed_features,
+            num_trials=1,
+        )
+        # `gen` returns list[list[GeneratorRun]], so grs_for_trials[0] is the
+        # list of GeneratorRuns for the first (and only) trial.
+        if len(grs_for_trials) != 1 or len(grs := grs_for_trials[0]) != 1:
+            raise AxError(  # Unexpected state of the GS; raise informatively.
+                "By calling into GenerationStrategy.gen_single_trial(), you should "
+                "be expecting a single `Trial` with only one `GeneratorRun`. However, "
+                "the underlying GenerationStrategy returned the following list"
+                f" of `GeneratorRun`-s: {grs_for_trials}."
+            )
+        return grs[0]
+
+    def gen(
+        self,
+        experiment: Experiment,
+        data: Data | None = None,
+        n: int | None = None,
+        fixed_features: ObservationFeatures | None = None,
+        num_trials: int = 1,
+    ) -> list[list[GeneratorRun]]:
+        """Produce GeneratorRuns for multiple trials at once with the possibility of
+        using multiple models per trial, getting multiple GeneratorRuns per trial.
+
+        Args:
+            experiment: ``Experiment``, for which the generation strategy is producing
+                a new generator run in the course of ``gen``, and to which that
+                generator run will be added as trial(s). Information stored on the
+                experiment (e.g., trial statuses) is used to determine which node
+                will be used to produce the generator run returned from this method.
+            data: Optional data to be passed to the underlying node's ``gen``, which
+                is called within this method and actually produces the resulting
+                generator run. By default, data is all data on the ``experiment``.
+            pending_observations: A map from metric signature to pending
+                observations for that metric, used by some nodes to avoid
+                resuggesting points that are currently being evaluated.
+            n: Integer representing how many total arms should be in the generator
+                runs produced by this method. NOTE: Some underlying nodes may ignore
+                the `n` and produce a node-determined number of arms. In that
+                case this method will also output generator runs with number of
+                arms that can differ from `n`.
+            fixed_features: An optional set of ``ObservationFeatures`` that will be
+                passed down to the underlying nodes. Note: if provided this will
+                override any algorithmically determined fixed features so it is
+                important to specify all necessary fixed features.
+            num_trials: Number of trials to generate generator runs for in this call.
+                If not provided, defaults to 1.
+
+        Returns:
+            A list of lists of lists generator runs. Each outer list represents
+            a trial being suggested and  each inner list represents a generator
+            run for that trial.
+        """
+        self.experiment = experiment
+        grs_for_multiple_trials = []
+        # TODO: Extract `n` from `ExperimentDesign` -- ensure that `n` is always present
+        # as a result and fall back to `1` if it's not there in `ExperimentDesign`.
+        pending_observations = extract_pending_observations(experiment=experiment) or {}
+        # Only check trial limit when requesting multiple trials; when num_trials <= 1,
+        # the result is always 1 regardless of the limit.
+        if num_trials > 1:
+            new_trials_limit = self._curr.new_trial_limit(raise_generation_errors=False)
+            if new_trials_limit != -1:  # There is an additional limit on new trials.
+                num_trials = min(num_trials, new_trials_limit)
+        num_trials = max(num_trials, 1)  # Ensure at least 1 trial
+        for _ in range(num_trials):
+            grs_for_multiple_trials.append(
+                self._gen_with_multiple_nodes(
+                    experiment=experiment,
+                    data=data,
+                    n=n,
+                    pending_observations=pending_observations,
+                    fixed_features=fixed_features,
+                    first_generation_in_multi=len(grs_for_multiple_trials) < 1,
+                )
+            )
+        return grs_for_multiple_trials
+
+    def current_generator_run_limit(
+        self,
+    ) -> tuple[int, bool]:
+        """First check if we can move the generation strategy to the next node, which
+        is safe, as the next call to ``gen`` will just pick up from there. Then
+        determine how many generator runs this generation strategy can generate right
+        now, assuming each one of them becomes its own trial, and whether optimization
+        is completed.
+
+        Returns: a two-item tuple of:
+              - the number of generator runs that can currently be produced, with -1
+                meaning unlimited generator runs,
+              - whether optimization is completed and the generation strategy cannot
+                generate any more generator runs at all.
+        """
+        try:
+            self._maybe_transition_to_next_node(raise_data_required_error=False)
+        except GenerationStrategyCompleted:
+            return 0, True
+
+        # if the generation strategy is not complete, optimization is not complete
+        return self._curr.new_trial_limit(), False
+
+    def clone_reset(self) -> GenerationStrategy:
+        """Copy this generation strategy without it's state."""
+        cloned_nodes = deepcopy(self._nodes)
+        for n in cloned_nodes:
+            # Unset the generation strategy back-pointer, so the nodes are not
+            # associated with any generation strategy.
+            n._generation_strategy = None
+
+        return GenerationStrategy(name=self.name, nodes=cloned_nodes)
+
+    def _unset_non_persistent_state_fields(self) -> None:
+        """Utility for testing convenience: unset fields of generation strategy
+        that are set during candidate generation; these fields are not persisted
+        during storage. To compare a pre-storage and a reloaded generation
+        strategies; call this utility on the pre-storage one first. The rest
+        of the fields should be identical.
+        """
+        for n in self._nodes:
+            n._previous_node_name = None
+            # Only used for naming step-based `GenerationNode`s during generation
+            # strategy creation; by the time we could get to this method, the
+            # naming will have already occurred and there is no reason to keep
+            # the step index around anymore.
+            n._step_index = None
+            if len(n.generator_specs) > 1:
+                n._generator_spec_to_gen_from = None
+            elif len(n.generator_specs) == 1:
+                # Reset to the sole spec, matching what __init__ sets on
+                # deserialized nodes. This is needed because
+                # _try_gen_with_fallback can override this field with a
+                # non-persisted fallback spec (e.g. Fallback_Sobol).
+                n._generator_spec_to_gen_from = n.generator_specs[0]
+            # Reset cache fields that are used for performance optimization only
+            # and should not affect equality comparisons.
+            n._trials_from_node_cache = set()
+            n._cached_trial_count = None
+
+    def _validate_and_set_step_sequence(self, steps: list[GenerationNode]) -> None:
+        """Initialize and validate the steps provided to this GenerationStrategy.
+
+        Some GenerationStrategies are composed of GenerationStep objects, but we also
+        need to initialize the correct GenerationNode representation for these steps.
+        This function validates:
+            1. That only the last step has num_trials=-1, which indicates unlimited
+               trial generation is possible.
+            2. That each step's num_trials attribute is either positive or -1
+            3. That each step's max_parallelism attribute is either None or positive
+        It then sets the correct TransitionCriterion and node_name attributes on the
+        underlying GenerationNode objects.
+        """
+        for idx, step in enumerate(steps):
+            step._name = GEN_STEP_NAME.format(
+                step_index=idx, generator_name=step.generator_name
+            )
+            step._step_index = idx
+            step._generation_strategy = self
+
+            # Determine transition_to for steps, last step will transition to self
+            is_last_step = idx == len(steps) - 1
+            next_step_name = (
+                step.name
+                if is_last_step
+                else GEN_STEP_NAME.format(
+                    step_index=idx + 1,
+                    generator_name=steps[idx + 1].generator_name,
+                )
+            )
+            for tc in step.transition_criteria:
+                tc._transition_to = next_step_name
+        self._curr = steps[0]
+
+    def _validate_and_set_node_graph(self, nodes: list[GenerationNode]) -> None:
+        """Initialize and validate the node graph provided to this GenerationStrategy.
+
+        This function validates:
+            1. That all nodes have unique names.
+            2. That there is at least one node with a transition_to field.
+            3. That all `transition_to` attributes on a TransitionCriterion point to
+                another node in the same GenerationStrategy.
+            4. Warns if no nodes contain a transition criterion
+        """
+        self._nodes = nodes
+        if any(n.from_step for n in nodes):
+            if not all(n.from_step for n in nodes):
+                raise GenerationStrategyMisconfiguredException(
+                    "`GenerationStrategy` must either be entirely comprised "
+                    "of `GenerationStep`-s or not have any."
+                )
+            self._validate_and_set_step_sequence(steps=nodes)
+
+        # Validate node names are unique and set back-pointer to this GS
+        node_names = set()
+        for node in nodes:
+            if node.name in node_names:
+                raise GenerationStrategyMisconfiguredException(
+                    error_info="All node names in a GenerationStrategy must be unique."
+                )
+            node_names.add(node.name)
+            node._generation_strategy = self
+
+        # Validate transition edges:
+        # - All `transition_to` targets must exist in this GS
+        # - All TCs on one edge must have the same `continue_trial_generation` setting
+        for node in nodes:
+            for next_node, tcs in node.transition_edges.items():
+                if next_node not in node_names:
+                    raise GenerationStrategyMisconfiguredException(
+                        error_info=f"`transition_to` argument "
+                        f"{next_node} does not correspond to any node in"
+                        " this GenerationStrategy."
+                    )
+                elif len({tc.continue_trial_generation for tc in tcs}) > 1:
+                    raise GenerationStrategyMisconfiguredException(
+                        error_info=f"All transition criteria on an edge "
+                        f"from node {node.name} to node {next_node} "
+                        "should have the same `continue_trial_generation` "
+                        "setting."
+                    )
+
+        self._curr = nodes[0]
+
+    def _make_default_name(self) -> str:
+        """Make a default name for this generation strategy; used when no name is passed
+        to the constructor. For node-based generation strategies, the name is
+        constructed by joining together the names of the nodes set on this
+        generation strategy. For step-based generation strategies, the generator keys
+        of the underlying generator specs are used.
+        Note: This should only be called once the nodes are set.
+        """
+        if not self._nodes:
+            raise UnsupportedError(
+                "Cannot make a default name for a generation strategy with no nodes "
+                "set yet."
+            )
+        return "+".join(node.name for node in self._nodes)
+
+    def __repr__(self) -> str:
+        """String representation of this generation strategy."""
+        gs_str = f"GenerationStrategy(name='{self.name}', "
+        gs_str += f"nodes={str(self._nodes)})"
+        return gs_str
+
+    # ------------------------- Candidate generation helpers. -------------------------
+
+    def _gen_with_multiple_nodes(
+        self,
+        experiment: Experiment,
+        n: int | None = None,
+        pending_observations: dict[str, list[ObservationFeatures]] | None = None,
+        data: Data | None = None,
+        fixed_features: ObservationFeatures | None = None,
+        first_generation_in_multi: bool = True,
+    ) -> list[GeneratorRun]:
+        """Produces a List of GeneratorRuns for a single trial, either ``Trial`` or
+        ``BatchTrial``, and if producing a ``BatchTrial``, allows for multiple
+        ``GenerationNode``-s (and therefore generators) to be used to generate
+        ``GeneratorRun``-s for that trial.
+
+
+        Args:
+            experiment: Experiment, for which the generation strategy is producing
+                a new generator run in the course of `gen`, and to which that
+                generator run will be added as trial(s). Information stored on the
+                experiment (e.g., trial statuses) is used to determine which node
+                will be used to produce the generator run returned from this method.
+            data: Optional data to be passed to the underlying node's `gen`, which
+                is called within this method and actually produces the resulting
+                generator run. By default, data is all data on the `experiment`.
+            pending_observations: A map from metric signature to pending
+                observations for that metric, used by some nodes to avoid
+                resuggesting points that are currently being evaluated.
+            n: Integer representing how many arms should be in the generator run
+                produced by this method. NOTE: Some underlying nodes may ignore
+                the `n` and produce a node-determined number of arms. In that
+                case this method will also output a generator run with number of
+                arms that can differ from `n`.
+            fixed_features: An optional set of ``ObservationFeatures`` that will be
+                passed down to the underlying nodes. Note: if provided this will
+                override any algorithmically determined fixed features so it is
+                important to specify all necessary fixed features.
+
+        Returns:
+            A list of ``GeneratorRuns`` for a single trial.
+        """
+        self._experiment = experiment
+        if self.optimization_complete:
+            raise GenerationStrategyCompleted(
+                f"Generation strategy {self} generated all the trials as "
+                "specified in its nodes."
+            )
+        grs_this_gen = []
+        continue_gen_for_trial = True
+        pending_observations = (
+            pending_observations if pending_observations is not None else {}
+        )
+        self.experiment = experiment
+        pack_gs_gen_kwargs = {
+            "grs_this_gen": grs_this_gen,
+            "fixed_features": fixed_features,
+        }
+
+        while continue_gen_for_trial:
+            should_transition, node_to_gen_from_name = (
+                self._curr.should_transition_to_next_node(
+                    raise_data_required_error=False
+                )
+            )
+            node_to_gen_from = self.nodes_by_name[node_to_gen_from_name]
+            if should_transition:
+                node_to_gen_from._previous_node_name = self._curr.name
+                # reset should skip as conditions may have changed, do not reset
+                # until now so node properties can be as up to date as possible
+                node_to_gen_from._should_skip = False
+            transitioned = self._transition_to_next_node()
+            try:
+                gr = self._curr.gen(
+                    experiment=experiment,
+                    data=data,
+                    pending_observations=pending_observations,
+                    skip_fit=not (first_generation_in_multi or transitioned),
+                    n=n,
+                    **pack_gs_gen_kwargs,
+                )
+            except DataRequiredError as err:
+                # Generator needs more data, so we log the error and return
+                # as many generator runs as we were able to produce, unless
+                # no trials were produced at all (in which case its safe to raise).
+                if len(grs_this_gen) == 0:
+                    raise
+                logger.debug(f"Generator required more data: {err}.")
+                break
+            if gr is None:
+                # GR should only be none if current node's `_should_skip` is true`
+                continue
+            self._generator_runs.append(gr)
+            grs_this_gen.append(gr)
+            # ensure that the points generated from each node are marked as pending
+            # points for future calls to gen
+            extend_pending_observations(
+                experiment=experiment,
+                pending_observations=pending_observations,
+                # only pass in the most recent generator run to avoid unnecessary
+                # deduplication in extend_pending_observations
+                generator_run=gr,
+            )
+            continue_gen_for_trial = self._should_continue_gen_for_trial()
+        return grs_this_gen
+
+    def _should_continue_gen_for_trial(self) -> bool:
+        """Determine if we should continue generating for the current trial, or end
+        generation for the current trial. Note that generating more would involve
+        transitioning to a next node, because each node generates once per call to
+        ``GenerationStrategy._gen_with_multiple_nodes``.
+
+        Returns:
+            A boolean which represents if generation for a trial is complete
+        """
+        should_transition, next_node = self._curr.should_transition_to_next_node(
+            raise_data_required_error=False
+        )
+        # if we should not transition nodes, we should stop generation for this trial.
+        if not should_transition:
+            return False
+
+        # if we will transition nodes, check if the transition criterion which define
+        # the transition from this node to the next node indicate that we should
+        # continue generating in the same trial, otherwise end the generation.
+        return all(
+            tc.continue_trial_generation
+            for tc in self._curr.transition_edges[next_node]
+        )
+
+    # ------------------------- Node selection logic helpers. -------------------------
+
+    def _transition_to_next_node(self, raise_data_required_error: bool = True) -> bool:
+        """Attempts a single transition to the next node if criteria are met.
+
+        Returns:
+            Whether the generation strategy moved to the next node.
+        """
+        move_to_next_node, next_node = self._curr.should_transition_to_next_node(
+            raise_data_required_error=raise_data_required_error
+        )
+        if move_to_next_node:
+            if self.optimization_complete:
+                raise GenerationStrategyCompleted(
+                    f"Generation strategy {self} generated all the trials as "
+                    "specified in its nodes."
+                )
+            self._curr = self.nodes_by_name[next_node]
+        return move_to_next_node
+
+    def _maybe_transition_to_next_node(
+        self, raise_data_required_error: bool = True
+    ) -> bool:
+        """Moves this generation strategy to next node if the current node's
+        transition criteria are met, advancing through multiple nodes if
+        possible. This method is safe to use both when generating candidates or
+        simply checking how many generator runs (to be made into trials) can
+        currently be produced.
+
+        NOTE: this method raises ``GenerationStrategyCompleted`` error if the
+        optimization is complete
+
+        Args:
+            raise_data_required_error: Whether to raise ``DataRequiredError`` in the
+                maybe_step_completed method in GenerationNode class.
+
+        Returns:
+            Whether generation strategy moved to the next node.
+        """
+        moved = False
+        while self._transition_to_next_node(
+            raise_data_required_error=raise_data_required_error
+        ):
+            moved = True
+        return moved

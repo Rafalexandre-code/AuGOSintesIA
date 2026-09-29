@@ -1,5 +1,5 @@
 ### model
-model_name_or_path: /home/ubuntu/project/nanodatabase/qwen3-0.6b
+model_name_or_path: Qwen/Qwen3-0.6B  # HF id or local folder
 flash_attn: fa2
 
 ### method
@@ -9,7 +9,7 @@ finetuning_type: full
 
 ### dataset
 dataset: dataset
-dataset_dir: /home/ubuntu/project/nanodatabase/application
+dataset_dir: .  # needs a dataset_info.json registering "dataset" (see ../dataset_info.json)
 template: qwen3
 cutoff_len: 2048
 overwrite_cache: true
@@ -17,7 +17,7 @@ preprocessing_num_workers: 8
 
 
 ### output
-output_dir: /home/ubuntu/project/nanodatabase/application/saves/qwen3-0.6b-lr3e-5-bs8-ga8
+output_dir: saves/qwen3-0.6b-lr3e-5-bs8-ga8
 logging_steps: 10
 save_steps: 368
 plot_loss: true
@@ -35,7 +35,7 @@ ddp_timeout: 180000000
 max_grad_norm: 1.0
 dataloader_num_workers: 4
 gradient_checkpointing: true
-deepspeed: /home/ubuntu/project/nanodatabase/application/ds_config_zero3_model_parallel.json
+deepspeed: ds_config_zero3_model_parallel.json
 max_steps: -1
 
 ### eval

@@ -1,0 +1,309 @@
+#
+#    Project: X-ray image reader
+#             https://github.com/silx-kit/fabio
+#
+#
+#    Copyright (C) European Synchrotron Radiation Facility, Grenoble, France
+#
+#    Principal author:       Jérôme Kieffer (Jerome.Kieffer@ESRF.eu)
+#
+#  Permission is hereby granted, free of charge, to any person obtaining a copy
+#  of this software and associated documentation files (the "Software"), to deal
+#  in the Software without restriction, including without limitation the rights
+#  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+#  copies of the Software, and to permit persons to whom the Software is
+#  furnished to do so, subject to the following conditions:
+#  .
+#  The above copyright notice and this permission notice shall be included in
+#  all copies or substantial portions of the Software.
+#  .
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+#  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+#  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+#  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+#  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+#  THE SOFTWARE.
+"""
+
+Authors: Henning O. Sorensen & Erik Knudsen
+         Center for Fundamental Research: Metal Structures in Four Dimensions
+         Risoe National Laboratory
+         Frederiksborgvej 399
+         DK-4000 Roskilde
+         email:erik.knudsen@risoe.dk
+
++ mods for fabio by JPW
+
+"""
+
+import logging
+import re
+
+import numpy
+
+from .fabioimage import FabioImage
+from .fabioutils import ENDIANNESS
+from typing import ClassVar
+
+logger = logging.getLogger(__name__)
+
+_DATA_TYPES = {
+    "signed char": numpy.int8,
+    "unsigned char": numpy.uint8,
+    "short int": numpy.int16,
+    "unsigned short int": numpy.uint16,
+    "long int": numpy.int32,
+    "unsigned long int": numpy.uint32,
+    "float IEEE": numpy.float32,
+    # Valid but unsupported
+    "Compressed": None,
+    # Valid but unsupported
+    "Other_type": None,
+}
+"""Mapping from Data_type content to numpy equivalent"""
+
+
+class DtrekImage(FabioImage):
+    """Read an image using the d*TREK format.
+
+    This format is used to process X-ray diffraction data from area detectors.
+    It supports processing of data from multiple detector types (imaging plates,
+    CCDs and pixel arrays) and from multiple vendors (Rigaku, Mar, Dectris,
+    Bruker and ADSC).
+
+    Rigaku providing a `specification <https://www.rigaku.com/downloads/software/free/dTREK%20Image%20Format%20v1.1.pdf>`_.
+    """
+
+    DESCRIPTION = "D*trek format (Rigaku specification 1.1)"
+
+    DEFAULT_EXTENSIONS: ClassVar[list] = ["img"]
+
+    _keyvalue_pattern = None
+
+    def __init__(self, *args, **kwargs):
+        FabioImage.__init__(self, *args, **kwargs)
+        if DtrekImage._keyvalue_pattern is None:
+            DtrekImage._keyvalue_pattern = re.compile(b"[^\n]+")
+
+    def read(self, fname, frame=None):
+        """read in the file"""
+        with self._open(fname, "rb") as infile:
+            try:
+                self._readheader(infile)
+            except Exception:
+                logger.debug("Backtrace", exc_info=True)
+                raise OSError("Error processing d*TREK header")
+
+            # FIXME: It would be good to read only the expected data
+            binary = infile.read()
+
+        # Read information of the binary data type
+        data_type = self.header.get("Data_type", None)
+        if data_type is None:
+            # Compatibility with old supported files
+            data_type = self.header.get("TYPE", None)
+            if data_type is not None and data_type == "unsigned_short":
+                pass
+            else:
+                logger.warning(
+                    "Data_type key is mandatory. Fallback to unsigner integer 16-bits."
+                )
+            numpy_type = numpy.uint16
+        else:
+            if data_type not in _DATA_TYPES:
+                raise OSError(
+                    "Data_type key contains an invalid/unsupported value: %s", data_type
+                )
+            numpy_type = _DATA_TYPES[data_type]
+            if type is None:
+                raise OSError("Data_type %s is not supported by fabio", data_type)
+
+        # Stored in case data reading fails
+        self._dtype = numpy.dtype(numpy_type)
+
+        dim = self.header.get("DIM", None)
+        if dim is None:
+            logger.warning("DIM key is mandatory. Fallback using DIM=2.")
+            dim = 2
+        else:
+            dim = int(dim)
+
+        shape = []
+        for i in range(dim):
+            value = int(self.header[f"SIZE{i + 1}"])
+            shape.insert(0, value)
+        self._shape = shape
+
+        if sum(shape) == 0:
+            data = None
+        else:
+            # Read the data into the array
+            stype = self.get_stype(self._dtype, self._get_dtrek_byte_order())
+            data = numpy.frombuffer(binary, stype).astype(self._dtype)
+            try:
+                data = data.reshape(self._shape)
+            except ValueError:
+                raise OSError(
+                    "Size spec in d*TREK header does not match "
+                    + f"size of image data field {self._shape} != {data.size}"
+                )
+        self.data = data
+        self._shape = None
+        self._dtype = None
+        self.resetvals()
+        return self
+
+    def _split_meta(self, line):
+        """Split a line into key and value.
+
+        :param bytes line: A line of bytes
+        :rtype: Tuple[str,str]
+        """
+        if b"=" not in line:
+            raise ValueError("No meta")
+        line = line.decode("ascii")
+        key, value = line.split("=")
+        return key.strip(), value.strip(" ;\n\r")
+
+    def _readheader(self, infile):
+        """Read a d*TREK header.
+
+        After the execution of this function, the cursor on infile will point
+        at the end of the header (at the start of the binary data block).
+
+        :param FileObject infile: A file object pointing at the first character
+            of the header.
+        """
+        header_line = infile.readline()
+        assert header_line.startswith(b"{")
+        header_bytes_line = infile.readline()
+        key, header_bytes = self._split_meta(header_bytes_line)
+        assert key == "HEADER_BYTES"
+        self.header[key] = header_bytes
+        header_bytes = int(header_bytes)
+
+        # Read the remining block
+        # For robustness, cause that's in fact a const
+        header_bytes -= len(header_line) + len(header_bytes_line)
+        header_block = infile.read(header_bytes)
+
+        for line in DtrekImage._keyvalue_pattern.finditer(header_block):
+            line = line.group(0)
+            if line.startswith(b"}"):
+                # Remining part is padding
+                return
+            try:
+                key, value = self._split_meta(line)
+                self.header[key] = value
+            except ValueError:
+                pass
+
+        # It means there was no end of block
+        logger.warning("The end of block '}' was not reachable. File may be corrupted.")
+
+    def write(self, fname):
+        """
+        Write d*TREK format
+        """
+
+        # From specification
+        HEADER_START = b"{\n"
+        HEADER_END = b"}\n\x0c\n"
+        HEADER_BYTES_TEMPLATE = "HEADER_BYTES=% 5d;\n"
+        # start + end + header_bytes_key + header_bytes_value + header_bytes_end
+        MINIMAL_HEADER_SIZE = 2 + 4 + 13 + 5 + 2
+
+        data = self.data
+        if data is not None:
+            dtrek_data_type = None
+            for key, value in _DATA_TYPES.items():
+                if data.dtype.type == value:
+                    dtrek_data_type = key
+                    break
+
+            if dtrek_data_type is None:
+                if data.dtype.kind == "f":
+                    dtrek_data_type = "float IEEE"
+                elif data.dtype.kind == "u":
+                    dtrek_data_type = "unsigned long int"
+                elif data.dtype.kind == "i":
+                    dtrek_data_type = "long int"
+                else:
+                    raise TypeError("Unsupported data type %s", data.dtype)
+                new_dtype = numpy.dtype(_DATA_TYPES[dtrek_data_type])
+                logger.warning(
+                    "Data type %s unsupported. Store it as %s.", data.dtype, new_dtype
+                )
+                data = data.astype(new_dtype)
+
+            byte_order = self._get_dtrek_byte_order(
+                default=ENDIANNESS.LITTLE if numpy.little_endian else ENDIANNESS.BIG)
+            data = data.astype(self.get_stype(data.dtype, byte_order))
+
+            # Patch header to match the data
+            self.header["Data_type"] = dtrek_data_type
+            self.header["DIM"] = str(len(data.shape))
+            for i, size in enumerate(reversed(data.shape)):
+                self.header[f"SIZE{i + 1}"] = str(size)
+            self.header["BYTE_ORDER"] = "little_endian" if byte_order==ENDIANNESS.LITTLE else "big_endian"
+        else:
+            # No data
+            self.header["Data_type"] = "long int"
+            self.header["DIM"] = "2"
+            self.header["SIZE1"] = "0"
+            self.header["SIZE2"] = "0"
+            self.header["BYTE_ORDER"] = "little_endian"
+
+        out = b""
+        for key in self.header:
+            if key == "HEADER_BYTES":
+                continue
+            line = f"{key}= {self.header[key]};\n"
+            out += line.encode("utf-8")
+
+        # FIXME: This code do not take into account the size of "HEADER_BYTES"
+        if "HEADER_BYTES" in self.header:
+            hsize = int(self.header["HEADER_BYTES"])
+            pad = hsize - len(out) - MINIMAL_HEADER_SIZE
+            if pad < 0:
+                logger.warning("HEADER_BYTES have to be patched.")
+                minimal_hsize = hsize - pad
+                hsize = (minimal_hsize + 512) & ~(512 - 1)
+                pad = hsize - minimal_hsize
+        else:
+            minimal_hsize = len(out) + MINIMAL_HEADER_SIZE
+            hsize = (minimal_hsize + 512) & ~(512 - 1)
+            pad = hsize - minimal_hsize
+
+        header_bytes = HEADER_BYTES_TEMPLATE % hsize
+        out = (
+            HEADER_START
+            + header_bytes.encode("ascii")
+            + out
+            + HEADER_END
+            + (b" " * pad)
+        )
+        assert len(out) % 512 == 0, "Header is not multiple of 512"
+
+        with open(fname, "wb") as outf:
+            outf.write(out)
+            if data is not None:
+                data.tofile(outf)
+
+    def _get_dtrek_byte_order(self, default=ENDIANNESS.LITTLE) -> ENDIANNESS:
+        """Returns the byte order value in d*TREK format."""
+        if "BYTE_ORDER" in self.header:
+            byte_order = self.header["BYTE_ORDER"]
+            if "little" in byte_order:
+                return ENDIANNESS.LITTLE
+            elif "big" in byte_order:
+                return ENDIANNESS.BIG
+            else:
+                logger.warning(
+                    "Invalid BYTE_ORDER value. Found '%s', assuming default: %s",
+                    byte_order, default
+                )
+                return default
+        else:
+            return default

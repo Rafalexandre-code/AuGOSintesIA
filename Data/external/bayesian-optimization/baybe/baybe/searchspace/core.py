@@ -1,0 +1,689 @@
+"""Functionality for managing search spaces."""
+
+from __future__ import annotations
+
+import gc
+from collections.abc import Collection, Iterable, Iterator, Sequence
+from enum import Enum
+from itertools import product
+from typing import TYPE_CHECKING, ClassVar, cast
+
+import numpy as np
+import numpy.typing as npt
+import pandas as pd
+from attrs import define, field
+from typing_extensions import Self, override
+
+from baybe.constraints import validate_constraints
+from baybe.constraints.base import Constraint
+from baybe.exceptions import (
+    InfeasibilityError,
+    _UnsupportedSearchSpaceAttributeError,
+)
+from baybe.parameters import TaskParameter
+from baybe.parameters.base import Parameter
+from baybe.searchspace.continuous import SubspaceContinuous
+from baybe.searchspace.discrete import (
+    MemorySize,
+    SubspaceDiscrete,
+    validate_simplex_subspace_from_config,
+)
+from baybe.searchspace.validation import (
+    validate_dataframe_active_values,
+    validate_parameters,
+)
+from baybe.serialization import SerialMixin, converter, select_constructor_hook
+from baybe.utils.conversion import to_string
+
+if TYPE_CHECKING:
+    from baybe.parameters.selectors import ParameterSelectorProtocol
+
+
+class SearchSpaceType(Enum):
+    """Enum class for different types of search spaces and respective compatibility."""
+
+    DISCRETE = "DISCRETE"
+    """Flag for discrete search spaces resp. compatibility with discrete search
+    spaces."""
+
+    CONTINUOUS = "CONTINUOUS"
+    """Flag for continuous search spaces resp. compatibility with continuous
+    search spaces."""
+
+    EITHER = "EITHER"
+    """Flag compatibility with either discrete or continuous, but not hybrid
+    search spaces."""
+
+    HYBRID = "HYBRID"
+    """Flag for hybrid search spaces resp. compatibility with hybrid search spaces."""
+
+
+@define
+class SearchSpace(SerialMixin):
+    """Class for managing the overall search space.
+
+    The search space might be purely discrete, purely continuous, or hybrid.
+    Note that created objects related to the computational representations of parameters
+    (e.g., parameter bounds, computational dataframes, etc.) may use a different
+    parameter order than what is specified through the constructor: While the
+    passed parameter list can contain parameters in arbitrary order, the
+    aforementioned objects (by convention) list discrete parameters first, followed
+    by continuous ones.
+    """
+
+    discrete: SubspaceDiscrete = field(factory=SubspaceDiscrete.empty)
+    """The (potentially empty) discrete subspace of the overall search space."""
+
+    continuous: SubspaceContinuous = field(factory=SubspaceContinuous.empty)
+    """The (potentially empty) continuous subspace of the overall search space."""
+
+    @override
+    def __str__(self) -> str:
+        fields = [
+            to_string("Search Space Type", self.type.name, single_line=True),
+        ]
+        if not self.discrete.is_empty:
+            fields.append(str(self.discrete))
+        if not self.continuous.is_empty:
+            fields.append(str(self.continuous))
+        return to_string(self.__class__.__name__, *fields)
+
+    def __attrs_post_init__(self):
+        """Perform validation."""
+        validate_parameters(self.parameters)
+        validate_constraints(self.constraints, self.parameters)
+
+    @classmethod
+    def from_parameter(cls, parameter: Parameter) -> SearchSpace:
+        """Create a search space from a single parameter.
+
+        Args:
+            parameter: The parameter to span the search space.
+
+        Returns:
+            The created search space.
+        """
+        return cls.from_product([parameter])
+
+    @classmethod
+    def from_product(
+        cls,
+        parameters: Sequence[Parameter],
+        constraints: Sequence[Constraint] | None = None,
+        empty_encoding: bool = False,
+    ) -> Self:
+        """Create a search space from a cartesian product.
+
+        In the search space, optional subsequent constraints are applied.
+        That is, the discrete subspace becomes the (filtered) cartesian product
+        containing all discrete parameter combinations while, analogously, the
+        continuous subspace represents the (filtered) cartesian product of all
+        continuous parameters.
+
+        Args:
+            parameters: The parameters spanning the search space.
+            constraints: An optional set of constraints restricting the valid parameter
+                space.
+            empty_encoding: If ``True``, uses an "empty" encoding for all parameters.
+                This is useful, for instance, in combination with random search
+                strategies that do not read the actual parameter values, since it avoids
+                the (potentially costly) transformation of the parameter values to their
+                computational representation.
+
+        Returns:
+            The constructed search space.
+        """
+        # IMPROVE: The arguments get pre-validated here to avoid the potentially costly
+        #   creation of the subspaces. Perhaps there is an elegant way to bypass the
+        #   default validation in the initializer (which is required for other
+        #   ways of object creation) in this particular case.
+        validate_parameters(parameters)
+        if constraints:
+            validate_constraints(constraints, parameters)
+        else:
+            constraints = []
+
+        discrete = SubspaceDiscrete.from_product(
+            parameters=[p for p in parameters if p.is_discrete],  # type:ignore[misc]
+            constraints=[c for c in constraints if c.is_discrete],  # type:ignore[misc]
+            empty_encoding=empty_encoding,
+        )
+        continuous = SubspaceContinuous.from_product(
+            parameters=[p for p in parameters if p.is_continuous],  # type:ignore[misc]
+            constraints=[c for c in constraints if c.is_continuous],  # type:ignore[misc]
+        )
+
+        return cls(discrete=discrete, continuous=continuous)
+
+    @classmethod
+    def from_dataframe(
+        cls,
+        df: pd.DataFrame,
+        parameters: Sequence[Parameter],
+    ) -> Self:
+        """Create a search space from a specified set of parameter configurations.
+
+        The way in which the contents of the columns are interpreted depends on the
+        types of the corresponding parameter objects provided. For details, see
+        :meth:`baybe.searchspace.discrete.SubspaceDiscrete.from_dataframe` and
+        :meth:`baybe.searchspace.continuous.SubspaceContinuous.from_dataframe`.
+
+        Args:
+            df: A dataframe whose parameter configurations are used as
+                search space specification.
+            parameters: The corresponding parameter objects, one for each column
+                in the provided dataframe.
+
+        Returns:
+            The created search space.
+
+        Raises:
+            ValueError: If the dataframe columns do not match with the parameters.
+        """
+        if {p.name for p in parameters} != set(df.columns.values):
+            raise ValueError(
+                "The provided dataframe columns must match exactly with the specified "
+                "parameter names."
+            )
+
+        disc_params = [p for p in parameters if p.is_discrete]
+        cont_params = [p for p in parameters if p.is_continuous]
+
+        validate_dataframe_active_values(df, disc_params)
+
+        return cls(
+            discrete=SubspaceDiscrete.from_dataframe(
+                df[[p.name for p in disc_params]],
+                disc_params,  # type:ignore[arg-type]
+            ),
+            continuous=SubspaceContinuous.from_dataframe(
+                df[[p.name for p in cont_params]],
+                cont_params,  # type:ignore[arg-type]
+            ),
+        )
+
+    @property
+    def parameters(self) -> tuple[Parameter, ...]:
+        """Return the list of parameters of the search space."""
+        return (*self.discrete.parameters, *self.continuous.parameters)
+
+    @property
+    def constraints(self) -> tuple[Constraint, ...]:
+        """Return the constraints of the search space."""
+        return (
+            *self.discrete.constraints,
+            *self.continuous.constraints_lin_eq,
+            *self.continuous.constraints_lin_ineq,
+            *self.continuous.constraints_nonlin,
+        )
+
+    @property
+    def is_constrained(self) -> bool:
+        """Boolean indicating if the search space has any constraints."""
+        return self.discrete.is_constrained or self.continuous.is_constrained
+
+    @property
+    def type(self) -> SearchSpaceType:
+        """Return the type of the search space."""
+        if self.discrete.is_empty and not self.continuous.is_empty:
+            return SearchSpaceType.CONTINUOUS
+        if not self.discrete.is_empty and self.continuous.is_empty:
+            return SearchSpaceType.DISCRETE
+        if not self.discrete.is_empty and not self.continuous.is_empty:
+            return SearchSpaceType.HYBRID
+        raise RuntimeError("This line should be impossible to reach.")
+
+    @property
+    def comp_rep_columns(self) -> tuple[str, ...]:
+        """The columns spanning the computational representation."""
+        return self.discrete.comp_rep_columns + self.continuous.comp_rep_columns
+
+    @property
+    def comp_rep_bounds(self) -> pd.DataFrame:
+        """The minimum and maximum values of the computational representation."""
+        return pd.concat(
+            [self.discrete.comp_rep_bounds, self.continuous.comp_rep_bounds],
+            axis=1,
+        )
+
+    @property
+    def scaling_bounds(self) -> pd.DataFrame:
+        """The bounds used for scaling the surrogate model input."""
+        return pd.concat(
+            [self.discrete.scaling_bounds, self.continuous.scaling_bounds], axis=1
+        )
+
+    @property
+    def parameter_names(self) -> tuple[str, ...]:
+        """Return tuple of parameter names."""
+        return self.discrete.parameter_names + self.continuous.parameter_names
+
+    @property
+    def _task_parameter(self) -> TaskParameter | None:
+        """The (single) task parameter of the space, if it exists."""
+        # Currently private since only a temporary solution (--> extension to multiple
+        # task parameters needed)
+        params = [p for p in self.parameters if isinstance(p, TaskParameter)]
+
+        if not params:
+            return None
+
+        assert len(params) == 1  # currently ensured by parameter validation step
+        return params[0]
+
+    @property
+    def task_idx(self) -> int | None:
+        """The column index of the task parameter in computational representation."""
+        if (task_param := self._task_parameter) is None:
+            return None
+        # TODO[11611]: The current approach has three limitations:
+        #   1.  It matches by column name and thus assumes that the parameter name
+        #       is used as the column name.
+        #   2.  It relies on the current implementation detail that discrete parameters
+        #       appear first in the computational dataframe.
+        #   3.  It assumes there exists exactly one task parameter
+        #   --> Fix this when refactoring the data
+        return cast(int, self.discrete.comp_rep.columns.get_loc(task_param.name))
+
+    @property
+    def n_tasks(self) -> int:
+        """The number of tasks encoded in the search space."""
+        # TODO [16932]: This approach only works for a single task parameter. For
+        #  multiple task parameters, we need to align what the output should even
+        #  represent (e.g. number of combinatorial task combinations, number of
+        #  tasks per task parameter, etc).
+        if (task_param := self._task_parameter) is None:
+            # When there are no task parameters, we effectively have a single task
+            return 1
+        return len(task_param.values)
+
+    @property
+    def n_subsets(self) -> int:
+        """Total number of subset configurations.
+
+        Returns 0 if no subset constraints exist on either side.
+        When only one side has constraints, the other does not contribute to
+        the count.
+        """
+        d = self.discrete.n_subsets
+        c = self.continuous.n_subsets
+        if d == 0 == c:
+            return 0
+        return max(d, 1) * max(c, 1)
+
+    def subsets(
+        self,
+        candidates_exp: pd.DataFrame,
+        min_discrete_candidates: int | None = None,
+    ) -> Iterator[tuple[npt.NDArray[np.bool_], frozenset[str]]]:
+        r"""Get an iterator over all combined subset configurations.
+
+        Yields the Cartesian product of discrete masks and continuous
+        configurations.
+
+        Args:
+            candidates_exp: The experimental representation of discrete candidates.
+            min_discrete_candidates: If provided, discrete Subsets with fewer
+                matching candidates are skipped.
+
+        Yields:
+            A discrete mask and continuous inactive parameters pair.
+        """
+        yield from product(
+            self.discrete.subset_masks(
+                candidates_exp, min_candidates=min_discrete_candidates
+            ),
+            self.continuous.inactive_parameter_combinations(),
+        )
+
+    def sample_subsets(
+        self,
+        candidates_exp: pd.DataFrame,
+        n: int,
+        min_discrete_candidates: int | None = None,
+        *,
+        max_rejections: int = 10,
+    ) -> list[tuple[npt.NDArray[np.bool_], frozenset[str]]]:
+        """Sample unique combined subset configurations.
+
+        Zips two independent with-replacement iterators from the discrete and
+        continuous sides, producing random pairs from the Cartesian product.
+        Duplicate pairs are skipped.
+
+        Args:
+            candidates_exp: The experimental representation of discrete candidates.
+            n: Number of unique configurations to sample.
+            min_discrete_candidates: If provided, discrete Subsets with fewer
+                matching candidates are excluded.
+            max_rejections: Maximum number of times a duplicate combination can
+                be drawn before raising ``InfeasibilityError``.
+
+        Raises:
+            InfeasibilityError: If not enough unique subset configurations
+                are available.
+
+        Returns:
+            A list of ``(discrete_mask, continuous_inactive_params)`` tuples.
+        """
+        d_iter = self.discrete.subset_masks(
+            candidates_exp,
+            min_candidates=min_discrete_candidates,
+            mode="replace",
+        )
+        c_iter = self.continuous.inactive_parameter_combinations(mode="replace")
+
+        seen: set[tuple[bytes, frozenset[str]]] = set()
+        results: list[tuple[npt.NDArray[np.bool_], frozenset[str]]] = []
+        rejections = 0
+
+        for d_mask, c_config in zip(d_iter, c_iter):
+            key = (d_mask.tobytes(), c_config)
+            if key in seen:
+                rejections += 1
+                if rejections > max_rejections:
+                    raise InfeasibilityError(
+                        f"Not enough unique subset configurations available. "
+                        f"Requested {n} but only {len(results)} could be found."
+                    )
+                continue
+            seen.add(key)
+            rejections = 0
+            results.append((d_mask, c_config))
+            if len(results) >= n:
+                break
+
+        if len(results) < n:
+            raise InfeasibilityError(
+                f"Not enough unique subspace configurations available. "
+                f"Requested {n} but only {len(results)} could be found."
+            )
+
+        return results
+
+    def get_comp_rep_parameter_indices(
+        self,
+        name_or_selector: str | ParameterSelectorProtocol,
+        /,
+    ) -> tuple[int, ...]:
+        """Find comp-rep column indices for a parameter selection.
+
+        When called with a parameter name, returns the indices for that single
+        parameter. When called with a
+        :class:`~baybe.parameters.selectors.ParameterSelectorProtocol`,
+        returns the combined indices for all matching parameters.
+
+        Args:
+            name_or_selector: Either the name of a single parameter or a selector
+                that filters parameters to be included.
+
+        Returns:
+            A tuple containing the integer indices of the columns in the computational
+            representation associated with the selected parameter(s). When a selected
+            parameter is not part of the computational representation, it contributes
+            no indices.
+        """
+        if isinstance(name_or_selector, str):
+            params: list[Parameter] = [
+                p for p in self.parameters if p.name == name_or_selector
+            ]
+        else:
+            params = [p for p in self.parameters if name_or_selector(p)]
+
+        return tuple(
+            i
+            for p in params
+            for i, col in enumerate(self.comp_rep_columns)
+            if col in p.comp_rep_columns
+        )
+
+    def _get_n_comp_rep_columns(
+        self,
+        name_or_selector: str | ParameterSelectorProtocol,
+        /,
+    ) -> int:
+        """Get the number of comp-rep columns for a parameter selection.
+
+        Args:
+            name_or_selector: Either the name of a single parameter or a selector
+                that filters parameters to be included.
+
+        Returns:
+            The number of columns in the computational representation associated
+            with the selected parameter(s).
+        """
+        return len(self.get_comp_rep_parameter_indices(name_or_selector))
+
+    @staticmethod
+    def estimate_product_space_size(parameters: Iterable[Parameter]) -> MemorySize:
+        """Estimate an upper bound for the memory size of a product space.
+
+        Continuous parameters are ignored because creating a continuous subspace has
+        no considerable memory footprint.
+
+        Args:
+            parameters: The parameters spanning the product space.
+
+        Returns:
+            The estimated memory size.
+        """
+        discrete_parameters = [p for p in parameters if p.is_discrete]
+        return SubspaceDiscrete.estimate_product_space_size(discrete_parameters)  # type: ignore[arg-type]
+
+    def transform(
+        self,
+        df: pd.DataFrame,
+        /,
+        *,
+        allow_missing: bool = False,
+        allow_extra: bool = False,
+    ) -> pd.DataFrame:
+        """Transform parameters from experimental to computational representation.
+
+        Args:
+            df: The dataframe to be transformed. The allowed columns of the dataframe
+                are dictated by the ``allow_missing`` and ``allow_extra`` flags.
+            allow_missing: If ``False``, each parameter of the space must have
+                exactly one corresponding column in the given dataframe. If ``True``,
+                the dataframe may contain only a subset of parameter columns.
+            allow_extra: If ``False``, each column present in the dataframe must
+                correspond to exactly one parameter of the space. If ``True``, the
+                dataframe may contain additional non-parameter-related columns, which
+                will be ignored.
+
+        Returns:
+            A corresponding dataframe with parameters in computational representation.
+        """
+        # Potentially existing columns of the respective other subspace would trivially
+        # be "extra" columns, so we drop them first. However, in this step, we can
+        # ignore if columns are not complete since a proper error will be raised in the
+        # corresponding transformation step of each space below.
+        df_disc_in = df.drop(
+            columns=list(self.continuous.parameter_names), errors="ignore"
+        )
+        df_cont_in = df.drop(
+            columns=list(self.discrete.parameter_names), errors="ignore"
+        )
+
+        # Transform subspaces separately
+        df_disc_out = self.discrete.transform(
+            df_disc_in, allow_missing=allow_missing, allow_extra=allow_extra
+        )
+        df_cont_out = self.continuous.transform(
+            df_cont_in, allow_missing=allow_missing, allow_extra=allow_extra
+        )
+
+        # Combine Subspaces
+        comp_rep = pd.concat([df_disc_out, df_cont_out], axis=1)
+
+        return comp_rep
+
+    def get_parameters_by_name(self, names: Sequence[str]) -> tuple[Parameter, ...]:
+        """Return parameters with the specified names.
+
+        Args:
+            names: Sequence of parameter names.
+
+        Returns:
+            The named parameters.
+        """
+        return self.discrete.get_parameters_by_name(
+            names
+        ) + self.continuous.get_parameters_by_name(names)
+
+    def _drop_parameters(self, names: Collection[str], /) -> _ReducedSearchSpace:
+        """Return a reduced search space without the named parameters.
+
+        The returned object exposes only parameter information and blocks
+        access to constraints, subspaces, and transformation.
+
+        Args:
+            names: The names of the parameters to remove.
+
+        Raises:
+            ValueError: If any name does not match a parameter in the space.
+
+        Returns:
+            A reduced search space containing only parameter information.
+        """
+        current_names = {p.name for p in self.parameters}
+        names_set = set(names)
+        if unknown := names_set - current_names:
+            raise ValueError(
+                f"Parameter name(s) {unknown} not found in the search space. "
+                f"Available: {current_names}."
+            )
+        remaining = [p for p in self.parameters if p.name not in names_set]
+
+        disc_params = [p for p in remaining if p.is_discrete]
+        cont_params = [p for p in remaining if p.is_continuous]
+
+        # Explicit comp_rep needed because transform() drops columns for empty inputs.
+        discrete = (
+            SubspaceDiscrete(
+                parameters=disc_params,
+                exp_rep=pd.DataFrame(columns=[p.name for p in disc_params]),
+                comp_rep=pd.DataFrame(
+                    columns=[c for p in disc_params for c in p.comp_rep_columns]
+                ),
+            )
+            if disc_params
+            else SubspaceDiscrete.empty()
+        )
+
+        continuous = (
+            SubspaceContinuous(
+                parameters=cont_params,
+            )
+            if cont_params
+            else SubspaceContinuous.empty()
+        )
+
+        return _ReducedSearchSpace(discrete=discrete, continuous=continuous)
+
+
+@define(slots=False)
+class _ReducedSearchSpace(SearchSpace):
+    """A lightweight search space exposing only parameter information.
+
+    Provides access to parameter-related properties needed by kernel factory
+    calls. Blocks access to transformation, index-based lookups, and other
+    functionality requiring actual candidate data.
+
+    This class is not intended for direct construction. Use
+    :meth:`SearchSpace._drop_parameters` instead.
+    """
+
+    _ALLOWED_ATTRIBUTES: ClassVar[frozenset[str]] = frozenset(
+        {
+            "discrete",
+            "continuous",
+            "parameters",
+            "parameter_names",
+            "comp_rep_columns",
+            "constraints",
+            "type",
+            "_task_parameter",
+            "n_tasks",
+            "_get_n_comp_rep_columns",
+            "get_parameters_by_name",
+            "_ALLOWED_ATTRIBUTES",
+        }
+    )
+    """Attributes accessible on this reduced search space."""
+
+    @override
+    def __getattribute__(self, name: str):
+        """Guard attribute access, allowing only parameter-related attributes."""
+        if name.startswith("__"):
+            return object.__getattribute__(self, name)
+        allowed = object.__getattribute__(self, "_ALLOWED_ATTRIBUTES")
+        if name in allowed:
+            return object.__getattribute__(self, name)
+        raise _UnsupportedSearchSpaceAttributeError(
+            f"'{object.__getattribute__(self, '__class__').__name__}' does not "
+            f"support attribute '{name}'. Only parameter information is available."
+        )
+
+    @override
+    def _get_n_comp_rep_columns(
+        self,
+        name_or_selector: str | ParameterSelectorProtocol,
+        /,
+    ) -> int:
+        """Get the number of comp-rep columns for a parameter selection.
+
+        Args:
+            name_or_selector: Either the name of a single parameter or a selector
+                that filters parameters to be included.
+
+        Returns:
+            The number of columns in the computational representation associated
+            with the selected parameter(s).
+        """
+        if isinstance(name_or_selector, str):
+            params: list[Parameter] = [
+                p for p in self.parameters if p.name == name_or_selector
+            ]
+        else:
+            params = [p for p in self.parameters if name_or_selector(p)]
+        return sum(len(p.comp_rep_columns) for p in params)
+
+
+def to_searchspace(
+    x: Parameter | SubspaceDiscrete | SubspaceContinuous | SearchSpace, /
+) -> SearchSpace:
+    """Convert a parameter/subspace into a search space (with search space passthrough)."""  # noqa: E501
+    return x if isinstance(x, SearchSpace) else x.to_searchspace()
+
+
+def validate_searchspace_from_config(specs: dict, _) -> None:
+    """Validate the search space specifications while skipping costly creation steps."""
+    # Validate product inputs without constructing it
+    if specs.get("constructor", None) == "from_product":
+        parameters = converter.structure(specs["parameters"], list[Parameter])
+        validate_parameters(parameters)
+
+        constraints = specs.get("constraints", None)
+        if constraints:
+            constraints = converter.structure(specs["constraints"], list[Constraint])
+            validate_constraints(constraints, parameters)
+
+    else:
+        discrete_subspace_specs = specs.get("discrete", {})
+        if discrete_subspace_specs.get("constructor", None) == "from_simplex":
+            # Validate discrete simplex subspace
+            _validation_converter = converter.copy()
+            _validation_converter.register_structure_hook(
+                SubspaceDiscrete, validate_simplex_subspace_from_config
+            )
+            _validation_converter.structure(discrete_subspace_specs, SubspaceDiscrete)
+        else:
+            # For all other types, validate by construction
+            converter.structure(specs, SearchSpace)
+
+
+# Register deserialization hook
+converter.register_structure_hook(SearchSpace, select_constructor_hook)
+
+# Collect leftover original slotted classes processed by `attrs.define`
+gc.collect()

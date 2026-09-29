@@ -1,7 +1,7 @@
 #!/bin/bash
 
-gpu_id=1
-CUDA_VISIBLE_DEVICES="$gpu_id" python /u/vld/sedm6197/software/mace/scripts/run_train.py \
+gpu_id=${GPU_ID:-1}
+CUDA_VISIBLE_DEVICES="$gpu_id" ${MACE_RUN_TRAIN:-mace_run_train} \
     --name="MACE_model" \
     --train_file="structures/iter-0-train.xyz" \
     --valid_fraction=0.10 \

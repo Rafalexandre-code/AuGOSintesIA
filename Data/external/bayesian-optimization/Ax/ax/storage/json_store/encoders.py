@@ -1,0 +1,884 @@
+#!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+# pyre-strict
+
+import warnings
+from pathlib import Path
+from typing import Any, cast
+
+from ax.adapter.transforms.base import Transform
+from ax.core import Experiment, ObservationFeatures
+from ax.core.analysis_card import AnalysisCard, AnalysisCardGroup
+from ax.core.arm import Arm
+from ax.core.auxiliary import AuxiliaryExperiment
+from ax.core.batch_trial import BatchTrial
+from ax.core.data import Data
+from ax.core.generator_run import GeneratorRun
+from ax.core.metric import Metric
+from ax.core.multi_type_experiment import MultiTypeExperiment
+from ax.core.objective import MultiObjective, Objective, ScalarizedObjective
+from ax.core.optimization_config import (
+    MultiObjectiveOptimizationConfig,
+    OptimizationConfig,
+    PreferenceOptimizationConfig,
+)
+from ax.core.outcome_constraint import OutcomeConstraint, ScalarizedOutcomeConstraint
+from ax.core.parameter import (
+    ChoiceParameter,
+    DerivedParameter,
+    FixedParameter,
+    RangeParameter,
+)
+from ax.core.parameter_constraint import ParameterConstraint
+from ax.core.runner import Runner
+from ax.core.search_space import SearchSpace
+from ax.core.trial import Trial
+from ax.early_stopping.strategies import (
+    LogicalEarlyStoppingStrategy,
+    PercentileEarlyStoppingStrategy,
+    ThresholdEarlyStoppingStrategy,
+)
+from ax.exceptions.core import AxStorageWarning, UnsupportedError
+from ax.exceptions.storage import JSON_STORAGE_DOCS_SUFFIX, JSONEncodeError
+from ax.generation_strategy.best_model_selector import BestModelSelector
+from ax.generation_strategy.generation_node import GenerationNode
+from ax.generation_strategy.generation_strategy import (
+    GenerationStep,
+    GenerationStrategy,
+)
+from ax.generation_strategy.generator_spec import GeneratorSpec
+from ax.generation_strategy.transition_criterion import (
+    PausingCriterion,
+    TransitionCriterion,
+)
+from ax.generators.torch.botorch_modular.generator import BoTorchGenerator
+from ax.generators.torch.botorch_modular.surrogate import Surrogate
+from ax.generators.winsorization_config import WinsorizationConfig
+from ax.global_stopping.strategies.improvement import ImprovementGlobalStoppingStrategy
+from ax.storage.botorch_modular_registry import CLASS_TO_REGISTRY
+from ax.storage.utils import (
+    data_to_data_by_trial,
+    EXPECT_RELATIVIZED_OUTCOMES,
+    PREFERENCE_PROFILE_NAME,
+)
+from ax.utils.common.serialization import serialize_init_args
+from ax.utils.common.typeutils_torch import torch_type_to_str
+from ax.utils.testing.backend_simulator import (
+    BackendSimulator,
+    BackendSimulatorOptions,
+    SimTrial,
+)
+from botorch.models.transforms.input import ChainedInputTransform, InputTransform
+from botorch.sampling.base import MCSampler
+from botorch.utils.types import _DefaultType
+from pyre_extensions import assert_is_instance
+from torch import Tensor
+
+
+def analysis_card_to_dict(card: AnalysisCard) -> dict[str, Any]:
+    """Convert Ax analysis card to a dictionary."""
+    return {
+        "__type": card.__class__.__name__,
+        "name": card.name,
+        "title": card.title,
+        "subtitle": card.subtitle,
+        "df": card.df,
+        "blob": card.blob,
+        "timestamp": card._timestamp,
+    }
+
+
+def analysis_card_group_to_dict(group: AnalysisCardGroup) -> dict[str, Any]:
+    """Convert Ax analysis card group to a dictionary."""
+    return {
+        "__type": "AnalysisCardGroup",
+        "name": group.name,
+        "title": group.title,
+        "subtitle": group.subtitle,
+        "children": group.children,
+        "timestamp": group._timestamp,
+    }
+
+
+def experiment_to_dict(experiment: Experiment) -> dict[str, Any]:
+    """Convert Ax experiment to a dictionary."""
+    opt_config = experiment.optimization_config
+    return {
+        "__type": experiment.__class__.__name__,
+        "name": experiment._name,
+        "description": experiment.description,
+        "experiment_type": experiment.experiment_type,
+        "search_space": experiment.search_space,
+        "optimization_config": (
+            _build_opt_config_dict(
+                opt_config=opt_config, experiment_metrics=experiment._metrics
+            )
+            if opt_config is not None
+            else None
+        ),
+        "tracking_metrics": list(experiment.metrics.values()),
+        "runner": experiment.runner,
+        "status_quo": experiment.status_quo,
+        "time_created": experiment.time_created,
+        "trials": experiment.trials,
+        "is_test": experiment.is_test,
+        "data_by_trial": data_to_data_by_trial(data=experiment.data),
+        "properties": experiment._properties,
+        "_trial_type_to_runner": experiment._trial_type_to_runner,
+    }
+
+
+def multi_type_experiment_to_dict(experiment: MultiTypeExperiment) -> dict[str, Any]:
+    """Convert AE multitype experiment to a dictionary."""
+    multi_type_dict = {
+        "default_trial_type": experiment._default_trial_type,
+        "_metric_to_canonical_name": experiment._metric_to_canonical_name,
+        "_metric_to_trial_type": experiment._metric_to_trial_type,
+        "_trial_type_to_runner": experiment._trial_type_to_runner,
+    }
+    multi_type_dict.update(experiment_to_dict(experiment))
+    return multi_type_dict
+
+
+def batch_to_dict(batch: BatchTrial) -> dict[str, Any]:
+    """Convert Ax batch to a dictionary."""
+    return {
+        "__type": batch.__class__.__name__,
+        "index": batch.index,
+        "trial_type": batch.trial_type,
+        "ttl_seconds": batch.ttl_seconds,
+        "status": batch.status,
+        "status_quo": batch.status_quo,
+        "time_created": batch.time_created,
+        "time_completed": batch.time_completed,
+        "time_staged": batch.time_staged,
+        "time_run_started": batch.time_run_started,
+        "status_reason": batch.status_reason,
+        "run_metadata": batch.run_metadata,
+        "stop_metadata": batch.stop_metadata,
+        "generator_runs": batch.generator_runs,
+        "runner": batch.runner,
+        "abandoned_arms_metadata": batch._abandoned_arms_metadata,
+        "num_arms_created": batch._num_arms_created,
+        "properties": batch._properties,
+    }
+
+
+def trial_to_dict(trial: Trial) -> dict[str, Any]:
+    """Convert Ax trial to a dictionary."""
+    return {
+        "__type": trial.__class__.__name__,
+        "index": trial.index,
+        "trial_type": trial.trial_type,
+        "ttl_seconds": trial.ttl_seconds,
+        "status": trial.status,
+        "time_created": trial.time_created,
+        "time_completed": trial.time_completed,
+        "time_staged": trial.time_staged,
+        "time_run_started": trial.time_run_started,
+        "status_reason": trial.status_reason,
+        "run_metadata": trial.run_metadata,
+        "stop_metadata": trial.stop_metadata,
+        "generator_run": trial.generator_run,
+        "runner": trial.runner,
+        "num_arms_created": trial._num_arms_created,
+        "properties": trial._properties,
+    }
+
+
+def range_parameter_to_dict(parameter: RangeParameter) -> dict[str, Any]:
+    """Convert Ax range parameter to a dictionary."""
+    return {
+        "__type": parameter.__class__.__name__,
+        "name": parameter.name,
+        "parameter_type": parameter.parameter_type,
+        "lower": parameter.lower,
+        "upper": parameter.upper,
+        "log_scale": parameter.log_scale,
+        "logit_scale": parameter.logit_scale,
+        "digits": parameter.digits,
+        "is_fidelity": parameter.is_fidelity,
+        "target_value": parameter.target_value,
+    }
+
+
+def choice_parameter_to_dict(parameter: ChoiceParameter) -> dict[str, Any]:
+    """Convert Ax choice parameter to a dictionary."""
+    if parameter._bypass_cardinality_check:
+        raise UnsupportedError(
+            "`bypass_cardinality_check` should only be set to True "
+            "when constructing parameters within the modeling layer. "
+            "It is not supported for storage."
+        )
+
+    return {
+        "__type": parameter.__class__.__name__,
+        "is_ordered": parameter.is_ordered,
+        "is_task": parameter.is_task,
+        "name": parameter.name,
+        "parameter_type": parameter.parameter_type,
+        "values": parameter.values,
+        "log_scale": parameter.log_scale,
+        "is_fidelity": parameter.is_fidelity,
+        "target_value": parameter.target_value,
+        "dependents": parameter.dependents if parameter.is_hierarchical else None,
+        "sort_values": parameter.sort_values,
+    }
+
+
+def derived_parameter_to_dict(parameter: DerivedParameter) -> dict[str, Any]:
+    """Convert Ax fixed parameter to a dictionary."""
+    return {
+        "__type": parameter.__class__.__name__,
+        "name": parameter.name,
+        "parameter_type": parameter.parameter_type,
+        "expression_str": parameter.expression_str,
+        "is_fidelity": parameter.is_fidelity,
+        "target_value": parameter.target_value,
+    }
+
+
+def fixed_parameter_to_dict(parameter: FixedParameter) -> dict[str, Any]:
+    """Convert Ax fixed parameter to a dictionary."""
+    return {
+        "__type": parameter.__class__.__name__,
+        "name": parameter.name,
+        "parameter_type": parameter.parameter_type,
+        "value": parameter.value,
+        "is_fidelity": parameter.is_fidelity,
+        "target_value": parameter.target_value,
+        "dependents": parameter.dependents if parameter.is_hierarchical else None,
+    }
+
+
+def parameter_constraint_to_dict(
+    parameter_constraint: ParameterConstraint,
+) -> dict[str, Any]:
+    """Convert Ax parameter constraint to a dictionary."""
+    expr = " + ".join(
+        f"{coeff} * {param}"
+        for param, coeff in parameter_constraint.constraint_dict.items()
+    )
+
+    if parameter_constraint.is_equality:
+        return {
+            "__type": parameter_constraint.__class__.__name__,
+            "equality": f"{expr} == {parameter_constraint.bound}",
+        }
+    return {
+        "__type": parameter_constraint.__class__.__name__,
+        "inequality": f"{expr} <= {parameter_constraint.bound}",
+    }
+
+
+def arm_to_dict(arm: Arm) -> dict[str, Any]:
+    """Convert Ax arm to a dictionary."""
+    return {
+        "__type": arm.__class__.__name__,
+        "parameters": arm.parameters,
+        "name": arm._name,
+    }
+
+
+def search_space_to_dict(search_space: SearchSpace) -> dict[str, Any]:
+    """Convert Ax search space to a dictionary."""
+    return {
+        "__type": search_space.__class__.__name__,
+        "parameters": list(search_space.parameters.values()),
+        "parameter_constraints": search_space.parameter_constraints,
+    }
+
+
+def metric_to_dict(metric: Metric) -> dict[str, Any]:
+    """Convert Ax metric to a dictionary."""
+    properties = metric.serialize_init_args(obj=metric)
+    properties["__type"] = metric.__class__.__name__
+    return properties
+
+
+def objective_to_dict(objective: Objective) -> dict[str, Any]:
+    """Convert Ax objective to a dictionary."""
+    # Plain Objective: serialize using expression string.
+    if type(objective) is Objective:
+        return {"__type": "Objective", "expression": objective.expression}
+    metric_name = objective.metric_names[0]
+    minimize = objective.minimize
+    return {
+        "__type": objective.__class__.__name__,
+        "metric": Metric(name=metric_name, lower_is_better=minimize),
+        "minimize": minimize,
+    }
+
+
+def multi_objective_to_dict(objective: MultiObjective) -> dict[str, Any]:
+    """Convert Ax multi-objective to a dictionary."""
+    sub_objectives = []
+    for name, weight in objective.metric_weights:
+        minimize = weight < 0
+        sub_objectives.append(
+            Objective(
+                metric=Metric(name=name, lower_is_better=minimize),
+                minimize=minimize,
+            )
+        )
+    return {
+        "__type": objective.__class__.__name__,
+        "objectives": sub_objectives,
+    }
+
+
+def scalarized_objective_to_dict(objective: ScalarizedObjective) -> dict[str, Any]:
+    """Convert Ax scalarized objective to a dictionary."""
+    metric_weights = objective.metric_weights
+    # Infer minimize from effective weights: if all weights are <= 0 (with at
+    # least one < 0), the objective was constructed with minimize=True, which
+    # negates all raw weights.
+    minimize = all(w <= 0 for _, w in metric_weights) and any(
+        w < 0 for _, w in metric_weights
+    )
+    metrics = []
+    weights = []
+    for name, w in metric_weights:
+        metrics.append(Metric(name=name))
+        # metric_weights returns effective weights (sign-adjusted for minimize).
+        # JSON format expects raw weights + separate minimize flag.
+        weights.append(w if not minimize else -w)
+    return {
+        "__type": objective.__class__.__name__,
+        "metrics": metrics,
+        "weights": weights,
+        "minimize": minimize,
+    }
+
+
+def outcome_constraint_to_dict(outcome_constraint: OutcomeConstraint) -> dict[str, Any]:
+    """Convert Ax outcome constraint to a dictionary."""
+    metric_name = outcome_constraint.metric_names[0]
+    return {
+        "__type": outcome_constraint.__class__.__name__,
+        "metric": Metric(name=metric_name),
+        "op": outcome_constraint.op,
+        "bound": outcome_constraint.bound,
+        "relative": outcome_constraint.relative,
+    }
+
+
+def scalarized_outcome_constraint_to_dict(
+    outcome_constraint: ScalarizedOutcomeConstraint,
+) -> dict[str, Any]:
+    """Convert Ax scalarized outcome constraint to a dictionary."""
+    metrics = [Metric(name=name) for name, _ in outcome_constraint.metric_weights]
+    return {
+        "__type": outcome_constraint.__class__.__name__,
+        "metrics": metrics,
+        "weights": outcome_constraint.weights,
+        "op": outcome_constraint.op,
+        "bound": outcome_constraint.bound,
+        "relative": outcome_constraint.relative,
+    }
+
+
+def optimization_config_to_dict(
+    optimization_config: OptimizationConfig,
+) -> dict[str, Any]:
+    """Convert Ax optimization config to a dictionary."""
+    return {
+        "__type": optimization_config.__class__.__name__,
+        "objective": optimization_config.objective,
+        "outcome_constraints": optimization_config.outcome_constraints,
+        "pruning_target_parameterization": (
+            optimization_config.pruning_target_parameterization
+        ),
+    }
+
+
+def preference_optimization_config_to_dict(
+    preference_optimization_config: PreferenceOptimizationConfig,
+) -> dict[str, Any]:
+    """Convert Ax optimization config to a dictionary."""
+    pref_profile_name = preference_optimization_config.preference_profile_name
+    return {
+        "__type": preference_optimization_config.__class__.__name__,
+        "objective": preference_optimization_config.objective,
+        "outcome_constraints": preference_optimization_config.outcome_constraints,
+        PREFERENCE_PROFILE_NAME: pref_profile_name,
+        EXPECT_RELATIVIZED_OUTCOMES: (
+            preference_optimization_config.expect_relativized_outcomes
+        ),
+        "pruning_target_parameterization": (
+            preference_optimization_config.pruning_target_parameterization
+        ),
+    }
+
+
+def multi_objective_optimization_config_to_dict(
+    multi_objective_optimization_config: MultiObjectiveOptimizationConfig,
+) -> dict[str, Any]:
+    """Convert Ax optimization config to a dictionary."""
+    return {
+        "__type": multi_objective_optimization_config.__class__.__name__,
+        "objective": multi_objective_optimization_config.objective,
+        "outcome_constraints": multi_objective_optimization_config.outcome_constraints,
+        "objective_thresholds": multi_objective_optimization_config.objective_thresholds,  # noqa E501
+        "pruning_target_parameterization": (
+            multi_objective_optimization_config.pruning_target_parameterization
+        ),
+    }
+
+
+def generator_run_to_dict(generator_run: GeneratorRun) -> dict[str, Any]:
+    """Convert Ax generator run to a dictionary."""
+    gr = generator_run
+    cand_metadata = gr.candidate_metadata_by_arm_signature
+    return {
+        "__type": gr.__class__.__name__,
+        "arms": gr.arms,
+        "weights": gr.weights,
+        "optimization_config": gr.optimization_config,
+        "search_space": gr.search_space,
+        "time_created": gr.time_created,
+        "model_predictions": gr.model_predictions,
+        "best_arm_predictions": gr.best_arm_predictions,
+        "generator_run_type": gr.generator_run_type,
+        "fit_time": gr.fit_time,
+        "gen_time": gr.gen_time,
+        "generator_key": gr._generator_key,
+        "generator_kwargs": gr._generator_kwargs,
+        "adapter_kwargs": gr._adapter_kwargs,
+        "gen_metadata": gr._gen_metadata,
+        "generator_state_after_gen": gr._generator_state_after_gen,
+        "candidate_metadata_by_arm_signature": cand_metadata,
+        "generation_node_name": gr._generation_node_name,
+        "suggested_experiment_status": gr.suggested_experiment_status,
+    }
+
+
+def runner_to_dict(runner: Runner) -> dict[str, Any]:
+    """Convert Ax runner to a dictionary."""
+    properties = runner.serialize_init_args(obj=runner)
+    properties["__type"] = runner.__class__.__name__
+    return properties
+
+
+def data_to_dict(data: Data) -> dict[str, Any]:
+    """Convert Ax data to a dictionary."""
+    properties = data.serialize_init_args(obj=data)
+    properties["__type"] = data.__class__.__name__
+    return properties
+
+
+def transform_type_to_dict(transform_type: type[Transform]) -> dict[str, Any]:
+    """Convert a transform class to a dictionary."""
+    return {
+        "__type": "Type[Transform]",
+        "transform_type": transform_type.__name__,
+    }
+
+
+def generation_step_to_dict(generation_step: GenerationStep) -> dict[str, Any]:
+    """Converts Ax generation step to a dictionary.
+
+    Note: ``GenerationStep.__new__`` actually returns a ``GenerationNode``.
+    """
+    return generation_node_to_dict(
+        generation_node=cast(GenerationNode, generation_step)
+    )
+
+
+def generation_node_to_dict(generation_node: GenerationNode) -> dict[str, Any]:
+    """Convert Ax generation node to a dictionary."""
+    return {
+        "__type": generation_node.__class__.__name__,
+        "name": generation_node.name,
+        "generator_specs": generation_node.generator_specs,
+        "best_model_selector": generation_node.best_model_selector,
+        "should_deduplicate": generation_node.should_deduplicate,
+        "transition_criteria": generation_node.transition_criteria,
+        "generation_pausing_criteria": generation_node.pausing_criteria,
+        "generator_spec_to_gen_from": generation_node._generator_spec_to_gen_from,
+        "previous_node_name": generation_node._previous_node_name,
+        "trial_type": generation_node._trial_type,
+        "suggested_experiment_status": generation_node.suggested_experiment_status,
+        # need to manually encode input constructors because the key is an enum.
+        # Our encoding and decoding logic in object_to_json and object_from_json
+        # doesn't recursively encode/decode the keys of dictionaries.
+        "input_constructors": {
+            key.name: value for key, value in generation_node.input_constructors.items()
+        },
+    }
+
+
+def generation_strategy_to_dict(
+    generation_strategy: GenerationStrategy,
+) -> dict[str, Any]:
+    """Converts Ax generation strategy to a dictionary."""
+    return {
+        "__type": generation_strategy.__class__.__name__,
+        "db_id": generation_strategy._db_id,
+        "name": generation_strategy.name,
+        "steps": [],
+        "curr_index": -1,
+        "generator_runs": generation_strategy._generator_runs,
+        "had_initialized_model": generation_strategy.adapter is not None,
+        "experiment": generation_strategy._experiment,
+        "nodes": generation_strategy._nodes,
+        "curr_node_name": generation_strategy.current_node_name,
+    }
+
+
+def transition_criterion_to_dict(criterion: TransitionCriterion) -> dict[str, Any]:
+    """Convert Ax TransitionCriterion to a dictionary."""
+    properties = serialize_init_args(obj=criterion)
+    properties["__type"] = criterion.__class__.__name__
+    return properties
+
+
+def pausing_criterion_to_dict(
+    criterion: PausingCriterion,
+) -> dict[str, Any]:
+    """Convert Ax PausingCriterion to a dictionary."""
+    properties = serialize_init_args(obj=criterion)
+    properties["__type"] = criterion.__class__.__name__
+    return properties
+
+
+def generator_spec_to_dict(generator_spec: GeneratorSpec) -> dict[str, Any]:
+    """Convert Ax model spec to a dictionary."""
+    return {
+        "__type": generator_spec.__class__.__name__,
+        "generator_enum": generator_spec.generator_enum,
+        "generator_kwargs": generator_spec.generator_kwargs,
+        "generator_gen_kwargs": generator_spec.generator_gen_kwargs,
+        "cv_kwargs": generator_spec.cv_kwargs,
+        "generator_key_override": generator_spec.generator_key_override,
+    }
+
+
+def best_model_selector_to_dict(
+    best_model_selector: BestModelSelector,
+) -> dict[str, Any]:
+    """Convert ``BestModelSelector`` to a dictionary."""
+    return {
+        "__type": best_model_selector.__class__.__name__,
+        **serialize_init_args(obj=best_model_selector),
+    }
+
+
+def observation_features_to_dict(obs_features: ObservationFeatures) -> dict[str, Any]:
+    """Converts Ax observation features to a dictionary"""
+    return {
+        "__type": obs_features.__class__.__name__,
+        "parameters": obs_features.parameters,
+        "trial_index": obs_features.trial_index,
+        "start_time": obs_features.start_time,
+        "end_time": obs_features.end_time,
+        "metadata": obs_features.metadata,
+    }
+
+
+def botorch_model_to_dict(model: BoTorchGenerator) -> dict[str, Any]:
+    """Convert Ax model to a dictionary."""
+    return {
+        "__type": model.__class__.__name__,
+        "acquisition_class": model.acquisition_class,
+        "acquisition_options": model.acquisition_options or {},
+        "surrogate": (model._surrogate if model.surrogate_spec is None else None),
+        "surrogate_spec": model.surrogate_spec,
+        "botorch_acqf_class": model._botorch_acqf_class,
+        "refit_on_cv": model.refit_on_cv,
+        "warm_start_refit": model.warm_start_refit,
+    }
+
+
+def surrogate_to_dict(surrogate: Surrogate) -> dict[str, Any]:
+    """Convert Ax surrogate to a dictionary."""
+    dict_representation = {"__type": surrogate.__class__.__name__}
+    dict_representation.update(surrogate._serialize_attributes_as_kwargs())
+    return dict_representation
+
+
+def tensor_to_dict(obj: Tensor) -> dict[str, Any]:
+    if obj.numel() > 1e4:
+        warnings.warn(
+            f"Attempting to serialize a tensor with {obj.numel()} elements. "
+            "This may result in storage issues.",
+            AxStorageWarning,
+            stacklevel=3,
+        )
+    return {
+        "__type": "Tensor",
+        "value": obj.tolist(),
+        "dtype": {"__type": "torch_dtype", "value": torch_type_to_str(obj.dtype)},
+        "device": {"__type": "torch_device", "value": torch_type_to_str(obj.device)},
+    }
+
+
+def botorch_modular_to_dict(class_type: type[Any]) -> dict[str, Any]:
+    """Convert any class to a dictionary."""
+    for _class in CLASS_TO_REGISTRY:
+        if issubclass(class_type, _class):
+            registry = CLASS_TO_REGISTRY[_class]
+            if class_type not in registry:
+                raise ValueError(
+                    f"Class `{class_type.__name__}` not in Type[{_class.__name__}] "
+                    "registry, please add it. BoTorch object registries are "
+                    "located in `ax/storage/botorch_modular_registry.py`. "
+                    f"{JSON_STORAGE_DOCS_SUFFIX}"
+                )
+            return {
+                "__type": f"Type[{_class.__name__}]",
+                "index": registry[class_type],
+                "class": f"{_class}",
+            }
+    raise ValueError(
+        f"{class_type} does not have a corresponding parent class in "
+        f"CLASS_TO_REGISTRY. {JSON_STORAGE_DOCS_SUFFIX}"
+    )
+
+
+def botorch_component_to_dict(input_obj: Any) -> dict[str, Any]:
+    class_type = input_obj.__class__
+    if isinstance(input_obj, InputTransform):
+        # Input transforms cannot be initialized with their state dicts.
+        # We will instead extract the init args.
+        state_dict = botorch_input_transform_to_init_args(input_transform=input_obj)
+    else:
+        state_dict = dict(input_obj.state_dict())
+    if isinstance(input_obj, MCSampler):
+        # The sampler args are not part of the state dict. Manually add them.
+        # Sample shape cannot be added to torch state dict since it is not a tensor.
+        state_dict["sample_shape"] = input_obj.sample_shape
+        state_dict["seed"] = input_obj.seed
+    return {
+        "__type": f"{class_type.__name__}",
+        "index": class_type,
+        "class": f"{class_type}",
+        "state_dict": state_dict,
+    }
+
+
+def botorch_input_transform_to_init_args(
+    input_transform: InputTransform,
+) -> dict[str, Any]:
+    """Extract the init kwargs from an input transform."""
+    if isinstance(input_transform, ChainedInputTransform):
+        return {k: botorch_component_to_dict(v) for k, v in input_transform.items()}
+    else:
+        if not hasattr(input_transform, "get_init_args"):
+            raise JSONEncodeError(
+                f"{input_transform.__class__.__name__} does not define `get_init_args` "
+                "method. Please implement it to enable storage."
+            )
+        # pyre-fixme[29]: `Union[Tensor, Module]` is not callable; hasattr guards
+        #  this but pyre can't narrow the Union type.
+        return assert_is_instance(input_transform, InputTransform).get_init_args()
+
+
+def percentile_early_stopping_strategy_to_dict(
+    strategy: PercentileEarlyStoppingStrategy,
+) -> dict[str, Any]:
+    """Convert Ax percentile early stopping strategy to a dictionary."""
+    return {
+        "__type": strategy.__class__.__name__,
+        "metric_signatures": strategy.metric_signatures,
+        "percentile_threshold": strategy.percentile_threshold,
+        "min_progression": strategy.min_progression,
+        "min_curves": strategy.min_curves,
+        "normalize_progressions": strategy.normalize_progressions,
+    }
+
+
+def threshold_early_stopping_strategy_to_dict(
+    strategy: ThresholdEarlyStoppingStrategy,
+) -> dict[str, Any]:
+    """Convert Ax metric-threshold early stopping strategy to a dictionary."""
+    return {
+        "__type": strategy.__class__.__name__,
+        "metric_signatures": strategy.metric_signatures,
+        "metric_threshold": strategy.metric_threshold,
+        "min_progression": strategy.min_progression,
+        "normalize_progressions": strategy.normalize_progressions,
+    }
+
+
+def logical_early_stopping_strategy_to_dict(
+    strategy: LogicalEarlyStoppingStrategy,
+) -> dict[str, Any]:
+    return {
+        "__type": strategy.__class__.__name__,
+        "left": strategy.left,
+        "right": strategy.right,
+    }
+
+
+def improvement_global_stopping_strategy_to_dict(
+    gss: ImprovementGlobalStoppingStrategy,
+) -> dict[str, Any]:
+    """Convert ImprovementGlobalStoppingStrategy to a dictionary."""
+    return {
+        "__type": gss.__class__.__name__,
+        "min_trials": gss.min_trials,
+        "window_size": gss.window_size,
+        "improvement_bar": gss.improvement_bar,
+        "inactive_when_pending_trials": gss.inactive_when_pending_trials,
+    }
+
+
+def winsorization_config_to_dict(config: WinsorizationConfig) -> dict[str, Any]:
+    """Convert Ax winsorization config to a dictionary."""
+    return {
+        "__type": config.__class__.__name__,
+        "lower_quantile_margin": config.lower_quantile_margin,
+        "upper_quantile_margin": config.upper_quantile_margin,
+        "lower_boundary": config.lower_boundary,
+        "upper_boundary": config.upper_boundary,
+    }
+
+
+def auxiliary_experiment_to_dict(
+    auxiliary_experiment: AuxiliaryExperiment,
+) -> dict[str, Any]:
+    return {
+        "__type": auxiliary_experiment.__class__.__name__,
+        "experiment": auxiliary_experiment.experiment,
+        "data": auxiliary_experiment.data,
+    }
+
+
+def pathlib_to_dict(path: Path) -> dict[str, Any]:
+    return {"__type": path.__class__.__name__, "pathsegments": [str(path)]}
+
+
+def default_to_dict(default: _DefaultType) -> dict[str, Any]:
+    return {"__type": default.__class__.__name__}
+
+
+def backend_simulator_to_dict(
+    backend_simulator: BackendSimulator,
+) -> dict[str, str | BackendSimulatorOptions | list[SimTrial] | bool]:
+    return {
+        "__type": backend_simulator.__class__.__name__,
+        "options": backend_simulator.options,
+        "queued": backend_simulator._queued,
+        "running": backend_simulator._running,
+        "failed": backend_simulator._failed,
+        "completed": backend_simulator._completed,
+        "verbose_logging": backend_simulator._verbose_logging,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Private helpers for experiment_to_dict
+# ---------------------------------------------------------------------------
+
+
+def _build_opt_config_dict(
+    opt_config: OptimizationConfig,
+    experiment_metrics: dict[str, Metric],
+) -> dict[str, Any]:
+    """Build optimization config dict with real metric objects from experiment.
+
+    This bypasses the encoder registry dispatch so that real Metric objects
+    (e.g. ``BraninMetric``) are preserved as leaf values. ``object_to_json``
+    will then recursively encode them via ``metric_to_dict``, capturing the
+    full metric type.
+    """
+    objective_dict = _build_objective_dict(
+        objective=opt_config.objective, experiment_metrics=experiment_metrics
+    )
+    constraint_dicts = [
+        _build_constraint_dict(constraint=c, experiment_metrics=experiment_metrics)
+        for c in opt_config.outcome_constraints
+    ]
+    result: dict[str, Any] = {
+        "__type": opt_config.__class__.__name__,
+        "objective": objective_dict,
+        "outcome_constraints": constraint_dicts,
+        "pruning_target_parameterization": opt_config.pruning_target_parameterization,
+    }
+    if isinstance(opt_config, MultiObjectiveOptimizationConfig):
+        result["objective_thresholds"] = [
+            _build_constraint_dict(constraint=t, experiment_metrics=experiment_metrics)
+            for t in opt_config.objective_thresholds
+        ]
+    if isinstance(opt_config, PreferenceOptimizationConfig):
+        result[PREFERENCE_PROFILE_NAME] = opt_config.preference_profile_name
+        result[EXPECT_RELATIVIZED_OUTCOMES] = opt_config.expect_relativized_outcomes
+    return result
+
+
+def _build_objective_dict(
+    objective: Objective,
+    experiment_metrics: dict[str, Metric],
+) -> dict[str, Any]:
+    """Build objective dict with real metric objects from experiment."""
+    # Plain Objective (not a deprecated subclass like ScalarizedObjective or
+    # MultiObjective): serialize using the expression string directly.
+    if type(objective) is Objective:
+        return {"__type": "Objective", "expression": objective.expression}
+    if objective.is_multi_objective:
+        sub_objectives = []
+        for name, weight in objective.metric_weights:
+            metric = experiment_metrics.get(name, Metric(name=name))
+            minimize = weight < 0
+            sub_objectives.append(
+                {
+                    "__type": "Objective",
+                    "metric": metric,
+                    "minimize": minimize,
+                }
+            )
+        return {
+            "__type": objective.__class__.__name__,
+            "objectives": sub_objectives,
+        }
+    elif objective.is_scalarized_objective:
+        metric_weights = objective.metric_weights
+        # Infer minimize from effective weights: if all weights are <= 0 (with
+        # at least one < 0), the objective was constructed with minimize=True.
+        minimize = all(w <= 0 for _, w in metric_weights) and any(
+            w < 0 for _, w in metric_weights
+        )
+        metrics = []
+        weights = []
+        for name, w in metric_weights:
+            metric = experiment_metrics.get(name, Metric(name=name))
+            metrics.append(metric)
+            # metric_weights returns effective weights (sign-adjusted for
+            # minimize). JSON format expects raw weights + separate minimize
+            # flag, so undo the sign adjustment.
+            weights.append(w if not minimize else -w)
+        return {
+            "__type": objective.__class__.__name__,
+            "metrics": metrics,
+            "weights": weights,
+            "minimize": minimize,
+        }
+    else:
+        metric_name = objective.metric_names[0]
+        metric = experiment_metrics.get(metric_name, Metric(name=metric_name))
+        return {
+            "__type": objective.__class__.__name__,
+            "metric": metric,
+            "minimize": objective.minimize,
+        }
+
+
+def _build_constraint_dict(
+    constraint: OutcomeConstraint,
+    experiment_metrics: dict[str, Metric],
+) -> dict[str, Any]:
+    """Build constraint dict with real metric objects from experiment."""
+    metric_name = constraint.metric_names[0]
+    metric = experiment_metrics.get(metric_name, Metric(name=metric_name))
+    return {
+        "__type": constraint.__class__.__name__,
+        "metric": metric,
+        "op": constraint.op,
+        "bound": constraint.bound,
+        "relative": constraint.relative,
+    }

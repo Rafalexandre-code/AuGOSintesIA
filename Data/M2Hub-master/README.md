@@ -37,7 +37,8 @@ Please refer to [INSTALL.md](INSTALL.md) for details.
 ### M2Hub Data Downloader
 
 ```
-python download_data.py --task TASK --property PROPERTY --split SPLIT --get-edges
+python scripts/download_data.py --task TASK --property PROPERTY --split SPLIT --get-edges
+# ex.: python scripts/download_data.py --task jarvis --property qmof:bandgap --split random --get-edges
 ```
 
 Please check [DATASETS.md](DATASETS.md) for details, splits include [random|composition|system|time].
@@ -47,7 +48,8 @@ For more details about each dataset, please check [DOCUMENTS.md](DOCUMENTS.md).
 ### Model Training
 
 ```
-python -u main.py --mode train --config-yml configs/matbench/e_form/random/cgcnn.yml
+python -u main.py --mode train --config-yml config/jarvis/qmof/bandgap/random/cgcnn.yml
+# configs incluídas: config/jarvis/{qmof/bandgap,edos_pdos/edos}/random/<modelo>.yml
 ```
 
 Please check [MODELS.md](./MODELS.md) for details.
@@ -59,7 +61,7 @@ To facilitate the development of generative materials design, we provide oracle 
 **Oracle functions**
 
 ```
-python run.py --Task steels --Data test_data.cif --Oracle rf_scm_magpie
+cd oracle && python run.py --Task steels --Data test_data.cif --Oracle rf_scm_magpie
 ```
 
 We provide two oracle functions here, please use "--Oracle" to set which one you would like to use. Also, the running task can be set with "--Task". Please see our paper for more details.
@@ -67,7 +69,7 @@ We provide two oracle functions here, please use "--Oracle" to set which one you
 **Evaluation Metrics**
 
 ```
-python compute_metrics.py --root_path my_data --eval_model_name my_model --tasks recon gen opt
+cd evaluator && python compute_metrics.py --root_path my_data --eval_model_name my_model --tasks recon gen opt
 ```
 
 We provide evaluation metrics for reconstruction, generation, and optimizatioin tasks. Please check our paper for more details. The to-be-evaluated dataset should be under "--root_path" with a format like "eval_recon.pt". The folder containing the pre-trained property prediction model checkpoint should be under "./prop_models".

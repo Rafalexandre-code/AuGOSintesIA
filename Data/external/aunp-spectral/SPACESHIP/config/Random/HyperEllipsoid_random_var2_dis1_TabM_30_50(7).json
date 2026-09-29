@@ -1,0 +1,127 @@
+{
+    "metadata": {
+        "subject": "Find lambda_max",
+        "researcherGroup": "KIST_CSRC",
+        "researcherName": "NY",
+        "researcherId": "kny@kist.re.kr",
+        "researcherPwd": "1234",
+        "element": "Ag",
+        "experimentType": "autonomous",
+        "logLevel": "INFO",
+        "saveDirPath": "DataSet/Random/HyperEllipsoid_random_var2_dis1_TabM_30_50/7",
+        "todayIterNum": 200,
+        "batchSize": 1
+    },
+    "algorithm": {
+        "mode": "find reaction space",
+        "searchface": {
+            "name": "HyperEllipsoid",
+            "noise": 0,
+            "dimension": 2
+        },
+        "classThreshold": 23,
+        "totalSampleNum": 10000,
+        "verbose": 0,
+        "batchSize": 1,
+        "initialDataNum": 200,
+        "evaluationDataNum": 100,
+        "additionalSamplingSize": 5,
+        "acquisitionFunc": {
+            "utilityType": "ucb",
+            "sampler": "greedy",
+            "hyperparameter": 10.0
+        },
+        "utilityType": "random",
+        "surrogateModel": "TabM",
+        "searchTime": 300,
+        "samplingSize": 20,
+        "sampling_method": "random",
+        "testSetRatio": 0.3,
+        "splitDataDir": "DataSet/Random/HyperEllipsoid_random_var2_dis1_TabM_30_50/7",
+        "ModelPath": "Model/Random/HyperEllipsoid_random_var2_dis1_TabM_30_50/7",
+        "initRandom": 65959,
+        "randomState": 65959,
+        "analysisMethod": {
+            "UV-vis": {
+                "range": [
+                    300,
+                    800
+                ],
+                "prominence": 10
+            }
+        },
+        "targetConditionDict": {
+            "GetUVdata": {
+                "Property": {
+                    "A": 10000
+                },
+                "Ratio": {
+                    "A": 1
+                }
+            }
+        },
+        "prangeDict": {
+            "AgNO3_Concentration": [
+                1,
+                100,
+                1
+            ],
+            "AgNO3_Volume": [
+                1,
+                100,
+                1
+            ]
+        }
+    },
+    "recipe": {
+        "fixedParams": {
+            "H2O2": 1200,
+            "Citrate": 1200,
+            "H2O": 2400
+        },
+        "initCondition": {
+            "baseStirRate": 800,
+            "baseTemperature": 25,
+            "baseFlowRate": 500,
+            "baseWaitTime": 300,
+            "baseReactTime": 2400
+        },
+        "beforeActionSequenceList": [],
+        "batchActionSequenceList": [
+            [
+                "AddSolution_Solvent",
+                "AddSolution_CA",
+                "AddSolution_Oxidant",
+                "AddSolution_Reductant",
+                "Stir",
+                "Heat",
+                "Wait",
+                "AddSolution_Metal",
+                "React"
+            ]
+        ],
+        "flowActionSequenceList": [],
+        "preprocessActionSequenceList": [],
+        "characterizationActionSequenceList": [
+            [
+                {
+                    "Action": "UV",
+                    "Data": {
+                        "Property": [
+                            "lambdamax",
+                            "FWHM"
+                        ]
+                    }
+                }
+            ]
+        ],
+        "afterActionSequenceList": [
+            [
+                "Store"
+            ]
+        ],
+        "graphJson": {
+            "Stirrer": "Stirrer_0"
+        }
+    }
+}

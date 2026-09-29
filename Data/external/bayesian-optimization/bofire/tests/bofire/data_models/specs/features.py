@@ -1,0 +1,538 @@
+import random
+import uuid
+
+import bofire.data_models.features.api as features
+from bofire.data_models.objectives.api import (
+    ConstrainedCategoricalObjective,
+    MaximizeObjective,
+)
+from tests.bofire.data_models.specs.objectives import specs as objectives
+from tests.bofire.data_models.specs.specs import Specs
+
+
+# RDKIT_AVAILABLE = importlib.util.find_spec("rdkit") is not None
+
+specs = Specs([])
+
+
+specs.add_valid(
+    features.SumFeature,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "features": ["a", "b", "c"],
+        "keep_features": True,
+        "context": None,
+    },
+)
+
+
+specs.add_valid(
+    features.ProductFeature,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "features": ["a", "b", "c"],
+        "keep_features": True,
+        "context": None,
+    },
+)
+
+specs.add_valid(
+    features.ProductFeature,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "features": ["a", "a"],
+        "keep_features": True,
+        "context": None,
+    },
+)
+
+specs.add_valid(
+    features.MeanFeature,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "features": ["a", "b", "c"],
+        "keep_features": False,
+        "context": None,
+    },
+)
+
+specs.add_valid(
+    features.WeightedSumFeature,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "features": ["a", "b", "c"],
+        "columns": ["alpha", "beta"],
+        "generators": [],
+        "filter_descriptors": False,
+        "correlation_cutoff": 0.95,
+        "normalize": False,
+        "keep_features": True,
+        "context": None,
+    },
+)
+
+specs.add_valid(
+    features.InterpolateFeature,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "features": ["x1", "x2", "y1", "y2"],
+        "x_keys": ["x1", "x2"],
+        "y_keys": ["y1", "y2"],
+        "n_interpolation_points": 20,
+        "interpolation_range": [0.0, 60.0],
+        "keep_features": True,
+        "prepend_x": [],
+        "append_x": [],
+        "prepend_y": [],
+        "append_y": [],
+        "normalize_y": 1.0,
+        "normalize_x": False,
+        "context": None,
+    },
+)
+
+specs.add_valid(
+    features.InterpolateFeature,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "features": ["x1", "x2", "y1", "y2"],
+        "x_keys": ["x1", "x2"],
+        "y_keys": ["y1", "y2"],
+        "n_interpolation_points": 20,
+        "interpolation_range": [0.0, 1.0],
+        "keep_features": True,
+        "prepend_x": [0.0],
+        "append_x": [],
+        "prepend_y": [0.0],
+        "append_y": [],
+        "normalize_y": 2.0,
+        "normalize_x": True,
+        "context": None,
+    },
+)
+
+specs.add_invalid(
+    features.InterpolateFeature,
+    lambda: {
+        "key": "interp1",
+        "features": ["x1", "y1"],
+        "interpolation_range": [0.0, 60.0],
+        "x_keys": ["x1"],
+        "y_keys": ["x1"],
+        "n_interpolation_points": 20,
+    },
+    error=ValueError,
+    message=r"x_keys and y_keys must not overlap\.",
+)
+
+specs.add_invalid(
+    features.InterpolateFeature,
+    lambda: {
+        "key": "interp1",
+        "features": ["x1", "x2", "y1"],
+        "interpolation_range": [0.0, 60.0],
+        "x_keys": ["x1"],
+        "y_keys": ["y1"],
+        "n_interpolation_points": 20,
+    },
+    error=ValueError,
+    message=r"features must match x_keys \+ y_keys\.",
+)
+
+specs.add_invalid(
+    features.InterpolateFeature,
+    lambda: {
+        "key": "interp1",
+        "features": ["x1", "x2", "y1", "y2"],
+        "x_keys": ["x1", "x2"],
+        "y_keys": ["y1", "y2"],
+        "n_interpolation_points": 20,
+        "interpolation_range": [0.0, 60.0],
+        "prepend_x": [0.0],
+    },
+    error=ValueError,
+    message=r"Total number of x and y values must be equal\.",
+)
+
+specs.add_invalid(
+    features.InterpolateFeature,
+    lambda: {
+        "key": "interp1",
+        "features": ["x1", "x2", "y1", "y2"],
+        "x_keys": ["x1", "x2"],
+        "y_keys": ["y1", "y2"],
+        "n_interpolation_points": 20,
+        "interpolation_range": [0.0, 60.0],
+        "normalize_x": True,
+    },
+    error=ValueError,
+    message=r"When normalize_x is True, interpolation_range must be \(0, 1\)",
+)
+
+specs.add_valid(
+    features.CloneFeature,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "features": ["a", "b"],
+        "keep_features": True,
+        "context": None,
+    },
+)
+
+specs.add_valid(
+    features.CloneFeature,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "features": ["a"],
+        "keep_features": True,
+        "context": None,
+    },
+)
+
+specs.add_valid(
+    features.DiscreteInput,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "values": [random.random(), random.random() + 3],
+        "unit": random.choice(["°C", "mg", "mmol/l", None]),
+        "rtol": 1e-7,
+        "descriptors": None,
+        "context": None,
+    },
+)
+
+# the valid counterpart of the two invalid specs below: one value per column, whatever
+# the allowed values are. This is also the only valid spec carrying a populated block, so
+# it is what exercises the serialization roundtrip for `Descriptors` itself.
+specs.add_valid(
+    features.DiscreteInput,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "values": [random.random(), random.random() + 3],
+        "unit": random.choice(["°C", "mg", "mmol/l", None]),
+        "rtol": 1e-7,
+        "descriptors": {"columns": {"mw": [46.0]}, "structure": ["CCO"]},
+        "context": None,
+    },
+)
+
+specs.add_invalid(
+    features.DiscreteInput,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "values": [1.0],
+        "unit": random.choice(["°C", "mg", "mmol/l", None]),
+        "rtol": 1e-7,
+    },
+    error=ValueError,
+    message="Fixed discrete inputs are not supported. Please use a fixed continuous input.",
+)
+
+# A discrete input is a *single* descriptor component (like continuous), so a column
+# must hold one value — not one per allowed discrete value. This pins the semantics:
+# a restricted amount of a substance still describes one substance.
+specs.add_invalid(
+    features.DiscreteInput,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "values": [1.0, 2.0, 3.0],
+        "descriptors": {"columns": {"logP": [1.0, 2.0, 3.0]}},
+    },
+    error=ValueError,
+    # message is used as a regex, so stop before the "value(s) (one per level)" parens
+    message="descriptors must have 1 value",
+)
+
+specs.add_invalid(
+    features.DiscreteInput,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "values": [1.0, 2.0, 3.0],
+        "descriptors": {"structure": ["O", "CCO", "CCC"]},
+    },
+    error=ValueError,
+    message="descriptors must have 1 value",
+)
+
+
+specs.add_valid(
+    features.ContinuousInput,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "bounds": [3, 5.3],
+        "unit": random.choice(["°C", "mg", "mmol/l", None]),
+        "local_relative_bounds": None,
+        "stepsize": None,
+        "allow_zero": False,
+        "descriptors": None,
+        "context": None,
+    },
+)
+
+specs.add_invalid(
+    features.ContinuousInput,
+    lambda: {"key": "a", "bounds": [5, 3]},
+    error=ValueError,
+    message="Sequence is not monotonically increasing.",
+)
+
+specs.add_invalid(
+    features.ContinuousInput,
+    lambda: {"key": "a", "bounds": [-1, 5], "allow_zero": True},
+    error=ValueError,
+    message="If `allow_zero==True`, then zero must not lie within the bounds.",
+)
+
+specs.add_invalid(
+    features.ContinuousInput,
+    lambda: {"key": "a", "bounds": [0.5, 0.5], "allow_zero": True},
+    error=ValueError,
+    message="`allow_zero=True` is not compatible with a positively-fixed feature",
+)
+
+# a continuous input is a single descriptor component: one value per column
+specs.add_invalid(
+    features.ContinuousInput,
+    lambda: {
+        "key": "a",
+        "bounds": [0, 1],
+        "descriptors": {"columns": {"logP": [1.0, 2.0]}},
+    },
+    error=ValueError,
+    message="descriptors must have 1 value",
+)
+
+specs.add_invalid(
+    features.ContinuousInput,
+    lambda: {"key": "a", "bounds": [0, 1], "descriptors": {"structure": ["O", "CCO"]}},
+    error=ValueError,
+    message="descriptors must have 1 value",
+)
+
+specs.add_valid(
+    features.CategoricalInput,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "categories": ["c1", "c2", "c3"],
+        "allowed": [True, True, False],
+        "descriptors": None,
+        "context": None,
+    },
+)
+
+specs.add_invalid(
+    features.CategoricalInput,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "categories": ["c1", "c2", "c2"],
+        "allowed": [True, True, False],
+    },
+    error=ValueError,
+    message="Categories must be unique",
+)
+
+specs.add_invalid(
+    features.CategoricalInput,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "categories": ["c1", "c2", "c3"],
+        "allowed": [True, True],
+    },
+    error=ValueError,
+    message="allowed must have same length as categories",
+)
+
+specs.add_invalid(
+    features.CategoricalInput,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "categories": ["c1", "c2", "c3"],
+        "allowed": [False, False, False],
+    },
+    error=ValueError,
+    message="no category is allowed",
+)
+
+# a categorical carries one descriptor row per category: every column and the
+# structure column must have exactly len(categories) entries.
+specs.add_invalid(
+    features.CategoricalInput,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "categories": ["c1", "c2", "c3"],
+        "descriptors": {"columns": {"logP": [1.0, 2.0]}},
+    },
+    error=ValueError,
+    message="descriptors must have 3 value",
+)
+
+specs.add_invalid(
+    features.CategoricalInput,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "categories": ["c1", "c2", "c3"],
+        "descriptors": {"columns": {"logP": [1.0, 2.0, 3.0, 4.0]}},
+    },
+    error=ValueError,
+    message="descriptors must have 3 value",
+)
+
+# a correctly-sized column must not mask a wrongly-sized one
+specs.add_invalid(
+    features.CategoricalInput,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "categories": ["c1", "c2", "c3"],
+        "descriptors": {"columns": {"logP": [1.0, 2.0, 3.0], "MW": [1.0]}},
+    },
+    error=ValueError,
+    message="all descriptor columns and the structure column must have the same",
+)
+
+specs.add_invalid(
+    features.CategoricalInput,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "categories": ["c1", "c2", "c3"],
+        "descriptors": {"structure": ["O", "CCO"]},
+    },
+    error=ValueError,
+    message="descriptors must have 3 value",
+)
+
+# an empty structure must report the length problem, not blow up in the rdkit probe
+specs.add_invalid(
+    features.CategoricalInput,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "categories": ["c1", "c2", "c3"],
+        "descriptors": {"structure": []},
+    },
+    error=ValueError,
+    message="descriptors must have 3 value",
+)
+
+
+specs.add_valid(
+    features.ContinuousOutput,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "objective": objectives.valid(MaximizeObjective).typed_spec(),
+        "unit": random.choice(["%", "area %", None]),
+        "context": None,
+    },
+)
+
+specs.add_valid(
+    features.CategoricalOutput,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "categories": ["a", "b", "c"],
+        "objective": ConstrainedCategoricalObjective(
+            categories=["a", "b", "c"],
+            desirability=[True, True, False],
+        ).model_dump(),
+        "context": None,
+    },
+)
+
+
+specs.add_valid(
+    features.CategoricalTaskInput,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "categories": [
+            "process_1",
+            "process_2",
+            "process_3",
+        ],
+        "allowed": [True, True, True],
+        "fidelities": [0, 1, 2],
+        "descriptors": None,
+        "context": None,
+    },
+)
+
+specs.add_valid(
+    features.ContinuousTaskInput,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "bounds": [0.0, 1.0],
+        "unit": random.choice(["°C", "mg", "mmol/l", None]),
+        "local_relative_bounds": None,
+        "stepsize": None,
+        "allow_zero": False,
+        "descriptors": None,
+        "context": None,
+    },
+)
+
+specs.add_invalid(
+    features.CategoricalTaskInput,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "categories": [
+            "process_1",
+            "process_2",
+            "process_3",
+        ],
+        "allowed": [True, True, True],
+        "fidelities": [0, 1],
+    },
+    error=ValueError,
+    message="Length of fidelity list must be equal to the number of tasks",
+)
+
+specs.add_invalid(
+    features.CategoricalTaskInput,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "categories": [
+            "process_1",
+            "process_2",
+            "process_3",
+        ],
+        "allowed": [True, True, True],
+        "fidelities": [0, 1, 3],
+    },
+    error=ValueError,
+    message="Fidelities must be a list containing integers, starting from 0 and increasing by 1",
+)
+
+# a task input is an index, not a described entity: `descriptors` is narrowed to
+# None on both flavours, so the rejection comes from the type itself.
+specs.add_invalid(
+    features.CategoricalTaskInput,
+    lambda: {
+        "key": "task",
+        "categories": ["process_1", "process_2"],
+        "descriptors": {"columns": {"cost": [1.0, 10.0]}},
+    },
+    error=ValueError,
+    message="Input should be None",
+)
+
+specs.add_invalid(
+    features.ContinuousTaskInput,
+    lambda: {
+        "key": "fidelity",
+        "bounds": [0.0, 1.0],
+        "descriptors": {"columns": {"cost": [1.0]}},
+    },
+    error=ValueError,
+    message="Input should be None",
+)
+
+
+# WeightedSumFeature mixes in the same DescriptorSpec, so it inherits the rule that a
+# spec's declared names must be unique
+specs.add_invalid(
+    features.WeightedSumFeature,
+    lambda: {
+        "key": str(uuid.uuid4()),
+        "features": ["a", "b"],
+        "columns": ["logP", "logP"],
+    },
+    error=ValueError,
+    message="descriptor names must be unique",
+)

@@ -5,10 +5,14 @@ import os
 import subprocess
 import sys
 
-CONFIG_FILE = "/root/autodl-tmp/train_config.yaml"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-CONDA_ACTIVATE = "/root/miniconda3/bin/activate"
-CONDA_ENV = "llamafac"
+# Paths can be overridden with environment variables
+CONFIG_FILE = os.environ.get("LLAMAFACTORY_CONFIG", os.path.join(SCRIPT_DIR, "train_config.yaml"))
+
+# Conda activation is optional: leave LLAMAFAC_CONDA_ACTIVATE empty if llamafactory-cli is already on PATH
+CONDA_ACTIVATE = os.environ.get("LLAMAFAC_CONDA_ACTIVATE", "")  # e.g. ~/miniconda3/bin/activate
+CONDA_ENV = os.environ.get("LLAMAFAC_CONDA_ENV", "llamafac")
 
 
 def main() -> int:
@@ -20,15 +24,18 @@ def main() -> int:
         print(f"Error: Configuration file does not exist: {CONFIG_FILE}")
         return 1
 
-    train_cmd = (
-        f"/bin/bash -c 'source {CONDA_ACTIVATE} {CONDA_ENV} && "
-        f"llamafactory-cli train {CONFIG_FILE}'"
-    )
+    if CONDA_ACTIVATE:
+        train_cmd = (
+            f"/bin/bash -c 'source {CONDA_ACTIVATE} {CONDA_ENV} && "
+            f"llamafactory-cli train {CONFIG_FILE}'"
+        )
+    else:
+        train_cmd = f"llamafactory-cli train {CONFIG_FILE}"
 
     print("Begin single-card training...")
 
     try:
-        subprocess.run(train_cmd, shell=True, check=True, capture_output=False, text=True)
+        subprocess.run(train_cmd, shell=True, check=True, capture_output=False, text=True, cwd=SCRIPT_DIR)
         print("Training complete!")
         return 0
     except subprocess.CalledProcessError as e:

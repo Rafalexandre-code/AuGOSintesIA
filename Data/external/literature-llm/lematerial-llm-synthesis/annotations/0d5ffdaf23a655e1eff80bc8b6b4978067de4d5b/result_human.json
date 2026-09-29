@@ -1,0 +1,231 @@
+{
+  "schema_version": "multi_llm_v1",
+  "paper_id": "0d5ffdaf23a655e1eff80bc8b6b4978067de4d5b",
+  "paper_url": "https://link.springer.com/content/pdf/10.1186/1556-276X-8-375.pdf",
+  "extractor_order": [
+    "claude-sonnet-4.6",
+    "gemini-3-flash",
+    "qwen3.5-397b-a17b",
+    "deepseek-v3.2"
+  ],
+  "materials": [
+    {
+      "material_name": "CNT array with Fe nanoparticles",
+      "human_recipe": {
+        "target_compound": "CNT array",
+        "target_compound_type": "nanomaterials",
+        "synthesis_method": "CVD",
+        "starting_materials": [
+          {
+            "name": "xylene",
+            "vendor": null,
+            "amount": 90.0,
+            "unit": "mol%",
+            "purity": null
+          },
+          {
+            "name": "ferrocene",
+            "vendor": null,
+            "amount": 10.0,
+            "unit": "mol%",
+            "purity": null
+          },
+           {
+            "name": "silicon substrate",
+            "vendor": null,
+            "amount": null,
+            "unit": null,
+            "purity": null
+          }
+        ],
+        "steps": [
+          {
+            "step_number": 1,
+            "action": "mix",
+            "description": "Xylene and ferrocene were mixed to prepare the precursor solution (90/10 mol%).",
+            "materials": [
+              {
+                "name": "xylene",
+                "vendor": null,
+                "amount": 90.0,
+                "unit": "mol%",
+                "purity": null
+              },
+              {
+                "name": "ferrocene",
+                "vendor": null,
+                "amount": 10.0,
+                "unit": "mol%",
+                "purity": null
+              }
+            ],
+            "equipment": [],
+            "conditions": {
+              "temperature": null,
+              "duration": null,
+              "pressure": null,
+              "ph": null,
+              "temp_unit": null,
+              "time_unit": null,
+              "pressure_unit": null,
+              "atmosphere": null,
+              "stirring": null,
+              "stirring_speed": null
+            }
+          },
+          {
+            "step_number": 2,
+            "action": "heat",
+            "description": "CNT arrays were synthesized on Si substrates by the floating catalyst CVD via a high-temperature pyrolysis of the xylene/ferrocene solution injected into the reaction zone of quartz reactor.",
+            "materials": [
+              {
+                "name": "xylene / ferrocene solution",
+                "vendor": null,
+                "amount": null,
+                "unit": null,
+                "purity": null
+              }
+            ],
+            "equipment": [
+              {
+                "name": "quartz reactor",
+                "instrument_vendor": null,
+                "settings": null
+              }
+            ],
+            "conditions": {
+              "temperature": 875.0,
+              "duration": 30.0,
+              "pressure": null,
+              "ph": null,
+              "temp_unit": "°C",
+              "time_unit": "s",
+              "pressure_unit": null,
+              "atmosphere": "ambient",
+              "stirring": null,
+              "stirring_speed": null
+            }
+          }
+        ],
+        "equipment": [
+          {
+            "name": "quartz reactor",
+            "instrument_vendor": null,
+            "settings": null
+          }
+        ],
+        "notes": ""
+      },
+      "evaluations": [
+        {
+          "evaluation": {
+            "reasoning": "the model identified Fe/CNT as the material, with an acceptable name",
+            "scores": {
+              "structural_completeness_score": 5,
+              "structural_completeness_reasoning": "all relevant parts included",
+              "material_extraction_score": 4,
+              "material_extraction_reasoning": "Fe3C is also identified but wrongly, it's just a phase of the material",
+              "process_steps_score": 4,
+              "process_steps_reasoning": "mixing and heating are identified as other",
+              "equipment_extraction_score": 1,
+              "equipment_extraction_reasoning": "the relevant 'equipment' extracted includes characterisation apparatus which is irrelevant",
+              "conditions_extraction_score": 5,
+              "conditions_extraction_reasoning": "",
+              "semantic_accuracy_score": 5,
+              "semantic_accuracy_reasoning": "",
+              "format_compliance_score": 5,
+              "format_compliance_reasoning": "",
+              "overall_score": 4.1,
+              "overall_reasoning": "good extraction of one relevant material, however the model extracted a second one; there is a lot of extra information extracted as well which is irrelevant"
+            },
+            "confidence_level": 5,
+            "missing_information": ["concentration of the ferrocene solution"],
+            "extraction_errors": ["one extra material, Fe3C was extracted which is not relevant"],
+            "improvement_suggestions": ["go through the text and look carefully for any mention of materials, their properties, and how they are used in the synthesis process. Ensure that all relevant details are captured accurately."]
+          }
+        },
+        {
+          "evaluation": {
+            "reasoning": "too many materials, including Fe phases, combinations with C, or even oxides, are extractedincorrectly. the CNT/Fe or any variation is not extracted.",
+            "scores": {
+              "structural_completeness_score": 0,
+              "structural_completeness_reasoning": "",
+              "material_extraction_score": 0,
+              "material_extraction_reasoning": "",
+              "process_steps_score": 5,
+              "process_steps_reasoning": "the relevant process steps are identified corectly for the C synthesis, probably related to the CNT synthesis from te relevant paragraph",
+              "equipment_extraction_score": 5,
+              "equipment_extraction_reasoning": "",
+              "conditions_extraction_score": 4,
+              "conditions_extraction_reasoning": "xylene/ferocene vapour is inferred from text but is wrong",
+              "semantic_accuracy_score": 5,
+              "semantic_accuracy_reasoning": "",
+              "format_compliance_score": 5,
+              "format_compliance_reasoning": "",
+              "overall_score": 3.4,
+              "overall_reasoning": ""
+            },
+            "confidence_level": 5,
+            "missing_information": ["materials with subsequent conditions, steps etc"],
+            "extraction_errors": ["the material target is wrong; Fe oxide particles are mentioned in the text as an occurence during the main experiment, and don't show any structured synthesis procedure to be extracted"],
+            "improvement_suggestions": ["go through the text and look carefully for any mention of materials, their properties, and how they are used in the synthesis process. Ensure that all relevant details are captured accurately."]
+          }
+        },
+        {
+          "evaluation": {
+            "reasoning": "Fe/C is extrcated as the material, which is technically correct but incomplete as the relevant C is the nanotubes (CNTs), rather than amorphous C",
+            "scores": {
+              "structural_completeness_score": 4,
+              "structural_completeness_reasoning": "",
+              "material_extraction_score": 5,
+              "material_extraction_reasoning": "only one material extracted, correctly",
+              "process_steps_score": 2,
+              "process_steps_reasoning": "too many steps extracted, of which step 3 is similar to 2 but combines the characterisation as well",
+              "equipment_extraction_score": 2,
+              "equipment_extraction_reasoning": "too much irrelevant material for characterisation present",
+              "conditions_extraction_score": 5,
+              "conditions_extraction_reasoning": "",
+              "semantic_accuracy_score": 5,
+              "semantic_accuracy_reasoning": "",
+              "format_compliance_score": 5,
+              "format_compliance_reasoning": "",
+              "overall_score": 4,
+              "overall_reasoning": ""
+            },
+            "confidence_level": 5,
+            "missing_information": [],
+            "extraction_errors": ["too many steps and equipment extracted, including characterisation which is not relevant"],
+            "improvement_suggestions": ["go through the text and look carefully for any mention of materials, their properties, and how they are used in the synthesis process. Ensure that all relevant details are captured accurately."]
+          }
+        },
+        {
+          "evaluation": {
+            "reasoning": "the right composition for the Fe/CNT combination is extracted, but also 2 other materials that appear in the text but aren't synthesised directly are extracted incorrectly.",
+            "scores": {
+              "structural_completeness_score": 3,
+              "structural_completeness_reasoning": "",
+              "material_extraction_score": 5.0,
+              "material_extraction_reasoning": "",
+              "process_steps_score": 3,
+              "process_steps_reasoning": "only 1 step is given, combining the two steps",
+              "equipment_extraction_score": 5.0,
+              "equipment_extraction_reasoning": "",
+              "conditions_extraction_score": 5.0,
+              "conditions_extraction_reasoning": "",
+              "semantic_accuracy_score": 5,
+              "semantic_accuracy_reasoning": "",
+              "format_compliance_score": 5,
+              "format_compliance_reasoning": "Synthesis_method is 'other' instead of 'pulsed laser deposition'; step action is 'heat' instead of 'irradiate'",
+              "overall_score": 4.4,
+              "overall_reasoning": ""
+            },
+            "confidence_level": 5,
+            "missing_information": ["the first step, a dissolve"],
+            "extraction_errors": ["too many phases of Fe are extracted"],
+            "improvement_suggestions": ["break down the steps into more detail, including dissolving the initial starting materials"]
+          }
+        }
+      ]
+    }
+  ]  
+}

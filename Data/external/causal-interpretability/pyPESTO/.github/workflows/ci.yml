@@ -1,0 +1,363 @@
+name: CI
+
+# trigger
+on:
+  push:
+    branches:
+    - main
+    - develop
+  pull_request:
+  workflow_dispatch:
+  merge_group:
+  schedule:
+    # run Monday and Thursday at 03:42 UTC
+    - cron: '42 3 * * MON,THU'
+
+env:
+  # use all available cores for compiling amici models
+  AMICI_PARALLEL_COMPILE: ""
+  # non-interactive backend for matplotlib
+  MPLBACKEND: "agg"
+  COLUMNS: '200'
+
+# jobs
+jobs:
+  base:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.12', '3.14']
+
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v7
+
+    - name: Set up tox environment
+      uses: ./.github/actions/setup-tox
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: .github/workflows/install_deps.sh amici
+
+    - name: Run tests
+      timeout-minutes: 30
+      run: tox -e base
+      env:
+        CC: clang
+        CXX: clang++
+
+    - name: Upload coverage
+      uses: ./.github/actions/coverage
+      with:
+        codecov-token: ${{ secrets.CODECOV_TOKEN }}
+
+  mac:
+    runs-on: macos-14
+    strategy:
+      matrix:
+        python-version: ['3.14']
+
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v7
+
+    - name: Set up tox environment
+      uses: ./.github/actions/setup-tox
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: .github/workflows/install_deps.sh amici
+
+    - name: Run tests
+      timeout-minutes: 30
+      run: ulimit -n 65536 65536 && tox -e base
+
+    - name: Upload coverage
+      uses: ./.github/actions/coverage
+      with:
+        codecov-token: ${{ secrets.CODECOV_TOKEN }}
+
+  windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python-version: ['3.14']
+
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v7
+
+    - name: Prepare python ${{ matrix.python-version }}
+      uses: actions/setup-python@v7
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache
+      uses: actions/cache@v6
+      with:
+        path: |
+          ~\AppData\Local\pip\Cache
+          ~\AppData\Local\uv\cache
+          .tox
+        key: "${{ runner.os }}-${{ runner.arch }}-py${{ matrix.python-version }}-ci-${{ github.job }}"
+
+    - name: Install dependencies
+      run: |
+        pip install --upgrade pip
+        pip install tox tox-uv
+
+    - name: Run tests
+      shell: bash
+      timeout-minutes: 10
+      run: tox -e windows
+
+  petab:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.12', '3.14']
+
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v7
+
+    - name: Set up tox environment
+      uses: ./.github/actions/setup-tox
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: .github/workflows/install_deps.sh amici pysb
+
+    - name: Run tests
+      timeout-minutes: 35
+      run: tox -e petab && tox e -e petab -- pip uninstall -y amici
+      env:
+        CC: clang
+        CXX: clang++
+
+    - name: Upload coverage
+      uses: ./.github/actions/coverage
+      with:
+        codecov-token: ${{ secrets.CODECOV_TOKEN }}
+
+  julia:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.12', '3.13']
+
+    # needed to allow julia-actions/cache to delete old caches that it has created
+    permissions:
+      actions: write
+      contents: read
+
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v7
+
+    - name: Set up tox environment
+      uses: ./.github/actions/setup-tox
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install julia
+      uses: julia-actions/setup-julia@v3
+      with:
+        version: 1.11
+
+    - name: Install dependencies
+      run: .github/workflows/install_deps.sh
+
+    - name: Install PEtabJL dependencies
+      run: >
+        julia -e 'using Pkg; Pkg.add("PEtab");
+        Pkg.add("OrdinaryDiffEq"); Pkg.add("Sundials")'
+
+    - name: Run tests
+      timeout-minutes: 25
+      run: tox -e julia
+
+    - name: Upload coverage
+      uses: ./.github/actions/coverage
+      with:
+        codecov-token: ${{ secrets.CODECOV_TOKEN }}
+
+  optimize:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.14']
+
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v7
+
+    - name: Set up tox environment
+      uses: ./.github/actions/setup-tox
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: .github/workflows/install_deps.sh ipopt
+
+    - name: Run tests
+      timeout-minutes: 25
+      run: tox -e optimize
+
+    - name: Upload coverage
+      uses: ./.github/actions/coverage
+      with:
+        codecov-token: ${{ secrets.CODECOV_TOKEN }}
+
+  hierarchical:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.12', '3.14']
+
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v7
+
+    - name: Set up tox environment
+      uses: ./.github/actions/setup-tox
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: .github/workflows/install_deps.sh amici
+
+    - name: Run tests
+      timeout-minutes: 20
+      run: tox -e hierarchical
+
+    - name: Upload coverage
+      uses: ./.github/actions/coverage
+      with:
+        codecov-token: ${{ secrets.CODECOV_TOKEN }}
+
+  select:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.12', '3.14']
+
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v7
+
+    - name: Set up tox environment
+      uses: ./.github/actions/setup-tox
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: .github/workflows/install_deps.sh amici
+
+    - name: Run tests
+      timeout-minutes: 20
+      run: tox -e select
+
+    - name: Upload coverage
+      uses: ./.github/actions/coverage
+      with:
+        codecov-token: ${{ secrets.CODECOV_TOKEN }}
+
+  quality:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.14']
+
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v7
+
+    - name: Set up tox environment
+      uses: ./.github/actions/setup-tox
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: pip install tox tox-uv pre-commit
+
+    - name: Check repository size
+      run: tox -e size
+
+    - name: Check all test directories are wired into a tox env
+      run: tox -e check_tests
+
+    - name: Run pre-commit hooks
+      run: pre-commit run --all-files
+
+  docs:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.14']
+
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v7
+
+    - name: Set up tox environment
+      uses: ./.github/actions/setup-tox
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: .github/workflows/install_deps.sh doc amici
+
+    - name: Validate CITATION.cff
+      run: pip install cffconvert && cffconvert --validate
+
+    - name: Build doc
+      timeout-minutes: 30
+      run: tox -e doc
+
+  notebooks1:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.12']
+
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v7
+
+    - name: Set up tox environment
+      uses: ./.github/actions/setup-tox
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: .github/workflows/install_deps.sh amici ipopt
+
+    - name: Run notebooks 1
+      timeout-minutes: 20
+      run: tox -e notebooks1
+
+  notebooks2:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.12']
+
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v7
+
+    - name: Set up tox environment
+      uses: ./.github/actions/setup-tox
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: .github/workflows/install_deps.sh amici
+
+    - name: Run notebooks 2
+      timeout-minutes: 20
+      run: tox -e notebooks2

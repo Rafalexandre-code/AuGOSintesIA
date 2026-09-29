@@ -27,10 +27,11 @@ PATH2ROOT = os.getcwd().split(FOLDER)[0]
 
 
 # Obtain data directory for all the experiments
-main_dir = fr'{PATH2ROOT}\data\shampoo'
-experiment_paths = [p for p in Path(main_dir).glob("*") if p.is_dir()]
+# (portable across Windows/Linux/macOS; override with QUBOT_DATA_DIR if data/ lives elsewhere)
+main_dir = os.path.join(os.environ.get('QUBOT_DATA_DIR', os.path.join(PATH2ROOT, 'data')), 'shampoo')
+experiment_paths = sorted(p for p in Path(main_dir).glob("*") if p.is_dir())
 
-df_summary = pd.read_csv(main_dir+r'\summary.csv')
+df_summary = pd.read_csv(os.path.join(main_dir, 'summary.csv'))
 #%%[markdown]
 # ## Mass transfer accuracy histogram
 # This section visualizes the distribution of mass transfer errors across all reagent dispensing operations.

@@ -1,0 +1,2701 @@
+#!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+# pyre-strict
+
+import dataclasses
+import json
+import math
+import os
+import tempfile
+from collections import OrderedDict
+from collections.abc import Callable
+from functools import partial
+from math import nan
+from typing import Any
+
+import numpy as np
+import pandas as pd
+import torch
+from ax.adapter.base import DataLoaderConfig
+from ax.adapter.registry import Generators
+from ax.adapter.transforms.base import Transform
+from ax.adapter.transforms.log import Log
+from ax.adapter.transforms.one_hot import OneHot
+from ax.analysis.graphviz.graphviz_analysis import GraphvizAnalysisCard
+from ax.analysis.healthcheck.healthcheck_analysis import HealthcheckAnalysisCard
+from ax.analysis.markdown.markdown_analysis import MarkdownAnalysisCard
+from ax.analysis.plotly.plotly_analysis import PlotlyAnalysisCard
+from ax.benchmark.methods.sobol import get_sobol_benchmark_method
+from ax.benchmark.testing.benchmark_stubs import (
+    get_aggregated_benchmark_result,
+    get_benchmark_map_metric,
+    get_benchmark_map_unavailable_while_running_metric,
+    get_benchmark_metric,
+    get_benchmark_result,
+    get_benchmark_time_varying_metric,
+)
+from ax.core.analysis_card import (
+    AnalysisCard,
+    AnalysisCardGroup,
+    ErrorAnalysisCard,
+    NotApplicableStateAnalysisCard,
+)
+from ax.core.auxiliary import AuxiliaryExperimentPurpose
+from ax.core.data import Data
+from ax.core.generator_run import GeneratorRun
+from ax.core.llm_provider import LLMMessage
+from ax.core.metric import Metric
+from ax.core.objective import Objective
+from ax.core.observation import ObservationFeatures
+from ax.core.optimization_config import (
+    MultiObjectiveOptimizationConfig,
+    OptimizationConfig,
+    PreferenceOptimizationConfig,
+)
+from ax.core.parameter import ChoiceParameter, ParameterType
+from ax.core.parameter_constraint import ParameterConstraint
+from ax.core.runner import Runner
+from ax.exceptions.core import AxStorageWarning, UnsupportedError
+from ax.exceptions.storage import JSONDecodeError, JSONEncodeError
+from ax.generation_strategy.center_generation_node import CenterGenerationNode
+from ax.generation_strategy.generation_node import GenerationNode, GenerationStep
+from ax.generation_strategy.generator_spec import GeneratorSpec
+from ax.generation_strategy.transition_criterion import (
+    MaxGenerationParallelism,
+    MaxTrialsAwaitingData,
+    MinTrials,
+)
+from ax.generators.torch.botorch_modular.kernels import ScaleMaternKernel
+from ax.generators.torch.botorch_modular.surrogate import Surrogate, SurrogateSpec
+from ax.generators.torch.botorch_modular.utils import ModelConfig
+from ax.storage.json_store.decoder import (
+    _DEPRECATED_GENERATOR_TO_REPLACEMENT,
+    _raise_on_legacy_callable_refs,
+    data_from_json,
+    generation_node_from_json,
+    generation_strategy_from_json,
+    generator_spec_from_json,
+    object_from_json,
+)
+from ax.storage.json_store.decoders import (
+    botorch_component_from_json,
+    class_from_json,
+    multi_objective_from_json,
+)
+from ax.storage.json_store.encoder import object_to_json
+from ax.storage.json_store.encoders import (
+    botorch_component_to_dict,
+    botorch_modular_to_dict,
+    choice_parameter_to_dict,
+    metric_to_dict,
+    runner_to_dict,
+)
+from ax.storage.json_store.load import load_experiment
+from ax.storage.json_store.registry import (
+    CORE_CLASS_DECODER_REGISTRY,
+    CORE_CLASS_ENCODER_REGISTRY,
+    CORE_DECODER_REGISTRY,
+    CORE_ENCODER_REGISTRY,
+)
+from ax.storage.json_store.save import save_experiment
+from ax.storage.registry_bundle import RegistryBundle
+from ax.storage.utils import EXPECT_RELATIVIZED_OUTCOMES, PREFERENCE_PROFILE_NAME
+from ax.utils.common.testutils import TestCase
+from ax.utils.testing.core_stubs import (
+    get_abandoned_arm,
+    get_acquisition_function_type,
+    get_acquisition_type,
+    get_and_early_stopping_strategy,
+    get_arm,
+    get_auxiliary_experiment,
+    get_batch_trial,
+    get_botorch_model,
+    get_botorch_model_with_default_acquisition_class,
+    get_botorch_model_with_surrogate_spec,
+    get_branin_data,
+    get_branin_experiment,
+    get_branin_experiment_with_timestamp_map_metric,
+    get_branin_metric,
+    get_chained_input_transform,
+    get_choice_parameter,
+    get_default_orchestrator_options,
+    get_derived_parameter,
+    get_equality_parameter_constraint,
+    get_experiment_with_batch_and_single_trial,
+    get_experiment_with_data,
+    get_experiment_with_map_data,
+    get_experiment_with_map_data_type,
+    get_experiment_with_trial_with_ttl,
+    get_factorial_metric,
+    get_fixed_parameter,
+    get_gamma_prior,
+    get_generator_run,
+    get_hartmann_metric,
+    get_hierarchical_choice_parameter,
+    get_hierarchical_search_space,
+    get_improvement_global_stopping_strategy,
+    get_interval,
+    get_map_data,
+    get_map_metric,
+    get_metric,
+    get_mll_type,
+    get_model_type,
+    get_multi_objective,
+    get_multi_objective_optimization_config,
+    get_multi_type_experiment,
+    get_objective,
+    get_objective_threshold,
+    get_optimization_config,
+    get_or_early_stopping_strategy,
+    get_orchestrator_options_batch_trial,
+    get_order_constraint,
+    get_outcome_constraint,
+    get_parameter_constraint,
+    get_pathlib_path,
+    get_percentile_early_stopping_strategy,
+    get_percentile_early_stopping_strategy_with_non_objective_metric_signature,
+    get_range_parameter,
+    get_scalarized_objective,
+    get_scalarized_outcome_constraint,
+    get_search_space,
+    get_sorted_choice_parameter,
+    get_sum_constraint1,
+    get_sum_constraint2,
+    get_surrogate,
+    get_surrogate_spec_with_default,
+    get_surrogate_spec_with_inputs,
+    get_surrogate_spec_with_lognormal,
+    get_synthetic_runner,
+    get_threshold_early_stopping_strategy,
+    get_trial,
+    get_trial_based_criterion,
+    get_winsorization_config,
+)
+from ax.utils.testing.modeling_stubs import (
+    get_generation_strategy,
+    get_input_transform_type,
+    get_legacy_list_surrogate_generation_step_as_dict,
+    get_observation_features,
+    get_outcome_transfrom_type,
+    get_surrogate_as_dict,
+    get_surrogate_generation_step,
+    get_surrogate_spec_as_dict,
+    get_to_new_sq_transform_type,
+    get_transform_type,
+    sobol_gpei_generation_node_gs,
+)
+from ax.utils.testing.utils import generic_equals
+from ax.utils.testing.utils_testing_stubs import get_backend_simulator_with_trials
+from botorch.models import SingleTaskGP
+from botorch.models.heterogeneous_mtgp import HeterogeneousMTGP
+from botorch.models.kernels.heterogeneous_multitask import CombinatorialCovarModule
+from botorch.models.map_saas import (
+    AdditiveMapSaasSingleTaskGP,
+    EnsembleMapSaasSingleTaskGP,
+)
+from botorch.models.transforms.input import Normalize
+from botorch.models.transforms.outcome import Standardize
+from botorch.sampling.normal import SobolQMCNormalSampler
+from gpytorch.mlls.exact_marginal_log_likelihood import ExactMarginalLogLikelihood
+from pyre_extensions import assert_is_instance, none_throws
+
+
+TEST_CASES: list[tuple[str, Callable[..., Any]]] = [
+    ("AbandonedArm", get_abandoned_arm),
+    (
+        "AdditiveMapSaasSingleTaskGP",
+        partial(
+            get_surrogate_spec_with_inputs,
+            model_class=AdditiveMapSaasSingleTaskGP,
+        ),
+    ),
+    ("AggregatedBenchmarkResult", get_aggregated_benchmark_result),
+    ("AndEarlyStoppingStrategy", get_and_early_stopping_strategy),
+    ("Arm", get_arm),
+    ("AuxiliaryExperiment", get_auxiliary_experiment),
+    ("AuxiliaryExperimentPurpose", lambda: AuxiliaryExperimentPurpose.PE_EXPERIMENT),
+    ("BackendSimulator", get_backend_simulator_with_trials),
+    ("BatchTrial", get_batch_trial),
+    ("BenchmarkMethod", get_sobol_benchmark_method),
+    ("BenchmarkMetric", get_benchmark_metric),
+    ("BenchmarkMapMetric", get_benchmark_map_metric),
+    ("BenchmarkTimeVaryingMetric", get_benchmark_time_varying_metric),
+    (
+        "BenchmarkMapUnavailableWhileRunningMetric",
+        get_benchmark_map_unavailable_while_running_metric,
+    ),
+    ("BenchmarkResult", get_benchmark_result),
+    ("BoTorchGenerator", get_botorch_model),
+    ("BoTorchGenerator", get_botorch_model_with_default_acquisition_class),
+    ("BoTorchGenerator", get_botorch_model_with_surrogate_spec),
+    ("BraninMetric", get_branin_metric),
+    ("CenterGenerationNode", partial(CenterGenerationNode, next_node_name="SOBOL")),
+    ("ChainedInputTransform", get_chained_input_transform),
+    ("ChoiceParameter", get_choice_parameter),
+    ("ChoiceParameter", get_sorted_choice_parameter),
+    (
+        "ChoiceParameter",
+        partial(get_hierarchical_choice_parameter, parameter_type=ParameterType.BOOL),
+    ),
+    (
+        "ChoiceParameter",
+        partial(get_hierarchical_choice_parameter, parameter_type=ParameterType.INT),
+    ),
+    (
+        "ChoiceParameter",
+        partial(get_hierarchical_choice_parameter, parameter_type=ParameterType.FLOAT),
+    ),
+    (
+        "ChoiceParameter",
+        partial(get_hierarchical_choice_parameter, parameter_type=ParameterType.STRING),
+    ),
+    (
+        "CombinatorialCovarModule",
+        partial(
+            get_surrogate_spec_with_inputs,
+            covar_module_class=CombinatorialCovarModule,
+        ),
+    ),
+    # testing with non-default argument
+    (
+        "DataLoaderConfig",
+        partial(DataLoaderConfig, fit_only_completed_map_metrics=True),
+    ),
+    ("DerivedParameter", get_derived_parameter),
+    (
+        "EnsembleMapSaasSingleTaskGP",
+        partial(
+            get_surrogate_spec_with_inputs,
+            model_class=EnsembleMapSaasSingleTaskGP,
+        ),
+    ),
+    ("Experiment", get_experiment_with_batch_and_single_trial),
+    ("Experiment", get_experiment_with_trial_with_ttl),
+    ("Experiment", get_experiment_with_data),
+    ("Experiment", get_experiment_with_map_data_type),
+    ("Experiment", get_branin_experiment_with_timestamp_map_metric),
+    ("Experiment", get_experiment_with_map_data),
+    ("FactorialMetric", get_factorial_metric),
+    ("FixedParameter", get_fixed_parameter),
+    ("FixedParameter", partial(get_fixed_parameter, with_dependents=True)),
+    ("GammaPrior", get_gamma_prior),
+    (
+        "GenerationStep",
+        partial(
+            GenerationStep,
+            generator=Generators.SOBOL,
+            num_trials=5,
+            min_trials_observed=3,
+            use_all_trials_in_exp=True,
+        ),
+    ),
+    ("GenerationStrategy", partial(get_generation_strategy, with_experiment=True)),
+    (
+        "GenerationStrategy",
+        partial(
+            get_generation_strategy,
+            with_experiment=True,
+        ),
+    ),
+    (
+        "GenerationStrategy",
+        partial(sobol_gpei_generation_node_gs, with_model_selection=True),
+    ),
+    (
+        "GenerationStrategy",
+        partial(sobol_gpei_generation_node_gs, with_auto_transition=True),
+    ),
+    (
+        "GenerationStrategy",
+        partial(sobol_gpei_generation_node_gs, with_previous_node=True),
+    ),
+    (
+        "GenerationStrategy",
+        partial(sobol_gpei_generation_node_gs, with_trial_type=True),
+    ),
+    (
+        "GenerationStrategy",
+        partial(sobol_gpei_generation_node_gs, with_input_constructors_all_n=True),
+    ),
+    (
+        "GenerationStrategy",
+        partial(
+            sobol_gpei_generation_node_gs, with_input_constructors_remaining_n=True
+        ),
+    ),
+    (
+        "GenerationStrategy",
+        partial(sobol_gpei_generation_node_gs, with_input_constructors_repeat_n=True),
+    ),
+    (
+        "GenerationStrategy",
+        partial(
+            sobol_gpei_generation_node_gs, with_input_constructors_target_trial=True
+        ),
+    ),
+    (
+        "GenerationStrategy",
+        partial(sobol_gpei_generation_node_gs, with_unlimited_gen_mbm=True),
+    ),
+    (
+        "GenerationStrategy",
+        partial(sobol_gpei_generation_node_gs, with_is_SOO_transition=True),
+    ),
+    ("GeneratorRun", get_generator_run),
+    (
+        "GeneratorSpec",
+        partial(
+            GeneratorSpec,
+            generator_enum=Generators.BOTORCH_MODULAR,
+            generator_kwargs={"some_kwarg": "some_value"},
+            generator_gen_kwargs={"n": 5},
+            cv_kwargs={"untransform": False},
+            generator_key_override="custom_generator_key",
+        ),
+    ),
+    ("Hartmann6Metric", get_hartmann_metric),
+    (
+        "HeterogeneousMTGP",
+        partial(
+            get_surrogate_spec_with_inputs,
+            model_class=HeterogeneousMTGP,
+        ),
+    ),
+    ("HierarchicalSearchSpace", get_hierarchical_search_space),
+    ("ImprovementGlobalStoppingStrategy", get_improvement_global_stopping_strategy),
+    ("Interval", get_interval),
+    (
+        "LLMMessage",
+        lambda: LLMMessage(
+            role="assistant",
+            content="Hello!",
+            metadata={"finish_reason": "stop", "usage": {"total_tokens": 10}},
+        ),
+    ),
+    ("MapData", get_map_data),
+    ("MapMetric", partial(get_map_metric, name="test")),
+    ("Metric", get_metric),
+    ("MultiObjective", get_multi_objective),
+    ("MultiObjectiveOptimizationConfig", get_multi_objective_optimization_config),
+    ("MultiTypeExperiment", get_multi_type_experiment),
+    ("MultiTypeExperiment", partial(get_multi_type_experiment, add_trials=True)),
+    ("ObservationFeatures", get_observation_features),
+    ("Objective", get_objective),
+    ("ObjectiveThreshold", get_objective_threshold),
+    ("OptimizationConfig", get_optimization_config),
+    ("OrEarlyStoppingStrategy", get_or_early_stopping_strategy),
+    ("OrderConstraint", get_order_constraint),
+    ("OutcomeConstraint", get_outcome_constraint),
+    ("Path", get_pathlib_path),
+    ("PercentileEarlyStoppingStrategy", get_percentile_early_stopping_strategy),
+    (
+        "PercentileEarlyStoppingStrategy",
+        get_percentile_early_stopping_strategy_with_non_objective_metric_signature,
+    ),
+    ("ParameterConstraint", get_parameter_constraint),
+    ("ParameterConstraint", get_equality_parameter_constraint),
+    ("RangeParameter", get_range_parameter),
+    ("ScalarizedObjective", get_scalarized_objective),
+    ("ScalarizedOutcomeConstraint", get_scalarized_outcome_constraint),
+    ("OrchestratorOptions", get_default_orchestrator_options),
+    ("OrchestratorOptions", get_orchestrator_options_batch_trial),
+    ("SearchSpace", get_search_space),
+    ("SumConstraint", get_sum_constraint1),
+    ("SumConstraint", get_sum_constraint2),
+    ("Surrogate", get_surrogate),
+    ("SyntheticRunner", get_synthetic_runner),
+    ("Type[Acquisition]", get_acquisition_type),
+    ("Type[AcquisitionFunction]", get_acquisition_function_type),
+    ("Type[Model]", get_model_type),
+    ("Type[MarginalLogLikelihood]", get_mll_type),
+    ("Type[Transform]", get_transform_type),
+    ("Type[Transform]", lambda: Transform),
+    ("Type[InputTransform]", get_input_transform_type),
+    ("Type[OutcomeTransform]", get_outcome_transfrom_type),
+    ("Type[TransformToNewSQ]", get_to_new_sq_transform_type),
+    ("TransitionCriterionList", get_trial_based_criterion),
+    ("ThresholdEarlyStoppingStrategy", get_threshold_early_stopping_strategy),
+    ("Trial", get_trial),
+    ("WinsorizationConfig", get_winsorization_config),
+    (
+        "AnalysisCard",
+        lambda: AnalysisCard(
+            name="TestAnalysis",
+            title="Test",
+            subtitle="subtitle",
+            df=pd.DataFrame({"a": [1, 2]}),
+            blob="blob_str",
+        ),
+    ),
+    (
+        "ErrorAnalysisCard",
+        lambda: ErrorAnalysisCard(
+            name="TestError",
+            title="Error",
+            subtitle="err subtitle",
+            df=pd.DataFrame(),
+            blob="error details",
+        ),
+    ),
+    (
+        "PlotlyAnalysisCard",
+        lambda: PlotlyAnalysisCard(
+            name="TestPlotly",
+            title="Plot",
+            subtitle="plot subtitle",
+            df=pd.DataFrame({"x": [1]}),
+            blob="{}",
+        ),
+    ),
+    (
+        "MarkdownAnalysisCard",
+        lambda: MarkdownAnalysisCard(
+            name="TestMd",
+            title="MD",
+            subtitle="md subtitle",
+            df=pd.DataFrame(),
+            blob="# Hello",
+        ),
+    ),
+    (
+        "HealthcheckAnalysisCard",
+        lambda: HealthcheckAnalysisCard(
+            name="TestHC",
+            title="HC",
+            subtitle="hc subtitle",
+            df=pd.DataFrame(),
+            blob='{"status": 0}',
+        ),
+    ),
+    (
+        "GraphvizAnalysisCard",
+        lambda: GraphvizAnalysisCard(
+            name="TestGV",
+            title="GV",
+            subtitle="gv subtitle",
+            df=pd.DataFrame(),
+            blob="digraph {}",
+        ),
+    ),
+    (
+        "NotApplicableStateAnalysisCard",
+        lambda: NotApplicableStateAnalysisCard(
+            name="TestNA",
+            title="Not Applicable",
+            subtitle="na subtitle",
+            df=pd.DataFrame(),
+            blob="Not enough data.",
+        ),
+    ),
+    (
+        "AnalysisCardGroup",
+        lambda: AnalysisCardGroup(
+            name="TestGroup",
+            title="Group",
+            subtitle="group subtitle",
+            children=[
+                AnalysisCard(
+                    name="Child",
+                    title="C1",
+                    subtitle="s1",
+                    df=pd.DataFrame({"a": [1]}),
+                    blob="b1",
+                ),
+                MarkdownAnalysisCard(
+                    name="Child2",
+                    title="C2",
+                    subtitle="s2",
+                    df=pd.DataFrame(),
+                    blob="# md",
+                ),
+            ],
+        ),
+    ),
+]
+
+
+class JSONStoreTest(TestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.maxDiff = None
+        self.experiment = get_experiment_with_batch_and_single_trial()
+
+    def test_JSONEncodeFailure(self) -> None:
+        with self.assertRaises(JSONEncodeError):
+            object_to_json(
+                obj=RuntimeError("foobar"),
+                encoder_registry=CORE_ENCODER_REGISTRY,
+                class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+            )
+
+    def test_JSONDecodeFailure(self) -> None:
+        self.assertRaises(
+            JSONDecodeError,
+            object_from_json,
+            RuntimeError("foobar"),
+            CORE_DECODER_REGISTRY,
+            CORE_CLASS_DECODER_REGISTRY,
+        )
+        self.assertRaises(
+            JSONDecodeError,
+            object_from_json,
+            {"__type": "foobar"},
+            CORE_DECODER_REGISTRY,
+            CORE_CLASS_DECODER_REGISTRY,
+        )
+
+    def test_SaveAndLoad(self) -> None:
+        with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".json") as f:
+            save_experiment(
+                self.experiment,
+                f.name,
+                encoder_registry=CORE_ENCODER_REGISTRY,
+                class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+            )
+            loaded_experiment = load_experiment(
+                f.name,
+                decoder_registry=CORE_DECODER_REGISTRY,
+                class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+            )
+            self.assertEqual(loaded_experiment, self.experiment)
+            os.remove(f.name)
+
+    def test_SaveValidation(self) -> None:
+        with self.assertRaises(ValueError):
+            save_experiment(
+                # pyrefly: ignore [bad-argument-type]
+                self.experiment.trials[0],
+                "test.json",
+                encoder_registry=CORE_ENCODER_REGISTRY,
+                class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+            )
+
+    def test_ValidateFilename(self) -> None:
+        bad_filename = "test"
+        self.assertRaises(
+            ValueError,
+            save_experiment,
+            self.experiment,
+            bad_filename,
+            CORE_ENCODER_REGISTRY,
+            CORE_CLASS_ENCODER_REGISTRY,
+        )
+
+    def test_EncodeDecode(self) -> None:
+        for class_, fake_func in TEST_CASES:
+            # Can't load trials from JSON, because a batch needs an experiment
+            # in order to be initialized
+            if class_ == "BatchTrial" or class_ == "Trial":
+                continue
+
+            # Can't load parameter constraints from JSON, because they require
+            # a SearchSpace in order to be initialized
+            if class_ == "OrderConstraint" or class_ == "SumConstraint":
+                continue
+
+            original_object = fake_func()
+
+            json_object = object_to_json(
+                original_object,
+                encoder_registry=CORE_ENCODER_REGISTRY,
+                class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+            )
+
+            # Dump and reload the json_object to simulate serialization round-trip.
+            json_str = json.dumps(json_object)
+            json_object = json.loads(json_str)
+
+            converted_object = object_from_json(
+                json_object,
+                decoder_registry=CORE_DECODER_REGISTRY,
+                class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+            )
+            if class_ == "BenchmarkMethod":
+                # Some `GenerationStrategy` fields are not persisted in storage;
+                # it's ok for them to not be there in the reloaded object.
+                original_object.generation_strategy._unset_non_persistent_state_fields()
+            if class_ == "GenerationStep":
+                # _step_index is non-persistent state, unset on original to match
+                # the decoded object which will have _step_index=None.
+                original_object._step_index = None
+                # Transition_to is set during decode for backwards
+                # compatibility. Update original to match decoded.
+                for tc in original_object.transition_criteria:
+                    if tc.transition_to is None:
+                        tc._transition_to = original_object.name
+            if isinstance(original_object, torch.nn.Module):
+                self.assertIsInstance(
+                    converted_object,
+                    original_object.__class__,
+                    msg=f"Error encoding/decoding {class_}.",
+                )
+                original_object = original_object.state_dict()
+                converted_object = converted_object.state_dict()
+
+            try:
+                self.assertEqual(
+                    original_object,
+                    converted_object,
+                    msg=(
+                        f"Error encoding/decoding {class_}. Original object: "
+                        f"{original_object}, decoded object: {converted_object}"
+                    ),
+                )
+            except RuntimeError as e:
+                if "Tensor with more than one value" in str(e):
+                    self.assertTrue(
+                        generic_equals(first=original_object, second=converted_object)
+                    )
+                else:
+                    raise e
+
+    def test_EncodeDecode_dataclass_with_initvar(self) -> None:
+        @dataclasses.dataclass
+        class TestDataclass:
+            a_field: int
+            not_a_field: dataclasses.InitVar[int | None] = None
+
+            # pyrefly: ignore [bad-function-definition]
+            def __post_init__(self, doesnt_serialize: None) -> None:
+                # pyrefly: ignore [missing-attribute]
+                self.not_a_field = 1
+
+        obj = TestDataclass(a_field=-1)
+        as_json = object_to_json(obj=obj)
+        self.assertEqual(as_json, {"__type": "TestDataclass", "a_field": -1})
+        recovered = object_from_json(
+            object_json=as_json, decoder_registry={"TestDataclass": TestDataclass}
+        )
+        self.assertEqual(recovered.a_field, -1)
+        self.assertEqual(recovered.not_a_field, 1)
+        self.assertEqual(obj, recovered)
+
+    def test_EncodeDecode_non_finite_floats(self) -> None:
+        obj = {
+            "python_nan": float("nan"),
+            "numpy_nan": np.float64(float("nan")),
+            "python_inf": float("inf"),
+            "python_negative_inf": float("-inf"),
+            "nested": [np.float32(float("nan")), {"inf": np.float64(float("inf"))}],
+            "ndarray": np.array([[1.0, np.nan], [np.inf, -np.inf]]),
+            "tensor": torch.tensor(
+                [[1.0, float("nan")], [float("inf"), -float("inf")]]
+            ),
+            "set": {float("inf"), float("-inf")},
+        }
+
+        obj_json = object_to_json(
+            obj,
+            encoder_registry=CORE_ENCODER_REGISTRY,
+            class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+        )
+        serialized = json.dumps(obj_json, allow_nan=False)
+        json.loads(
+            serialized,
+            parse_constant=lambda constant: self.fail(
+                f"Invalid JSON constant found: {constant}"
+            ),
+        )
+        self.assertNotIn("NaN", serialized)
+        self.assertNotIn("Infinity", serialized)
+        self.assertNotIn("-Infinity", serialized)
+
+        recovered = object_from_json(
+            obj_json,
+            decoder_registry=CORE_DECODER_REGISTRY,
+            class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+        )
+        self.assertTrue(math.isnan(recovered["python_nan"]))
+        self.assertTrue(math.isnan(recovered["numpy_nan"]))
+        self.assertEqual(recovered["python_inf"], float("inf"))
+        self.assertEqual(recovered["python_negative_inf"], float("-inf"))
+        self.assertTrue(math.isnan(recovered["nested"][0]))
+        self.assertEqual(recovered["nested"][1]["inf"], float("inf"))
+        self.assertTrue(np.isnan(recovered["ndarray"][0, 1]))
+        self.assertEqual(recovered["ndarray"][1, 0], float("inf"))
+        self.assertEqual(recovered["ndarray"][1, 1], float("-inf"))
+        self.assertTrue(torch.isnan(recovered["tensor"][0, 1]))
+        self.assertTrue(torch.isinf(recovered["tensor"][1, 0]))
+        self.assertTrue(torch.isinf(recovered["tensor"][1, 1]))
+        self.assertLess(recovered["tensor"][1, 1].item(), 0)
+        self.assertEqual(recovered["set"], {float("inf"), float("-inf")})
+
+    def test_EncodeDecode_zero_dimensional_non_finite_arrays_and_tensors(self) -> None:
+        obj = {
+            "ndarray": np.array(np.nan),
+            "tensor": torch.tensor(float("nan")),
+        }
+
+        obj_json = object_to_json(
+            obj,
+            encoder_registry=CORE_ENCODER_REGISTRY,
+            class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+        )
+        serialized = json.dumps(obj_json, allow_nan=False)
+        json.loads(
+            serialized,
+            parse_constant=lambda constant: self.fail(
+                f"Invalid JSON constant found: {constant}"
+            ),
+        )
+        self.assertNotIn("NaN", serialized)
+
+        recovered = object_from_json(
+            obj_json,
+            decoder_registry=CORE_DECODER_REGISTRY,
+            class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+        )
+        self.assertTrue(np.isnan(recovered["ndarray"]))
+        self.assertTrue(torch.isnan(recovered["tensor"]))
+
+    def test_Encode_finite_arrays_and_tensors_unchanged(self) -> None:
+        ndarray = np.array([[1.0, 2.0], [3.0, 4.0]])
+        tensor = torch.tensor(
+            [[1.0, 2.0], [3.0, 4.0]], dtype=torch.float64, device=torch.device("cpu")
+        )
+
+        self.assertEqual(
+            object_to_json(
+                ndarray,
+                encoder_registry=CORE_ENCODER_REGISTRY,
+                class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+            ),
+            {"__type": "ndarray", "value": [[1.0, 2.0], [3.0, 4.0]]},
+        )
+        self.assertEqual(
+            object_to_json(
+                tensor,
+                encoder_registry=CORE_ENCODER_REGISTRY,
+                class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+            ),
+            {
+                "__type": "Tensor",
+                "value": [[1.0, 2.0], [3.0, 4.0]],
+                "dtype": {"__type": "torch_dtype", "value": "torch.float64"},
+                "device": {"__type": "torch_device", "value": "cpu"},
+            },
+        )
+
+    def test_EncodeDecodeTorchTensor(self) -> None:
+        x = torch.tensor(
+            [[1.0, 2.0], [3.0, 4.0]], dtype=torch.float64, device=torch.device("cpu")
+        )
+        expected_json = {
+            "__type": "Tensor",
+            "value": [[1.0, 2.0], [3.0, 4.0]],
+            "dtype": {"__type": "torch_dtype", "value": "torch.float64"},
+            "device": {"__type": "torch_device", "value": "cpu"},
+        }
+        x_json = object_to_json(
+            x,
+            encoder_registry=CORE_ENCODER_REGISTRY,
+            class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+        )
+        self.assertEqual(expected_json, x_json)
+        x2 = object_from_json(
+            x_json,
+            decoder_registry=CORE_DECODER_REGISTRY,
+            class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+        )
+        self.assertTrue(torch.equal(x, x2))
+
+        # Warning on large tensor.
+        with self.assertWarnsRegex(AxStorageWarning, "serialize a tensor"):
+            object_to_json(
+                torch.ones(99_999),
+                encoder_registry=CORE_ENCODER_REGISTRY,
+                class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+            )
+
+        # Key error on desearialization.
+        x_json = object_to_json(
+            x,
+            encoder_registry=CORE_ENCODER_REGISTRY,
+            class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+        )
+        x_json.pop("dtype")
+        with self.assertRaisesRegex(JSONDecodeError, "construct a tensor"):
+            object_from_json(
+                x_json,
+                decoder_registry=CORE_DECODER_REGISTRY,
+                class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+            )
+
+    def test_DecodeGenerationStrategy(self) -> None:
+        generation_strategy = get_generation_strategy()
+        experiment = get_branin_experiment()
+        gs_json = object_to_json(
+            generation_strategy,
+            encoder_registry=CORE_ENCODER_REGISTRY,
+            class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+        )
+        new_generation_strategy = generation_strategy_from_json(
+            gs_json,
+            decoder_registry=CORE_DECODER_REGISTRY,
+            class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+        )
+        # Some fields of the reloaded GS are not expected to be set (both will be
+        # set during next model fitting call), so we unset them on the original GS as
+        # well.
+        generation_strategy._unset_non_persistent_state_fields()
+        self.assertEqual(generation_strategy, new_generation_strategy)
+        self.assertGreater(len(new_generation_strategy._nodes), 0)
+        self.assertIsInstance(
+            new_generation_strategy._nodes[0].generator_spec.generator_enum, Generators
+        )
+        # Model has not yet been initialized on this GS since it hasn't generated
+        # anything yet.
+        self.assertIsNone(new_generation_strategy.adapter)
+
+        # Check that we can encode and decode the generation strategy after
+        # it has generated some generator runs.
+        generation_strategy = get_generation_strategy()
+        gr = generation_strategy.gen_single_trial(experiment)
+        gs_json = object_to_json(
+            generation_strategy,
+            encoder_registry=CORE_ENCODER_REGISTRY,
+            class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+        )
+        new_generation_strategy = generation_strategy_from_json(
+            gs_json,
+            decoder_registry=CORE_DECODER_REGISTRY,
+            class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+        )
+        # Some fields of the reloaded GS are not expected to be set (both will be
+        # set during next model fitting call), so we unset them on the original GS as
+        # well.
+        generation_strategy._unset_non_persistent_state_fields()
+        self.assertEqual(generation_strategy, new_generation_strategy)
+        self.assertIsInstance(
+            new_generation_strategy._nodes[0].generator_spec.generator_enum, Generators
+        )
+
+        # Check that we can encode and decode the generation strategy after
+        # it has generated some trials and been updated with some data.
+        generation_strategy = new_generation_strategy
+        experiment.new_trial(gr)  # Add previously generated GR as trial.
+        # Make generation strategy aware of the trial's data via `gen`.
+        generation_strategy.gen_single_trial(experiment, data=get_branin_data())
+        gs_json = object_to_json(
+            generation_strategy,
+            encoder_registry=CORE_ENCODER_REGISTRY,
+            class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+        )
+        new_generation_strategy = generation_strategy_from_json(
+            gs_json,
+            decoder_registry=CORE_DECODER_REGISTRY,
+            class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+        )
+        # Some fields of the reloaded GS are not expected to be set (both will be
+        # set during next model fitting call), so we unset them on the original GS as
+        # well.
+        generation_strategy._unset_non_persistent_state_fields()
+        self.assertEqual(generation_strategy, new_generation_strategy)
+        self.assertIsInstance(
+            new_generation_strategy._nodes[0].generator_spec.generator_enum, Generators
+        )
+
+    def test_decode_map_data_backward_compatible(self) -> None:
+        with self.subTest("Multiple map keys"):
+            data_with_two_map_keys_json = {
+                "df": {
+                    "__type": "DataFrame",
+                    "value": (
+                        '{"trial_index":{"0":0,"1":0},"arm_name":{"0":"0_0","1":"0_0"},'
+                        '"metric_name":{"0":"a","1":"a"},"mean":{"0":0.0,"1":0.0},'
+                        '"sem":{"0":0.0,"1":0.0},"epoch":{"0":0.0,"1":1.0},'
+                        '"timestamps":{"0":3.0,"1":4.0}}'
+                    ),
+                },
+                "map_key_infos": [
+                    {"key": "epoch", "default_value": nan},
+                    {"key": "timestamps", "default_value": nan},
+                ],
+                "__type": "MapData",
+            }
+            map_data = object_from_json(
+                data_with_two_map_keys_json,
+                decoder_registry=CORE_DECODER_REGISTRY,
+                class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+            )
+            self.assertEqual(len(map_data.full_df), 2)
+            self.assertIsInstance(map_data, Data)
+
+        with self.subTest("Single map key"):
+            data_json = {
+                "df": {
+                    "__type": "DataFrame",
+                    "value": (
+                        '{"trial_index":{"0":0,"1":0},"arm_name":{"0":"0_0","1":"0_0"},'
+                        '"metric_name":{"0":"a","1":"a"},"mean":{"0":0.0,"1":0.0},'
+                        '"sem":{"0":0.0,"1":0.0},"epoch":{"0":0.0,"1":1.0}}'
+                    ),
+                },
+                "map_key_infos": [{"key": "epoch", "default_value": nan}],
+                "__type": "MapData",
+            }
+            map_data = object_from_json(
+                data_json,
+                decoder_registry=CORE_DECODER_REGISTRY,
+                class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+            )
+            self.assertEqual(len(map_data.full_df), 2)
+            self.assertIsInstance(map_data, Data)
+
+        with self.subTest("No map key"):
+            data_json = {
+                "df": {
+                    "__type": "DataFrame",
+                    "value": (
+                        '{"metric_name":{},"arm_name":{},"trial_index":{},"mean":{}'
+                        ',"sem":{}}'
+                    ),
+                },
+                "map_key_infos": [],
+                "__type": "MapData",
+            }
+            map_data = object_from_json(
+                data_json,
+                decoder_registry=CORE_DECODER_REGISTRY,
+                class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+            )
+            self.assertIsInstance(map_data, Data)
+            self.assertEqual(len(map_data.full_df), 0)
+
+    def test_decode_data_backward_compatible(self) -> None:
+        empty_df_json = {
+            "__type": "DataFrame",
+            "value": (
+                '{"metric_name":{},"arm_name":{},"trial_index":{},"mean":{},"sem":{}}'
+            ),
+        }
+        with self.subTest("Description is None"):
+            data_json = {"df": empty_df_json, "description": None, "__type": "Data"}
+            data = object_from_json(
+                data_json,
+                decoder_registry=CORE_DECODER_REGISTRY,
+                class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+            )
+            self.assertIsInstance(data, Data)
+
+        with self.subTest("Description is not None"):
+            data_json = {
+                "df": empty_df_json,
+                "description": "description",
+                "__type": "Data",
+            }
+            data = object_from_json(
+                data_json,
+                decoder_registry=CORE_DECODER_REGISTRY,
+                class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+            )
+            self.assertIsInstance(data, Data)
+
+    def test_EncodeDecodeNumpy(self) -> None:
+        arr = np.array([[1, 2, 3], [4, 5, 6]])
+        self.assertTrue(
+            np.array_equal(
+                arr,
+                object_from_json(
+                    object_to_json(
+                        arr,
+                        encoder_registry=CORE_ENCODER_REGISTRY,
+                        class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+                    ),
+                    decoder_registry=CORE_DECODER_REGISTRY,
+                    class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+                ),
+            )
+        )
+
+    def test_EncodeDecodeSet(self) -> None:
+        a = {"a", 1, False}
+        self.assertEqual(
+            a,
+            object_from_json(
+                object_to_json(
+                    a,
+                    encoder_registry=CORE_ENCODER_REGISTRY,
+                    class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+                ),
+                decoder_registry=CORE_DECODER_REGISTRY,
+                class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+            ),
+        )
+
+    def test_encode_decode_surrogate_spec(self) -> None:
+        # Test SurrogateSpec separately since the GPyTorch components
+        # fail simple equality checks.
+        for org_object in (
+            get_surrogate_spec_with_default(),
+            get_surrogate_spec_with_lognormal(),
+        ):
+            converted_object = object_from_json(
+                object_to_json(
+                    org_object,
+                    encoder_registry=CORE_ENCODER_REGISTRY,
+                    class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+                ),
+                decoder_registry=CORE_DECODER_REGISTRY,
+                class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+            )
+            org_as_dict = dataclasses.asdict(org_object)["model_configs"][0]
+            converted_as_dict = dataclasses.asdict(converted_object)["model_configs"][0]
+            # Covar module kwargs will fail comparison. Manually compare.
+            org_covar_kwargs = org_as_dict.pop("covar_module_options")
+            converted_covar_kwargs = converted_as_dict.pop("covar_module_options")
+            self.assertEqual(org_covar_kwargs.keys(), converted_covar_kwargs.keys())
+            for k in org_covar_kwargs:
+                org_ = org_covar_kwargs[k]
+                converted_ = converted_covar_kwargs[k]
+                if isinstance(org_, torch.nn.Module):
+                    self.assertEqual(org_.__class__, converted_.__class__)
+                    self.assertEqual(org_.state_dict(), converted_.state_dict())
+                else:
+                    self.assertEqual(org_, converted_)
+            # Compare the rest.
+            self.assertEqual(org_as_dict, converted_as_dict)
+
+    def test_RegistryAdditions(self) -> None:
+        class MyRunner(Runner):
+            # pyrefly: ignore [bad-override]
+            def run():
+                pass
+
+            # pyrefly: ignore [bad-override]
+            def staging_required():
+                return False
+
+        class MyMetric(Metric):
+            pass
+
+        encoder_registry = {
+            MyMetric: metric_to_dict,
+            MyRunner: runner_to_dict,
+            **CORE_ENCODER_REGISTRY,
+        }
+        decoder_registry = {
+            MyMetric.__name__: MyMetric,
+            MyRunner.__name__: MyRunner,
+            **CORE_DECODER_REGISTRY,
+        }
+
+        experiment = get_experiment_with_batch_and_single_trial()
+        experiment.runner = MyRunner()
+        experiment.add_tracking_metric(MyMetric(name="my_metric"))
+        with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".json") as f:
+            save_experiment(
+                experiment,
+                f.name,
+                encoder_registry=encoder_registry,
+                class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+            )
+            loaded_experiment = load_experiment(
+                f.name,
+                decoder_registry=decoder_registry,
+                class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+            )
+            self.assertEqual(loaded_experiment, experiment)
+            os.remove(f.name)
+
+    def test_RegistryBundle(self) -> None:
+        class MyMetric(Metric):
+            pass
+
+        class MyRunner(Runner):
+            # pyrefly: ignore [bad-override]
+            def run():
+                pass
+
+            # pyrefly: ignore [bad-override]
+            def staging_required():
+                return False
+
+        bundle = RegistryBundle(
+            metric_clss={MyMetric: 1998}, runner_clss={MyRunner: None}
+        )
+
+        experiment = get_experiment_with_batch_and_single_trial()
+        experiment.runner = MyRunner()
+        experiment.add_tracking_metric(MyMetric(name="my_metric"))
+        with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".json") as f:
+            save_experiment(
+                experiment,
+                f.name,
+                encoder_registry=bundle.encoder_registry,
+            )
+            loaded_experiment = load_experiment(
+                f.name,
+                decoder_registry=bundle.decoder_registry,
+            )
+            self.assertEqual(loaded_experiment, experiment)
+            os.remove(f.name)
+
+    def test_EncodeUnknownClassToDict(self) -> None:
+        # Cannot encode `UnknownClass` type because it is not registered in the
+        # CLASS_ENCODER_REGISTRY.
+        class UnknownClass:
+            def __init__(self) -> None:
+                pass
+
+        with self.assertRaisesRegex(
+            ValueError, "is a class. Add it to the CLASS_ENCODER_REGISTRY"
+        ):
+            object_to_json(
+                UnknownClass,
+                encoder_registry=CORE_ENCODER_REGISTRY,
+                class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+            )
+        # `UnknownClass` type is registered in the CLASS_ENCODER_REGISTRY and uses the
+        # `botorch_modular_to_dict` encoder, but `UnknownClass` is not registered in
+        # the `botorch_modular_registry.py` file.
+        CORE_CLASS_ENCODER_REGISTRY[UnknownClass] = botorch_modular_to_dict
+        with self.assertRaisesRegex(
+            ValueError,
+            "does not have a corresponding parent class in CLASS_TO_REGISTRY",
+        ):
+            object_to_json(
+                UnknownClass,
+                encoder_registry=CORE_ENCODER_REGISTRY,
+                class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+            )
+
+    def test_DecodeUnknownClassFromJson(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "does not have a corresponding entry in CLASS_TO_REVERSE_REGISTRY",
+        ):
+            class_from_json({"index": 0, "class": "unknown_path"})
+
+    def test_BadStateDict(self) -> None:
+        interval = get_interval()
+        expected_json = botorch_component_to_dict(interval)
+        with self.assertRaisesRegex(ValueError, "Received unused args"):
+            expected_json = botorch_component_to_dict(interval)
+            expected_json["state_dict"]["foo"] = "bar"
+            botorch_component_from_json(interval.__class__, expected_json)
+        with self.assertRaisesRegex(ValueError, "Missing required initialization args"):
+            expected_json = botorch_component_to_dict(interval)
+            del expected_json["state_dict"]["lower_bound"]
+            botorch_component_from_json(interval.__class__, expected_json)
+
+    def test_prior_roundtrip_serialization(self) -> None:
+        """Test encode/decode roundtrip for priors with buffered attributes.
+
+        Priors whose underlying distribution uses @property descriptors
+        (e.g. BetaPrior via Dirichlet, LogNormalPrior via TransformedDistribution)
+        store state_dict keys with BUFFERED_PREFIX. The decoder must strip
+        the prefix to match __init__ arg names.
+        """
+        from botorch.models.utils.priors import BetaPrior
+        from gpytorch.priors.torch_priors import GammaPrior, LogNormalPrior, NormalPrior
+
+        priors = [
+            ("BetaPrior", BetaPrior(concentration1=2.5, concentration0=1.5)),
+            ("GammaPrior", GammaPrior(concentration=2.0, rate=1.0)),
+            ("NormalPrior", NormalPrior(loc=0.0, scale=1.0)),
+            ("LogNormalPrior", LogNormalPrior(loc=0.0, scale=1.0)),
+        ]
+        for name, prior in priors:
+            with self.subTest(prior=name):
+                encoded = botorch_component_to_dict(prior)
+                decoded = botorch_component_from_json(prior.__class__, encoded)
+                self.assertIsInstance(decoded, prior.__class__)
+                self.assertEqual(decoded.state_dict(), prior.state_dict())
+
+    def test_observation_features_backward_compatibility(self) -> None:
+        json = {
+            "__type": "ObservationFeatures",
+            "parameters": {"x1": 0.0},
+            "trial_index": 0,
+            "random_split": 4,
+        }
+        with self.assertLogs(logger="ax", level="WARNING") as cm:
+            decoded = object_from_json(object_json=json)
+        self.assertTrue(any("random_split" in w for w in cm.output))
+        self.assertIsInstance(decoded, ObservationFeatures)
+        self.assertEqual(decoded.parameters, {"x1": 0.0})
+        self.assertEqual(decoded.trial_index, 0)
+
+    def test_parameter_constraint_backwards_compatibility(self) -> None:
+        # Experiment JSON which includes a legacy-encoded parameter constraint.
+        json = {
+            "__type": "Experiment",
+            "name": "booth_function",
+            "description": None,
+            "experiment_type": None,
+            "search_space": {
+                "__type": "SearchSpace",
+                "parameters": [
+                    {
+                        "__type": "RangeParameter",
+                        "name": "x1",
+                        "parameter_type": {"__type": "ParameterType", "name": "FLOAT"},
+                        "lower": -10.0,
+                        "upper": 10.0,
+                        "log_scale": False,
+                        "logit_scale": False,
+                        "digits": None,
+                        "is_fidelity": False,
+                        "target_value": None,
+                    },
+                    {
+                        "__type": "RangeParameter",
+                        "name": "x2",
+                        "parameter_type": {"__type": "ParameterType", "name": "FLOAT"},
+                        "lower": -10.0,
+                        "upper": 10.0,
+                        "log_scale": False,
+                        "logit_scale": False,
+                        "digits": None,
+                        "is_fidelity": False,
+                        "target_value": None,
+                    },
+                ],
+                "parameter_constraints": [
+                    {
+                        "__type": "ParameterConstraint",
+                        "constraint_dict": {"x1": -1.0},
+                        "bound": -10.0,
+                    },
+                    {
+                        "__type": "OrderConstraint",
+                        "lower_name": "x1",
+                        "upper_name": "x2",
+                    },
+                ],
+            },
+            "optimization_config": None,
+            "tracking_metrics": [],
+            "runner": None,
+            "status_quo": None,
+            "time_created": {
+                "__type": "datetime",
+                "value": "2025-12-15 12:12:20.479774",
+            },
+            "trials": {},
+            "is_test": False,
+            "data_by_trial": {},
+            "properties": {"owners": [None]},
+            "_trial_type_to_runner": {None: None},
+            "default_data_type": {"__type": "DataType", "name": "MAP_DATA"},
+        }
+        decoded = object_from_json(object_json=json)
+
+        self.assertEqual(
+            decoded.search_space.parameter_constraints[0],
+            ParameterConstraint("x1 >= 10"),
+        )
+        self.assertEqual(
+            decoded.search_space.parameter_constraints[1],
+            ParameterConstraint("x1 <= x2"),
+        )
+
+    def test_objective_backwards_compatibility(self) -> None:
+        # Test that we can load an objective that has conflicting
+        # ``lower_is_better`` and ``minimize`` fields.
+        # In the old format, the metric had ``lower_is_better`` and the
+        # objective had ``minimize``. When they disagree, ``minimize`` wins.
+        objective_json = {
+            "__type": "Objective",
+            "metric": {
+                "__type": "Metric",
+                "name": "m1",
+                "lower_is_better": False,
+            },
+            "minimize": True,
+        }
+        objective_loaded = object_from_json(objective_json)
+        self.assertIsInstance(objective_loaded, Objective)
+        self.assertTrue(objective_loaded.minimize)
+
+    def test_generation_step_backwards_compatibility(self) -> None:
+        # Test that we can load a generation step with deprecated kwargs.
+        json = {
+            "__type": "GenerationStep",
+            "model": {"__type": "Generators", "name": "BOTORCH_MODULAR"},
+            "num_trials": 5,
+            "min_trials_observed": 0,
+            "completion_criteria": [],
+            "max_parallelism": None,
+            "use_update": False,
+            "enforce_num_trials": True,
+            "model_kwargs": {
+                "fit_on_update": False,
+                "torch_dtype": torch.double,
+                "status_quo_name": "status_quo",
+                "status_quo_features": None,
+                "other_kwarg": 5,
+                "fit_out_of_design": True,
+                "fit_abandoned": True,
+                "fit_only_completed_map_metrics": True,
+            },
+            "model_gen_kwargs": {"dummy": 5.0},
+            "index": -1,
+            "should_deduplicate": False,
+        }
+        gnode = object_from_json(json)
+        self.assertIsInstance(gnode, GenerationNode)
+        self.assertEqual(gnode.generator_spec.generator_kwargs, {"other_kwarg": 5})
+        self.assertEqual(
+            gnode.generator_spec.generator_enum, Generators.BOTORCH_MODULAR
+        )
+        self.assertEqual(gnode.generator_spec.generator_gen_kwargs, {"dummy": 5.0})
+
+    def test_generator_run_backwards_compatibility(self) -> None:
+        # Test that we can load a generator run with deprecated kwargs.
+        json = {
+            "__type": "GeneratorRun",
+            "arms": [
+                {
+                    "__type": "Arm",
+                    "parameters": {"x1": 0.17783968150615692, "x2": 0.8026256756857038},
+                    "name": None,
+                }
+            ],
+            "weights": [1.0],
+            "optimization_config": None,
+            "search_space": None,
+            "time_created": {
+                "__type": "datetime",
+                "value": "2025-02-27 07:06:36.675760",
+            },
+            "model_predictions": None,
+            "best_arm_predictions": None,
+            "generator_run_type": None,
+            "index": None,
+            "fit_time": 0.00037617841735482216,
+            "gen_time": 0.00448690727353096,
+            "model_key": "Sobol",
+            "model_kwargs": {
+                "deduplicate": False,
+                "seed": None,
+                "torch_dtype": None,
+                "generated_points": None,
+            },
+            "bridge_kwargs": {
+                "transforms": {},
+                "transform_configs": None,
+                "status_quo_name": None,
+                "status_quo_features": None,
+                "optimization_config": None,
+                "fit_on_update": False,
+                "fit_out_of_design": False,
+                "fit_abandoned": False,
+                "fit_tracking_metrics": True,
+                "fit_on_init": True,
+            },
+            "gen_metadata": {
+                "model_fit_quality": None,
+            },
+            "model_state_after_gen": {"dummy": 5.0},
+            "candidate_metadata_by_arm_signature": None,
+            "generation_node_name": None,
+        }
+        generator_run = object_from_json(json)
+        self.assertIsInstance(generator_run, GeneratorRun)
+        self.assertEqual(
+            generator_run._generator_kwargs,
+            {"deduplicate": False, "seed": None},
+        )
+        self.assertEqual(
+            generator_run._adapter_kwargs,
+            {
+                "transforms": {},
+                "transform_configs": None,
+                "optimization_config": None,
+                "fit_tracking_metrics": True,
+                "fit_on_init": True,
+            },
+        )
+        self.assertEqual(generator_run._generator_key, "Sobol")
+        self.assertEqual(generator_run._generator_state_after_gen, {"dummy": 5.0})
+
+    def test_generation_node_backwards_compatibility(self) -> None:
+        # Checks that deprecated input constructors are discarded gracefully.
+        json = {
+            "node_name": "Test",
+            "model_specs": [
+                {
+                    "__type": "GeneratorSpec",
+                    "model_enum": {"__type": "Generators", "name": "BOTORCH_MODULAR"},
+                    "model_kwargs": {
+                        "transforms": [
+                            {
+                                "__type": "Type[Transform]",
+                                "index_in_registry": 6,
+                                "transform_type": (
+                                    "<class 'ax.adapter.transforms.one_hot.OneHot'>"
+                                ),
+                            },
+                            {
+                                "__type": "Type[Transform]",
+                                "index_in_registry": 5,
+                                "transform_type": (
+                                    "<class 'ax.adapter.transforms.log.Log'>"
+                                ),
+                            },
+                        ]
+                    },
+                    "model_gen_kwargs": {
+                        "model_gen_options": {
+                            "optimizer_kwargs": {"num_restarts": 10},
+                            "acquisition_function_kwargs": {},
+                        }
+                    },
+                    "model_cv_kwargs": {
+                        "test_cv_kwarg": True,
+                    },
+                }
+            ],
+            "best_model_selector": None,
+            "should_deduplicate": False,
+            "transition_criteria": [
+                {
+                    "transition_to": "BOTORCH_MODULAR",
+                    "auxiliary_experiment_purposes_to_include": None,
+                    "auxiliary_experiment_purposes_to_exclude": [],
+                    "block_transition_if_unmet": True,
+                    "block_gen_if_met": False,
+                    "continue_trial_generation": False,
+                    "__type": "AuxiliaryExperimentCheck",
+                }
+            ],
+            "model_spec_to_gen_from": None,
+            "previous_node_name": None,
+            "trial_type": {"__type": "Keys", "name": "SHORT_RUN"},
+            "input_constructors": {
+                "N": {"__type": "NodeInputConstructors", "name": "REMAINING_N"},
+                "FIXED_FEATURES": {
+                    "__type": "NodeInputConstructors",
+                    "name": "TARGET_TRIAL_FIXED_FEATURES",
+                },
+                "STATUS_QUO_FEATURES": {
+                    "__type": "NodeInputConstructors",
+                    "name": "STATUS_QUO_FEATURES",
+                },
+            },
+        }
+        node = generation_node_from_json(json)
+        self.assertIsInstance(node, GenerationNode)
+        self.assertEqual(node.name, "Test")
+        self.assertEqual(len(node.transition_criteria), 1)
+        # Status quo is discarded, so we have 2 input constructors left.
+        self.assertEqual(len(node.input_constructors), 2)
+        # Check that transforms got correctly deserialized.
+        self.assertEqual(
+            node.generator_specs[0].generator_kwargs["transforms"],
+            [OneHot, Log],
+        )
+        self.assertEqual(
+            node.generator_specs[0].generator_gen_kwargs,
+            {
+                "model_gen_options": {
+                    "optimizer_kwargs": {"num_restarts": 10},
+                    "acquisition_function_kwargs": {},
+                }
+            },
+        )
+        self.assertEqual(node.generator_specs[0].cv_kwargs, {"test_cv_kwarg": True})
+
+    def test_block_gen_if_met_migration(self) -> None:
+        """Test that TransitionCriteria with block_gen_if_met=True are migrated
+        to PausingCriterion during deserialization."""
+        with self.subTest("MaxGenerationParallelism_with_block_gen_if_met"):
+            # MaxGenerationParallelism with block_gen_if_met=True should be
+            # migrated to pausing_criteria and removed from
+            # transition_criteria
+            json = {
+                "node_name": "test_node",
+                "model_specs": [
+                    {
+                        "__type": "GeneratorSpec",
+                        "model_enum": {"__type": "Generators", "name": "SOBOL"},
+                        "model_kwargs": {},
+                        "model_gen_kwargs": {},
+                        "model_cv_kwargs": {},
+                    }
+                ],
+                "best_model_selector": None,
+                "should_deduplicate": False,
+                "transition_criteria": [
+                    {
+                        "__type": "MaxGenerationParallelism",
+                        "threshold": 3,
+                        "only_in_statuses": [
+                            {"__type": "TrialStatus", "name": "RUNNING"}
+                        ],
+                        "block_gen_if_met": True,
+                        "transition_to": None,
+                    }
+                ],
+            }
+            node = generation_node_from_json(json)
+            self.assertEqual(len(node.transition_criteria), 0)
+            self.assertEqual(len(node.pausing_criteria), 1)
+            blocking = assert_is_instance(
+                node.pausing_criteria[0], MaxGenerationParallelism
+            )
+            self.assertEqual(blocking.threshold, 3)
+
+        with self.subTest("MinTrials_with_block_gen_if_met_only"):
+            # MinTrials with block_gen_if_met=True only should be migrated to
+            # MaxTrialsAwaitingData and removed from transition_criteria
+            json = {
+                "node_name": "test_node",
+                "model_specs": [
+                    {
+                        "__type": "GeneratorSpec",
+                        "model_enum": {"__type": "Generators", "name": "SOBOL"},
+                        "model_kwargs": {},
+                        "model_gen_kwargs": {},
+                        "model_cv_kwargs": {},
+                    }
+                ],
+                "best_model_selector": None,
+                "should_deduplicate": False,
+                "transition_criteria": [
+                    {
+                        "__type": "MinTrials",
+                        "threshold": 5,
+                        "only_in_statuses": [
+                            {"__type": "TrialStatus", "name": "RUNNING"}
+                        ],
+                        "not_in_statuses": None,
+                        "use_all_trials_in_exp": False,
+                        "block_gen_if_met": True,
+                        "block_transition_if_unmet": False,
+                        "transition_to": None,
+                    }
+                ],
+            }
+            node = generation_node_from_json(json)
+            self.assertEqual(len(node.transition_criteria), 0)
+            self.assertEqual(len(node.pausing_criteria), 1)
+            blocking = assert_is_instance(
+                node.pausing_criteria[0], MaxTrialsAwaitingData
+            )
+            self.assertEqual(blocking.threshold, 5)
+
+        with self.subTest("MinTrials_with_block_gen_if_met_and_block_transition"):
+            # MinTrials with both block_gen_if_met=True and
+            # block_transition_if_unmet=True should create
+            # MaxTrialsAwaitingData AND keep in transition_criteria
+            json = {
+                "node_name": "test_node",
+                "model_specs": [
+                    {
+                        "__type": "GeneratorSpec",
+                        "model_enum": {"__type": "Generators", "name": "SOBOL"},
+                        "model_kwargs": {},
+                        "model_gen_kwargs": {},
+                        "model_cv_kwargs": {},
+                    }
+                ],
+                "best_model_selector": None,
+                "should_deduplicate": False,
+                "transition_criteria": [
+                    {
+                        "__type": "MinTrials",
+                        "threshold": 5,
+                        "only_in_statuses": None,
+                        "not_in_statuses": None,
+                        "use_all_trials_in_exp": True,
+                        "block_gen_if_met": True,
+                        "block_transition_if_unmet": True,
+                        "transition_to": "next_node",
+                    }
+                ],
+            }
+            node = generation_node_from_json(json)
+            # Should have both
+            self.assertEqual(len(node.transition_criteria), 1)
+            self.assertEqual(len(node.pausing_criteria), 1)
+            tc = assert_is_instance(node.transition_criteria[0], MinTrials)
+            self.assertEqual(tc.threshold, 5)
+            self.assertEqual(tc.transition_to, "next_node")
+            blocking = assert_is_instance(
+                node.pausing_criteria[0], MaxTrialsAwaitingData
+            )
+            self.assertEqual(blocking.threshold, 5)
+            self.assertTrue(blocking.use_all_trials_in_exp)
+
+    def test_SobolQMCNormalSampler(self) -> None:
+        # This fails default equality checks, so testing it separately.
+        sampler = SobolQMCNormalSampler(sample_shape=torch.Size([2]))
+        sampler_json = object_to_json(
+            sampler,
+            encoder_registry=CORE_ENCODER_REGISTRY,
+            class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+        )
+        sampler_loaded = object_from_json(
+            sampler_json,
+            decoder_registry=CORE_DECODER_REGISTRY,
+            class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+        )
+        self.assertIsInstance(sampler_loaded, SobolQMCNormalSampler)
+        self.assertEqual(sampler.sample_shape, sampler_loaded.sample_shape)
+        self.assertEqual(sampler.seed, sampler_loaded.seed)
+
+    def test_mbm_backwards_compatibility(self) -> None:
+        # This is json of get_botorch_model_with_surrogate_specs() before D64875988.
+        object_json = {
+            "__type": "BoTorchModel",
+            "acquisition_class": {
+                "__type": "Type[Acquisition]",
+                "index": "Acquisition",
+                "class": (
+                    "<class 'ax.models.torch.botorch_modular.acquisition.Acquisition'>"
+                ),
+            },
+            "acquisition_options": {},
+            "surrogate": None,
+            "surrogate_specs": {
+                "name": {
+                    "__type": "SurrogateSpec",
+                    "botorch_model_class": None,
+                    "botorch_model_kwargs": {"some_option": "some_value"},
+                    "mll_class": {
+                        "__type": "Type[MarginalLogLikelihood]",
+                        "index": "ExactMarginalLogLikelihood",
+                        "class": (
+                            "<class 'gpytorch.mlls.marginal_log_likelihood."
+                            "MarginalLogLikelihood'>"
+                        ),
+                    },
+                    "mll_kwargs": {},
+                    "covar_module_class": None,
+                    "covar_module_kwargs": None,
+                    "likelihood_class": None,
+                    "likelihood_kwargs": None,
+                    "input_transform_classes": None,
+                    "input_transform_options": None,
+                    "outcome_transform_classes": None,
+                    "outcome_transform_options": None,
+                    "allow_batched_models": True,
+                    "outcomes": [],
+                }
+            },
+            "botorch_acqf_class": None,
+            "refit_on_cv": False,
+            "warm_start_refit": True,
+        }
+        expected_object = get_botorch_model_with_surrogate_spec(with_covar_module=False)
+        # pyrefly: ignore [missing-attribute]
+        expected_object.surrogate_spec.model_configs[0].input_transform_classes = None
+        # pyrefly: ignore [missing-attribute]
+        expected_object.surrogate_spec.model_configs[0].name = "from deprecated args"
+        # The new default value is None; we need to manually set it to the old value
+        self.assertIsNone(
+            none_throws(expected_object.surrogate_spec).model_configs[0].mll_class
+        )
+        # pyrefly: ignore [missing-attribute]
+        expected_object.surrogate_spec.model_configs[
+            0
+        ].mll_class = ExactMarginalLogLikelihood
+        self.assertEqual(object_from_json(object_json), expected_object)
+
+    def test_mbm_backwards_compatibility_2(self) -> None:
+        # Ensure Modular BoTorch Generators saved before the Multi-surrogate
+        # MBM refactor in D41637384 can be loaded and converted from using a
+        # ListSurrogate to a Surrogate
+        converted_object = object_from_json(
+            get_legacy_list_surrogate_generation_step_as_dict()
+        )
+        new_object = get_surrogate_generation_step()
+        # Converted object is a generation step without a strategy associated with it;
+        # unset the generation strategy of the new object too, to match.
+        # pyre-fixme[16]: Currently, Pyre doesn't recognize that `Generation
+        #  Step.__new__` actually returns a `GenerationNode`.
+        new_object._generation_strategy = None
+        self.assertEqual(converted_object, new_object)
+
+        # Check that we can deserialize Surrogate with input_transform
+        # & outcome_transform kwargs.
+        converted_object = object_from_json(get_surrogate_as_dict())
+        new_object = Surrogate(
+            surrogate_spec=SurrogateSpec(
+                model_configs=[
+                    ModelConfig(
+                        mll_class=ExactMarginalLogLikelihood,
+                        input_transform_classes=None,
+                        name="from deprecated args",
+                    )
+                ],
+                allow_batched_models=False,
+            ),
+        )
+        self.assertEqual(converted_object, new_object)
+
+        # Check with SurrogateSpec.
+        for model_class, legacy_input_transform in [
+            (None, False),  # None maps to SingleTaskGP.
+            ("FixedNoiseGP", True),
+        ]:
+            converted_object = object_from_json(
+                get_surrogate_spec_as_dict(
+                    model_class=model_class,
+                    with_legacy_input_transform=legacy_input_transform,
+                ),
+            )
+            extra_args = {}
+            if legacy_input_transform:
+                extra_args["input_transform_classes"] = [Normalize]
+                # pyrefly: ignore [unsupported-operation]
+                extra_args["input_transform_options"] = {
+                    "Normalize": {
+                        "d": 7,
+                        "indices": None,
+                        "bounds": None,
+                        "batch_shape": torch.Size([]),
+                        "transform_on_train": True,
+                        "transform_on_eval": True,
+                        "transform_on_fantasize": True,
+                        "reverse": False,
+                        "min_range": 1e-08,
+                        "learn_bounds": False,
+                    }
+                }
+            else:
+                # pyrefly: ignore [unsupported-operation]
+                extra_args["input_transform_classes"] = None
+            new_object = SurrogateSpec(
+                model_configs=[
+                    ModelConfig(
+                        botorch_model_class=SingleTaskGP,
+                        mll_class=ExactMarginalLogLikelihood,
+                        name="from deprecated args",
+                        # pyrefly: ignore [bad-argument-type]
+                        **extra_args,
+                    )
+                ],
+                allow_batched_models=False,
+            )
+            self.assertEqual(converted_object, new_object)
+
+    def test_multi_objective_backwards_compatibility(self) -> None:
+        object_json = {
+            "__type": "MultiObjective",
+            "objectives": [
+                {
+                    "__type": "Objective",
+                    "metric": {
+                        "name": "m1",
+                        "lower_is_better": None,
+                        "properties": {},
+                        "__type": "Metric",
+                    },
+                    "minimize": False,
+                },
+                {
+                    "__type": "Objective",
+                    "metric": {
+                        "name": "m3",
+                        "lower_is_better": True,
+                        "properties": {},
+                        "__type": "Metric",
+                    },
+                    "minimize": True,
+                },
+            ],
+            "weights": [1.0, 1.0],
+        }
+        deserialized_object = object_from_json(object_json)
+        expected_object = get_multi_objective()
+        self.assertEqual(deserialized_object, expected_object)
+
+    def test_optimization_config_with_pruning_target_json_roundtrip(self) -> None:
+        # Test that OptimizationConfig with pruning_target_parameterization can
+        # be serialized/deserialized correctly
+
+        # Setup: create OptimizationConfig with pruning_target_parameterization
+        pruning_target_parameterization = get_arm()
+        optimization_config = OptimizationConfig(
+            objective=Objective(metric=Metric("test_metric"), minimize=False),
+            pruning_target_parameterization=pruning_target_parameterization,
+        )
+
+        # Execute: serialize and deserialize through JSON
+        json_data = object_to_json(
+            optimization_config,
+            encoder_registry=CORE_ENCODER_REGISTRY,
+            class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+        )
+
+        # Simulate full serialization round-trip
+        json_str = json.dumps(json_data)
+        json_data = json.loads(json_str)
+
+        deserialized_config = object_from_json(
+            json_data,
+            decoder_registry=CORE_DECODER_REGISTRY,
+            class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+        )
+
+        # Assert: confirm pruning_target_parameterization is preserved correctly
+        self.assertEqual(optimization_config, deserialized_config)
+        self.assertIsNotNone(deserialized_config.pruning_target_parameterization)
+        self.assertEqual(
+            optimization_config.pruning_target_parameterization,
+            deserialized_config.pruning_target_parameterization,
+        )
+
+    def test_multi_objective_optimization_config_with_pruning_target_json_roundtrip(
+        self,
+    ) -> None:
+        # Test that MultiObjectiveOptimizationConfig with
+        # pruning_target_parameterization can be
+        # serialized/deserialized correctly
+
+        # Setup: create MultiObjectiveOptimizationConfig with
+        # pruning_target_parameterization
+        pruning_target_parameterization = get_arm()
+        multi_objective_config = MultiObjectiveOptimizationConfig(
+            objective=get_multi_objective(),
+            pruning_target_parameterization=pruning_target_parameterization,
+        )
+
+        # Execute: serialize and deserialize through JSON
+        json_data = object_to_json(
+            multi_objective_config,
+            encoder_registry=CORE_ENCODER_REGISTRY,
+            class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+        )
+
+        # Simulate full serialization round-trip
+        json_str = json.dumps(json_data)
+        json_data = json.loads(json_str)
+
+        deserialized_config = object_from_json(
+            json_data,
+            decoder_registry=CORE_DECODER_REGISTRY,
+            class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+        )
+
+        # Assert: confirm pruning_target_parameterization is preserved correctly
+        self.assertEqual(multi_objective_config, deserialized_config)
+        self.assertIsNotNone(deserialized_config.pruning_target_parameterization)
+        self.assertEqual(
+            multi_objective_config.pruning_target_parameterization,
+            deserialized_config.pruning_target_parameterization,
+        )
+
+    def test_preference_optimization_config_with_pruning_target_json_roundtrip(
+        self,
+    ) -> None:
+        # Test that PreferenceOptimizationConfig with
+        # pruning_target_parameterization can be
+        # serialized/deserialized correctly
+
+        # Setup: create PreferenceOptimizationConfig with
+        # pruning_target_parameterization
+        pruning_target_parameterization = get_arm()
+        preference_config = PreferenceOptimizationConfig(
+            objective=get_multi_objective(),
+            pruning_target_parameterization=pruning_target_parameterization,
+            preference_profile_name="default",
+        )
+
+        # Execute: serialize and deserialize through JSON
+        json_data = object_to_json(
+            preference_config,
+            encoder_registry=CORE_ENCODER_REGISTRY,
+            class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+        )
+
+        # Simulate full serialization round-trip
+        json_str = json.dumps(json_data)
+        json_data = json.loads(json_str)
+
+        deserialized_config = object_from_json(
+            json_data,
+            decoder_registry=CORE_DECODER_REGISTRY,
+            class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+        )
+
+        # Assert: confirm pruning_target_parameterization is preserved correctly
+        self.assertEqual(preference_config, deserialized_config)
+        self.assertIsNotNone(deserialized_config.pruning_target_parameterization)
+        self.assertEqual(
+            preference_config.pruning_target_parameterization,
+            deserialized_config.pruning_target_parameterization,
+        )
+
+    def test_preference_optimization_config_expect_relativized_outcomes_roundtrip(
+        self,
+    ) -> None:
+        test_profile_name = "test_profile_name"
+        for expect_relativized_outcomes in (True, False):
+            with self.subTest(f"{expect_relativized_outcomes=}"):
+                pref_opt_config = PreferenceOptimizationConfig(
+                    objective=get_multi_objective(),
+                    preference_profile_name=test_profile_name,
+                    expect_relativized_outcomes=expect_relativized_outcomes,
+                )
+
+                json_data = object_to_json(
+                    pref_opt_config,
+                    encoder_registry=CORE_ENCODER_REGISTRY,
+                    class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+                )
+
+                # Verify expect_relativized_outcomes is in the JSON
+                self.assertEqual(json_data[PREFERENCE_PROFILE_NAME], test_profile_name)
+                self.assertEqual(
+                    json_data[EXPECT_RELATIVIZED_OUTCOMES], expect_relativized_outcomes
+                )
+
+                # Simulate full serialization round-trip
+                json_str = json.dumps(json_data)
+                json_data = json.loads(json_str)
+
+                deserialized_config = object_from_json(
+                    json_data,
+                    decoder_registry=CORE_DECODER_REGISTRY,
+                    class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+                )
+
+                self.assertEqual(pref_opt_config, deserialized_config)
+                self.assertEqual(
+                    deserialized_config.expect_relativized_outcomes,
+                    expect_relativized_outcomes,
+                )
+
+    def test_optimization_config_with_none_pruning_target_json_roundtrip(self) -> None:
+        # Test that OptimizationConfig with
+        # pruning_target_parameterization=None is handled correctly
+
+        # Setup: create OptimizationConfig without
+        # pruning_target_parameterization
+        optimization_config = OptimizationConfig(
+            objective=Objective(metric=Metric("test_metric"), minimize=False),
+            pruning_target_parameterization=None,
+        )
+
+        # Execute: serialize and deserialize through JSON
+        json_data = object_to_json(
+            optimization_config,
+            encoder_registry=CORE_ENCODER_REGISTRY,
+            class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+        )
+
+        # Simulate full serialization round-trip
+        json_str = json.dumps(json_data)
+        json_data = json.loads(json_str)
+
+        deserialized_config = object_from_json(
+            json_data,
+            decoder_registry=CORE_DECODER_REGISTRY,
+            class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+        )
+
+        # Assert: confirm pruning_target_parameterization remains None
+        self.assertEqual(optimization_config, deserialized_config)
+        self.assertIsNone(deserialized_config.pruning_target_parameterization)
+
+    def test_experiment_with_pruning_target_json_roundtrip(self) -> None:
+        # Test that Experiment with optimization_config containing
+        # pruning_target_parameterization is
+        # serialized correctly
+
+        # Setup: create experiment with pruning_target_parameterization in optimization
+        # config
+        experiment = get_branin_experiment()
+        pruning_target_parameterization = get_arm()
+        optimization_config = none_throws(
+            experiment.optimization_config
+        ).clone_with_args(
+            pruning_target_parameterization=pruning_target_parameterization
+        )
+        experiment.optimization_config = optimization_config
+
+        # Execute: save and load experiment through JSON
+        with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".json") as f:
+            save_experiment(
+                experiment,
+                f.name,
+                encoder_registry=CORE_ENCODER_REGISTRY,
+                class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+            )
+            loaded_experiment = load_experiment(
+                f.name,
+                decoder_registry=CORE_DECODER_REGISTRY,
+                class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+            )
+
+        # Cleanup
+        os.remove(f.name)
+
+        # Assert: confirm experiment and pruning_target_parameterization
+        # are preserved correctly
+        self.assertEqual(experiment, loaded_experiment)
+        self.assertIsNotNone(
+            none_throws(
+                loaded_experiment.optimization_config
+            ).pruning_target_parameterization
+        )
+        self.assertEqual(
+            none_throws(experiment.optimization_config).pruning_target_parameterization,
+            none_throws(
+                loaded_experiment.optimization_config
+            ).pruning_target_parameterization,
+        )
+
+    def test_multi_objective_from_json_warning(self) -> None:
+        objectives = [get_objective()]
+
+        # Test that warning is logged when deprecated kwargs are passed
+        with self.assertLogs("ax.utils.common.kwargs", level="WARNING") as cm:
+            multi_objective_from_json(
+                objectives=objectives,
+                weights=[1.0],
+                metrics=["test_metric"],
+                minimize=True,
+            )
+
+        # Verify the warning message
+        self.assertTrue(
+            any("Found unexpected kwargs" in warning for warning in cm.output)
+        )
+
+    def test_choice_parameter_bypass_cardinality_check_encode_failure(self) -> None:
+        choice_parameter = ChoiceParameter(
+            name="test_choice",
+            parameter_type=ParameterType.INT,
+            values=[1, 2, 3],
+            bypass_cardinality_check=True,
+        )
+        with self.assertRaisesRegex(
+            UnsupportedError,
+            "`bypass_cardinality_check` should only be set to True "
+            "when constructing parameters within the modeling layer. It is not "
+            "supported for storage.",
+        ):
+            choice_parameter_to_dict(choice_parameter)
+
+    def test_choice_parameter_backward_compatibility_sort_values(self) -> None:
+        """Test that numeric ordered parameters with sort_values=False can be loaded."""
+        # Setup: JSON with numeric ordered parameter with sort_values=False
+        # (as would be stored by old versions before validation was added)
+        parameter_json = {
+            "__type": "ChoiceParameter",
+            "name": "x",
+            "parameter_type": {"__type": "ParameterType", "name": "INT"},
+            "values": [1, 2, 3],
+            "is_ordered": True,
+            "is_task": False,
+            "is_fidelity": False,
+            "target_value": None,
+            "sort_values": False,  # Invalid for numeric ordered parameters
+            "log_scale": None,
+            "dependents": None,
+        }
+
+        # Execute: Load parameter from JSON and verify warning is logged
+        with self.assertLogs("ax.storage.json_store.decoders", level="WARNING") as cm:
+            loaded_parameter = object_from_json(
+                parameter_json,
+                decoder_registry=CORE_DECODER_REGISTRY,
+                class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+            )
+
+        # Assert: Parameter loads successfully with sort_values=True
+        self.assertIsInstance(loaded_parameter, ChoiceParameter)
+        self.assertEqual(loaded_parameter.name, "x")
+        self.assertEqual(loaded_parameter.parameter_type, ParameterType.INT)
+        self.assertTrue(loaded_parameter.is_ordered)
+        self.assertTrue(loaded_parameter.sort_values)  # Overridden to True
+        self.assertEqual(loaded_parameter.values, [1, 2, 3])
+
+        # Assert: Warning was logged about the override
+        self.assertTrue(
+            any(
+                "sort_values=False" in warning and "backward compatibility" in warning
+                for warning in cm.output
+            )
+        )
+
+    def test_arm_parameter_values_cast_to_parameter_type(self) -> None:
+        """Test that arm parameter values are cast to the appropriate type on load."""
+        from ax.core.arm import Arm
+        from ax.core.experiment import Experiment
+        from ax.core.parameter import RangeParameter
+        from ax.core.search_space import SearchSpace
+        from ax.storage.json_store.encoder import object_to_json
+
+        # Create an experiment with INT parameters
+        search_space = SearchSpace(
+            parameters=[
+                RangeParameter(
+                    name="x",
+                    parameter_type=ParameterType.INT,
+                    lower=0,
+                    upper=10,
+                ),
+                RangeParameter(
+                    name="y",
+                    parameter_type=ParameterType.FLOAT,
+                    lower=0.0,
+                    upper=1.0,
+                ),
+            ]
+        )
+
+        experiment = Experiment(
+            name="test_experiment",
+            search_space=search_space,
+            status_quo=Arm(parameters={"x": 5, "y": 0.5}, name="status_quo"),
+        )
+
+        # Add a trial with an arm
+        trial = experiment.new_trial()
+        trial.add_arm(Arm(parameters={"x": 3, "y": 0.3}))
+
+        # Encode the experiment to JSON
+        experiment_json = object_to_json(
+            experiment,
+            encoder_registry=CORE_ENCODER_REGISTRY,
+            class_encoder_registry=CORE_CLASS_ENCODER_REGISTRY,
+        )
+
+        # Manually modify the JSON to simulate float values for INT parameters
+        # (as could happen when loading from external sources)
+        for arm_json in experiment_json["trials"][0]["generator_run"]["arms"]:
+            arm_json["parameters"]["x"] = 3.0  # float instead of int
+        experiment_json["status_quo"]["parameters"]["x"] = 5.0  # float instead of int
+
+        # Decode the experiment from JSON
+        loaded_experiment = object_from_json(
+            experiment_json,
+            decoder_registry=CORE_DECODER_REGISTRY,
+            class_decoder_registry=CORE_CLASS_DECODER_REGISTRY,
+        )
+
+        # Check that arm parameter values are cast to the correct type
+        loaded_arm = list(loaded_experiment.trials[0].arms)[0]
+        self.assertEqual(loaded_arm.parameters["x"], 3)
+        self.assertIs(type(loaded_arm.parameters["x"]), int)
+        self.assertEqual(loaded_arm.parameters["y"], 0.3)
+        self.assertIs(type(loaded_arm.parameters["y"]), float)
+
+        # Check that status_quo parameter values are cast to the correct type
+        status_quo = loaded_experiment.status_quo
+        self.assertIsNotNone(status_quo)
+        self.assertEqual(status_quo.parameters["x"], 5)
+        self.assertIs(type(status_quo.parameters["x"]), int)
+        self.assertEqual(status_quo.parameters["y"], 0.5)
+        self.assertIs(type(status_quo.parameters["y"]), float)
+
+    def test_cast_parameter_value_all_types(self) -> None:
+        """Test _cast_parameter_value handles all parameter types correctly."""
+        from ax.storage.json_store.decoders import _cast_parameter_value
+
+        # Test INT casting
+        self.assertEqual(_cast_parameter_value(3.0, ParameterType.INT), 3)
+        self.assertIs(type(_cast_parameter_value(3.0, ParameterType.INT)), int)
+        self.assertEqual(_cast_parameter_value(3, ParameterType.INT), 3)
+        self.assertIs(type(_cast_parameter_value(3, ParameterType.INT)), int)
+
+        # Test FLOAT casting
+        self.assertEqual(_cast_parameter_value(3, ParameterType.FLOAT), 3.0)
+        self.assertIs(type(_cast_parameter_value(3, ParameterType.FLOAT)), float)
+        self.assertEqual(_cast_parameter_value(3.5, ParameterType.FLOAT), 3.5)
+        self.assertIs(type(_cast_parameter_value(3.5, ParameterType.FLOAT)), float)
+
+        # Test BOOL casting
+        self.assertEqual(_cast_parameter_value(1, ParameterType.BOOL), True)
+        self.assertIs(type(_cast_parameter_value(1, ParameterType.BOOL)), bool)
+        self.assertEqual(_cast_parameter_value(0, ParameterType.BOOL), False)
+        self.assertIs(type(_cast_parameter_value(0, ParameterType.BOOL)), bool)
+        self.assertEqual(_cast_parameter_value(True, ParameterType.BOOL), True)
+        self.assertIs(type(_cast_parameter_value(True, ParameterType.BOOL)), bool)
+
+        # Test STRING casting
+        self.assertEqual(_cast_parameter_value("test", ParameterType.STRING), "test")
+        self.assertIs(type(_cast_parameter_value("test", ParameterType.STRING)), str)
+        self.assertEqual(_cast_parameter_value(123, ParameterType.STRING), "123")
+        self.assertIs(type(_cast_parameter_value(123, ParameterType.STRING)), str)
+
+        # Test None handling
+        self.assertIsNone(_cast_parameter_value(None, ParameterType.INT))
+        self.assertIsNone(_cast_parameter_value(None, ParameterType.FLOAT))
+        self.assertIsNone(_cast_parameter_value(None, ParameterType.BOOL))
+        self.assertIsNone(_cast_parameter_value(None, ParameterType.STRING))
+
+    def test_cast_arm_parameters_skips_unknown_params(self) -> None:
+        """Test that _cast_arm_parameters skips parameters not in search space."""
+        from ax.core.arm import Arm
+        from ax.core.parameter import RangeParameter
+        from ax.core.search_space import SearchSpace
+        from ax.storage.json_store.decoder import _cast_arm_parameters
+
+        search_space = SearchSpace(
+            parameters=[
+                RangeParameter(
+                    name="x",
+                    parameter_type=ParameterType.INT,
+                    lower=0,
+                    upper=10,
+                ),
+            ]
+        )
+
+        # Create an arm with a parameter that's not in the search space
+        arm = Arm(parameters={"x": 3.0, "unknown_param": "some_value"})
+
+        # Cast should work without error and only cast known parameters
+        _cast_arm_parameters(arm, search_space)
+
+        # x should be cast to int
+        self.assertEqual(arm.parameters["x"], 3)
+        self.assertIs(type(arm.parameters["x"]), int)
+
+        # unknown_param should remain unchanged
+        self.assertEqual(arm.parameters["unknown_param"], "some_value")
+        self.assertIs(type(arm.parameters["unknown_param"]), str)
+
+    def test_surrogate_spec_backwards_compatibility(self) -> None:
+        # This is an invalid example that has both deprecated args
+        # and model config specified. Deprecated args will be ignored.
+        object_json = {
+            "__type": "SurrogateSpec",
+            "botorch_model_class": {
+                "__type": "Type[Model]",
+                "index": "MultiTaskGP",
+                "class": "<class 'botorch.models.model.Model'>",
+            },
+            "botorch_model_kwargs": {"dummy": 5},
+            "mll_class": {
+                "__type": "Type[MarginalLogLikelihood]",
+                "index": "ExactMarginalLogLikelihood",
+                "class": (
+                    "<class 'gpytorch.mlls.marginal_log_likelihood."
+                    "MarginalLogLikelihood'>"
+                ),
+            },
+            "mll_kwargs": {},
+            "covar_module_class": None,
+            "covar_module_kwargs": None,
+            "likelihood_class": None,
+            "likelihood_kwargs": None,
+            "input_transform_classes": None,
+            "input_transform_options": None,
+            "outcome_transform_classes": None,
+            "outcome_transform_options": None,
+            "allow_batched_models": True,
+            "model_configs": [
+                {
+                    "__type": "ModelConfig",
+                    "botorch_model_class": {
+                        "__type": "Type[Model]",
+                        "index": "SingleTaskGP",
+                        "class": "<class 'botorch.models.model.Model'>",
+                    },
+                    "model_options": {},
+                    "mll_class": {
+                        "__type": "Type[MarginalLogLikelihood]",
+                        "index": "ExactMarginalLogLikelihood",
+                        "class": (
+                            "<class 'gpytorch.mlls.marginal_log_likelihood."
+                            "MarginalLogLikelihood'>"
+                        ),
+                    },
+                    "mll_options": {},
+                    "input_transform_classes": None,
+                    "input_transform_options": {},
+                    "outcome_transform_classes": [
+                        {
+                            "__type": "Type[OutcomeTransform]",
+                            "index": "Standardize",
+                            "class": (
+                                "<class 'botorch.models.transforms.outcome."
+                                "OutcomeTransform'>"
+                            ),
+                        }
+                    ],
+                    "outcome_transform_options": {},
+                    "covar_module_class": {
+                        "__type": "Type[Kernel]",
+                        "index": "ScaleMaternKernel",
+                        "class": "<class 'gpytorch.kernels.kernel.Kernel'>",
+                    },
+                    "covar_module_options": {},
+                    "likelihood_class": None,
+                    "likelihood_options": {},
+                }
+            ],
+            "metric_to_model_configs": {},
+            "eval_criterion": "Rank correlation",
+            "outcomes": [],
+            "use_posterior_predictive": False,
+        }
+        deserialized_object = object_from_json(object_json)
+        expected_object = SurrogateSpec(
+            model_configs=[
+                ModelConfig(
+                    botorch_model_class=SingleTaskGP,
+                    covar_module_class=ScaleMaternKernel,
+                    mll_class=ExactMarginalLogLikelihood,
+                    outcome_transform_classes=[Standardize],
+                    input_transform_classes=None,
+                )
+            ]
+        )
+        self.assertEqual(deserialized_object, expected_object)
+
+    def test_model_registry_backwards_compatibility(self) -> None:
+        # Check that deprecated model registry entries can be loaded.
+        # Check for models with listed replacements.
+        for name, replacement in _DEPRECATED_GENERATOR_TO_REPLACEMENT.items():
+            with self.assertLogs(logger="ax", level="ERROR"):
+                from_json = object_from_json({"__type": "Generators", "name": name})
+            self.assertEqual(from_json, Generators[replacement])
+        # Check for non-deprecated models.
+        from_json = object_from_json({"__type": "Models", "name": "BO_MIXED"})
+        self.assertEqual(from_json, Generators.BO_MIXED)
+        # Check for models with no replacement.
+        with self.assertRaisesRegex(KeyError, "nonexistent"):
+            object_from_json({"__type": "Models", "name": "nonexistent_model"})
+
+    def test_optimization_config_backwards_compatibility(self) -> None:
+        # Check that opt config json with risk measure can be loaded.
+        opt_config = get_optimization_config()
+        opt_config_json = object_to_json(opt_config)
+        # Add risk measure.
+        opt_config_json["risk_measure"] = None
+        # Decode and compare.
+        decoded_opt_config = object_from_json(opt_config_json)
+        self.assertEqual(opt_config, decoded_opt_config)
+
+    def test_data_by_trial_backward_compatible(self) -> None:
+        ts0, ts1 = 2, 3
+        data_as_dict = {
+            "trial_index": 0,
+            "arm_name": "0_0",
+            "metric_name": "a",
+            "metric_signature": "a",
+            "sem": None,
+        }
+
+        dfs = [
+            pd.DataFrame.from_records(
+                [
+                    {"mean": ts, **data_as_dict},
+                    {
+                        **data_as_dict,
+                        **{"mean": ts, "metric_name": "b", "metric_signature": "b"},
+                    },
+                ]
+            )
+            for ts in [ts0, ts1]
+        ]
+        new_mean = 4.0
+        dfs.append(pd.DataFrame.from_records([{"mean": new_mean, **data_as_dict}]))
+        with self.subTest("Multiple past fetches"):
+            # Encodes this:
+            # _data_by_trial = {
+            #     0: OrderedDict(
+            #         [
+            #             (ts, Data(df=df))
+            #             for ts, df in zip([ts0, ts1, ts2], dfs, strict=True)
+            #         ]
+            #     )
+            # }
+            data_by_trial_json = {
+                0: {
+                    "__type": "OrderedDict",
+                    "value": [
+                        (
+                            2,
+                            {
+                                "df": {
+                                    "__type": "DataFrame",
+                                    "value": '{"trial_index":{"0":0,"1":0},"arm_name":{"0":"0_0","1":"0_0"},"metric_name":{"0":"a","1":"b"},"metric_signature":{"0":"a","1":"b"},"mean":{"0":2.0,"1":2.0},"sem":{"0":null,"1":null}}',  # noqa: E501
+                                },
+                                "__type": "Data",
+                            },
+                        ),
+                        (
+                            3,
+                            {
+                                "df": {
+                                    "__type": "DataFrame",
+                                    "value": '{"trial_index":{"0":0,"1":0},"arm_name":{"0":"0_0","1":"0_0"},"metric_name":{"0":"a","1":"b"},"metric_signature":{"0":"a","1":"b"},"mean":{"0":3.0,"1":3.0},"sem":{"0":null,"1":null}}',  # noqa: E501
+                                },
+                                "__type": "Data",
+                            },
+                        ),
+                        (
+                            4,
+                            {
+                                "df": {
+                                    "__type": "DataFrame",
+                                    "value": '{"trial_index":{"0":0},"arm_name":{"0":"0_0"},"metric_name":{"0":"a"},"metric_signature":{"0":"a"},"mean":{"0":4.0},"sem":{"0":null}}',  # noqa: E501
+                                },
+                                "__type": "Data",
+                            },
+                        ),
+                    ],
+                }
+            }
+            decoded = data_from_json(data_by_trial_json=data_by_trial_json)
+
+            self.assertEqual(decoded.trial_indices, {0})
+            df = decoded.full_df
+            # b is present even though it wasn't in the most recent fetch
+            self.assertEqual(set(df["metric_name"].to_numpy()), {"a", "b"})
+            # We have the old mean of b and the new mean of a
+            self.assertEqual(set(df["mean"].to_numpy()), {ts1, new_mean})
+            self.assertEqual((df["trial_index"] == 0).sum(), 2)
+
+        with self.subTest("One past fetch"):
+            # Encodes this:
+            # _data_by_trial = {0: OrderedDict([(ts0, Data(df=dfs[0]))])}
+            data_by_trial_json = {
+                0: {
+                    "__type": "OrderedDict",
+                    "value": [
+                        (
+                            2,
+                            {
+                                "df": {
+                                    "__type": "DataFrame",
+                                    "value": '{"trial_index":{"0":0,"1":0},"arm_name":{"0":"0_0","1":"0_0"},"metric_name":{"0":"a","1":"b"},"metric_signature":{"0":"a","1":"b"},"mean":{"0":2.0,"1":2.0},"sem":{"0":null,"1":null}}',  # noqa: E501
+                                },
+                                "__type": "Data",
+                            },
+                        )
+                    ],
+                }
+            }
+            decoded = data_from_json(data_by_trial_json=data_by_trial_json)
+            self.assertEqual(decoded.trial_indices, {0})
+
+        with self.subTest("Empty data"):
+            data_by_trial_json = {0: OrderedDict()}
+            decoded = data_from_json(data_by_trial_json=data_by_trial_json)
+            self.assertIsInstance(decoded, Data)
+            self.assertEqual(len(decoded.full_df), 0)
+
+    def test_experiment_data_by_trial_bc(self) -> None:
+        """
+        An integration test showing that an experiment that has been serialized
+        with a `_data_by_trial` attribute deserializes correctly.
+        """
+        ts0, ts1 = 2, 3
+        data_as_dict = {
+            "trial_index": 0,
+            "arm_name": "0_0",
+            "metric_name": "a",
+            "metric_signature": "a",
+            "sem": None,
+        }
+
+        dfs_to_attach = [
+            pd.DataFrame.from_records(
+                [
+                    {"mean": ts, **data_as_dict},
+                    {
+                        **data_as_dict,
+                        **{"mean": ts, "metric_name": "b", "metric_signature": "b"},
+                    },
+                ]
+            )
+            for ts in [ts0, ts1]
+        ]
+
+        new_mean = 4.0
+        dfs_to_attach.append(
+            pd.DataFrame.from_records([{"mean": new_mean, **data_as_dict}])
+        )
+        # Encodes an experiment like this:
+        # exp = Experiment(
+        #     name="test",
+        #     search_space=get_branin_search_space(),
+        #     optimization_config=OptimizationConfig(
+        #         objective=Objective(metric=Metric(name="a", lower_is_better=True))
+        #     ),
+        #     tracking_metrics=[Metric(name="b"), Metric(name="c")],
+        #     runner=SyntheticRunner(),
+        # )
+        # exp._data_by_trial = {
+        #     0: OrderedDict(
+        #         [
+        #             (ts, Data(df=df))
+        #             for ts, df in zip([ts0, ts1, ts2], dfs_to_attach, strict=True)
+        #         ]
+        #     )
+        # }
+        experiment_json = {
+            "__type": "Experiment",
+            "name": "test",
+            "description": None,
+            "experiment_type": None,
+            "search_space": {
+                "__type": "SearchSpace",
+                "parameters": [
+                    {
+                        "__type": "RangeParameter",
+                        "name": "x1",
+                        "parameter_type": {
+                            "__type": "ParameterType",
+                            "name": "FLOAT",
+                        },
+                        "lower": -5.0,
+                        "upper": 10.0,
+                        "log_scale": False,
+                        "logit_scale": False,
+                        "digits": None,
+                        "is_fidelity": False,
+                        "target_value": None,
+                    },
+                    {
+                        "__type": "RangeParameter",
+                        "name": "x2",
+                        "parameter_type": {
+                            "__type": "ParameterType",
+                            "name": "FLOAT",
+                        },
+                        "lower": 0.0,
+                        "upper": 15.0,
+                        "log_scale": False,
+                        "logit_scale": False,
+                        "digits": None,
+                        "is_fidelity": False,
+                        "target_value": None,
+                    },
+                ],
+                "parameter_constraints": [],
+            },
+            "optimization_config": {
+                "__type": "OptimizationConfig",
+                "objective": {
+                    "__type": "Objective",
+                    "metric": {
+                        "name": "a",
+                        "lower_is_better": True,
+                        "properties": {},
+                        "signature_override": None,
+                        "__type": "Metric",
+                    },
+                    "minimize": True,
+                },
+                "outcome_constraints": [],
+                "pruning_target_parameterization": None,
+            },
+            "tracking_metrics": [
+                {
+                    "name": "b",
+                    "lower_is_better": None,
+                    "properties": {},
+                    "signature_override": None,
+                    "__type": "Metric",
+                },
+                {
+                    "name": "c",
+                    "lower_is_better": None,
+                    "properties": {},
+                    "signature_override": None,
+                    "__type": "Metric",
+                },
+            ],
+            "runner": {"dummy_metadata": None, "__type": "SyntheticRunner"},
+            "status_quo": None,
+            "time_created": {
+                "__type": "datetime",
+                "value": "2025-11-10 15:15:25.600059",
+            },
+            "trials": {},
+            "is_test": False,
+            "data_by_trial": {
+                0: {
+                    "__type": "OrderedDict",
+                    "value": [
+                        (
+                            2,
+                            {
+                                "df": {
+                                    "__type": "DataFrame",
+                                    "value": '{"trial_index":{"0":0,"1":0},"arm_name":{"0":"0_0","1":"0_0"},"metric_name":{"0":"a","1":"b"},"metric_signature":{"0":"a","1":"b"},"mean":{"0":2.0,"1":2.0},"sem":{"0":null,"1":null}}',  # noqa: E501
+                                },
+                                "__type": "Data",
+                            },
+                        ),
+                        (
+                            3,
+                            {
+                                "df": {
+                                    "__type": "DataFrame",
+                                    "value": '{"trial_index":{"0":0,"1":0},"arm_name":{"0":"0_0","1":"0_0"},"metric_name":{"0":"a","1":"b"},"metric_signature":{"0":"a","1":"b"},"mean":{"0":3.0,"1":3.0},"sem":{"0":null,"1":null}}',  # noqa: E501
+                                },
+                                "__type": "Data",
+                            },
+                        ),
+                        (
+                            4,
+                            {
+                                "df": {
+                                    "__type": "DataFrame",
+                                    "value": '{"trial_index":{"0":0},"arm_name":{"0":"0_0"},"metric_name":{"0":"a"},"metric_signature":{"0":"a"},"mean":{"0":4.0},"sem":{"0":null}}',  # noqa: E501
+                                },
+                                "__type": "Data",
+                            },
+                        ),
+                    ],
+                }
+            },
+            "properties": {},
+            "_trial_type_to_runner": {None: None},
+            "default_data_type": {"__type": "DataType", "name": "DATA"},
+        }
+        decoded_experiment = object_from_json(object_json=experiment_json)
+        decoded_data = decoded_experiment.data
+        self.assertEqual(set(decoded_data.trial_indices), {0})
+        df = decoded_data.full_df
+        # b is present even though it wasn't in the most recent fetch
+        self.assertEqual(set(df["metric_name"].to_numpy()), {"a", "b"})
+        # We have the old mean of b and the new mean of a
+        self.assertEqual(set(df["mean"].to_numpy()), {ts1, new_mean})
+        self.assertEqual((df["trial_index"] == 0).sum(), 2)
+
+    def test_raise_on_legacy_callable_refs(self) -> None:
+        """Test that _raise_on_legacy_callable_refs raises on legacy callable refs."""
+        kwarg_dict = {
+            "normal_key": "normal_value",
+            "legacy_callable": {"is_callable_as_path": True, "path": "some.path"},
+            "nested_dict": {"key": "value"},
+        }
+        with self.assertRaisesRegex(
+            JSONDecodeError,
+            "Legacy callable reference 'legacy_callable' cannot be decoded",
+        ):
+            _raise_on_legacy_callable_refs(kwarg_dict)
+
+    def test_raise_on_legacy_callable_refs_preserves_non_callables(self) -> None:
+        """Test that _raise_on_legacy_callable_refs preserves non-callable refs."""
+        kwarg_dict = {
+            "normal_key": "normal_value",
+            "nested_dict": {"key": "value"},
+        }
+        result = _raise_on_legacy_callable_refs(kwarg_dict)
+        self.assertEqual(result, kwarg_dict)
+
+    def test_generator_spec_from_json_raises_on_legacy_callables(self) -> None:
+        """Test generator_spec_from_json raises on legacy callable refs in kwargs."""
+        generator_spec_json = {
+            "generator_enum": {"__type": "Generators", "name": "SOBOL"},
+            "generator_kwargs": {
+                "seed": 42,
+                "legacy_fn": {"is_callable_as_path": True, "path": "some.fn"},
+            },
+            "generator_gen_kwargs": {},
+        }
+        with self.assertRaisesRegex(
+            JSONDecodeError,
+            "Legacy callable reference 'legacy_fn' cannot be decoded",
+        ):
+            generator_spec_from_json(generator_spec_json)

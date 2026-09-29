@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+# pyre-strict
+# pyre-ignore-all-errors[24]
+#
+# SA 2.0 requires a type param on InstrumentedAttribute, but SA 1.4
+# InstrumentedAttribute is not subscriptable at runtime (`type is not a generic
+# class`), so we keep the bare form to preserve dual-version compatibility.
+
+
+from ax.storage.sqa_store.sqa_classes import SQAGeneratorRun, SQATrial
+from sqlalchemy.orm import defaultload, strategy_options
+from sqlalchemy.orm.attributes import InstrumentedAttribute
+
+
+GR_LARGE_MODEL_ATTRS: list[InstrumentedAttribute] = [
+    SQAGeneratorRun.model_kwargs,
+    SQAGeneratorRun.bridge_kwargs,
+    SQAGeneratorRun.model_state_after_gen,
+    SQAGeneratorRun.gen_metadata,
+]
+
+
+# Mapping from SQA column names to GeneratorRun Python attribute names
+SQA_COL_TO_GR_ATTR = {
+    "model_kwargs": "generator_kwargs",
+    "bridge_kwargs": "adapter_kwargs",
+    "gen_metadata": "gen_metadata",
+    "model_state_after_gen": "generator_state_after_gen",
+}
+
+
+GR_PARAMS_METRICS_COLS = [
+    "parameters",
+    "parameter_constraints",
+    "metrics",
+]
+
+
+def get_query_options_to_defer_immutable_duplicates() -> list[strategy_options.Load]:
+    """Returns the query options that defer loading of attributes that are duplicated
+    on each trial (like search space attributes and metrics). These attributes do not
+    need to be loaded for experiments with immutable search space and optimization
+    configuration.
+    """
+    options = [
+        defaultload(SQATrial.generator_runs).lazyload(getattr(SQAGeneratorRun, col))
+        for col in GR_PARAMS_METRICS_COLS
+    ]
+    return options
+
+
+def get_query_options_to_defer_large_model_cols() -> list[strategy_options.Load]:
+    """Returns the query options that defer loading of model-state-related columns
+    of generator runs, which can be large and are not needed on every generator run
+    when loading experiment and generation strategy in reduced state.
+    """
+    return [
+        defaultload(SQATrial.generator_runs).defer(col) for col in GR_LARGE_MODEL_ATTRS
+    ]

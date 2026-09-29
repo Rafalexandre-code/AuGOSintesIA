@@ -1,0 +1,37 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+.cache/
+.pytest_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# JupyterLite
+_site/
+.lite_src/
+.jupyterlite.doit.db
+
+# Documentation
+docs/_build/
+docs/api/
+
+# GitHub Pages
+.gh-pages/
+
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Local tooling
+CLAUDE.md
+uv.lock

@@ -9,6 +9,7 @@ import sklearn.ensemble as sken
 from sklearn.model_selection import GridSearchCV
 
 
+import os
 import numpy as np
 from scipy import optimize
 
@@ -27,7 +28,7 @@ class run:
         self.policy = policy
         self.surrogate = surrogate
         self.runlength = runlength
-        self.filepath = folderpath + '\\Opt ' + surrogate + 'N' + str(noise) + '_' + modeltype + '_' + policy
+        self.filepath = os.path.join(folderpath, 'Opt ' + surrogate + 'N' + str(noise) + '_' + modeltype + '_' + policy)
         self.nStart = startRandSamples
         self.dim = dimensions
         self.noise = noise
@@ -67,12 +68,14 @@ class run:
         return self
 
     def dimensionScreen(self, dimensions=[2, 3, 4]):
+        # singleOptimization() returns self, so store a copy of each run's best-so-far curve
         Y = []
         for dim in dimensions:
             self.dim = dim
-            tempY = self.singleOptimization()
-            Y.append(tempY)
+            run = self.singleOptimization()
+            Y.append(np.maximum.accumulate(np.array(run.Y, dtype=float)).tolist())
         Plotting.saveDimensionLinePlots(Y, dimensions, self.surrogate, self.filepath)
+        return Y
 
     def getMSE(self, nTestSamples=100):
         if self.modeltype == 'RND':

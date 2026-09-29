@@ -1,0 +1,2 @@
+# chem-MFBO (dependências fixadas em Data/chem-MFBO-main/setup.py)
+-e ../Data/chem-MFBO-main

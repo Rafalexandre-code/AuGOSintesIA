@@ -1,0 +1,980 @@
+import warnings
+
+import networkx as nx
+import numpy as np
+import pandas as pd
+import pytest
+from flaky import flaky
+from pytest import mark
+from sklearn import linear_model
+
+import dowhy
+import dowhy.datasets
+from dowhy import CausalModel
+from dowhy.causal_graph import CausalGraph
+from dowhy.gcm import ProbabilisticCausalModel, StructuralCausalModel
+from dowhy.utils.graph_operations import daggity_to_dot
+
+
+class TestCausalModel(object):
+    @mark.parametrize(
+        ["beta", "num_samples", "num_treatments"],
+        [
+            (10, 100, 1),
+        ],
+    )
+    def test_external_estimator(self, beta, num_samples, num_treatments):
+        num_common_causes = 5
+        data = dowhy.datasets.linear_dataset(
+            beta=beta,
+            num_common_causes=num_common_causes,
+            num_samples=num_samples,
+            num_treatments=num_treatments,
+            treatment_is_binary=True,
+        )
+
+        model = CausalModel(
+            data=data["df"],
+            treatment=data["treatment_name"],
+            outcome=data["outcome_name"],
+            graph=data["gml_graph"],
+            proceed_when_unidentifiable=True,
+            test_significance=None,
+        )
+
+        identified_estimand = model.identify_effect(proceed_when_unidentifiable=True)
+
+        estimate = model.estimate_effect(
+            identified_estimand,
+            method_name="backdoor.tests.causal_estimators.mock_external_estimator.PropensityScoreWeightingEstimator",
+            control_value=0,
+            treatment_value=1,
+            target_units="ate",  # condition used for CATE
+            confidence_intervals=True,
+            method_params={"propensity_score_model": linear_model.LogisticRegression(max_iter=1000)},
+        )
+
+        assert estimate.estimator.propensity_score_model.max_iter == 1000
+
+    @mark.parametrize(
+        ["beta", "num_instruments", "num_samples", "num_treatments"],
+        [
+            (10, 1, 100, 1),
+        ],
+    )
+    def test_graph_input(self, beta, num_instruments, num_samples, num_treatments):
+        num_common_causes = 5
+        data = dowhy.datasets.linear_dataset(
+            beta=beta,
+            num_common_causes=num_common_causes,
+            num_instruments=num_instruments,
+            num_samples=num_samples,
+            num_treatments=num_treatments,
+            treatment_is_binary=True,
+        )
+
+        model = CausalModel(
+            data=data["df"],
+            treatment=data["treatment_name"],
+            outcome=data["outcome_name"],
+            graph=data["gml_graph"],
+            proceed_when_unidentifiable=True,
+            test_significance=None,
+        )
+        # removing two common causes
+        gml_str = 'graph[directed 1 node[ id "{0}" label "{0}"]node[ id "{1}" label "{1}"]node[ id "Unobserved Confounders" label "Unobserved Confounders"]edge[source "{0}" target "{1}"]edge[source "Unobserved Confounders" target "{0}"]edge[source "Unobserved Confounders" target "{1}"]node[ id "X0" label "X0"] edge[ source "X0" target "{0}"] node[ id "X1" label "X1"] edge[ source "X1" target "{0}"] node[ id "X2" label "X2"] edge[ source "X2" target "{0}"] edge[ source "X0" target "{1}"] edge[ source "X1" target "{1}"] edge[ source "X2" target "{1}"] node[ id "Z0" label "Z0"] edge[ source "Z0" target "{0}"]]'.format(
+            data["treatment_name"][0], data["outcome_name"]
+        )
+        print(gml_str)
+        model = CausalModel(
+            data=data["df"],
+            treatment=data["treatment_name"],
+            outcome=data["outcome_name"],
+            graph=gml_str,
+            proceed_when_unidentifiable=True,
+            test_significance=None,
+            missing_nodes_as_confounders=True,
+        )
+        common_causes = model.get_common_causes()
+        assert all(node_name in common_causes for node_name in ["X1", "X2"])
+
+    @mark.parametrize(
+        ["beta", "num_instruments", "num_samples", "num_treatments"],
+        [
+            (10, 1, 100, 1),
+        ],
+    )
+    def test_graph_input2(self, beta, num_instruments, num_samples, num_treatments):
+        num_common_causes = 5
+        data = dowhy.datasets.linear_dataset(
+            beta=beta,
+            num_common_causes=num_common_causes,
+            num_instruments=num_instruments,
+            num_samples=num_samples,
+            num_treatments=num_treatments,
+            treatment_is_binary=True,
+        )
+
+        model = CausalModel(
+            data=data["df"],
+            treatment=data["treatment_name"],
+            outcome=data["outcome_name"],
+            graph=data["gml_graph"],
+            proceed_when_unidentifiable=True,
+            test_significance=None,
+        )
+        # removing two common causes
+        gml_str = """graph[
+        directed 1 
+        node[ id "{0}" 
+        label "{0}"
+        ]
+        node [ 
+        id "{1}" 
+        label "{1}"
+        ]
+        node [ 
+        id "Unobserved Confounders" 
+        label "Unobserved Confounders"
+        ]
+        edge[
+        source "{0}" 
+        target "{1}"
+        ]
+        edge[
+        source "Unobserved Confounders" 
+        target "{0}"
+        ]
+        edge[
+        source "Unobserved Confounders" 
+        target "{1}"
+        ]
+        node[ 
+        id "X0" 
+        label "X0"
+        ] 
+        edge[ 
+        source "X0" 
+        target "{0}"
+        ] 
+        node[ 
+        id "X1" 
+        label "X1"
+        ] 
+        edge[ 
+        source "X1" 
+        target "{0}"
+        ] 
+        node[ 
+        id "X2" 
+        label "X2"
+        ] 
+        edge[ 
+        source "X2" 
+        target "{0}"
+        ] 
+        edge[ 
+        source "X0" 
+        target "{1}"
+        ] 
+        edge[ 
+        source "X1" 
+        target "{1}"
+        ] 
+        edge[ 
+        source "X2" 
+        target "{1}"
+        ] 
+        node[ 
+        id "Z0" 
+        label "Z0"
+        ] 
+        edge[
+        source "Z0" 
+        target "{0}"
+        ]]""".format(
+            data["treatment_name"][0], data["outcome_name"]
+        )
+        print(gml_str)
+        model = CausalModel(
+            data=data["df"],
+            treatment=data["treatment_name"],
+            outcome=data["outcome_name"],
+            graph=gml_str,
+            proceed_when_unidentifiable=True,
+            test_significance=None,
+            missing_nodes_as_confounders=True,
+        )
+        common_causes = model.get_common_causes()
+        assert all(node_name in common_causes for node_name in ["X1", "X2"])
+
+    @mark.parametrize(
+        ["beta", "num_instruments", "num_samples", "num_treatments"],
+        [
+            (10, 1, 100, 1),
+        ],
+    )
+    def test_graph_input3(self, beta, num_instruments, num_samples, num_treatments):
+        num_common_causes = 5
+        data = dowhy.datasets.linear_dataset(
+            beta=beta,
+            num_common_causes=num_common_causes,
+            num_instruments=num_instruments,
+            num_samples=num_samples,
+            num_treatments=num_treatments,
+            treatment_is_binary=True,
+        )
+        model = CausalModel(
+            data=data["df"],
+            treatment=data["treatment_name"],
+            outcome=data["outcome_name"],
+            graph=data["gml_graph"],
+            proceed_when_unidentifiable=True,
+            test_significance=None,
+        )
+        # removing two common causes
+        gml_str = """dag {
+        "Unobserved Confounders" [pos="0.491,-1.056"]
+        X0 [pos="-2.109,0.057"]
+        X1 [adjusted, pos="-0.453,-1.562"]
+        X2 [pos="-2.268,-1.210"]
+        Z0 [pos="-1.918,-1.735"]
+        v0 [latent, pos="-1.525,-1.293"]
+        y [outcome, pos="-1.164,-0.116"]
+        "Unobserved Confounders" -> v0
+        "Unobserved Confounders" -> y
+        X0 -> v0
+        X0 -> y
+        X1 -> v0
+        X1 -> y
+        X2 -> v0
+        X2 -> y
+        Z0 -> v0
+        v0 -> y
+        }
+        """
+        print(gml_str)
+        model = CausalModel(
+            data=data["df"],
+            treatment=data["treatment_name"],
+            outcome=data["outcome_name"],
+            graph=gml_str,
+            proceed_when_unidentifiable=True,
+            test_significance=None,
+            missing_nodes_as_confounders=True,
+        )
+        common_causes = model.get_common_causes()
+        assert all(node_name in common_causes for node_name in ["X1", "X2"])
+        all_nodes = model._graph.get_all_nodes(include_unobserved=True)
+        assert all(
+            node_name in all_nodes for node_name in ["Unobserved Confounders", "X0", "X1", "X2", "Z0", "v0", "y"]
+        )
+        all_nodes = model._graph.get_all_nodes(include_unobserved=False)
+        assert "Unobserved Confounders" not in all_nodes
+
+    @mark.parametrize(
+        ["beta", "num_instruments", "num_samples", "num_treatments"],
+        [
+            (10, 1, 100, 1),
+        ],
+    )
+    def test_graph_input4(self, beta, num_instruments, num_samples, num_treatments):
+        num_common_causes = 5
+        data = dowhy.datasets.linear_dataset(
+            beta=beta,
+            num_common_causes=num_common_causes,
+            num_instruments=num_instruments,
+            num_samples=num_samples,
+            num_treatments=num_treatments,
+            treatment_is_binary=True,
+        )
+
+        model = CausalModel(
+            data=data["df"],
+            treatment=data["treatment_name"],
+            outcome=data["outcome_name"],
+            graph=data["gml_graph"],
+            proceed_when_unidentifiable=True,
+            test_significance=None,
+        )
+        # removing two common causes
+        gml_str = "tests/sample_dag.txt"
+        print(gml_str)
+        model = CausalModel(
+            data=data["df"],
+            treatment=data["treatment_name"],
+            outcome=data["outcome_name"],
+            graph=gml_str,
+            proceed_when_unidentifiable=True,
+            test_significance=None,
+            missing_nodes_as_confounders=True,
+        )
+        common_causes = model.get_common_causes()
+        assert all(node_name in common_causes for node_name in ["X1", "X2"])
+        all_nodes = model._graph.get_all_nodes(include_unobserved=True)
+        assert all(
+            node_name in all_nodes for node_name in ["Unobserved Confounders", "X0", "X1", "X2", "Z0", "v0", "y"]
+        )
+        all_nodes = model._graph.get_all_nodes(include_unobserved=False)
+        assert "Unobserved Confounders" not in all_nodes
+
+    @mark.parametrize(
+        ["beta", "num_instruments", "num_samples", "num_treatments"],
+        [
+            (10, 1, 100, 1),
+        ],
+    )
+    def test_graph_input_nx(self, beta, num_instruments, num_samples, num_treatments):
+        num_common_causes = 5
+        data = dowhy.datasets.linear_dataset(
+            beta=beta,
+            num_common_causes=num_common_causes,
+            num_instruments=num_instruments,
+            num_samples=num_samples,
+            num_treatments=num_treatments,
+            treatment_is_binary=True,
+        )
+        nx_graph = nx.DiGraph(nx.parse_gml(data["gml_graph"]))
+        model = CausalModel(
+            data=data["df"],
+            treatment=data["treatment_name"],
+            outcome=data["outcome_name"],
+            graph=nx_graph,
+            proceed_when_unidentifiable=True,
+            test_significance=None,
+        )
+        # removing two common causes
+        daggity_file = "tests/sample_dag.txt"
+        with open(daggity_file, "r") as text_file:
+            graph_str = text_file.read()
+        graph_str = daggity_to_dot(graph_str)
+        graph_str = graph_str.replace("\n", " ")
+        import pygraphviz as pgv
+
+        nx_graph2 = pgv.AGraph(graph_str, strict=True, directed=True)
+        nx_graph2 = nx.drawing.nx_agraph.from_agraph(nx_graph2)
+        model = CausalModel(
+            data=data["df"],
+            treatment=data["treatment_name"],
+            outcome=data["outcome_name"],
+            graph=nx_graph2,
+            proceed_when_unidentifiable=True,
+            test_significance=None,
+            missing_nodes_as_confounders=True,
+        )
+        common_causes = model.get_common_causes()
+        assert all(node_name in common_causes for node_name in ["X1", "X2"])
+        all_nodes = model._graph.get_all_nodes(include_unobserved=True)
+        assert all(
+            node_name in all_nodes for node_name in ["Unobserved Confounders", "X0", "X1", "X2", "Z0", "v0", "y"]
+        )
+        all_nodes = model._graph.get_all_nodes(include_unobserved=False)
+        assert "Unobserved Confounders" not in all_nodes
+
+    @mark.parametrize(
+        ["beta", "num_effect_modifiers", "num_samples"],
+        [
+            (10, 0, 100),
+            (10, 1, 100),
+        ],
+    )
+    def test_cate_estimates_regression(self, beta, num_effect_modifiers, num_samples):
+        data = dowhy.datasets.linear_dataset(
+            beta=beta,
+            num_common_causes=2,
+            num_samples=num_samples,
+            num_treatments=1,
+            treatment_is_binary=True,
+            num_effect_modifiers=num_effect_modifiers,
+        )
+        model = CausalModel(
+            data=data["df"],
+            treatment=data["treatment_name"],
+            outcome=data["outcome_name"],
+            graph=data["gml_graph"],
+            test_significance=None,
+        )
+        identified_estimand = model.identify_effect()
+        linear_estimate = model.estimate_effect(
+            identified_estimand, method_name="backdoor.linear_regression", control_value=0, treatment_value=1
+        )
+        if num_effect_modifiers == 0:
+            assert linear_estimate.conditional_estimates is None
+        else:
+            assert linear_estimate.conditional_estimates is not None
+
+    def test_estimate_conditional_effects_public_api(self):
+        """Test that CausalEstimate.estimate_conditional_effects() works correctly.
+
+        This exercises the public API method (as opposed to the internal _estimate_conditional_effects
+        called automatically during estimate_effect), ensuring the data argument is passed correctly.
+        """
+        data = dowhy.datasets.linear_dataset(
+            beta=10,
+            num_common_causes=2,
+            num_samples=200,
+            num_treatments=1,
+            treatment_is_binary=False,
+            num_effect_modifiers=1,
+        )
+        model = CausalModel(
+            data=data["df"],
+            treatment=data["treatment_name"],
+            outcome=data["outcome_name"],
+            graph=data["gml_graph"],
+            test_significance=None,
+        )
+        identified_estimand = model.identify_effect()
+        linear_estimate = model.estimate_effect(
+            identified_estimand,
+            method_name="backdoor.linear_regression",
+            control_value=0,
+            treatment_value=1,
+            method_params={"need_conditional_estimates": False},
+        )
+        # Explicitly call the public API method — previously broken due to wrong argument order
+        cate = linear_estimate.estimate_conditional_effects()
+        assert cate is not None
+        assert len(cate) > 0
+
+    @mark.parametrize(
+        ["num_variables", "num_samples"],
+        [
+            (5, 5000),
+        ],
+    )
+    @flaky(max_runs=3)
+    def test_graph_refutation(self, num_variables, num_samples):
+        data = dowhy.datasets.dataset_from_random_graph(num_vars=num_variables, num_samples=num_samples)
+        df = data["df"]
+        model = CausalModel(
+            data=df,
+            treatment=data["treatment_name"],
+            outcome=data["outcome_name"],
+            graph=data["gml_graph"],
+        )
+        graph_refutation_object = model.refute_graph(
+            k=1,
+            independence_test={
+                "test_for_continuous": "partial_correlation",
+                "test_for_discrete": "conditional_mutual_information",
+            },
+        )
+        assert graph_refutation_object.refutation_result == True
+
+    @mark.parametrize(
+        ["num_variables", "num_samples"],
+        [
+            (10, 5000),
+        ],
+    )
+    @flaky(max_runs=3)
+    def test_graph_refutation2(self, num_variables, num_samples):
+        data = dowhy.datasets.dataset_from_random_graph(num_vars=num_variables, num_samples=num_samples)
+        df = data["df"]
+        gml_str = """
+        graph [
+        directed 1
+        node [
+            id 0
+            label "a"
+        ]
+        node [
+            id 1
+            label "b"
+        ]
+        node [
+            id 2
+            label "c"
+        ]
+        node [
+            id 3
+            label "d"
+        ]
+        node [
+            id 4
+            label "e"
+        ]
+        node [
+            id 5
+            label "f"
+        ]
+        node [
+            id 6
+            label "g"
+        ]
+        node [
+            id 7
+            label "h"
+        ]
+        node [
+            id 8
+            label "i"
+        ]
+        node [
+            id 9
+            label "j"
+        ]
+        edge [
+            source 0
+            target 1
+        ]
+        edge [
+            source 0
+            target 3
+        ]
+        edge [
+            source 3
+            target 2
+        ]
+        edge [
+            source 7
+            target 4
+        ]
+        edge [
+            source 6
+            target 5
+        ]
+        edge [
+            source 7
+            target 8
+        ]
+        edge [
+            source 9
+            target 2
+        ]
+        edge [
+            source 9
+            target 8
+        ]
+        ]
+        """
+        model = CausalModel(
+            data=df,
+            treatment=data["treatment_name"],
+            outcome=data["outcome_name"],
+            graph=gml_str,
+        )
+        graph_refutation_object = model.refute_graph(
+            k=2,
+            independence_test={
+                "test_for_continuous": "partial_correlation",
+                "test_for_discrete": "conditional_mutual_information",
+            },
+        )
+        assert graph_refutation_object.refutation_result == False
+
+    def test_unobserved_graph_variables_log_warning(self, caplog):
+        data = dowhy.datasets.linear_dataset(
+            beta=10,
+            num_common_causes=3,
+            num_instruments=1,
+            num_effect_modifiers=1,
+            num_samples=3,
+            treatment_is_binary=True,
+            stddev_treatment_noise=2,
+            num_discrete_common_causes=1,
+        )
+
+        df = data["df"]
+        # Remove graph variable with name "W0" from observed data.
+        df = df.drop(columns=["W0"])
+
+        expected_warning_message_regex = (
+            "1 variables are assumed unobserved because they are not in the "
+            "dataset. Configure the logging level to `logging.WARNING` or "
+            "higher for additional details."
+        )
+
+        with pytest.warns(
+            UserWarning,
+            match=expected_warning_message_regex,
+        ):
+            _ = CausalModel(
+                data=df,
+                treatment=data["treatment_name"],
+                outcome=data["outcome_name"],
+                graph=data["gml_graph"],
+            )
+
+        # Ensure that a log record exists that provides a more detailed view
+        # of observed and unobserved graph variables (counts and variable names.)
+        expected_logging_message = (
+            "The graph defines 7 variables. 6 were found in the dataset "
+            "and will be analyzed as observed variables. 1 were not found "
+            "in the dataset and will be analyzed as unobserved variables. "
+            "The observed variables are: '['W1', 'W2', 'X0', 'Z0', 'v0', 'y']'. "
+            "The unobserved variables are: '['W0']'. "
+            "If this matches your expectations for observations, please continue. "
+            "If you expected any of the unobserved variables to be in the "
+            "dataframe, please check for typos."
+        )
+        assert any(
+            log_record
+            for log_record in caplog.records
+            if (
+                (log_record.name == "dowhy.causal_model")
+                and (log_record.levelname == "WARNING")
+                and (log_record.message == expected_logging_message)
+            )
+        ), (
+            "Expected logging message informing about unobserved graph variables  "
+            "was not found. Expected a logging message to be emitted in module `dowhy.causal_model` "
+            f"and with level `logging.WARNING` and this content '{expected_logging_message}'. "
+            f"Only the following log records were emitted instead: '{caplog.records}'."
+        )
+
+    def test_compability_with_gcm(self):
+        data = pd.DataFrame({"X": [0], "Y": [0], "Z": [0]})
+        model = CausalModel(
+            data=data,
+            treatment="Y",
+            outcome="Z",
+            graph=StructuralCausalModel(nx.DiGraph([("X", "Y"), ("Y", "Z")])),
+        )
+
+        assert set(model._graph._graph.nodes) == {"X", "Y", "Z"}
+        assert set(model._graph._graph.edges) == {("X", "Y"), ("Y", "Z")}
+
+        causal_graph = CausalGraph("Y", "Z", graph=StructuralCausalModel(nx.DiGraph([("X", "Y"), ("Y", "Z")])))
+        assert set(causal_graph._graph.nodes) == {"X", "Y", "Z"}
+        assert set(causal_graph._graph.edges) == {("X", "Y"), ("Y", "Z")}
+
+        pcm = ProbabilisticCausalModel(model)
+        assert set(pcm.graph.nodes) == {"X", "Y", "Z"}
+        assert set(pcm.graph.edges) == {("X", "Y"), ("Y", "Z")}
+
+        pcm = ProbabilisticCausalModel(model._graph)
+        assert set(pcm.graph.nodes) == {"X", "Y", "Z"}
+        assert set(pcm.graph.edges) == {("X", "Y"), ("Y", "Z")}
+
+    def test_incorrect_graph_format(self):
+        data = pd.DataFrame({"X": [0], "Y": [0], "Z": [0]})
+        with pytest.raises(ValueError, match="Incorrect format:"):
+            model = CausalModel(
+                data=data,
+                treatment="Y",
+                outcome="Z",
+                graph=nx.Graph([("X", "Y"), ("Y", "Z")]),
+            )
+
+    def test_learn_graph_initializes_the_graph(self):
+        """CausalModel.learn_graph() must pass identify_vars on to init_graph()."""
+        import sys
+        import types
+
+        from dowhy.graph_learner import GraphLearner
+
+        class STUB(GraphLearner):
+            def __init__(self, data, library_class=None, *args, **kwargs):
+                self._data = data
+
+            def learn_graph(self):
+                learned = nx.DiGraph([("W0", "v0"), ("W0", "y"), ("v0", "y")])
+                return nx.nx_pydot.to_pydot(learned).to_string()
+
+        module = types.ModuleType("dowhy.graph_learners.stub")
+        module.STUB = STUB
+        sys.modules["dowhy.graph_learners.stub"] = module
+        try:
+            data = pd.DataFrame({"W0": [0.0, 1.0, 2.0], "v0": [0, 1, 0], "y": [1.0, 3.0, 2.0]})
+            model = CausalModel(data=data, treatment="v0", outcome="y", common_causes=["W0"])
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                graph = model.learn_graph("stub")
+        finally:
+            del sys.modules["dowhy.graph_learners.stub"]
+
+        assert graph is model._graph
+        assert set(graph.get_all_nodes(include_unobserved=True)) == {"W0", "v0", "y"}
+
+    def test_warn_when_treatment_not_in_data(self):
+        """CausalModel should emit a UserWarning when treatment variable is missing from the DataFrame."""
+        data = pd.DataFrame({"X": [0, 1], "Y": [1, 2]})
+        with pytest.warns(UserWarning, match="treatment variable"):
+            CausalModel(
+                data=data,
+                treatment="MISSING_TREATMENT",
+                outcome="Y",
+                common_causes=["X"],
+            )
+
+    def test_warn_when_outcome_not_in_data(self):
+        """CausalModel should emit a UserWarning when outcome variable is missing from the DataFrame."""
+        data = pd.DataFrame({"X": [0, 1], "Y": [1, 2]})
+        with pytest.warns(UserWarning, match="outcome variable"):
+            CausalModel(
+                data=data,
+                treatment="X",
+                outcome="MISSING_OUTCOME",
+                common_causes=[],
+            )
+
+    def test_no_warn_when_treatment_and_outcome_in_data(self):
+        """CausalModel should not emit a missing-variable UserWarning when all variables are present."""
+        data = pd.DataFrame({"X": [0, 1], "Y": [1, 2]})
+        # Collect only UserWarnings that mention "variable(s) were not found"
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            CausalModel(
+                data=data,
+                treatment="X",
+                outcome="Y",
+                common_causes=[],
+            )
+        missing_var_warnings = [
+            w for w in caught if issubclass(w.category, UserWarning) and "not found" in str(w.message)
+        ]
+        assert missing_var_warnings == [], f"Unexpected missing-variable warnings: {missing_var_warnings}"
+
+    def test_causal_estimator_cache(self):
+        """
+        Tests that CausalEstimator objects can be consistently retrieved from CausalEstimate and CausalModel objects.
+        """
+        beta = 10
+        num_samples = 100
+        num_treatments = 1
+        num_common_causes = 5
+        data = dowhy.datasets.linear_dataset(
+            beta=beta,
+            num_common_causes=num_common_causes,
+            num_samples=num_samples,
+            num_treatments=num_treatments,
+            treatment_is_binary=True,
+        )
+
+        model = CausalModel(
+            data=data["df"],
+            treatment=data["treatment_name"],
+            outcome=data["outcome_name"],
+            graph=data["gml_graph"],
+            proceed_when_unidentifiable=True,
+            test_significance=None,
+        )
+
+        identified_estimand = model.identify_effect(proceed_when_unidentifiable=True)
+        methods = [
+            "backdoor.linear_regression",
+            "backdoor.propensity_score_matching",
+        ]
+        estimates = []
+        estimates.append(
+            model.estimate_effect(identified_estimand, method_name=methods[0], control_value=0, treatment_value=1)
+        )
+        estimates.append(
+            model.estimate_effect(identified_estimand, method_name=methods[1], control_value=0, treatment_value=1)
+        )
+
+        # Default == operator tests if same object. If same object, don't need to check type.
+        assert (estimates[0].estimator) == model.get_estimator(methods[0])
+        assert (estimates[1].estimator) == model.get_estimator(methods[1])
+        assert (estimates[0].estimator) != model.get_estimator(methods[1])  # check not same object
+
+    def test_refute_estimate_raises_when_method_name_is_none(self):
+        """refute_estimate(method_name=None) must raise ValueError, not NameError."""
+        data = dowhy.datasets.linear_dataset(
+            beta=10,
+            num_common_causes=3,
+            num_samples=200,
+            treatment_is_binary=True,
+        )
+        model = CausalModel(
+            data=data["df"],
+            treatment=data["treatment_name"],
+            outcome=data["outcome_name"],
+            graph=data["gml_graph"],
+        )
+        estimand = model.identify_effect(proceed_when_unidentifiable=True)
+        estimate = model.estimate_effect(
+            estimand,
+            method_name="backdoor.linear_regression",
+        )
+        with pytest.raises(ValueError, match="method_name must be provided"):
+            model.refute_estimate(estimand, estimate, method_name=None)
+
+    def test_do_raises_when_method_name_is_none(self):
+        """do(method_name=None) must raise ValueError, not NameError."""
+        data = dowhy.datasets.linear_dataset(
+            beta=10,
+            num_common_causes=3,
+            num_samples=200,
+            treatment_is_binary=True,
+        )
+        model = CausalModel(
+            data=data["df"],
+            treatment=data["treatment_name"],
+            outcome=data["outcome_name"],
+            graph=data["gml_graph"],
+        )
+        estimand = model.identify_effect(proceed_when_unidentifiable=True)
+        with pytest.raises(ValueError, match="method_name must be provided"):
+            model.do(x=1, identified_estimand=estimand, method_name=None)
+
+    def test_estimate_effect_raises_when_method_name_is_none(self):
+        """estimate_effect(method_name=None) must raise ValueError, not UnboundLocalError."""
+        data = dowhy.datasets.linear_dataset(
+            beta=10,
+            num_common_causes=3,
+            num_samples=200,
+            treatment_is_binary=True,
+        )
+        model = CausalModel(
+            data=data["df"],
+            treatment=data["treatment_name"],
+            outcome=data["outcome_name"],
+            graph=data["gml_graph"],
+        )
+        estimand = model.identify_effect(proceed_when_unidentifiable=True)
+        with pytest.raises(ValueError, match="method_name must be provided"):
+            model.estimate_effect(estimand, method_name=None)
+
+    def test_fit_estimator_false_reuses_cached_estimator(self):
+        """Test that fit_estimator=False reuses the cached estimator without refitting.
+
+        After a first call with fit_estimator=True (the default), a subsequent call
+        with fit_estimator=False must:
+        - return the same estimator object from the cache (no re-instantiation)
+        - produce an identical estimate value for deterministic estimators
+        """
+        data = dowhy.datasets.linear_dataset(
+            beta=10,
+            num_common_causes=3,
+            num_samples=500,
+            num_treatments=1,
+            treatment_is_binary=True,
+        )
+        model = CausalModel(
+            data=data["df"],
+            treatment=data["treatment_name"],
+            outcome=data["outcome_name"],
+            graph=data["gml_graph"],
+            proceed_when_unidentifiable=True,
+            test_significance=None,
+        )
+        identified_estimand = model.identify_effect(proceed_when_unidentifiable=True)
+        method = "backdoor.linear_regression"
+
+        # First call: fit the estimator and cache it.
+        estimate1 = model.estimate_effect(
+            identified_estimand,
+            method_name=method,
+            control_value=0,
+            treatment_value=1,
+        )
+        estimator_after_first_call = model.get_estimator(method)
+
+        def fail_if_refit(*args, **kwargs):
+            raise AssertionError("fit_estimator=False should not call fit on the cached estimator")
+
+        estimator_after_first_call.fit = fail_if_refit
+
+        # Second call with fit_estimator=False must reuse the cached estimator.
+        estimate2 = model.estimate_effect(
+            identified_estimand,
+            method_name=method,
+            control_value=0,
+            treatment_value=1,
+            fit_estimator=False,
+        )
+        estimator_after_second_call = model.get_estimator(method)
+
+        # Same object identity — no new estimator was created.
+        assert estimator_after_first_call is estimator_after_second_call
+
+        # Linear regression is deterministic: both calls must yield the same estimate.
+        assert estimate1.value == pytest.approx(estimate2.value)
+
+    def test_causal_model_do_regression(self):
+        """CausalModel.do() must work with regression estimators and method_params=None.
+
+        Previously, CausalModel.do() had three bugs:
+        1. method_params=None caused TypeError: argument after ** must be a mapping, not NoneType
+        2. fit() was called with (data, treatment, outcome) instead of (data,)
+        3. RegressionEstimator.fit() never stored self._data, so interventional_outcomes()
+           could not fall back to self._data when data_df=None.
+        """
+        np.random.seed(42)
+        data = dowhy.datasets.linear_dataset(
+            beta=10,
+            num_common_causes=2,
+            num_samples=300,
+            num_treatments=1,
+            treatment_is_binary=True,
+        )
+        model = CausalModel(
+            data=data["df"],
+            treatment=data["treatment_name"],
+            outcome=data["outcome_name"],
+            graph=data["gml_graph"],
+            test_significance=None,
+        )
+        identified_estimand = model.identify_effect(proceed_when_unidentifiable=True)
+
+        # Calling do() with method_params=None (the default) must not raise TypeError.
+        do_treated = model.do(
+            x=1,
+            identified_estimand=identified_estimand,
+            method_name="backdoor.linear_regression",
+        )
+        do_control = model.do(
+            x=0,
+            identified_estimand=identified_estimand,
+            method_name="backdoor.linear_regression",
+        )
+        # Cast to float once — this also validates the result is scalar-like.
+        do_treated = float(do_treated)
+        do_control = float(do_control)
+        # The implied ATE should be close to beta=10.
+        assert do_treated - do_control == pytest.approx(10, abs=5)
+
+    def test_repr_matches_str_for_key_result_objects(self):
+        """repr() should return the same text as str() for CausalEstimate, IdentifiedEstimand, and CausalRefutation."""
+        np.random.seed(42)
+        data = dowhy.datasets.linear_dataset(
+            beta=10,
+            num_common_causes=1,
+            num_samples=200,
+            num_treatments=1,
+            treatment_is_binary=True,
+        )
+        model = CausalModel(
+            data=data["df"],
+            treatment=data["treatment_name"],
+            outcome=data["outcome_name"],
+            graph=data["gml_graph"],
+        )
+        identified_estimand = model.identify_effect(proceed_when_unidentifiable=True)
+        estimate = model.estimate_effect(
+            identified_estimand,
+            method_name="backdoor.linear_regression",
+        )
+
+        # IdentifiedEstimand
+        assert repr(identified_estimand) == str(identified_estimand)
+        assert "Estimand type" in repr(identified_estimand)
+
+        # CausalEstimate
+        assert repr(estimate) == str(estimate)
+        assert "Mean value" in repr(estimate)
+
+        # RealizedEstimand
+        from dowhy.causal_estimator import RealizedEstimand
+
+        realized_estimand = RealizedEstimand(identified_estimand, estimator_name="Test")
+        realized_estimand.update_estimand_expression(0)
+        realized_estimand.update_assumptions({})
+        assert repr(realized_estimand) == str(realized_estimand)
+        assert "Realized estimand" in repr(realized_estimand)
+        # CausalRefutation
+        refutation = model.refute_estimate(
+            identified_estimand,
+            estimate,
+            method_name="placebo_treatment_refuter",
+            num_simulations=5,
+        )
+        assert repr(refutation) == str(refutation)
+        assert "Estimated effect" in repr(refutation)
+
+
+if __name__ == "__main__":
+    pytest.main([__file__])

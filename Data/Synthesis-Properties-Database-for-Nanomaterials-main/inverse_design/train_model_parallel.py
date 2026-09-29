@@ -7,6 +7,12 @@ import os
 import subprocess
 import sys
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+CONFIG_FILE = os.environ.get("LLAMAFACTORY_CONFIG", os.path.join(SCRIPT_DIR, "train_config_model_parallel.yaml"))
+# Optional conda activation (leave empty if llamafactory-cli is already on PATH)
+CONDA_ACTIVATE = os.environ.get("LLAMAFAC_CONDA_ACTIVATE", "")
+CONDA_ENV = os.environ.get("LLAMAFAC_CONDA_ENV", "llamafac")
+
 def setup_environment():
     """Set up model parallel training environment variables"""
     # Set GPUs to use
@@ -27,7 +33,7 @@ def setup_environment():
 
 def run_training():
     """Run model parallel training"""
-    config_file = "/home/ubuntu/project/nanodatabase/application/train_config_model_parallel.yaml"
+    config_file = CONFIG_FILE
     
     # Check if config file exists
     if not os.path.exists(config_file):
@@ -47,7 +53,7 @@ def run_training():
     
     try:
         # Execute training command
-        result = subprocess.run(cmd, check=True)
+        result = subprocess.run(cmd, check=True, cwd=SCRIPT_DIR)
         print("Training completed!")
         return True
     except subprocess.CalledProcessError as e:
@@ -86,8 +92,11 @@ def main():
     print("\nStarting model parallel training...")
     
     # Training command - activate conda environment and run
-    config_path = "/home/ubuntu/project/nanodatabase/application/train_config_model_parallel.yaml"
-    train_cmd = f"/bin/bash -c 'source /home/ubuntu/anaconda3/bin/activate llamafac && llamafactory-cli train {config_path}'"
+    config_path = CONFIG_FILE
+    if CONDA_ACTIVATE:
+        train_cmd = f"/bin/bash -c 'source {CONDA_ACTIVATE} {CONDA_ENV} && llamafactory-cli train {config_path}'"
+    else:
+        train_cmd = f"llamafactory-cli train {config_path}"
     
     print(f"Training command: {train_cmd}")
     print("=" * 60)
@@ -95,7 +104,7 @@ def main():
     try:
         # Execute training
         result = subprocess.run(train_cmd, shell=True, check=True, 
-                              capture_output=False, text=True)
+                              capture_output=False, text=True, cwd=SCRIPT_DIR)
         print("Model parallel training completed!")
         return 0
         

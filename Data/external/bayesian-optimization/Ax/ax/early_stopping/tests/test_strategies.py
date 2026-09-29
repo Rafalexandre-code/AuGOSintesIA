@@ -1,0 +1,2474 @@
+#!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+# pyre-strict
+
+from copy import deepcopy
+from typing import cast
+from unittest.mock import MagicMock, Mock, patch
+
+import pandas as pd
+from ax.core import OptimizationConfig
+from ax.core.data import Data, MAP_KEY
+from ax.core.experiment import Experiment
+from ax.core.metric import Metric
+from ax.core.objective import MultiObjective, Objective
+from ax.core.trial_status import TrialStatus
+from ax.early_stopping.strategies import (
+    BaseEarlyStoppingStrategy,
+    ModelBasedEarlyStoppingStrategy,
+    PercentileEarlyStoppingStrategy,
+    StabilityGatedEarlyStoppingStrategy,
+    ThresholdEarlyStoppingStrategy,
+)
+from ax.early_stopping.strategies.base import logger
+from ax.early_stopping.strategies.logical import (
+    AndEarlyStoppingStrategy,
+    OrEarlyStoppingStrategy,
+)
+from ax.early_stopping.utils import align_partial_results
+from ax.exceptions.core import UnsupportedError, UserInputError
+from ax.generation_strategy.generation_node import GenerationNode
+from ax.utils.common.testutils import TestCase
+from ax.utils.testing.core_stubs import (
+    get_branin_arms,
+    get_branin_experiment,
+    get_branin_experiment_with_timestamp_map_metric,
+    get_experiment_with_multi_objective,
+    get_test_map_data_experiment,
+)
+from pyre_extensions import none_throws
+
+
+class FakeStrategy(BaseEarlyStoppingStrategy):
+    def _is_harmful(
+        self,
+        trial_indices: set[int],
+        experiment: Experiment,
+    ) -> bool:
+        return False
+
+    def _should_stop_trials_early(
+        self,
+        trial_indices: set[int],
+        experiment: Experiment,
+        current_node: GenerationNode | None = None,
+    ) -> dict[int, str | None]:
+        return {}
+
+
+class FakeStrategyRequiresNode(BaseEarlyStoppingStrategy):
+    def _is_harmful(
+        self,
+        trial_indices: set[int],
+        experiment: Experiment,
+    ) -> bool:
+        return False
+
+    def _should_stop_trials_early(
+        self,
+        trial_indices: set[int],
+        experiment: Experiment,
+        current_node: GenerationNode | None = None,
+    ) -> dict[int, str | None]:
+        if current_node is None:
+            raise ValueError("current_node is required")
+        return {}
+
+
+class ModelBasedFakeStrategy(ModelBasedEarlyStoppingStrategy):
+    def _is_harmful(
+        self,
+        trial_indices: set[int],
+        experiment: Experiment,
+    ) -> bool:
+        return False
+
+    def _should_stop_trials_early(
+        self,
+        trial_indices: set[int],
+        experiment: Experiment,
+        current_node: GenerationNode | None = None,
+    ) -> dict[int, str | None]:
+        return {}
+
+
+class TestBaseEarlyStoppingStrategy(TestCase):
+    def test_early_stopping_strategy(self) -> None:
+        # can't instantiate abstract class
+        with self.assertRaises(TypeError):
+            # pyre-ignore[45]: Cannot instantiate abstract class
+            #  `BaseEarlyStoppingStrategy`.
+            BaseEarlyStoppingStrategy()
+
+    def test_normalize_progressions(self) -> None:
+        """Test that normalize_progressions applies proper min-max normalization.
+
+        Verifies that progression values are normalized using the formula:
+            (x - min) / (max - min)
+        which maps the progression range [min, max] to [0, 1].
+        """
+        with self.subTest("zero_min_progressions"):
+            # Test with progressions starting at 0 (typical case)
+            experiment = get_test_map_data_experiment(
+                num_trials=3, num_fetches=5, num_complete=3
+            )
+            metric_signature, _ = FakeStrategy()._default_objective_and_direction(
+                experiment=experiment
+            )
+
+            # Get the original map data to verify our test assumptions
+            original_data = experiment.lookup_data()
+            original_df = original_data.full_df[
+                original_data.full_df["metric_signature"] == metric_signature
+            ]
+            original_progressions = original_df[MAP_KEY].astype(float)
+
+            # Verify original progressions start at 0
+            self.assertEqual(original_progressions.min(), 0.0)
+            original_max = original_progressions.max()
+            self.assertGreater(original_max, 0.0)
+
+            # Test with normalize_progressions=True
+            es_strategy_normalized = FakeStrategy(normalize_progressions=True)
+            normalized_data = es_strategy_normalized._lookup_and_validate_data(
+                experiment, metric_signatures=[metric_signature]
+            )
+            normalized_data = none_throws(normalized_data)
+            normalized_progressions = normalized_data.full_df[MAP_KEY].astype(float)
+
+            # Verify normalized progressions are in [0, 1] range
+            self.assertAlmostEqual(normalized_progressions.min(), 0.0)
+            self.assertAlmostEqual(normalized_progressions.max(), 1.0)
+
+            # Verify all unique values are correctly normalized using min-max formula
+            expected_normalized_values = {
+                v / original_max for v in original_progressions.unique()
+            }
+            actual_normalized_values = set(normalized_progressions.unique())
+            self.assertEqual(expected_normalized_values, actual_normalized_values)
+
+        with self.subTest("normalize_progressions_false"):
+            # Test with normalize_progressions=False (default behavior)
+            experiment = get_test_map_data_experiment(
+                num_trials=3, num_fetches=5, num_complete=3
+            )
+            metric_signature, _ = FakeStrategy()._default_objective_and_direction(
+                experiment=experiment
+            )
+            original_data = experiment.lookup_data()
+            original_df = original_data.full_df[
+                original_data.full_df["metric_signature"] == metric_signature
+            ]
+            original_max = original_df[MAP_KEY].astype(float).max()
+
+            es_strategy_unnormalized = FakeStrategy(normalize_progressions=False)
+            unnormalized_data = es_strategy_unnormalized._lookup_and_validate_data(
+                experiment, metric_signatures=[metric_signature]
+            )
+            unnormalized_progressions = (
+                none_throws(unnormalized_data).full_df[MAP_KEY].astype(float)
+            )
+
+            # Verify progressions are NOT normalized (should match original range)
+            self.assertAlmostEqual(unnormalized_progressions.min(), 0.0)
+            self.assertAlmostEqual(unnormalized_progressions.max(), original_max)
+
+        with self.subTest("nonzero_min_progressions"):
+            # Test with progressions that don't start at 0
+            experiment = get_test_map_data_experiment(
+                num_trials=3, num_fetches=3, num_complete=3
+            )
+            metric_signature, _ = FakeStrategy()._default_objective_and_direction(
+                experiment=experiment
+            )
+
+            # Modify the data to have non-zero minimum progressions
+            data = experiment.lookup_data()
+            modified_df = data.full_df.copy()
+
+            # Shift progressions by 10: [0, 1, 2] -> [10, 11, 12]
+            modified_df[MAP_KEY] = modified_df[MAP_KEY].astype(float) + 10.0
+
+            # Verify the modified progressions have non-zero min
+            metric_mask = modified_df["metric_signature"] == metric_signature
+            updated_progressions = modified_df.loc[metric_mask, MAP_KEY].astype(float)
+            self.assertEqual(updated_progressions.min(), 10.0)
+            self.assertEqual(updated_progressions.max(), 12.0)
+
+            # Attach modified data and apply normalization
+            experiment.attach_data(data=Data(df=modified_df))
+
+            es_strategy = FakeStrategy(normalize_progressions=True)
+            normalized_data = es_strategy._lookup_and_validate_data(
+                experiment, metric_signatures=[metric_signature]
+            )
+            normalized_data = none_throws(normalized_data)
+            normalized_progressions = normalized_data.full_df[MAP_KEY].astype(float)
+
+            # Verify min-max normalization produces [0, 1] range
+            self.assertAlmostEqual(normalized_progressions.min(), 0.0)
+            self.assertAlmostEqual(normalized_progressions.max(), 1.0)
+
+            # Verify all normalized values are within [0, 1] range
+            self.assertTrue(
+                all(0.0 <= v <= 1.0 for v in normalized_progressions.unique())
+            )
+
+    def test_nan_map_key_values_dropped_with_warning(self) -> None:
+        """Test that NaN values in MAP_KEY column are dropped with a warning."""
+        experiment = get_test_map_data_experiment(
+            num_trials=3, num_fetches=5, num_complete=3
+        )
+        es_strategy = FakeStrategy()
+        metric_signature, _ = es_strategy._default_objective_and_direction(
+            experiment=experiment
+        )
+
+        # Get the data and introduce NaN values in MAP_KEY column
+        data = experiment.lookup_data()
+        modified_df = data.full_df.copy()
+
+        # Set some MAP_KEY values to NaN for specific trials
+        # This simulates corrupted or missing progression data
+        # Use metric_signature to match the filter in _lookup_and_validate_data
+        trial_0_mask = (modified_df["trial_index"] == 0) & (
+            modified_df["metric_signature"] == metric_signature
+        )
+        # Set rows at the first index where trial_0_mask is True to have NaN in MAP_KEY
+        first_trial_0_idx = modified_df.loc[trial_0_mask].index[0]
+        modified_df.loc[first_trial_0_idx, MAP_KEY] = float("nan")
+
+        # Attach modified data with NaN values
+        modified_data = Data(df=modified_df)
+        experiment.attach_data(data=modified_data)
+
+        # Verify warning is logged when NaN values are dropped
+        with patch.object(logger, "warning") as mock_warning:
+            result = es_strategy._lookup_and_validate_data(
+                experiment, metric_signatures=[metric_signature]
+            )
+
+            # Verify warning was called with appropriate message
+            mock_warning.assert_called_once()
+
+            (warning_msg,) = mock_warning.call_args.args
+            self.assertRegex(
+                warning_msg,
+                r"Dropped 1 row\(s\) with NaN values in the progression column "
+                rf"\('{MAP_KEY}'\) for trial\(s\) \[0\]\.",
+            )
+
+        # Verify result is not None and NaN rows are dropped
+        self.assertIsNotNone(result)
+
+        # Verify no NaN values remain in MAP_KEY column
+        self.assertFalse(result.full_df[MAP_KEY].isna().any())
+
+    def test_all_objectives_and_directions_raises_error_when_lower_is_better_is_none(
+        self,
+    ) -> None:
+        """Test that UnsupportedError is raised when a metric does not specify
+        lower_is_better."""
+        metric_without_direction = Metric(name="test_metric", lower_is_better=None)
+        test_experiment = get_test_map_data_experiment(
+            num_trials=3, num_fetches=5, num_complete=3
+        )
+        test_experiment.add_tracking_metric(metric_without_direction)
+
+        # Execute & Assert: Verify that error is raised when using
+        # metric_signatures
+        es_strategy = FakeStrategy(
+            metric_signatures=[metric_without_direction.signature]
+        )
+        with self.assertRaisesRegex(
+            UnsupportedError,
+            "Metrics used for early stopping must specify lower_is_better. ",
+        ):
+            es_strategy._all_objectives_and_directions(experiment=test_experiment)
+
+    def test_all_objectives_and_directions_scalarized(self) -> None:
+        """Test that _all_objectives_and_directions handles scalarized
+        objectives by using metric_weights to determine directions."""
+        test_experiment = get_test_map_data_experiment(
+            num_trials=3, num_fetches=5, num_complete=3
+        )
+        metric_a = Metric(name="metric_a", lower_is_better=False)
+        metric_b = Metric(name="metric_b", lower_is_better=True)
+        test_experiment.add_tracking_metric(metric_a)
+        test_experiment.add_tracking_metric(metric_b)
+        # Scalarized objective: maximize metric_a, minimize metric_b
+        test_experiment._optimization_config = OptimizationConfig(
+            objective=Objective(
+                expression="2*metric_a + -3*metric_b",
+                metric_name_to_signature={
+                    "metric_a": "metric_a",
+                    "metric_b": "metric_b",
+                },
+            ),
+        )
+        es_strategy = FakeStrategy()
+        directions = es_strategy._all_objectives_and_directions(
+            experiment=test_experiment
+        )
+        # weight > 0 -> minimize=False, weight < 0 -> minimize=True
+        self.assertFalse(directions[metric_a.signature])
+        self.assertTrue(directions[metric_b.signature])
+
+    @patch.object(logger, "warning")
+    def test_default_objective_and_direction(self, _: MagicMock) -> None:
+        test_experiment = get_test_map_data_experiment(
+            num_trials=3, num_fetches=5, num_complete=3
+        )
+        test_objective = none_throws(test_experiment.optimization_config).objective
+        with self.subTest("provide metric names"):
+            es_strategy = FakeStrategy(
+                metric_signatures=[test_objective.metric_names[0]]
+            )
+            (
+                actual_metric_name,
+                actual_minimize,
+            ) = es_strategy._default_objective_and_direction(experiment=test_experiment)
+
+            self.assertEqual(
+                actual_metric_name,
+                test_objective.metric_names[0],
+            )
+            self.assertEqual(
+                actual_minimize,
+                test_objective.minimize,
+            )
+
+        with self.subTest("infer from optimization config"):
+            # should be the same as above
+            es_strategy = FakeStrategy()
+            (
+                actual_metric_name,
+                actual_minimize,
+            ) = es_strategy._default_objective_and_direction(experiment=test_experiment)
+
+            self.assertEqual(
+                actual_metric_name,
+                test_objective.metric_names[0],
+            )
+            self.assertEqual(
+                actual_minimize,
+                test_objective.minimize,
+            )
+
+        test_multi_objective_experiment = get_experiment_with_multi_objective()
+        test_multi_objective = cast(
+            MultiObjective,
+            none_throws(test_multi_objective_experiment.optimization_config).objective,
+        )
+        with self.subTest("infer from optimization config -- multi-objective"):
+            es_strategy = FakeStrategy()
+            (
+                actual_metric_name,
+                actual_minimize,
+            ) = es_strategy._default_objective_and_direction(
+                experiment=test_multi_objective_experiment
+            )
+            self.assertEqual(
+                actual_metric_name,
+                test_multi_objective.metric_names[0],
+            )
+            self.assertEqual(
+                actual_minimize,
+                test_multi_objective.metric_weights[0][1] < 0,
+            )
+
+        with self.subTest("provide metric names -- multi-objective"):
+            es_strategy = FakeStrategy(
+                metric_signatures=[test_multi_objective.metric_names[1]]
+            )
+            (
+                actual_metric_name,
+                actual_minimize,
+            ) = es_strategy._default_objective_and_direction(
+                experiment=test_multi_objective_experiment
+            )
+            self.assertEqual(
+                actual_metric_name,
+                test_multi_objective.metric_names[1],
+            )
+            self.assertEqual(
+                actual_minimize,
+                test_multi_objective.metric_weights[1][1] < 0,
+            )
+
+    @patch.object(logger, "warning")
+    def test_is_eligible(self, _: MagicMock) -> None:
+        experiment = get_test_map_data_experiment(
+            num_trials=3, num_fetches=5, num_complete=3
+        )
+        es_strategy = FakeStrategy(min_progression=3, max_progression=5)
+        metric_signature, __ = es_strategy._default_objective_and_direction(
+            experiment=experiment
+        )
+
+        map_data = none_throws(
+            es_strategy._lookup_and_validate_data(
+                experiment,
+                metric_signatures=[metric_signature],
+            )
+        )
+        self.assertTrue(
+            es_strategy.is_eligible(
+                trial_index=0,
+                experiment=experiment,
+                df=map_data.full_df,
+            )[0]
+        )
+
+        # try to get data from different metric name
+        fake_df = deepcopy(map_data.full_df)
+        trial_index = 0
+        fake_df = fake_df.drop(fake_df.index[fake_df["trial_index"] == trial_index])
+        fake_es, fake_reason = es_strategy.is_eligible(
+            trial_index=trial_index,
+            experiment=experiment,
+            df=fake_df,
+        )
+        self.assertFalse(fake_es)
+        self.assertEqual(
+            fake_reason, "No data available to make an early stopping decision."
+        )
+
+        fake_map_data = es_strategy._lookup_and_validate_data(
+            experiment,
+            metric_signatures=["fake_metric_name"],
+        )
+        self.assertIsNone(fake_map_data)
+
+        es_strategy = FakeStrategy(min_progression=5)
+        self.assertFalse(
+            es_strategy.is_eligible(
+                trial_index=0,
+                experiment=experiment,
+                df=map_data.full_df,
+            )[0]
+        )
+
+        es_strategy = FakeStrategy(min_progression=2, max_progression=3)
+        self.assertFalse(
+            es_strategy.is_eligible(
+                trial_index=0,
+                experiment=experiment,
+                df=map_data.full_df,
+            )[0]
+        )
+
+        # testing batch trial error
+        experiment.new_batch_trial()
+        with self.assertRaisesRegex(
+            ValueError, "is a BatchTrial, which is not yet supported"
+        ):
+            es_strategy.is_eligible_any(
+                trial_indices={0},
+                experiment=experiment,
+                df=map_data.full_df,
+            )
+
+    def test_progression_interval(self) -> None:
+        """Test progression interval with min_progression=0."""
+        experiment = get_test_map_data_experiment(
+            num_trials=3, num_fetches=5, num_complete=3
+        )
+        # Set interval=2.0 with min_progression=0 -> boundaries at 0, 2, 4, 6...
+        es_strategy = PercentileEarlyStoppingStrategy(
+            min_progression=0.0,
+            interval=2.0,
+        )
+        metric_signature, _ = es_strategy._default_objective_and_direction(
+            experiment=experiment
+        )
+
+        map_data = es_strategy._lookup_and_validate_data(
+            experiment,
+            metric_signatures=[metric_signature],
+        )
+        full_df = none_throws(map_data).full_df
+
+        # Trial 0 has progressions at 0, 1, 2, 3, 4
+        # Simulate orchestrator checks at different progressions
+
+        # Check 1: Trial at progression 1 (between boundaries 0 and 2)
+        # First check, so should be eligible
+        df_at_1 = full_df[full_df[MAP_KEY] <= 1]
+        is_eligible, reason = es_strategy.is_eligible(
+            trial_index=0,
+            experiment=experiment,
+            df=df_at_1,
+        )
+        self.assertTrue(is_eligible)
+        self.assertIsNone(reason)
+
+        # Check 2: Trial at progression 2 (at boundary 2)
+        # Has crossed boundary from 1 to 2, should be eligible
+        df_at_2 = full_df[full_df[MAP_KEY] <= 2]
+        is_eligible, reason = es_strategy.is_eligible(
+            trial_index=0,
+            experiment=experiment,
+            df=df_at_2,
+        )
+        self.assertTrue(is_eligible)
+        self.assertIsNone(reason)
+
+        # Check 3: Trial at progression 3 (between boundaries 2 and 4)
+        # Has NOT crossed boundary from 2 to 3, should NOT be eligible
+        df_at_3 = full_df[full_df[MAP_KEY] <= 3]
+        is_eligible, reason = es_strategy.is_eligible(
+            trial_index=0,
+            experiment=experiment,
+            df=df_at_3,
+        )
+        self.assertFalse(is_eligible)
+        self.assertIsNotNone(reason)
+        # Validate message format: mentions boundary not crossed, shows interval,
+        # and tells user what progression is needed
+        self.assertRegex(
+            reason,
+            r"not crossed an interval boundary.*"
+            r"both are in the same interval \[2\.00, 4\.00\).*"
+            r"Must reach progression 4\.00",
+        )
+
+        # Check 4: Trial at progression 4 (at boundary 4)
+        # Has crossed boundary from 3 to 4, should be eligible
+        is_eligible, reason = es_strategy.is_eligible(
+            trial_index=0,
+            experiment=experiment,
+            df=full_df,
+        )
+        self.assertTrue(is_eligible)
+        self.assertIsNone(reason)
+
+    def test_progression_interval_with_min_progression(self) -> None:
+        """Test progression interval with min_progression > 0."""
+        experiment = get_test_map_data_experiment(
+            num_trials=3, num_fetches=5, num_complete=3
+        )
+        # Set interval=2.0 with min_progression=1.0 -> boundaries at 1, 3, 5, 7...
+        es_strategy = FakeStrategy(min_progression=1.0, interval=2.0)
+        metric_signature, _ = es_strategy._default_objective_and_direction(
+            experiment=experiment
+        )
+
+        map_data = es_strategy._lookup_and_validate_data(
+            experiment,
+            metric_signatures=[metric_signature],
+        )
+        full_df = none_throws(map_data).full_df
+
+        # Trial 0 has progressions at 0, 1, 2, 3, 4
+        # With min_progression=1.0, boundaries are at 1, 3, 5, 7...
+
+        # Check 1: Trial at progression 0 (below min_progression)
+        # Should NOT be eligible due to min_progression requirement
+        df_at_0 = full_df[full_df[MAP_KEY] <= 0]
+        is_eligible, reason = es_strategy.is_eligible(
+            trial_index=0,
+            experiment=experiment,
+            df=df_at_0,
+        )
+        self.assertFalse(is_eligible)
+        self.assertIsNotNone(reason)
+        self.assertIn("falls out of the min/max_progression range", reason)
+
+        # Check 2: Trial at progression 2 (between boundaries 1 and 3)
+        # First check at valid progression, should be eligible
+        df_at_2 = full_df[full_df[MAP_KEY] <= 2]
+        is_eligible, reason = es_strategy.is_eligible(
+            trial_index=0,
+            experiment=experiment,
+            df=df_at_2,
+        )
+        self.assertTrue(is_eligible)
+        self.assertIsNone(reason)
+
+        # Check 3: Trial still at progression 2 (same interval)
+        # Has NOT crossed boundary, should NOT be eligible
+        is_eligible, reason = es_strategy.is_eligible(
+            trial_index=0,
+            experiment=experiment,
+            df=df_at_2,
+        )
+        self.assertFalse(is_eligible)
+        self.assertIsNotNone(reason)
+        self.assertRegex(
+            reason,
+            r"not crossed an interval boundary.*"
+            r"both are in the same interval \[1\.00, 3\.00\).*"
+            r"Must reach progression 3\.00",
+        )
+
+        # Check 4: Trial at progression 3 (at boundary 3)
+        # Has crossed boundary from 2 to 3, should be eligible
+        df_at_3 = full_df[full_df[MAP_KEY] <= 3]
+        is_eligible, reason = es_strategy.is_eligible(
+            trial_index=0,
+            experiment=experiment,
+            df=df_at_3,
+        )
+        self.assertTrue(is_eligible)
+        self.assertIsNone(reason)
+
+        # Check 5: Trial at progression 4 (between boundaries 3 and 5)
+        # Has NOT crossed boundary, should NOT be eligible
+        is_eligible, reason = es_strategy.is_eligible(
+            trial_index=0,
+            experiment=experiment,
+            df=full_df,
+        )
+        self.assertFalse(is_eligible)
+        self.assertIsNotNone(reason)
+        self.assertRegex(
+            reason,
+            r"not crossed an interval boundary.*"
+            r"both are in the same interval \[3\.00, 5\.00\).*"
+            r"Must reach progression 5\.00",
+        )
+
+    def test_validation(self) -> None:
+        """Test validation of BaseEarlyStoppingStrategy parameters."""
+        with self.subTest("interval_zero"):
+            with self.assertRaisesRegex(
+                UserInputError, "Option `interval` must be positive"
+            ):
+                FakeStrategy(interval=0)
+
+        with self.subTest("interval_negative"):
+            with self.assertRaisesRegex(
+                UserInputError, "Option `interval` must be positive"
+            ):
+                FakeStrategy(interval=-1.0)
+
+        with self.subTest("min_progression_negative"):
+            with self.assertRaisesRegex(
+                UserInputError,
+                "Option `min_progression` must be nonnegative",
+            ):
+                FakeStrategy(min_progression=-1.0)
+
+        with self.subTest("min_progression_zero_valid"):
+            strategy = FakeStrategy(min_progression=0)
+            self.assertEqual(strategy.min_progression, 0)
+
+        with self.subTest("min_progression_positive_valid"):
+            strategy = FakeStrategy(min_progression=5.0)
+            self.assertEqual(strategy.min_progression, 5.0)
+
+        with self.subTest("min_progression_equals_max_progression"):
+            with self.assertRaisesRegex(
+                UserInputError, "Expect min_progression < max_progression"
+            ):
+                FakeStrategy(min_progression=5.0, max_progression=5.0)
+
+        with self.subTest("min_progression_greater_than_max_progression"):
+            with self.assertRaisesRegex(
+                UserInputError, "Expect min_progression < max_progression"
+            ):
+                FakeStrategy(min_progression=10, max_progression=5)
+
+        with self.subTest("min_max_progression_valid"):
+            strategy = FakeStrategy(min_progression=2.0, max_progression=10.0)
+            self.assertEqual(strategy.min_progression, 2.0)
+            self.assertEqual(strategy.max_progression, 10.0)
+
+        with self.subTest("min_zero_max_positive_valid"):
+            strategy = FakeStrategy(min_progression=0, max_progression=5.0)
+            self.assertEqual(strategy.min_progression, 0)
+            self.assertEqual(strategy.max_progression, 5.0)
+
+    def test_check_safe_parameter(self) -> None:
+        """Test that check_safe parameter controls whether _is_harmful is called."""
+        experiment = get_test_map_data_experiment(
+            num_trials=3, num_fetches=5, num_complete=3
+        )
+        trial_indices = {0, 1}
+
+        with self.subTest("check_safe_false_bypasses_is_harmful"):
+            # Setup: Create strategy with check_safe=False (default)
+            strategy = FakeStrategy(check_safe=False)
+
+            # Execute: Patch _is_harmful to verify it's not called
+            with patch.object(strategy, "_is_harmful") as mock_is_harmful:
+                strategy.should_stop_trials_early(
+                    trial_indices=trial_indices,
+                    experiment=experiment,
+                )
+
+                # Assert: _is_harmful should not be called when check_safe=False
+                mock_is_harmful.assert_not_called()
+
+        with self.subTest("check_safe_true_calls_is_harmful"):
+            # Setup: Create strategy with check_safe=True
+            strategy = FakeStrategy(check_safe=True)
+
+            # Execute: Patch _is_harmful to verify it's called
+            with patch.object(
+                strategy, "_is_harmful", return_value=False
+            ) as mock_is_harmful:
+                strategy.should_stop_trials_early(
+                    trial_indices=trial_indices,
+                    experiment=experiment,
+                )
+
+                # Assert: _is_harmful should be called when check_safe=True
+                mock_is_harmful.assert_called_once_with(
+                    trial_indices=trial_indices,
+                    experiment=experiment,
+                )
+
+        with self.subTest("check_safe_true_returns_empty_dict_when_harmful"):
+            # Setup: Create strategy with check_safe=True
+            strategy = FakeStrategy(check_safe=True)
+
+            # Execute: Patch _is_harmful to return True (indicating harmful)
+            with patch.object(strategy, "_is_harmful", return_value=True):
+                result = strategy.should_stop_trials_early(
+                    trial_indices=trial_indices,
+                    experiment=experiment,
+                )
+
+                # Assert: Should return empty dict when early stopping is harmful
+                self.assertEqual(result, {})
+
+    def test_early_stopping_savings(self) -> None:
+        exp = get_branin_experiment_with_timestamp_map_metric()
+        es_strategy = ModelBasedFakeStrategy(min_progression=3, max_progression=5)
+
+        self.assertEqual(
+            es_strategy.estimate_early_stopping_savings(
+                experiment=exp,
+            ),
+            0,
+        )
+
+    def test_with_current_node(self) -> None:
+        exp = get_branin_experiment_with_timestamp_map_metric()
+        es_strategy = FakeStrategyRequiresNode(min_progression=3, max_progression=5)
+
+        with self.assertRaisesRegex(ValueError, "current_node is required"):
+            es_strategy.should_stop_trials_early(
+                trial_indices={0},
+                experiment=exp,
+            )
+
+        es_strategy.should_stop_trials_early(
+            trial_indices={0}, experiment=exp, current_node=Mock()
+        )
+
+
+class TestPercentileEarlyStoppingStrategy(TestCase):
+    @patch.object(logger, "warning")
+    def test_percentile_early_stopping_strategy_validation(self, _: MagicMock) -> None:
+        exp = get_branin_experiment()
+
+        for i in range(5):
+            trial = exp.new_trial().add_arm(arm=get_branin_arms(n=1, seed=i)[0])
+            trial.run()
+            trial.mark_as(status=TrialStatus.COMPLETED)
+
+        early_stopping_strategy = PercentileEarlyStoppingStrategy()
+        idcs = set(exp.trials.keys())
+        exp.attach_data(data=exp.fetch_data())
+
+        # data without "step" attached
+        should_stop = early_stopping_strategy.should_stop_trials_early(
+            trial_indices=idcs, experiment=exp
+        )
+        self.assertEqual(should_stop, {})
+
+        exp = get_branin_experiment_with_timestamp_map_metric(rate=0.5)
+        for i in range(5):
+            trial = exp.new_trial().add_arm(arm=get_branin_arms(n=1, seed=i)[0])
+            trial.run()
+
+        # No data attached
+        should_stop = early_stopping_strategy.should_stop_trials_early(
+            trial_indices=idcs, experiment=exp
+        )
+        self.assertEqual(should_stop, {})
+
+        exp.attach_data(data=exp.fetch_data())
+
+        # Not enough learning curves
+        early_stopping_strategy = PercentileEarlyStoppingStrategy(
+            min_curves=6,
+        )
+        should_stop = early_stopping_strategy.should_stop_trials_early(
+            trial_indices=idcs, experiment=exp
+        )
+        self.assertEqual(should_stop, {})
+
+        # Most recent progression below minimum
+        early_stopping_strategy = PercentileEarlyStoppingStrategy(
+            min_progression=3,
+        )
+        should_stop = early_stopping_strategy.should_stop_trials_early(
+            trial_indices=idcs, experiment=exp
+        )
+        self.assertEqual(should_stop, {})
+
+    def test_percentile_early_stopping_strategy(self) -> None:
+        with patch.object(logger, "debug") as logger_mock:
+            self._test_percentile_early_stopping_strategy(
+                logger_mock=logger_mock, non_objective_metric=False
+            )
+
+    def test_percentile_early_stopping_strategy_non_objective_metric(self) -> None:
+        with patch.object(logger, "debug") as logger_mock:
+            self._test_percentile_early_stopping_strategy(
+                logger_mock=logger_mock, non_objective_metric=True
+            )
+
+        with self.assertRaisesRegex(
+            UnsupportedError,
+            "PercentileEarlyStoppingStrategy only supports a single metric.",
+        ):
+            PercentileEarlyStoppingStrategy(
+                metric_signatures=["tracking_branin_map", "foo"],
+                percentile_threshold=75,
+                min_curves=5,
+                min_progression=0.1,
+            )
+
+    def _test_percentile_early_stopping_strategy(
+        self,
+        logger_mock: MagicMock,
+        non_objective_metric: bool,
+    ) -> None:
+        exp = get_test_map_data_experiment(
+            num_trials=5,
+            num_fetches=3,
+            num_complete=4,
+            map_tracking_metric=non_objective_metric,
+        )
+        """
+        Data looks like this:
+        arm_name metric_name        mean  sem  trial_index  timestamp
+        0       0_0      branin  146.138620  0.0            0          0
+        1       0_0      branin  117.388086  0.0            0          1
+        2       0_0      branin   99.950007  0.0            0          2
+        3       1_0      branin  113.057480  0.0            1          0
+        4       1_0      branin   90.815154  0.0            1          1
+        5       1_0      branin   77.324501  0.0            1          2
+        6       2_0      branin   44.627226  0.0            2          0
+        7       2_0      branin   35.847504  0.0            2          1
+        8       2_0      branin   30.522333  0.0            2          2
+        9       3_0      branin  143.375669  0.0            3          0
+        10      3_0      branin  115.168704  0.0            3          1
+        11      3_0      branin   98.060315  0.0            3          2
+        12      4_0      branin   65.033535  0.0            4          0
+        13      4_0      branin   52.239184  0.0            4          1
+        14      4_0      branin   44.479018  0.0            4          2
+
+        Looking at the most recent fidelity only (timestamp==2), we have
+        the following metric values for each trial:
+        0: 99.950007 <-- worst
+        3: 98.060315
+        1: 77.324501
+        4: 44.479018
+        2: 30.522333 <-- best
+        """
+        if non_objective_metric:
+            metric_signatures = ["tracking_branin_map"]
+            # remove the optimization config to force that only the tracking metric can
+            # be used for early stopping
+            exp._optimization_config = None
+            data = exp.fetch_data()
+            self.assertIn("tracking_branin_map", data.full_df["metric_name"].values)
+        else:
+            metric_signatures = None
+
+        idcs = set(exp.trials.keys())
+
+        early_stopping_strategy = PercentileEarlyStoppingStrategy(
+            metric_signatures=metric_signatures,
+            percentile_threshold=25,
+            min_curves=4,
+            min_progression=0.1,
+        )
+        should_stop = early_stopping_strategy.should_stop_trials_early(
+            trial_indices=idcs, experiment=exp
+        )
+        if metric_signatures is None:
+            logger_mock.assert_called_once_with(
+                "No metric signatures specified. "
+                "Defaulting to the objective metric(s).",
+                stacklevel=2,
+            )
+        else:
+            logger_mock.assert_not_called()
+
+        self.assertEqual(set(should_stop), {0})
+
+        early_stopping_strategy = PercentileEarlyStoppingStrategy(
+            metric_signatures=metric_signatures,
+            percentile_threshold=50,
+            min_curves=4,
+            min_progression=0.1,
+        )
+        should_stop = early_stopping_strategy.should_stop_trials_early(
+            trial_indices=idcs, experiment=exp
+        )
+        self.assertEqual(set(should_stop), {0, 3})
+
+        # respect trial_indices argument
+        should_stop = early_stopping_strategy.should_stop_trials_early(
+            trial_indices={0}, experiment=exp
+        )
+        self.assertEqual(set(should_stop), {0})
+
+        early_stopping_strategy = PercentileEarlyStoppingStrategy(
+            metric_signatures=metric_signatures,
+            percentile_threshold=75,
+            min_curves=4,
+            min_progression=0.1,
+        )
+        should_stop = early_stopping_strategy.should_stop_trials_early(
+            trial_indices=idcs, experiment=exp
+        )
+        self.assertEqual(set(should_stop), {0, 3, 1})
+
+        # Not enough comparable curves: all 5 trials have curve data reaching
+        # `min_progression`, but `min_curves=6` exceeds the number of available
+        # curves. Eligibility is based on observed curve depth (not COMPLETED
+        # status), so even though 4 trials are completed, no trial is stopped.
+        early_stopping_strategy = PercentileEarlyStoppingStrategy(
+            metric_signatures=metric_signatures,
+            percentile_threshold=75,
+            min_curves=6,
+            min_progression=0.1,
+        )
+        should_stop = early_stopping_strategy.should_stop_trials_early(
+            trial_indices=idcs, experiment=exp
+        )
+        self.assertEqual(should_stop, {})
+
+        # Curve depth, not trial status, drives the `min_curves` gate: with
+        # `min_curves=5` and all 5 trials reporting curve data reaching
+        # `min_progression`, the gate is satisfied even though only 4 trials are
+        # in the COMPLETED status, so the worst trial is stopped.
+        early_stopping_strategy = PercentileEarlyStoppingStrategy(
+            metric_signatures=metric_signatures,
+            percentile_threshold=75,
+            min_curves=5,
+            min_progression=0.1,
+        )
+        should_stop = early_stopping_strategy.should_stop_trials_early(
+            trial_indices=idcs, experiment=exp
+        )
+        self.assertEqual(set(should_stop), {0, 3, 1})
+
+        # Curves that have not reached `min_progression` do not count toward
+        # `min_curves`. With `min_progression=2`, only the trials whose latest
+        # progression is >= 2 are comparable; requiring `min_curves=6` then
+        # exceeds the available curves and no trial is stopped.
+        early_stopping_strategy = PercentileEarlyStoppingStrategy(
+            metric_signatures=metric_signatures,
+            percentile_threshold=75,
+            min_curves=6,
+            min_progression=2,
+        )
+        should_stop = early_stopping_strategy.should_stop_trials_early(
+            trial_indices=idcs, experiment=exp
+        )
+        self.assertEqual(should_stop, {})
+
+    def test_percentile_early_stopping_with_n_best_trials_to_complete(self) -> None:
+        """Test that top `n_best_trials_to_complete` trials are protected from
+        early stopping."""
+        exp = get_test_map_data_experiment(
+            num_trials=5,
+            num_fetches=3,
+            num_complete=4,
+        )
+        """
+        Data looks like this (at step==2, the most recent progression):
+        0: 99.950007 <-- worst
+        3: 98.060315
+        1: 77.324501
+        4: 44.479018
+        2: 30.522333 <-- best
+
+        With percentile_threshold=50, trials 0 and 3 would normally be stopped.
+        """
+        idcs = set(exp.trials.keys())
+
+        # Test 1: Preserve top 3 trials - should protect trial 1 from being stopped
+        # even though it would normally be stopped at 75th percentile
+        early_stopping_strategy = PercentileEarlyStoppingStrategy(
+            percentile_threshold=75,
+            min_curves=4,
+            min_progression=0.1,
+            n_best_trials_to_complete=3,
+        )
+        should_stop = early_stopping_strategy.should_stop_trials_early(
+            trial_indices=idcs, experiment=exp
+        )
+        # Only trials 0 and 3 should be stopped (trial 1 is protected as it's in top 3)
+        self.assertEqual(set(should_stop), {0, 3})
+
+        # Test 2: Preserve top 4 trials - should protect even more trials
+        early_stopping_strategy = PercentileEarlyStoppingStrategy(
+            percentile_threshold=75,
+            min_curves=4,
+            min_progression=0.1,
+            n_best_trials_to_complete=4,
+        )
+        should_stop = early_stopping_strategy.should_stop_trials_early(
+            trial_indices=idcs, experiment=exp
+        )
+        # Only trial 0 should be stopped (trials 1, 2, 3, 4 are protected as top 4)
+        self.assertEqual(set(should_stop), {0})
+
+        # Test 3: Preserve all trials (n_best_trials_to_complete == total trials)
+        early_stopping_strategy = PercentileEarlyStoppingStrategy(
+            percentile_threshold=75,
+            min_curves=4,
+            min_progression=0.1,
+            n_best_trials_to_complete=5,
+        )
+        should_stop = early_stopping_strategy.should_stop_trials_early(
+            trial_indices=idcs, experiment=exp
+        )
+        # No trials should be stopped (all 5 are protected)
+        self.assertEqual(should_stop, {})
+
+        # Test 4: Preserve all trials (edge case: n_best_trials_to_complete > total)
+        early_stopping_strategy = PercentileEarlyStoppingStrategy(
+            percentile_threshold=75,
+            min_curves=4,
+            min_progression=0.1,
+            n_best_trials_to_complete=10,
+        )
+        should_stop = early_stopping_strategy.should_stop_trials_early(
+            trial_indices=idcs, experiment=exp
+        )
+        # No trials should be stopped (all 5 are protected)
+        self.assertEqual(should_stop, {})
+
+        # Test 5: With lower percentile threshold,
+        # verify non-top-n_best_trials_to_complete trials still get stopped
+        early_stopping_strategy = PercentileEarlyStoppingStrategy(
+            percentile_threshold=25,
+            min_curves=4,
+            min_progression=0.1,
+            n_best_trials_to_complete=2,
+        )
+        should_stop = early_stopping_strategy.should_stop_trials_early(
+            trial_indices=idcs, experiment=exp
+        )
+        # Trial 0 is worst and not in top 2, so should be stopped
+        # Trials 2 and 4 are in top 2, so should be protected
+        self.assertEqual(set(should_stop), {0})
+
+    def test_percentile_reason_messages(self) -> None:
+        """Test that appropriate reason messages are returned for different
+        scenarios."""
+        experiment = get_test_map_data_experiment(
+            num_trials=5,
+            num_fetches=3,
+            num_complete=4,
+        )
+        """
+        Data at step==2:
+        0: 99.950007 <-- worst
+        3: 98.060315
+        1: 77.324501
+        4: 44.479018
+        2: 30.522333 <-- best
+        """
+        trial_indices = {*experiment.trials.keys()}
+
+        # Test 1: Verify reason message for trial that should be stopped
+        early_stopping_strategy = PercentileEarlyStoppingStrategy(
+            percentile_threshold=25,
+            min_curves=4,
+            min_progression=0.1,
+        )
+        should_stop = early_stopping_strategy.should_stop_trials_early(
+            trial_indices=trial_indices, experiment=experiment
+        )
+        # Trial 0 should be stopped
+        self.assertIn(0, should_stop)
+        reason = none_throws(should_stop[0])
+        # Verify reason contains key information in correct format
+        self.assertRegex(
+            reason,
+            r"Trial objective values at progressions in \[[\d\.]+, "
+            r"[\d\.]+\] are all worse than 25\.0-th percentile across "
+            r"comparable trials",
+        )
+        self.assertRegex(reason, r"Progressions: \[2.0\]")
+        self.assertRegex(reason, r"Underperforms: \[True\]")
+        self.assertRegex(reason, r"Trial objective values: \[[\d\.]+\]")
+        self.assertRegex(reason, r"Thresholds: \[[\d\.]+\]")
+        self.assertRegex(reason, r"Number of trials: \[5\]")
+
+        # Test 2: Verify reason message for trial that should NOT be stopped
+        early_stopping_strategy = PercentileEarlyStoppingStrategy(
+            percentile_threshold=75,
+            min_curves=4,
+            min_progression=0.1,
+        )
+        # Use _should_stop_trial_early directly to get reason for non-stopped trial
+        data = none_throws(
+            early_stopping_strategy._lookup_and_validate_data(
+                experiment, metric_signatures=["branin_map"]
+            )
+        )
+        aligned_df = align_partial_results(df=data.full_df, metrics=["branin_map"])
+        aligned_means = aligned_df["mean"]["branin_map"]
+
+        should_stop, reason = early_stopping_strategy._should_stop_trial_early(
+            trial_index=2,  # Best trial
+            experiment=experiment,
+            wide_df=aligned_means,
+            long_df=data.full_df,
+            minimize=True,
+        )
+        self.assertFalse(should_stop)
+        reason = none_throws(reason)
+        # Verify reason contains key information in correct format
+        self.assertRegex(
+            reason,
+            r"Trial objective values at progressions in \[[\d\.]+, "
+            r"[\d\.]+\] are not all worse than 75\.0-th percentile across "
+            r"comparable trials",
+        )
+        self.assertRegex(reason, r"Progressions: \[2.0\]")
+        self.assertRegex(reason, r"Underperforms: \[False\]")
+        self.assertRegex(reason, r"Trial objective values: \[[\d\.]+\]")
+        self.assertRegex(reason, r"Thresholds: \[[\d\.]+\]")
+        self.assertRegex(reason, r"Number of trials: \[5\]")
+
+    def test_top_trials_reason_messages_with_percentile_info(self) -> None:
+        """Test that reason messages for top trials include both protection and
+        percentile information."""
+        exp = get_test_map_data_experiment(
+            num_trials=5,
+            num_fetches=3,
+            num_complete=4,
+        )
+        """
+        Data at step==2:
+        0: 99.950007 <-- worst
+        3: 98.060315
+        1: 77.324501
+        4: 44.479018
+        2: 30.522333 <-- best
+        """
+        # Use 75th percentile which would stop trials 0, 3, and 1
+        # But protect top 3 trials (2, 4, 1)
+        early_stopping_strategy = PercentileEarlyStoppingStrategy(
+            percentile_threshold=75,
+            min_curves=4,
+            min_progression=0.1,
+            n_best_trials_to_complete=3,
+        )
+
+        data = none_throws(
+            early_stopping_strategy._lookup_and_validate_data(exp, ["branin_map"])
+        )
+        aligned_df = align_partial_results(df=data.full_df, metrics=["branin_map"])
+        aligned_means = aligned_df["mean"]["branin_map"]
+
+        # Test trial 1 which is in top 3 but below percentile threshold
+        should_stop, reason = early_stopping_strategy._should_stop_trial_early(
+            trial_index=1,  # Trial 1 is in top 3 but below percentile
+            experiment=exp,
+            wide_df=aligned_means,
+            long_df=data.full_df,
+            minimize=True,
+        )
+
+        # Should not be stopped because it's in top 3
+        self.assertFalse(should_stop)
+        reason = none_throws(reason)
+        # Verify reason contains both protection info and percentile threshold info
+        # Pattern validates: protection message + percentile threshold explanation
+        self.assertRegex(
+            reason, r"Trial 1 is among the top-3 trials.*so will not be early-stopped"
+        )
+
+    def test_early_stopping_with_n_best_protection_handles_ties(self) -> None:
+        """Test that all trials with tied objective values are protected when they
+        fall within the top n_best_trials_to_complete ranks.
+
+        This test verifies the fix for a bug where the old sort_values().head(n)
+        approach would only protect the first n trials based on DataFrame ordering,
+        potentially leaving other trials with identical performance unprotected.
+        """
+        # Create experiment with 5 trials
+        exp = get_test_map_data_experiment(num_trials=5, num_fetches=3, num_complete=5)
+        data_df = exp.fetch_data().full_df
+
+        # Manually set objective values to create ties
+        # At progression=2, set trials 0, 1, 2 to have the same best value (30.0)
+        # and trials 3, 4 to have worse values
+        progression_2_mask = (data_df["metric_name"] == "branin_map") & (
+            data_df[MAP_KEY] == 2
+        )
+
+        # Set values: trials 0, 1, 2 all have value 30.0 (tied for best)
+        # trials 3, 4 have worse values 90.0, 95.0
+        for trial_idx, value in [(0, 30.0), (1, 30.0), (2, 30.0), (3, 90.0), (4, 95.0)]:
+            trial_mask = progression_2_mask & (data_df["trial_index"] == trial_idx)
+            data_df.loc[trial_mask, "mean"] = value
+
+        exp.data = Data(df=data_df)
+
+        # Use n_best_trials_to_complete=2, which is less than the 3 tied top trials
+        # With rank-based logic, all 3 tied trials (rank=1) should be protected
+        # With old head-based logic, only 2 of the 3 would be protected
+        early_stopping_strategy = PercentileEarlyStoppingStrategy(
+            percentile_threshold=50,  # Would stop bottom 50%
+            min_curves=4,
+            min_progression=0.1,
+            n_best_trials_to_complete=2,  # Less than the 3 tied top trials
+        )
+
+        data_lookup = none_throws(
+            early_stopping_strategy._lookup_and_validate_data(exp, ["branin_map"])
+        )
+        aligned_df = align_partial_results(
+            df=data_lookup.full_df, metrics=["branin_map"]
+        )
+        aligned_means = aligned_df["mean"]["branin_map"]
+
+        # Test that ALL three tied top trials (0, 1, 2) are protected
+        # even though n_best_trials_to_complete=2
+        for trial_idx in [0, 1, 2]:
+            should_stop, reason = early_stopping_strategy._should_stop_trial_early(
+                trial_index=trial_idx,
+                experiment=exp,
+                wide_df=aligned_means,
+                long_df=data_lookup.full_df,
+                minimize=True,
+            )
+
+            # All three tied trials should be protected
+            self.assertFalse(
+                should_stop,
+                f"Trial {trial_idx} should be protected (tied with rank 1) "
+                f"but should_stop={should_stop}",
+            )
+            self.assertIsNotNone(reason)
+            self.assertRegex(
+                none_throws(reason),
+                rf"Trial {trial_idx} is among the top-2 trials.*"
+                rf"so will not be early-stopped",
+            )
+
+    def test_patience_parameter_validation(self) -> None:
+        """Test that patience parameter is validated correctly."""
+        with self.subTest("negative_patience"):
+            with self.assertRaisesRegex(
+                UserInputError, "patience must be non-negative, got -1"
+            ):
+                PercentileEarlyStoppingStrategy(patience=-1)
+
+        with self.subTest("patience_greater_than_min_progression"):
+            # patience=5 > min_progression=2 should fail
+            with self.assertRaisesRegex(
+                UserInputError,
+                r"patience must be <= min_progression.*"
+                r"got patience=5.* and min_progression=2",
+            ):
+                PercentileEarlyStoppingStrategy(patience=5, min_progression=2)
+
+        with self.subTest("patience_greater_than_zero_min_progression"):
+            # patience=1 > min_progression=0 should fail
+            with self.assertRaisesRegex(
+                UserInputError,
+                r"patience must be <= min_progression.*"
+                r"got patience=1.* and min_progression=0",
+            ):
+                PercentileEarlyStoppingStrategy(patience=1, min_progression=0)
+
+        with self.subTest("valid_patience_zero"):
+            strategy_zero = PercentileEarlyStoppingStrategy(patience=0)
+            self.assertEqual(strategy_zero.patience, 0)
+
+        with self.subTest("valid_patience_with_min_progression_none"):
+            # When min_progression is None, any non-negative patience is valid
+            strategy = PercentileEarlyStoppingStrategy(
+                patience=100, min_progression=None
+            )
+            self.assertEqual(strategy.patience, 100)
+            self.assertIsNone(strategy.min_progression)
+
+        with self.subTest("valid_patience_equals_min_progression"):
+            strategy = PercentileEarlyStoppingStrategy(patience=5, min_progression=5)
+            self.assertEqual(strategy.patience, 5)
+            self.assertEqual(strategy.min_progression, 5)
+
+        with self.subTest("valid_patience_less_than_min_progression"):
+            strategy = PercentileEarlyStoppingStrategy(patience=3, min_progression=10)
+            self.assertEqual(strategy.patience, 3)
+            self.assertEqual(strategy.min_progression, 10)
+
+    def test_patience_basic_functionality(self) -> None:
+        """Test basic patience functionality."""
+        exp = get_test_map_data_experiment(
+            num_trials=5,
+            num_fetches=3,
+            num_complete=4,
+        )
+        """
+        Data looks like (timestamps 0, 1, 2):
+        Trial 0: [146.14, 117.39, 99.95] - consistently worst
+        Trial 1: [113.06, 90.82, 77.32]
+        Trial 2: [44.63, 35.85, 30.52] - consistently best
+        Trial 3: [143.38, 115.17, 98.06] - consistently second worst
+        Trial 4: [65.03, 52.24, 44.48]
+        """
+        with self.subTest("patience_zero_uses_single_point_evaluation"):
+            # With patience=0 and percentile_threshold=25, only trial 0 should stop
+            # based on its performance at step==2 (latest).
+            early_stopping_strategy = PercentileEarlyStoppingStrategy(
+                percentile_threshold=25,
+                min_progression=0,
+                min_curves=4,
+                patience=0,
+            )
+            should_stop = early_stopping_strategy.should_stop_trials_early(
+                trial_indices=set(exp.trials.keys()), experiment=exp
+            )
+            self.assertEqual(set(should_stop), {0})
+
+        with self.subTest("patience_with_consistent_underperformance"):
+            # With patience=2 (window of 3 steps: [0, 1, 2]), we check if trial
+            # underperforms at ALL steps in the window.
+            # Trial 0 is in bottom 25% at all steps [0, 1, 2], so should stop
+            early_stopping_strategy = PercentileEarlyStoppingStrategy(
+                percentile_threshold=25,
+                min_progression=2,  # Must be >= patience
+                min_curves=4,
+                patience=2,
+            )
+            should_stop = early_stopping_strategy.should_stop_trials_early(
+                trial_indices=set(exp.trials.keys()), experiment=exp
+            )
+            self.assertEqual(set(should_stop), {0})
+
+    def test_patience_underperformance_patterns(self) -> None:
+        """Test patience with different underperformance patterns."""
+        with self.subTest("inconsistent_underperformance"):
+            # Create experiment with custom data to ensure inconsistent performance
+            exp = get_test_map_data_experiment(
+                num_trials=5,
+                num_fetches=3,
+                num_complete=5,
+            )
+            data = exp.fetch_data()
+
+            # Manually modify trial 0's performance to be:
+            # - Bad at step 0 (100.0)
+            # - Good at step 1 (20.0) <- breaks consistency
+            # - Bad at step 2 (100.0)
+            # This creates inconsistent underperformance
+            modified_df = data.full_df.copy()
+            branin_mask = modified_df["metric_name"] == "branin_map"
+            trial_0_mask = branin_mask & (modified_df["trial_index"] == 0)
+            modified_df.loc[trial_0_mask, "mean"] = [100.0, 20.0, 100.0]
+
+            # Set other trials to have medium performance (50.0)
+            other_trials_mask = branin_mask & (
+                modified_df["trial_index"].isin([1, 2, 3, 4])
+            )
+            modified_df.loc[other_trials_mask, "mean"] = 50.0
+
+            # Create new Data with modified dataframe
+            data = Data(df=modified_df)
+            exp.attach_data(data=data)
+
+            """
+            With patience=2 (window [0, 1, 2]):
+            - Trial 0 at step 0: 100.0 (worse than 25th percentile ~50.0)
+            - Trial 0 at step 1: 20.0 (better than 25th percentile ~50.0) <- NOT WORSE
+            - Trial 0 at step 2: 100.0 (worse than 25th percentile ~50.0)
+
+            Since trial 0 does NOT underperform at ALL steps, it should NOT be stopped.
+            """
+            early_stopping_strategy = PercentileEarlyStoppingStrategy(
+                percentile_threshold=25,
+                min_curves=4,
+                min_progression=2,  # Must be >= patience
+                patience=2,
+            )
+            should_stop = early_stopping_strategy.should_stop_trials_early(
+                trial_indices={0}, experiment=exp
+            )
+            # Trial 0 should NOT be stopped due to inconsistent performance
+            self.assertEqual(should_stop, {})
+
+        with self.subTest("noisy_curves"):
+            # Test that patience prevents stopping trials with noisy/volatile curves
+            exp = get_test_map_data_experiment(
+                num_trials=5,
+                num_fetches=5,  # More steps to show volatility
+                num_complete=5,
+            )
+            data = exp.fetch_data()
+
+            # Create a volatile trial that alternates between good and bad
+            # Trial 0: [10, 90, 10, 90, 10] - volatile but has good steps
+            # Other trials: consistent medium values around 50
+            modified_df = data.full_df.copy()
+            metric_mask = modified_df["metric_name"] == "branin_map"
+            trial_0_mask = metric_mask & (modified_df["trial_index"] == 0)
+
+            volatile_values = [10.0, 90.0, 10.0, 90.0, 10.0]
+            modified_df.loc[trial_0_mask, "mean"] = volatile_values
+
+            # Set other trials to consistent medium performance
+            trial_mask = metric_mask & (modified_df["trial_index"].isin([1, 2, 3, 4]))
+            modified_df.loc[trial_mask, "mean"] = 50.0
+
+            # Create new Data with modified dataframe
+            data = Data(df=modified_df)
+            exp.attach_data(data=data)
+
+            """
+            At latest step (4), trial 0 has value 10.0 (best).
+            With patience=0, we'd only look at step 4 where trial 0 is best.
+            With patience=2, window is [2, 3, 4] with values [10, 90, 10]:
+            - At step 2: 10 (good)
+            - At step 3: 90 (bad)
+            - At step 4: 10 (good)
+            Trial doesn't consistently underperform, so shouldn't be stopped.
+            """
+            early_stopping_strategy = PercentileEarlyStoppingStrategy(
+                percentile_threshold=50,
+                min_curves=4,
+                min_progression=4,  # Must be >= patience
+                patience=2,
+            )
+
+            should_stop = early_stopping_strategy.should_stop_trials_early(
+                trial_indices={0}, experiment=exp
+            )
+
+            # Trial 0 should NOT be stopped because it doesn't consistently
+            # underperform in the window [2, 3, 4]
+            self.assertEqual(should_stop, {})
+
+    def test_patience_with_insufficient_data(self) -> None:
+        """Test that trials are not stopped when there is insufficient data."""
+        with self.subTest("insufficient_curves_at_progression"):
+            # Test with insufficient curves/trials at a progression
+            MIN_CURVES = 4
+
+            exp = get_test_map_data_experiment(
+                num_trials=5,
+                num_fetches=3,
+                num_complete=5,
+            )
+
+            early_stopping_strategy = PercentileEarlyStoppingStrategy(
+                percentile_threshold=50,
+                min_curves=MIN_CURVES,
+                min_progression=1.0,  # Must be >= patience
+                patience=1,  # Window [1, 2]
+            )
+
+            data_lookup = none_throws(
+                early_stopping_strategy._lookup_and_validate_data(exp, ["branin_map"])
+            )
+
+            # Modify the data to simulate insufficient trials at progression 2
+            modified_df = data_lookup.full_df.copy()
+            selector = ~(
+                (modified_df["metric_name"] == "branin_map")
+                & (modified_df[MAP_KEY] == 2)
+                & (modified_df["trial_index"].isin([2, 3, 4]))
+            )
+            modified_df = modified_df[selector]
+            """
+            After modification at progression 2: only trials 0, 1 have data
+            (2 < min_curves=4). Trial should NOT be stopped due to
+            insufficient curves at progression 2.
+            """
+            aligned_df = align_partial_results(df=modified_df, metrics=["branin_map"])
+            aligned_means = aligned_df["mean"]["branin_map"]
+
+            should_stop, reason = early_stopping_strategy._should_stop_trial_early(
+                trial_index=0,
+                experiment=exp,
+                wide_df=aligned_means,
+                long_df=modified_df,
+                minimize=True,
+            )
+
+            # Should not stop due to insufficient trials at progression 2
+            self.assertFalse(should_stop)
+            reason = none_throws(reason)
+            self.assertRegex(
+                reason,
+                r"Insufficiently many trials with data at progressions in window",
+            )
+            self.assertRegex(reason, rf"Minimum required: {MIN_CURVES}")
+
+    def test_patience_with_n_best_trials_interaction(self) -> None:
+        """Test that n_best_trials_to_complete protection works correctly
+        with patience parameter."""
+        exp = get_test_map_data_experiment(
+            num_trials=5,
+            num_fetches=3,
+            num_complete=4,
+        )
+        """
+        Data at all steps:
+        Trial 0: consistently worst across all steps
+        Trial 1: medium performance
+        Trial 2: consistently best across all steps
+        Trial 3: consistently second worst
+        Trial 4: medium-good performance
+
+        With patience=2, percentile_threshold=75, n_best_trials_to_complete=2:
+        - Trials 2 and 4 should be protected (top 2)
+        - Trial 1 would normally be stopped (below 75th percentile)
+        - But we need to check if it's protected
+        """
+        early_stopping_strategy = PercentileEarlyStoppingStrategy(
+            percentile_threshold=75,
+            min_progression=2,  # Must be >= patience
+            min_curves=4,
+            patience=2,
+            n_best_trials_to_complete=3,
+        )
+        should_stop = early_stopping_strategy.should_stop_trials_early(
+            trial_indices=set(exp.trials.keys()), experiment=exp
+        )
+
+        # Trials 0 and 3 should be stopped (consistently worst and not in top 3)
+        # Trial 1 should be protected (in top 3)
+        self.assertEqual(set(should_stop), {0, 3})
+
+    def test_patience_reason_messages(self) -> None:
+        """Test that reason messages include patience window information."""
+        exp = get_test_map_data_experiment(
+            num_trials=5,
+            num_fetches=3,
+            num_complete=4,
+        )
+
+        early_stopping_strategy = PercentileEarlyStoppingStrategy(
+            percentile_threshold=25,
+            min_progression=2,  # Must be >= patience
+            min_curves=4,
+            patience=2,
+        )
+
+        data = none_throws(
+            early_stopping_strategy._lookup_and_validate_data(exp, ["branin_map"])
+        )
+        aligned_df = align_partial_results(df=data.full_df, metrics=["branin_map"])
+        aligned_means = aligned_df["mean"]["branin_map"]
+
+        # Test trial that should be stopped
+        should_stop, reason = early_stopping_strategy._should_stop_trial_early(
+            trial_index=0,
+            experiment=exp,
+            wide_df=aligned_means,
+            long_df=data.full_df,
+            minimize=True,
+        )
+
+        self.assertTrue(should_stop)
+        reason = none_throws(reason)
+        # Verify reason contains window information
+        self.assertRegex(
+            reason,
+            r"Trial objective values at progressions in \[[\d\.]+, [\d\.]+\] "
+            r"are all worse than 25\.0-th percentile",
+        )
+        self.assertRegex(reason, r"Progressions:")
+        self.assertRegex(reason, r"Underperforms:")
+        self.assertRegex(reason, r"Trial objective values:")
+        self.assertRegex(reason, r"Thresholds:")
+
+    def test_early_stopping_with_unaligned_results(self) -> None:
+        # test case 1
+        exp = get_test_map_data_experiment(num_trials=5, num_fetches=3, num_complete=5)
+        # manually "unalign" timestamps to simulate real-world scenario
+        # where each curve reports results at different steps
+        data_df = exp.fetch_data().full_df
+
+        unaligned_timestamps = [0, 1, 4, 1, 2, 3, 1, 3, 4, 0, 1, 2, 0, 2, 4]
+        data_df.loc[data_df["metric_name"] == "branin_map", MAP_KEY] = (
+            unaligned_timestamps
+        )
+        exp.data = Data(df=data_df)
+
+        """
+        Dataframe after interpolation:
+                    0           1          2           3          4
+        timestamp
+        0          146.138620         NaN        NaN  143.375669  65.033535
+        1          117.388086  113.057480  44.627226  115.168704  58.636359
+        2          111.575393   90.815154  40.237365   98.060315  52.239184
+        3          105.762700   77.324501  35.847504         NaN  48.359101
+        4           99.950007         NaN  30.522333         NaN  44.479018
+        """
+        # We consider trials 0, 2, and 4 for early stopping at progression 4,
+        #    and choose to stop trial 0.
+        # We consider trial 1 for early stopping at progression 3, and
+        #    choose to stop it.
+        # We consider trial 3 for early stopping at progression 2, and
+        #    choose to stop it.
+        early_stopping_strategy = PercentileEarlyStoppingStrategy(
+            metric_signatures=["branin_map"],
+            percentile_threshold=50,
+            min_curves=3,
+            min_progression=0.1,
+        )
+        should_stop = _evaluate_early_stopping_with_df(
+            early_stopping_strategy=early_stopping_strategy,
+            experiment=exp,
+            metric_name="branin_map",
+        )
+        self.assertEqual(set(should_stop), {0, 1, 3})
+
+        # test case 2, where trial 3 has only 1 data point
+        exp = get_test_map_data_experiment(num_trials=5, num_fetches=3, num_complete=5)
+
+        # manually "unalign" timestamps to simulate real-world scenario
+        # where each curve reports results at different steps
+        data = exp.fetch_data()
+        data.full_df.sort_values(by=["metric_name", "arm_name"], inplace=True)
+        data.full_df.reset_index(drop=True, inplace=True)
+
+        unaligned_timestamps = [0, 1, 4, 1, 2, 3, 1, 3, 4, 0, 1, 2, 0, 2, 4]
+        data.full_df.loc[data.full_df["metric_name"] == "branin_map", MAP_KEY] = (
+            unaligned_timestamps
+        )
+        # manually remove data from timestamps 1 and 2 for arm 3
+        filtered_df = exp.data.full_df.loc[
+            lambda x: ~((x["trial_index"] == 3) & (x["step"] >= 1))
+        ]
+        exp.data = Data(df=filtered_df)
+
+        df = data.full_df.copy()
+        new_df = df.drop(
+            df.index[
+                (df["metric_name"] == "branin_map")
+                & (df["trial_index"] == 3)
+                & (df[MAP_KEY].isin([1.0, 2.0]))
+            ],
+        )
+        # Create a new experiment without those
+        exp.attach_data(data=Data(df=new_df))
+
+        """
+        Dataframe after interpolation:
+                    0           1          2           3          4
+        timestamp
+        0          146.138620         NaN        NaN  143.375669  65.033535
+        1          117.388086  113.057480  44.627226         NaN  58.636359
+        2          111.575393   90.815154  40.237365         NaN  52.239184
+        3          105.762700   77.324501  35.847504         NaN  48.359101
+        4           99.950007         NaN  30.522333         NaN  44.479018
+        """
+
+        # We consider trials 0, 2, and 4 for early stopping at progression 4,
+        #    and choose to stop trial 0.
+        # We consider trial 1 for early stopping at progression 3, and
+        #    choose to stop it.
+        # We consider trial 3 for early stopping at progression 0, and
+        #    choose not to stop it.
+        early_stopping_strategy = PercentileEarlyStoppingStrategy(
+            metric_signatures=["branin_map"],
+            percentile_threshold=50,
+            min_curves=3,
+            min_progression=0.1,
+        )
+        should_stop = _evaluate_early_stopping_with_df(
+            early_stopping_strategy=early_stopping_strategy,
+            experiment=exp,
+            metric_name="branin_map",
+        )
+        self.assertEqual(set(should_stop), {0, 1})
+
+        # test error throwing in align partial results, with non-unique trial / arm name
+        exp = get_test_map_data_experiment(num_trials=5, num_fetches=3, num_complete=2)
+
+        # manually "unalign" timestamps to simulate real-world scenario
+        # where each curve reports results at different steps
+        data = exp.fetch_data()
+        df_with_single_arm_name = data.full_df.copy()
+        df_with_single_arm_name["arm_name"] = "0_0"
+        with self.assertRaisesRegex(
+            UnsupportedError,
+            "Arm 0_0 has multiple trial indices",
+        ):
+            align_partial_results(df=df_with_single_arm_name, metrics=["branin_map"])
+
+        df_with_single_trial_index = data.full_df.copy()
+        df_with_single_trial_index["trial_index"] = 0
+        with self.assertRaisesRegex(
+            UnsupportedError,
+            "Trial 0 has multiple arm names",
+        ):
+            align_partial_results(df=df_with_single_trial_index, metrics=["branin_map"])
+
+
+class TestStabilityGatedEarlyStoppingStrategy(TestCase):
+    def _get_experiment_with_sges_data(
+        self,
+        values_by_trial: dict[int, list[tuple[float, float]]],
+    ) -> tuple[Experiment, str]:
+        experiment = get_test_map_data_experiment(
+            num_trials=len(values_by_trial),
+            num_fetches=1,
+            num_complete=len(values_by_trial),
+        )
+        metric_signature, _ = (
+            StabilityGatedEarlyStoppingStrategy()._default_objective_and_direction(
+                experiment=experiment
+            )
+        )
+        metric_name = experiment.signature_to_metric[metric_signature].name
+        rows: list[dict[str, object]] = []
+        for trial_index, values in values_by_trial.items():
+            arm = experiment.trials[trial_index].arms[0]
+            for progression, mean in values:
+                rows.append(
+                    {
+                        "arm_name": arm.name,
+                        "metric_name": metric_name,
+                        "metric_signature": metric_signature,
+                        "mean": mean,
+                        "sem": 0.0,
+                        "trial_index": trial_index,
+                        MAP_KEY: progression,
+                    }
+                )
+
+        experiment.attach_data(data=Data(df=pd.DataFrame(rows)))
+        return experiment, metric_signature
+
+    def test_stability_gated_stops_stably_worse_trial(self) -> None:
+        experiment, metric_signature = self._get_experiment_with_sges_data(
+            {
+                0: [
+                    (1e9, 0.1000),
+                    (2e9, 0.0999),
+                    (3e9, 0.0998),
+                    (4e9, 0.0997),
+                    (5e9, 0.0996),
+                ],
+                1: [
+                    (1e9, 0.1010),
+                    (2e9, 0.1011),
+                    (3e9, 0.1010),
+                    (4e9, 0.1011),
+                    (5e9, 0.1010),
+                ],
+            }
+        )
+
+        strategy = StabilityGatedEarlyStoppingStrategy(
+            metric_signatures=[metric_signature],
+            min_progression=1e9,
+            min_curves=0,
+            normalize_progressions=False,
+            check_interval=1e9,
+            window_size=2,
+            variance_threshold=1e-5,
+            gap_threshold=4e-4,
+            stability_count=2,
+            top_k_fraction=0.0,
+            min_top_k=0,
+            recent_best_lookback=0,
+        )
+
+        should_stop = strategy.should_stop_trials_early(
+            trial_indices={1}, experiment=experiment
+        )
+        self.assertEqual(set(should_stop), {1})
+        self.assertIn("SGES count", none_throws(should_stop[1]))
+
+    def test_stability_gated_compares_single_trial_to_baseline_curve(self) -> None:
+        experiment, metric_signature = self._get_experiment_with_sges_data(
+            {
+                0: [
+                    (1e9, 0.1010),
+                    (2e9, 0.1011),
+                    (3e9, 0.1010),
+                    (4e9, 0.1011),
+                    (5e9, 0.1010),
+                ],
+            }
+        )
+        strategy = StabilityGatedEarlyStoppingStrategy(
+            metric_signatures=[metric_signature],
+            min_progression=1e9,
+            min_curves=2,
+            normalize_progressions=False,
+            check_interval=1e9,
+            window_size=2,
+            variance_threshold=1e-5,
+            gap_threshold=4e-4,
+            stability_count=2,
+            top_k_fraction=0.0,
+            min_top_k=1,
+            recent_best_lookback=0,
+        )
+
+        self.assertEqual(
+            strategy.should_stop_trials_early(trial_indices={0}, experiment=experiment),
+            {},
+        )
+        self.assertTrue(strategy.is_baseline_reference_curve_needed(experiment))
+
+        strategy.set_baseline_reference_curve(
+            [
+                (0.5e9, 0.10005),
+                (2.5e9, 0.09985),
+                (4.5e9, 0.09965),
+                (5.5e9, 0.09955),
+            ]
+        )
+        self.assertFalse(strategy.is_baseline_reference_curve_needed(experiment))
+        should_stop = strategy.should_stop_trials_early(
+            trial_indices={0}, experiment=experiment
+        )
+
+        self.assertEqual(set(should_stop), {0})
+        self.assertIn("leader_trial=-1", none_throws(should_stop[0]))
+
+    def test_stability_gated_preserves_baseline_sampling_and_unknown_sem(self) -> None:
+        experiment, metric_signature = self._get_experiment_with_sges_data(
+            {
+                0: [
+                    (2.0, 0.1010),
+                    (5.0, 0.1011),
+                    (8.0, 0.1010),
+                ],
+            }
+        )
+        strategy = StabilityGatedEarlyStoppingStrategy(
+            metric_signatures=[metric_signature],
+            normalize_progressions=False,
+        )
+        strategy.set_baseline_reference_curve(
+            [
+                (float(progression), 0.100 - progression / 1000)
+                for progression in range(11)
+            ]
+        )
+
+        data = none_throws(
+            strategy._lookup_and_validate_data(
+                experiment=experiment,
+                metric_signatures=[metric_signature],
+            )
+        )
+        baseline_rows = data.full_df[data.full_df["trial_index"] == -1]
+
+        self.assertEqual(baseline_rows[MAP_KEY].tolist(), list(range(11)))
+        self.assertEqual(
+            baseline_rows["mean"].tolist(),
+            [0.100 - progression / 1000 for progression in range(11)],
+        )
+        self.assertTrue(baseline_rows["sem"].isna().all())
+
+    def test_stability_gated_does_not_need_baseline_with_peer_curve(self) -> None:
+        experiment, metric_signature = self._get_experiment_with_sges_data(
+            {
+                0: [(1.0, 0.1), (2.0, 0.09)],
+                1: [(1.0, 0.11), (2.0, 0.10)],
+            }
+        )
+        strategy = StabilityGatedEarlyStoppingStrategy(
+            metric_signatures=[metric_signature]
+        )
+
+        self.assertFalse(strategy.is_baseline_reference_curve_needed(experiment))
+
+    def test_stability_gated_does_not_stop_volatile_trial(self) -> None:
+        experiment, metric_signature = self._get_experiment_with_sges_data(
+            {
+                0: [
+                    (1e9, 0.1000),
+                    (2e9, 0.0999),
+                    (3e9, 0.0998),
+                    (4e9, 0.0997),
+                    (5e9, 0.0996),
+                ],
+                1: [
+                    (1e9, 0.1010),
+                    (2e9, 0.1200),
+                    (3e9, 0.1010),
+                    (4e9, 0.1200),
+                    (5e9, 0.1010),
+                ],
+            }
+        )
+
+        strategy = StabilityGatedEarlyStoppingStrategy(
+            metric_signatures=[metric_signature],
+            min_progression=1e9,
+            min_curves=0,
+            normalize_progressions=False,
+            check_interval=1e9,
+            window_size=2,
+            gap_threshold=4e-4,
+            stability_count=2,
+            top_k_fraction=0.0,
+            min_top_k=0,
+            recent_best_lookback=0,
+        )
+
+        self.assertEqual(
+            strategy.should_stop_trials_early(trial_indices={1}, experiment=experiment),
+            {},
+        )
+
+    def test_stability_gated_protects_top_k_trials(self) -> None:
+        experiment, metric_signature = self._get_experiment_with_sges_data(
+            {
+                0: [
+                    (1e9, 0.1000),
+                    (2e9, 0.0999),
+                    (3e9, 0.0998),
+                    (4e9, 0.0997),
+                ],
+                1: [
+                    (1e9, 0.1010),
+                    (2e9, 0.1011),
+                    (3e9, 0.1010),
+                    (4e9, 0.1011),
+                ],
+                2: [
+                    (1e9, 0.1100),
+                    (2e9, 0.1101),
+                    (3e9, 0.1100),
+                    (4e9, 0.1101),
+                ],
+            }
+        )
+
+        strategy = StabilityGatedEarlyStoppingStrategy(
+            metric_signatures=[metric_signature],
+            min_progression=1e9,
+            min_curves=0,
+            normalize_progressions=False,
+            check_interval=1e9,
+            window_size=2,
+            variance_threshold=1e-5,
+            gap_threshold=4e-4,
+            stability_count=2,
+            top_k_fraction=0.0,
+            min_top_k=2,
+            recent_best_lookback=0,
+        )
+
+        self.assertEqual(
+            strategy.should_stop_trials_early(trial_indices={1}, experiment=experiment),
+            {},
+        )
+
+    def test_stability_gated_protects_top_k_fraction_trials(self) -> None:
+        experiment, metric_signature = self._get_experiment_with_sges_data(
+            {
+                0: [(1e9, 0.1000), (2e9, 0.1000)],
+                1: [(1e9, 0.1010), (2e9, 0.1010)],
+                2: [(1e9, 0.1100), (2e9, 0.1100)],
+                3: [(1e9, 0.1200), (2e9, 0.1200)],
+            }
+        )
+
+        strategy = StabilityGatedEarlyStoppingStrategy(
+            metric_signatures=[metric_signature],
+            min_progression=1e9,
+            min_curves=0,
+            normalize_progressions=False,
+            check_interval=1e9,
+            window_size=1,
+            variance_threshold=0.0,
+            stability_count=1,
+            top_k_fraction=0.5,
+            min_top_k=0,
+            recent_best_lookback=0,
+        )
+
+        self.assertEqual(
+            strategy.should_stop_trials_early(trial_indices={1}, experiment=experiment),
+            {},
+        )
+
+    def test_stability_gated_respects_gap_threshold(self) -> None:
+        experiment, metric_signature = self._get_experiment_with_sges_data(
+            {
+                0: [(1e9, 0.1000), (2e9, 0.1000)],
+                1: [(1e9, 0.1002), (2e9, 0.1002)],
+            }
+        )
+
+        strategy_with_gap = StabilityGatedEarlyStoppingStrategy(
+            metric_signatures=[metric_signature],
+            min_progression=1e9,
+            min_curves=0,
+            normalize_progressions=False,
+            check_interval=1e9,
+            window_size=1,
+            variance_threshold=0.0,
+            gap_threshold=4e-4,
+            stability_count=1,
+            top_k_fraction=0.0,
+            min_top_k=0,
+            recent_best_lookback=0,
+        )
+        self.assertEqual(
+            strategy_with_gap.should_stop_trials_early(
+                trial_indices={1}, experiment=experiment
+            ),
+            {},
+        )
+
+        strategy_without_gap = StabilityGatedEarlyStoppingStrategy(
+            metric_signatures=[metric_signature],
+            min_progression=1e9,
+            min_curves=0,
+            normalize_progressions=False,
+            check_interval=1e9,
+            window_size=1,
+            variance_threshold=0.0,
+            stability_count=1,
+            top_k_fraction=0.0,
+            min_top_k=0,
+            recent_best_lookback=0,
+        )
+        self.assertEqual(
+            set(
+                strategy_without_gap.should_stop_trials_early(
+                    trial_indices={1}, experiment=experiment
+                )
+            ),
+            {1},
+        )
+
+    def test_stability_gated_protects_recent_best_trials(self) -> None:
+        experiment, metric_signature = self._get_experiment_with_sges_data(
+            {
+                0: [
+                    (1e9, 0.1000),
+                    (2e9, 0.0900),
+                    (3e9, 0.1300),
+                    (4e9, 0.1400),
+                    (5e9, 0.1500),
+                ],
+                1: [
+                    (1e9, 0.2000),
+                    (2e9, 0.2000),
+                    (3e9, 0.1000),
+                    (4e9, 0.1000),
+                    (5e9, 0.1000),
+                ],
+            }
+        )
+
+        strategy_without_recent_best = StabilityGatedEarlyStoppingStrategy(
+            metric_signatures=[metric_signature],
+            min_progression=1e9,
+            min_curves=0,
+            normalize_progressions=False,
+            check_interval=1e9,
+            window_size=1,
+            variance_threshold=0.0,
+            stability_count=2,
+            top_k_fraction=0.0,
+            min_top_k=0,
+            recent_best_lookback=0,
+        )
+        self.assertEqual(
+            set(
+                strategy_without_recent_best.should_stop_trials_early(
+                    trial_indices={0}, experiment=experiment
+                )
+            ),
+            {0},
+        )
+
+        strategy_with_recent_best = StabilityGatedEarlyStoppingStrategy(
+            metric_signatures=[metric_signature],
+            min_progression=1e9,
+            min_curves=0,
+            normalize_progressions=False,
+            check_interval=1e9,
+            window_size=1,
+            variance_threshold=0.0,
+            stability_count=2,
+            top_k_fraction=0.0,
+            min_top_k=0,
+            recent_best_lookback=3,
+        )
+        self.assertEqual(
+            strategy_with_recent_best.should_stop_trials_early(
+                trial_indices={0}, experiment=experiment
+            ),
+            {},
+        )
+
+    def test_stability_gated_defaults_use_normalized_progressions(self) -> None:
+        experiment, metric_signature = self._get_experiment_with_sges_data(
+            {
+                0: [(0.0, 0.1000), (0.5, 0.1000), (1.0, 0.1000)],
+                1: [(0.0, 0.1100), (0.5, 0.1100), (1.0, 0.1100)],
+                2: [(0.0, 0.1200), (0.5, 0.1200), (1.0, 0.1200)],
+                3: [(0.0, 0.1300), (0.5, 0.1300), (1.0, 0.1300)],
+                4: [(0.0, 0.1400), (0.5, 0.1400), (1.0, 0.1400)],
+            }
+        )
+
+        strategy = StabilityGatedEarlyStoppingStrategy(
+            metric_signatures=[metric_signature],
+            window_size=1,
+            stability_count=1,
+            top_k_fraction=0.0,
+            min_top_k=0,
+            recent_best_lookback=0,
+        )
+
+        self.assertEqual(
+            set(
+                strategy.should_stop_trials_early(
+                    trial_indices={4}, experiment=experiment
+                )
+            ),
+            {4},
+        )
+
+    def test_stability_gated_validation(self) -> None:
+        with self.assertRaisesRegex(UserInputError, "check_interval must be positive"):
+            StabilityGatedEarlyStoppingStrategy(check_interval=0)
+        with self.assertRaisesRegex(UserInputError, "window_size must be at least 1"):
+            StabilityGatedEarlyStoppingStrategy(window_size=0)
+        with self.assertRaisesRegex(
+            UserInputError, "variance_threshold must be non-negative"
+        ):
+            StabilityGatedEarlyStoppingStrategy(variance_threshold=-1.0)
+        with self.assertRaisesRegex(
+            UserInputError, "gap_threshold must be non-negative"
+        ):
+            StabilityGatedEarlyStoppingStrategy(gap_threshold=-1.0)
+        with self.assertRaisesRegex(
+            UserInputError, "stability_count must be at least 1"
+        ):
+            StabilityGatedEarlyStoppingStrategy(stability_count=0)
+        with self.assertRaisesRegex(
+            UserInputError,
+            "top_k_fraction must be in \\[0, 1\\]",
+        ):
+            StabilityGatedEarlyStoppingStrategy(top_k_fraction=-0.1)
+        with self.assertRaisesRegex(
+            UserInputError,
+            "top_k_fraction must be in \\[0, 1\\]",
+        ):
+            StabilityGatedEarlyStoppingStrategy(top_k_fraction=1.1)
+        with self.assertRaisesRegex(UserInputError, "min_top_k must be non-negative"):
+            StabilityGatedEarlyStoppingStrategy(min_top_k=-1)
+        with self.assertRaisesRegex(
+            UserInputError, "recent_best_lookback must be non-negative"
+        ):
+            StabilityGatedEarlyStoppingStrategy(recent_best_lookback=-1)
+        with self.assertRaisesRegex(
+            UnsupportedError,
+            "StabilityGatedEarlyStoppingStrategy only supports a single metric.",
+        ):
+            StabilityGatedEarlyStoppingStrategy(metric_signatures=["a", "b"])
+
+    def test_stability_gated_accepts_metric_signature_generators(self) -> None:
+        _, metric_signature = self._get_experiment_with_sges_data(
+            {
+                0: [(1e9, 0.1000), (2e9, 0.0999)],
+                1: [(1e9, 0.1010), (2e9, 0.1011)],
+            }
+        )
+        strategy = StabilityGatedEarlyStoppingStrategy(
+            metric_signatures=(signature for signature in [metric_signature])
+        )
+
+        self.assertEqual(strategy.metric_signatures, [metric_signature])
+
+    def test_stability_gated_early_returns(self) -> None:
+        empty_experiment = get_test_map_data_experiment(
+            num_trials=2, num_fetches=1, num_complete=2
+        )
+        self.assertEqual(
+            StabilityGatedEarlyStoppingStrategy(min_curves=0).should_stop_trials_early(
+                trial_indices={0}, experiment=empty_experiment
+            ),
+            {},
+        )
+
+        experiment, metric_signature = self._get_experiment_with_sges_data(
+            {
+                0: [(1e9, 0.1000), (2e9, 0.1000)],
+                1: [(1e9, 0.1100), (2e9, 0.1100)],
+            }
+        )
+        strategy = StabilityGatedEarlyStoppingStrategy(
+            metric_signatures=[metric_signature],
+            min_progression=3e9,
+            normalize_progressions=False,
+            check_interval=1e9,
+            min_curves=0,
+        )
+        self.assertEqual(
+            strategy.should_stop_trials_early(trial_indices={1}, experiment=experiment),
+            {},
+        )
+
+        self.assertTrue(
+            strategy._checkpoint_values(
+                wide_df=pd.DataFrame({0: [0.1]}, index=pd.Index([1.0])),
+                current_progression=1.0,
+            ).empty
+        )
+
+        strategy = StabilityGatedEarlyStoppingStrategy(
+            metric_signatures=[metric_signature],
+            min_progression=1e9,
+            normalize_progressions=False,
+            min_curves=0,
+        )
+        long_df, multilevel_wide_df = none_throws(
+            strategy._prepare_aligned_data(
+                experiment=experiment, metric_signatures=[metric_signature]
+            )
+        )
+        wide_df = multilevel_wide_df["mean"][metric_signature]
+        moving_avg_df = wide_df.rolling(window=1, min_periods=1).mean()
+        moving_var_df = wide_df.rolling(window=1, min_periods=1).var(ddof=0)
+        should_stop, reason = strategy._should_stop_trial_early(
+            trial_index=1,
+            experiment=experiment,
+            long_df=long_df,
+            current_progression=None,
+            moving_avg_df=moving_avg_df,
+            moving_var_df=moving_var_df,
+            context_by_checkpoint={},
+            minimize=True,
+        )
+        self.assertFalse(should_stop)
+        self.assertEqual(
+            reason, "No data available to make an early stopping decision."
+        )
+
+
+class TestThresholdEarlyStoppingStrategy(TestCase):
+    # to avoid log spam in tests, we test the logger output explicitly in the percentile
+    # early stopping strategy test
+    @patch.object(logger, "warning")
+    def test_threshold_early_stopping_strategy(self, _: MagicMock) -> None:
+        exp = get_test_map_data_experiment(num_trials=5, num_fetches=3, num_complete=5)
+        """
+        Data looks like this:
+        arm_name metric_name        mean  sem  trial_index  timestamp
+        0       0_0      branin  146.138620  0.0            0          0
+        1       0_0      branin  117.388086  0.0            0          1
+        2       0_0      branin   99.950007  0.0            0          2
+        3       1_0      branin  113.057480  0.0            1          0
+        4       1_0      branin   90.815154  0.0            1          1
+        5       1_0      branin   77.324501  0.0            1          2
+        6       2_0      branin   44.627226  0.0            2          0
+        7       2_0      branin   35.847504  0.0            2          1
+        8       2_0      branin   30.522333  0.0            2          2
+        9       3_0      branin  143.375669  0.0            3          0
+        10      3_0      branin  115.168704  0.0            3          1
+        11      3_0      branin   98.060315  0.0            3          2
+        12      4_0      branin   65.033535  0.0            4          0
+        13      4_0      branin   52.239184  0.0            4          1
+        14      4_0      branin   44.479018  0.0            4          2
+        """
+        idcs = set(exp.trials.keys())
+
+        early_stopping_strategy = ThresholdEarlyStoppingStrategy(
+            metric_threshold=50, min_progression=1
+        )
+        should_stop = early_stopping_strategy.should_stop_trials_early(
+            trial_indices=idcs, experiment=exp
+        )
+        self.assertEqual(set(should_stop), {0, 1, 3})
+
+        # respect trial_indices argument
+        should_stop = early_stopping_strategy.should_stop_trials_early(
+            trial_indices={0}, experiment=exp
+        )
+        self.assertEqual(set(should_stop), {0})
+
+        # test did not reach min progression
+        early_stopping_strategy = ThresholdEarlyStoppingStrategy(
+            metric_threshold=50, min_progression=3
+        )
+        should_stop = early_stopping_strategy.should_stop_trials_early(
+            trial_indices=idcs, experiment=exp
+        )
+        self.assertEqual(should_stop, {})
+
+
+class TestLogicalEarlyStoppingStrategy(TestCase):
+    @patch.object(logger, "warning")
+    def test_and_early_stopping_strategy(self, _: MagicMock) -> None:
+        exp = get_test_map_data_experiment(num_trials=5, num_fetches=3, num_complete=5)
+        """
+        Data looks like this:
+        arm_name metric_name        mean  sem  trial_index  timestamp
+        0       0_0      branin  146.138620  0.0            0          0
+        1       0_0      branin  117.388086  0.0            0          1
+        2       0_0      branin   99.950007  0.0            0          2
+        3       1_0      branin  113.057480  0.0            1          0
+        4       1_0      branin   90.815154  0.0            1          1
+        5       1_0      branin   77.324501  0.0            1          2
+        6       2_0      branin   44.627226  0.0            2          0
+        7       2_0      branin   35.847504  0.0            2          1
+        8       2_0      branin   30.522333  0.0            2          2
+        9       3_0      branin  143.375669  0.0            3          0
+        10      3_0      branin  115.168704  0.0            3          1
+        11      3_0      branin   98.060315  0.0            3          2
+        12      4_0      branin   65.033535  0.0            4          0
+        13      4_0      branin   52.239184  0.0            4          1
+        14      4_0      branin   44.479018  0.0            4          2
+        """
+        idcs = set(exp.trials.keys())
+
+        left_early_stopping_strategy = ThresholdEarlyStoppingStrategy(
+            metric_threshold=50, min_progression=1
+        )
+
+        right_early_stopping_strategy = ThresholdEarlyStoppingStrategy(
+            metric_threshold=80, min_progression=1
+        )
+
+        and_early_stopping_strategy = AndEarlyStoppingStrategy(
+            left=left_early_stopping_strategy, right=right_early_stopping_strategy
+        )
+
+        left_should_stop = left_early_stopping_strategy.should_stop_trials_early(
+            trial_indices=idcs, experiment=exp
+        )
+        right_should_stop = right_early_stopping_strategy.should_stop_trials_early(
+            trial_indices=idcs, experiment=exp
+        )
+        and_should_stop = and_early_stopping_strategy.should_stop_trials_early(
+            trial_indices=idcs, experiment=exp
+        )
+
+        intersection = set(left_should_stop.keys()).intersection(
+            set(right_should_stop.keys())
+        )
+
+        for idc in idcs:
+            if idc in intersection:
+                self.assertIn(idc, and_should_stop.keys())
+            else:
+                self.assertNotIn(idc, and_should_stop.keys())
+
+    @patch.object(logger, "warning")
+    def test_or_early_stopping_strategy(self, _: MagicMock) -> None:
+        exp = get_test_map_data_experiment(num_trials=5, num_fetches=3, num_complete=5)
+        """
+        Data looks like this:
+        arm_name metric_name        mean  sem  trial_index  timestamp
+        0       0_0      branin  146.138620  0.0            0          0
+        1       0_0      branin  117.388086  0.0            0          1
+        2       0_0      branin   99.950007  0.0            0          2
+        3       1_0      branin  113.057480  0.0            1          0
+        4       1_0      branin   90.815154  0.0            1          1
+        5       1_0      branin   77.324501  0.0            1          2
+        6       2_0      branin   44.627226  0.0            2          0
+        7       2_0      branin   35.847504  0.0            2          1
+        8       2_0      branin   30.522333  0.0            2          2
+        9       3_0      branin  143.375669  0.0            3          0
+        10      3_0      branin  115.168704  0.0            3          1
+        11      3_0      branin   98.060315  0.0            3          2
+        12      4_0      branin   65.033535  0.0            4          0
+        13      4_0      branin   52.239184  0.0            4          1
+        14      4_0      branin   44.479018  0.0            4          2
+        """
+        idcs = set(exp.trials.keys())
+
+        left_early_stopping_strategy = ThresholdEarlyStoppingStrategy(
+            metric_threshold=50, min_progression=1
+        )
+
+        right_early_stopping_strategy = ThresholdEarlyStoppingStrategy(
+            metric_threshold=80, min_progression=1
+        )
+
+        or_early_stopping_strategy = OrEarlyStoppingStrategy(
+            left=left_early_stopping_strategy, right=right_early_stopping_strategy
+        )
+        or_early_stopping_strategy_from_collection = (
+            OrEarlyStoppingStrategy.from_early_stopping_strategies(
+                strategies=[left_early_stopping_strategy, right_early_stopping_strategy]
+            )
+        )
+
+        left_should_stop = left_early_stopping_strategy.should_stop_trials_early(
+            trial_indices=idcs, experiment=exp
+        )
+        right_should_stop = right_early_stopping_strategy.should_stop_trials_early(
+            trial_indices=idcs, experiment=exp
+        )
+        or_should_stop = or_early_stopping_strategy.should_stop_trials_early(
+            trial_indices=idcs, experiment=exp
+        )
+        or_from_collection_should_stop = (
+            or_early_stopping_strategy_from_collection.should_stop_trials_early(
+                trial_indices=idcs, experiment=exp
+            )
+        )
+
+        union = set(left_should_stop.keys()).union(set(right_should_stop.keys()))
+
+        for idc in idcs:
+            if idc in union:
+                self.assertIn(idc, or_should_stop.keys())
+                self.assertIn(idc, or_from_collection_should_stop.keys())
+            else:
+                self.assertNotIn(idc, or_should_stop.keys())
+                self.assertNotIn(idc, or_from_collection_should_stop.keys())
+
+
+def _evaluate_early_stopping_with_df(
+    early_stopping_strategy: PercentileEarlyStoppingStrategy,
+    experiment: Experiment,
+    metric_name: str,
+) -> dict[int, str | None]:
+    """Helper function for testing PercentileEarlyStoppingStrategy
+    on an arbitrary (Data) df."""
+    data = none_throws(
+        early_stopping_strategy._lookup_and_validate_data(experiment, [metric_name])
+    )
+    aligned_df = align_partial_results(df=data.full_df, metrics=[metric_name])
+    metric_to_aligned_means = aligned_df["mean"]
+    aligned_means = metric_to_aligned_means[metric_name]
+    decisions = {
+        trial_index: early_stopping_strategy._should_stop_trial_early(
+            trial_index=trial_index,
+            experiment=experiment,
+            wide_df=aligned_means,
+            long_df=data.full_df,
+            minimize=cast(
+                OptimizationConfig, experiment.optimization_config
+            ).objective.minimize,
+        )
+        for trial_index in set(experiment.trials.keys())
+    }
+    return {
+        trial_index: reason
+        for trial_index, (should_stop, reason) in decisions.items()
+        if should_stop
+    }

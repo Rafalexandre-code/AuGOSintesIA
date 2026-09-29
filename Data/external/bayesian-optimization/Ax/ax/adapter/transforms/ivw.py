@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+# pyre-strict
+
+from logging import Logger
+
+import numpy as np
+import numpy.typing as npt
+from ax.adapter.transforms.base import Transform
+from ax.core.observation import ObservationData
+from ax.utils.common.logger import get_logger
+from pyre_extensions import assert_is_instance
+
+logger: Logger = get_logger(__name__)
+
+
+def ivw_metric_merge(
+    obsd: ObservationData, conflicting_noiseless: str = "warn"
+) -> ObservationData:
+    """Merge multiple observations of a metric with inverse variance weighting.
+
+    Correctly updates the covariance of the new merged estimates:
+    ybar1 = Sum_i w_i * y_i
+    ybar2 = Sum_j w_j * y_j
+    cov[ybar1, ybar2] = Sum_i Sum_j w_i * w_j * cov[y_i, y_j]
+
+    w_i will be infinity if any variance is 0. If one variance is 0., then
+    the IVW estimate is the corresponding mean. If there are multiple
+    measurements with 0 variance but means are all the same, then IVW estimate
+    is that mean. If there are multiple measurements and means differ, behavior
+    depends on argument conflicting_noiseless. "ignore" and "warn" will use
+    the first of the measurements as the IVW estimate. "warn" will additionally
+    log a warning. "raise" will raise an exception.
+
+    Args:
+        obsd: An ObservationData object
+        conflicting_noiseless: "warn", "ignore", or "raise"
+    """
+    if len(obsd.metric_signatures) == len(set(obsd.metric_signatures)):
+        return obsd
+    if conflicting_noiseless not in {"warn", "ignore", "raise"}:
+        raise ValueError(
+            'conflicting_noiseless should be "warn", "ignore", or "raise".'
+        )
+    # Get indicies and weights for each metric.
+    # weights is a map from metric name to a vector of the weights for each
+    # measurement of that metric. indicies gives the corresponding index in
+    # obsd.means for each measurement.
+    weights: dict[str, npt.NDArray] = {}
+    indicies: dict[str, list[int]] = {}
+    for metric_signature in set(obsd.metric_signatures):
+        indcs = [
+            i for i, mn in enumerate(obsd.metric_signatures) if mn == metric_signature
+        ]
+        indicies[metric_signature] = indcs
+        # Extract variances for observations of this metric
+        # NOTE: This only extracts the diagonal of the covariance matrix, and would not
+        # lead to a maximum variance reduction in the presence of correlated noise.
+        sigma2s = obsd.covariance[indcs, indcs]
+        # Check for noiseless observations
+        idx_noiseless = np.where(sigma2s == 0.0)[0]
+        if len(idx_noiseless) == 0:
+            # Weight is inverse of variance, normalized
+            weights[metric_signature] = np.asarray(1.0 / sigma2s)
+            weights[metric_signature] /= np.sum(weights[metric_signature])
+        else:
+            # Check if there are conflicting means for the noiseless observations
+            means_noiseless = obsd.means[indcs][idx_noiseless]
+            _check_conflicting_means(
+                means_noiseless, metric_signature, conflicting_noiseless
+            )
+            # The first observation gets all the weight.
+            weights[metric_signature] = np.zeros_like(sigma2s)
+            weights[metric_signature][idx_noiseless[0]] = 1.0
+    # Compute the new values
+    metric_signatures = sorted(set(obsd.metric_signatures))
+    means = np.zeros(len(metric_signatures))
+    covariance = np.zeros((len(metric_signatures), len(metric_signatures)))
+    for i, metric_signature in enumerate(metric_signatures):
+        ys = obsd.means[indicies[metric_signature]]
+        means[i] = np.sum(weights[metric_signature] * ys)
+        # Calculate covariances with metric_signature
+        for j, metric_signature2 in enumerate(metric_signatures[i:], start=i):
+            for ii, idx_i in enumerate(indicies[metric_signature]):
+                for jj, idx_j in enumerate(indicies[metric_signature2]):
+                    covariance[i, j] += (
+                        weights[metric_signature][ii]
+                        * weights[metric_signature2][jj]
+                        * obsd.covariance[idx_i, idx_j]
+                    )
+            covariance[j, i] = covariance[i, j]
+    return ObservationData(
+        metric_signatures=metric_signatures, means=means, covariance=covariance
+    )
+
+
+def _check_conflicting_means(
+    means_noiseless: npt.NDArray,
+    metric_signature: str,
+    conflicting_noiseless: str,
+) -> None:
+    if np.var(means_noiseless) > 0:
+        message = f"Conflicting noiseless measurements for {metric_signature}."
+        if conflicting_noiseless == "warn":
+            logger.warning(message)
+        elif conflicting_noiseless == "raise":
+            raise ValueError(message)
+
+
+class IVW(Transform):
+    """If an observation data contains multiple observations of a metric, they
+    are combined using inverse variance weighting.
+    """
+
+    def _transform_observation_data(
+        self,
+        observation_data: list[ObservationData],
+    ) -> list[ObservationData]:
+        conflicting_noiseless = assert_is_instance(
+            self.config.get("conflicting_noiseless", "warn"), str
+        )
+        return [
+            ivw_metric_merge(obsd=obsd, conflicting_noiseless=conflicting_noiseless)
+            for obsd in observation_data
+        ]

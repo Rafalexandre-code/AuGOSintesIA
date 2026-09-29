@@ -1,0 +1,17 @@
+name: 'Create Issue Reminder'
+
+permissions: {}
+
+on:
+  issue_comment:
+    types: [created, edited]
+
+jobs:
+  reminder:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write  # Required for create-reminder-action to post issue comments
+
+    steps:
+      - name: check for reminder
+        uses: agrc/create-reminder-action@8798362d131d74a70435283581f566c4986328dd # v1

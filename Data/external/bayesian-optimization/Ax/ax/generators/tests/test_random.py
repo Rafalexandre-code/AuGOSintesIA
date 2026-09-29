@@ -1,0 +1,143 @@
+#!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+# pyre-strict
+
+import numpy as np
+import torch
+from ax.generators.random.base import RandomGenerator
+from ax.utils.common.testutils import TestCase
+from pyre_extensions import none_throws
+
+
+class RandomGeneratorTest(TestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.random_model = RandomGenerator()
+
+    def test_properties(self) -> None:
+        self.assertFalse(self.random_model.can_predict)
+        self.assertFalse(self.random_model.can_model_in_sample)
+
+    def test_seed(self) -> None:
+        # With manual seed.
+        random_model = RandomGenerator(seed=5)
+        self.assertEqual(random_model.seed, 5)
+        # With no seed.
+        self.assertIsInstance(self.random_model.seed, int)
+
+    def test_state(self) -> None:
+        for model in (self.random_model, RandomGenerator(seed=5)):
+            state = model._get_state()
+            self.assertEqual(state["seed"], model.seed)
+            self.assertEqual(state["init_position"], model.init_position)
+
+    def test_RandomGeneratorGenSamples(self) -> None:
+        with self.assertRaises(NotImplementedError):
+            self.random_model._gen_samples(
+                n=1, tunable_d=1, bounds=np.array([[0.0, 1.0]])
+            )
+
+    def test_RandomGeneratorGenUnconstrained(self) -> None:
+        with self.assertRaises(NotImplementedError):
+            self.random_model._gen_unconstrained(
+                n=1, d=2, tunable_feature_indices=np.array([], dtype=int)
+            )
+
+    def test_ConvertEqualityConstraints(self) -> None:
+        fixed_features = {3: 0.7, 1: 0.5}
+        d = 4
+        C, c = none_throws(
+            self.random_model._convert_equality_constraints(d, fixed_features)
+        )
+        c_expected = torch.tensor([[0.5], [0.7]], dtype=torch.double)
+        C_expected = torch.tensor([[0, 1, 0, 0], [0, 0, 0, 1]], dtype=torch.double)
+        c_comparison = c == c_expected
+        C_comparison = C == C_expected
+        self.assertEqual(c_comparison.any(), True)
+        self.assertEqual(C_comparison.any(), True)
+        self.assertEqual(self.random_model._convert_equality_constraints(d, None), None)
+
+    def test_CombineEqualityConstraints(self) -> None:
+        d = 4
+        # Both None: returns None.
+        self.assertIsNone(
+            self.random_model._combine_equality_constraints(
+                d=d, fixed_features=None, equality_constraints=None
+            )
+        )
+
+        # Only fixed_features: returns the fixed-feature constraints.
+        fixed_features = {1: 0.5, 3: 0.7}
+        C, c = none_throws(
+            self.random_model._combine_equality_constraints(
+                d=d, fixed_features=fixed_features, equality_constraints=None
+            )
+        )
+        self.assertEqual(C.shape, (2, d))
+        self.assertEqual(c.shape, (2,))
+        self.assertEqual(C[0, 1].item(), 1.0)
+        self.assertEqual(C[1, 3].item(), 1.0)
+        self.assertAlmostEqual(c[0].item(), 0.5)
+        self.assertAlmostEqual(c[1].item(), 0.7)
+
+        # Only equality_constraints: returns the parameter constraints.
+        A_np = np.array([[1.0, 1.0, 0.0, 0.0]])
+        b_np = np.array([[2.0]])
+        C, c = none_throws(
+            self.random_model._combine_equality_constraints(
+                d=d,
+                fixed_features=None,
+                equality_constraints=(A_np, b_np),
+            )
+        )
+        self.assertEqual(C.shape, (1, d))
+        self.assertEqual(c.shape, (1,))
+        self.assertTrue(torch.equal(C, torch.tensor([[1.0, 1.0, 0.0, 0.0]])))
+        self.assertAlmostEqual(c[0].item(), 2.0)
+
+        # Both present: concatenates fixed-feature and parameter constraints.
+        C, c = none_throws(
+            self.random_model._combine_equality_constraints(
+                d=d,
+                fixed_features=fixed_features,
+                equality_constraints=(A_np, b_np),
+            )
+        )
+        # 2 from fixed_features + 1 from equality_constraints = 3 rows.
+        self.assertEqual(C.shape, (3, d))
+        self.assertEqual(c.shape, (3,))
+        # First two rows are from fixed_features (sorted by key: 1, 3).
+        self.assertEqual(C[0, 1].item(), 1.0)
+        self.assertEqual(C[1, 3].item(), 1.0)
+        # Third row is from the parameter equality constraint.
+        self.assertTrue(torch.equal(C[2], torch.tensor([1.0, 1.0, 0.0, 0.0])))
+        self.assertAlmostEqual(c[2].item(), 2.0)
+
+    def test_ConvertInequalityConstraints(self) -> None:
+        A = np.array([[1, 2], [3, 4]])
+        b = np.array([[5], [6]])
+        A_result, b_result = none_throws(
+            self.random_model._convert_inequality_constraints((A, b))
+        )
+        A_expected = torch.tensor([[1, 2], [3, 4]], dtype=torch.double)
+        b_expected = torch.tensor([[5], [6]], dtype=torch.double)
+        A_comparison = A_result == A_expected
+        b_comparison = b_result == b_expected
+        self.assertEqual(A_comparison.any(), True)
+        self.assertEqual(b_comparison.any(), True)
+        self.assertEqual(self.random_model._convert_inequality_constraints(None), None)
+
+    def test_ConvertBounds(self) -> None:
+        bounds = [(1.0, 2.0), (3.0, 4.0), (5.0, 6.0)]
+        bounds_result = self.random_model._convert_bounds(bounds)
+        bounds_expected = torch.tensor([[1, 3, 5], [2, 4, 6]], dtype=torch.double)
+        bounds_comparison = bounds_result == bounds_expected
+        # pyre-fixme[16]: `bool` has no attribute `any`.
+        self.assertEqual(bounds_comparison.any(), True)
+        # pyre-fixme[6]: For 1st param expected `List[Tuple[float, float]]` but got
+        #  `None`.
+        self.assertEqual(self.random_model._convert_bounds(None), None)
