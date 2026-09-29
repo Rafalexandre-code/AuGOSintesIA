@@ -106,9 +106,13 @@ def estimate(lab: str, treatment: str, outcome: str, edges=EDGES, refute: bool =
     import dowhy
     df = build_table(lab)
     nodes = sorted({n for e in edges for n in e})
-    missing = [n for n in nodes if n not in df]
+    missing = [n for n in nodes if n not in df or pd.to_numeric(df[n], errors="coerce").isna().all()]
     use_edges = [(a, b) for a, b in edges if a not in missing and b not in missing]
+    if treatment in missing or outcome in missing:
+        raise ValueError(f"tratamento/desfecho sem dados: {[n for n in (treatment, outcome) if n in missing]}")
     data = df[sorted({n for e in use_edges for n in e})].apply(pd.to_numeric, errors="coerce").dropna()
+    if len(data) < 10:
+        raise ValueError(f"só {len(data)} sínteses completas para o DAG — poucas para estimar um efeito")
     model = dowhy.CausalModel(data=data, treatment=treatment, outcome=outcome, graph=gml(use_edges))
     ident = model.identify_effect(proceed_when_unidentifiable=False)
     est = model.estimate_effect(ident, method_name="backdoor.linear_regression", confidence_intervals=True)
@@ -138,7 +142,8 @@ def discover(lab: str, alpha: float = 0.05) -> list[str]:
     from causallearn.search.ConstraintBased.PC import pc
     df = build_table(lab)
     cols = [c for c in sorted({n for e in EDGES for n in e}) if c in df]
-    data = df[cols].apply(pd.to_numeric, errors="coerce").dropna()
+    data = df[cols].apply(pd.to_numeric, errors="coerce")
+    data = data.loc[:, data.notna().any()].dropna()          # colunas sem nenhum dado não derrubam todas as linhas
     data = data.loc[:, data.std() > 0]
     cg = pc(data.to_numpy(float), alpha=alpha, indep_test="fisherz", show_progress=False)
     names = list(data.columns)

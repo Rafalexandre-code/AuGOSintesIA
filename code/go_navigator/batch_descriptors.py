@@ -8,7 +8,7 @@ descritores são agregados de ``go_characterization.csv`` (via ``go_samples.csv`
 
 Uso:
     python code/go_navigator/batch_descriptors.py datasets/lab            # tabela lote × descritor
-    python code/go_navigator/batch_descriptors.py datasets/lab --write    # grava/atualiza go_descriptors.csv
+    python code/go_navigator/batch_descriptors.py datasets/lab --write    # grava go_descriptors.csv (--force sobrescreve)
 """
 from __future__ import annotations
 
@@ -76,10 +76,14 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("lab_dir")
     ap.add_argument("--write", action="store_true", help="grava go_descriptors.csv agregado das medidas")
+    ap.add_argument("--force", action="store_true", help="sobrescreve um go_descriptors.csv existente")
     a = ap.parse_args()
     if a.write:
+        path = os.path.join(a.lab_dir, "go_descriptors.csv")
+        if _read(a.lab_dir, "go_descriptors") is not None and not a.force:
+            raise SystemExit(f"{path} já existe (pode ter sido curado à mão); use --force para sobrescrever")
         agg = aggregate_from_measurements(a.lab_dir)
-        agg.to_csv(os.path.join(a.lab_dir, "go_descriptors.csv"), index=False)
+        agg.to_csv(path, index=False)
         print(f"go_descriptors.csv: {len(agg)} linhas")
     mean, sd = batch_matrix(a.lab_dir)
     if mean.empty:

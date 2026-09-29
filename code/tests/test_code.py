@@ -179,3 +179,63 @@ def test_cli_help():
                    "code/spectral/uvvis.py", "code/spectral/mie.py", "code/characterization/raman.py",
                    "code/characterization/xps.py", "code/characterization/tem.py", "code/sustainability/metrics.py"):
         assert subprocess.run([sys.executable, os.path.join(ROOT, script), "--help"], capture_output=True).returncode == 0
+
+
+# ------------------------------------------------------------------ regressões da revisão de 2026-09-29
+
+def test_read_spectrum_formats(tmp_path):
+    """CSV brasileiro (';' + vírgula decimal) era lido errado em silêncio: '510,5;0,431' -> (510.0, 5.0)."""
+    import uvvis
+    files = {"br.csv": "lambda;abs\n500,0;0,100\n510,5;0,431\n520,0;0,500\n",
+             "us.csv": "wl,abs\n500,0.1\n510.5,0.431\n520,0.5\n",
+             "tab.txt": "500\t0,1\n510,5\t0,431\n520\t0,5\n", "sp.txt": "500 0.1\n510.5 0.431\n520 0.5\n"}
+    for name, text in files.items():
+        (tmp_path / name).write_text(text)
+        w, a = uvvis.read_spectrum(str(tmp_path / name))
+        assert np.allclose(w, [500, 510.5, 520]) and np.allclose(a, [0.1, 0.431, 0.5]), name
+    wl = np.arange(400, 800, 1.0)
+    band = np.exp(-((wl - 530) / 30) ** 2)
+    assert uvvis.lspr(wl[::-1], band[::-1])["LSPR_nm"] == pytest.approx(530, abs=0.5)   # ordem decrescente
+
+
+def test_validator_messages(tmp_path, capsys):
+    import lab_data_model
+    (tmp_path / "go_batches.csv").write_text("go_batch_id;source_type\nB1;commercial\n")
+    assert lab_data_model.validate(str(tmp_path)) == 1
+    assert "';'" in capsys.readouterr().out
+    (tmp_path / "go_batches.csv").write_text("go_batch_id,source_type,date_prepared\nB1,commercial,29/09/2026\n")
+    (tmp_path / "aunp_syntheses.csv").write_text(
+        "synthesis_id,gold_precursor_lot_id,method,HAuCl4_mM,run_order\nS1,L1,one_pot,\"0,25\",3.0\n")
+    (tmp_path / "reagent_lots.csv").write_text("lot_id,entity_id,chemical_name,supplier,lot_number\nL1,HAuCl4,x,y,z\n")
+    assert lab_data_model.validate(str(tmp_path)) == 1
+    out = capsys.readouterr().out
+    assert "AAAA-MM-DD" in out and "ponto decimal" in out and "run_order" not in out
+
+
+def test_designer_context_errors(sim_lab_dir):
+    import designer
+    camp = designer.load_campaign(sim_lab_dir, designer.DEFAULT_SPACE, "batch", ("spectral_loss_J",))
+    with pytest.raises(ValueError, match="batch"):
+        designer.fixed_context(sim_lab_dir, camp, "L9", None)          # lote nunca sintetizado
+    camp = designer.load_campaign(sim_lab_dir, designer.DEFAULT_SPACE, "go", ("spectral_loss_J",))
+    with pytest.raises(ValueError, match="--batch"):
+        designer.fixed_context(sim_lab_dir, camp, None, None)          # contexto não pode ficar livre
+    with pytest.raises(ValueError, match="novelty_w"):
+        designer.propose(camp, designer.DEFAULT_SPACE, q=1, novelty_w=1.5,
+                         fixed=designer.fixed_context(sim_lab_dir, camp, "L1", None))
+    with pytest.raises(ValueError, match="inexistentes"):
+        designer.load_campaign(sim_lab_dir, designer.DEFAULT_SPACE, "go", ("nao_existe",))
+
+
+def test_sim_lab_keeps_given_lots(tmp_path):
+    import designer
+    import pandas as pd
+    import sim_lab
+    lab = str(tmp_path / "lab")
+    sim_lab.init_lab(lab, seed=0)
+    c = pd.DataFrame([{k: (lo + hi) / 2 for k, (lo, hi) in designer.DEFAULT_SPACE.items()}] * 2)
+    syn = designer.proposals_to_syntheses(c, designer.DEFAULT_SPACE, "L1", "T", 1).assign(status="done")
+    syn.loc[0, "reductant_lot_id"] = "RED-B"              # só a segunda linha fica sem lote
+    sim_lab.run_syntheses(lab, syn, np.random.default_rng(0))
+    got = pd.read_csv(os.path.join(lab, "aunp_syntheses.csv"))
+    assert got.loc[0, "reductant_lot_id"] == "RED-B" and got.loc[1, "reductant_lot_id"] in ("RED-A", "RED-B")

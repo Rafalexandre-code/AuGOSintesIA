@@ -80,8 +80,10 @@ def fit(x: np.ndarray, y: np.ndarray, model: str = "2band", xrange: tuple[float,
     def ratio(a, b):
         va, sa = out[a]
         vb, sb = out[b]
+        if not vb:
+            return (float("nan"), None)
         r = va / vb
-        s = r * np.sqrt(((sa or 0) / va) ** 2 + ((sb or 0) / vb) ** 2) if va and vb else None
+        s = r * np.sqrt(((sa or 0) / va) ** 2 + ((sb or 0) / vb) ** 2) if va else None
         return (r, s)
     out["ID_IG"] = ratio("D_height", "G_height")
     out["AD_AG"] = ratio("D_area", "G_area")
@@ -125,6 +127,7 @@ def main() -> None:
                     help="joint-linear: fundo linear ajustado com as bandas (padrão); arpls/modpoly: pré-correção")
     ap.add_argument("--sample", default="SAMPLE")
     ap.add_argument("--out", help="CSV no formato go_characterization")
+    ap.add_argument("--start", type=int, default=1, help="número inicial dos measurement_id (evita repetir IDs)")
     a = ap.parse_args()
     fits = []
     for f in a.spectra:
@@ -136,7 +139,7 @@ def main() -> None:
     for k, (v, s, n, t) in summ.items():
         print(f"{k:14} {v:10.3f} ± {s if s is not None else float('nan'):.3f} ({t}, n={n})")
     if a.out:
-        rows = to_rows(summ, a.sample, files="|".join(a.spectra))
+        rows = to_rows(summ, a.sample, start=a.start, files="|".join(a.spectra))
         with open(a.out, "w", newline="", encoding="utf-8") as fh:
             w = csv.DictWriter(fh, fieldnames=list(rows[0]))
             w.writeheader()

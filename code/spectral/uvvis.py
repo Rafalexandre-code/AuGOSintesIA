@@ -27,15 +27,29 @@ HAISS_B1, HAISS_B0 = 3.00, 2.20
 HAISS_L0, HAISS_L1, HAISS_L2 = 512.0, 6.53, 0.0216
 
 
+def _split_fields(line: str) -> list[str]:
+    """Separa as colunas aceitando ',', ';', TAB ou espaços e vírgula decimal (formato brasileiro: '512,5;0,431')."""
+    line = line.strip()
+    if ";" in line or "\t" in line:
+        parts = [p.strip().replace(",", ".") for p in line.replace("\t", ";").split(";")]
+    elif "," in line and len(line.split()) == 1:
+        parts = line.split(",")
+    else:
+        parts = [p.replace(",", ".") for p in line.split()]
+    return [p for p in parts if p != ""]
+
+
 def read_spectrum(path: str) -> tuple[np.ndarray, np.ndarray]:
+    """Lê duas colunas numéricas (eixo, intensidade); ignora cabeçalho/comentários; ordena pelo eixo."""
     rows = []
     for line in open(path, encoding="utf-8", errors="replace"):
-        parts = line.replace(";", ",").replace("\t", ",").split(",") if ("," in line or ";" in line or "\t" in line) \
-            else line.split()
+        parts = _split_fields(line)
         try:
             rows.append((float(parts[0]), float(parts[1])))
         except (ValueError, IndexError):
             continue  # cabeçalho/comentário
+    if len(rows) < 3:
+        raise ValueError(f"{path}: menos de 3 pontos numéricos lidos (formato esperado: eixo, intensidade)")
     a = np.array(sorted(rows))
     return a[:, 0], a[:, 1]
 
@@ -56,7 +70,11 @@ def resample(w: np.ndarray, a: np.ndarray, grid: np.ndarray) -> np.ndarray:
 def lspr(w: np.ndarray, a: np.ndarray, window: tuple[float, float] = (480.0, 800.0)) -> dict:
     """Descritores da banda plasmônica."""
     w, a = np.asarray(w, float), np.asarray(a, float)
+    order = np.argsort(w)
+    w, a = w[order], a[order]
     sel = (w >= window[0]) & (w <= window[1])
+    if sel.sum() < 3:
+        raise ValueError(f"espectro sem pontos suficientes na janela {window} nm")
     ws, as_ = w[sel], a[sel]
     i = int(np.argmax(as_))
     lo, hi = max(i - 5, 0), min(i + 6, len(ws))

@@ -30,11 +30,13 @@ COMPONENTS = [("CC", 0.0), ("C-O", 2.0), ("C=O", 3.1), ("O-C=O", 4.2)]
 RSF_DEFAULT = {"C1s": 1.00, "O1s": 2.93}
 
 
-def shirley(be: np.ndarray, y: np.ndarray, tol: float = 1e-6, max_iter: int = 100) -> np.ndarray:
-    """Fundo de Shirley iterativo (energia de ligação crescente ou decrescente)."""
+def shirley(be: np.ndarray, y: np.ndarray, tol: float = 1e-6, max_iter: int = 100, n_end: int = 5) -> np.ndarray:
+    """Fundo de Shirley iterativo (energia de ligação crescente ou decrescente). Os níveis das extremidades são a
+    média de n_end pontos de cada lado (um ponto só torna o fundo sensível ao ruído)."""
     order = np.argsort(be)
     x, s = be[order], y[order]
-    lo, hi = s[0], s[-1]            # lado de menor BE (fundo baixo) e de maior BE (fundo alto)
+    k = max(1, min(n_end, len(s) // 10))
+    lo, hi = float(np.mean(s[:k])), float(np.mean(s[-k:]))   # lado de menor BE (fundo baixo) e de maior BE (alto)
     bg = np.full_like(s, lo, dtype=float)
     for _ in range(max_iter):
         signal = s - bg

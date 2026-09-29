@@ -19,6 +19,7 @@ import argparse
 import csv
 import json
 import os
+import re
 import sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -226,20 +227,32 @@ def write_templates(out: str = OUT) -> None:
 
 def _read(path: str) -> list[dict]:
     with open(path, newline="", encoding="utf-8-sig") as fh:
-        return list(csv.DictReader(fh))
+        text = fh.read()
+    head = text.split("\n", 1)[0]
+    if head.count(";") > head.count(",") and head.count(";") >= 1:
+        raise ValueError(f"{path}: separado por ';' (Excel em português). Salve como 'CSV UTF-8 (delimitado por "
+                         f"vírgulas)' com ponto decimal — o Designer e o pandas esperam vírgula como separador.")
+    return list(csv.DictReader(text.splitlines()))
 
 
 def validate(folder: str) -> int:
     errors, warns = [], []
-    data = {t: _read(os.path.join(folder, f"{t}.csv")) for t in ORDER if os.path.exists(os.path.join(folder, f"{t}.csv"))}
+    try:
+        data = {t: _read(os.path.join(folder, f"{t}.csv")) for t in ORDER
+                if os.path.exists(os.path.join(folder, f"{t}.csv"))}
+    except ValueError as exc:
+        print("ERRO  ", exc)
+        return 1
     keys: dict[str, set] = {}
     if os.path.exists(REAGENT_DICT):
         keys["reagent_dictionary"] = {r["entity_id"] for r in _read(REAGENT_DICT)}
     for t, rows in data.items():
         k = TABLES[t]["key"]
-        keys[t] = {tuple(r.get(c, "") for c in k) if isinstance(k, tuple) else r.get(k, "") for r in rows}
+        vals = [tuple(r.get(c, "") for c in k) if isinstance(k, tuple) else r.get(k, "") for r in rows]
+        keys[t] = set(vals)
         if len(keys[t]) != len(rows):
-            errors.append(f"{t}: chave {k} repetida")
+            dup = sorted({str(v) for v in vals if vals.count(v) > 1})
+            errors.append(f"{t}: chave {k} repetida: {dup[:10]}")
     for t, rows in data.items():
         cols = {c[0]: c for c in TABLES[t]["cols"]}
         missing = [c for c, spec in cols.items() if spec[2] and rows and c not in rows[0]]
@@ -258,11 +271,16 @@ def validate(folder: str) -> int:
                     continue
                 if typ in (F, I):
                     try:
-                        x = float(v) if typ == F else int(v)
+                        x = float(v)
+                        if typ == I and not x.is_integer():   # "3.0" (pandas/Excel) é aceito como inteiro
+                            raise ValueError
                         if name in ("uncertainty", "sd", "between_batch_sd") and x < 0:
                             errors.append(f"{where}: incerteza negativa")
                     except ValueError:
-                        errors.append(f"{where}: não numérico {v!r}")
+                        hint = " (use ponto decimal)" if re.fullmatch(r"-?\d+,\d+", v) else ""
+                        errors.append(f"{where}: não numérico {v!r}{hint}")
+                elif typ == D and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", v):
+                    errors.append(f"{where}: data {v!r} fora do formato AAAA-MM-DD")
                 elif typ == E and vocab and v not in vocab:
                     warns.append(f"{where}: {v!r} fora do vocabulário {[x for x in vocab if x]}")
                 elif typ.startswith("fk:"):
