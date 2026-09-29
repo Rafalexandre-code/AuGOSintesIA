@@ -1,0 +1,129 @@
+#!/bin/bash
+#SBATCH --job-name=mgen_tc_alex
+#SBATCH --gres=gpu:1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=8
+#SBATCH --output=slurm_alex_mattergen_tc_finetune_infer.out
+
+set -e
+
+eval "$(conda shell.bash hook)"
+module load cuda/11.5.0 || true
+conda activate mattergen
+
+ROOT="$(realpath .)"
+MATTERGEN_RUN_ROOT="${ROOT}/job_runs/mattergen_tc_finetune_benchmark_alex/outputs"
+RESULTS_PATH="${ROOT}/job_runs/mattergen_tc_finetune_benchmark_alex/results"
+TEST_CSV="${ROOT}/models/cdvae/data/alexandria/test.csv"
+export TC_COL="Tc"
+export BATCH_SIZE=16
+
+if [[ ! -f "${TEST_CSV}" ]]; then
+  echo "ERROR: test CSV not found at ${TEST_CSV}"
+  exit 1
+fi
+
+mkdir -p "${RESULTS_PATH}"
+
+SECONDS=0
+start_iso="$(date -Iseconds)"
+
+nvidia-smi
+
+export TEST_CSV RESULTS_PATH BATCH_SIZE
+
+# Step 1: filter to TC-annotated rows, sort by Tc, write sorted CSV + bin metadata
+python3 - <<'PYEOF'
+import csv, json, os
+
+tc_col  = os.environ["TC_COL"]
+src     = os.environ["TEST_CSV"]
+out_dir = os.environ["RESULTS_PATH"]
+bs      = int(os.environ["BATCH_SIZE"])
+
+with open(src) as f:
+    rows = list(csv.DictReader(f))
+
+tc_rows = [r for r in rows if r.get(tc_col, "").strip()]
+tc_rows.sort(key=lambda r: float(r[tc_col]))
+
+sorted_csv = os.path.join(out_dir, "tc_test_sorted.csv")
+with open(sorted_csv, "w", newline="") as f:
+    w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+    w.writeheader()
+    w.writerows(tc_rows)
+
+bins = []
+for i in range(0, len(tc_rows), bs):
+    batch = tc_rows[i : i + bs]
+    mean_tc = sum(float(r[tc_col]) for r in batch) / len(batch)
+    bins.append({"mean_tc": mean_tc, "count": len(batch)})
+
+with open(os.path.join(out_dir, "bins.json"), "w") as f:
+    json.dump(bins, f)
+
+# Extract per-structure compositions for stoichiometry conditioning
+from pymatgen.core.structure import Structure
+bin_compositions = []
+for i in range(0, len(tc_rows), bs):
+    batch = tc_rows[i : i + bs]
+    comps = []
+    for r in batch:
+        struct = Structure.from_str(r["cif"], fmt="cif")
+        comp = {el: int(cnt) for el, cnt in struct.composition.as_dict().items()}
+        comps.append(comp)
+    bin_compositions.append(comps)
+
+with open(os.path.join(out_dir, "bin_compositions.json"), "w") as f:
+    json.dump(bin_compositions, f)
+
+print(f"TC rows: {len(tc_rows)}, bins: {len(bins)}")
+PYEOF
+
+# Step 2: one mattergen-generate call per bin
+NBINS=$(python3 -c "import json; print(len(json.load(open('${RESULTS_PATH}/bins.json'))))")
+echo "Running ${NBINS} bins..."
+
+for i in $(seq 0 $((NBINS - 1))); do
+    MEAN_TC=$(python3 -c "import json; print(json.load(open('${RESULTS_PATH}/bins.json'))[$i]['mean_tc'])")
+    COUNT=$(python3   -c "import json; print(json.load(open('${RESULTS_PATH}/bins.json'))[$i]['count'])")
+    BIN_DIR="${RESULTS_PATH}/bin_${i}"
+    mkdir -p "${BIN_DIR}"
+
+    echo "Bin ${i}/${NBINS}: mean_tc=${MEAN_TC}, count=${COUNT}"
+
+    COMPOSITIONS=$(python3 -c "
+import json
+with open('${RESULTS_PATH}/bin_compositions.json') as f:
+    data = json.load(f)
+print(repr(data[$i]))
+")
+
+    mattergen-generate "${BIN_DIR}" \
+        --model_path="${MATTERGEN_RUN_ROOT}" \
+        --batch_size="${COUNT}" \
+        --num_batches=1 \
+        --sampling-config-name=csp \
+        --properties_to_condition_on="{'tc_supercon':${MEAN_TC}}" \
+        --target_compositions="${COMPOSITIONS}" \
+        --diffusion_guidance_factor=2.0 \
+        --checkpoint_epoch=last \
+        --record-trajectories=False
+done
+
+# Step 3: concatenate bin outputs in numeric order (glob sorts lexicographically, which
+# breaks for bin_10 < bin_2; seq-based loop preserves correct TC-sorted pairing)
+for i in $(seq 0 $((NBINS - 1))); do
+    cat "${RESULTS_PATH}/bin_${i}/generated_crystals.extxyz"
+done > "${RESULTS_PATH}/generated_crystals.extxyz"
+echo "Concatenated ${NBINS} bin outputs -> generated_crystals.extxyz"
+
+echo "Done"
+
+elapsed="$SECONDS"
+end_iso="$(date -Iseconds)"
+
+printf "Start: %s\nEnd:   %s\nElapsed: %ds (%.2f min, %.2f hr)\n" \
+  "$start_iso" "$end_iso" "$elapsed" \
+  "$(awk "BEGIN{print $elapsed/60}")" \
+  "$(awk "BEGIN{print $elapsed/3600}")"

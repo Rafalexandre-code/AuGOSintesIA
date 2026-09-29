@@ -55,7 +55,6 @@ data-access	zenodo_get	dvolgyes/zenodo_get	default	00a53c264c8752852e85d591202b2
 data-access	foundry	MLMI2-CSSI/foundry	default	1ba21bea97e84707a9c0ab7ab07fc0912435690c	2026-01-22
 data-access	optimade-python-tools	Materials-Consortia/optimade-python-tools	default	5ad3b5d0b6664d088ba8d190895e58aea949f2c8	2026-08-06
 data-access	mp-api	materialsproject/api	default	ca3d6bcefff7ad57692c708c1f78013557401f13	2026-09-08
-data-access	jarvis-tools	usnistgov/jarvis	default	3b0c9d0f0c15759135de857dbc93e010db01eb29	2025-08-25
 data-access	pynanomapper	ideaconsult/pynanomapper	default	ddd89c537d621ee8d4006f64d6656b75c18f5dc6	2026-09-04
 bayesian-optimization	pymoo	anyoptimization/pymoo	default	23110c155aa8f31b5f1b86928227fb3931ba7f00	2026-07-06
 bayesian-optimization	LLAMBO	tennisonliu/LLAMBO	default	196fe237f60a3d3a2fa53cbf8f474ec20a01dd57	2024-12-17
@@ -74,3 +73,18 @@ self-driving-lab	MADSci	AD-SDL/MADSci	default	7d98ace5522573873c24b559b4efe34ce9
 self-driving-lab	alabos	CederGroupHub/alabos	default	a81d607957f4a02a56961c8c6cb95d3f61ddb5be	2026-08-14
 self-driving-lab	ivoryos	ivoryos-ai/ivoryos	default	98c4b34d2e3aa46fb6b8861f746a1f00c9560e1f	2026-09-28
 data-access	ro-crate-py	ResearchObject/ro-crate-py	default	05effe591443934e48e3fe59c53d7bc01a3334e0	2026-07-10
+jarvis	jarvis-tools	atomgptlab/jarvis-tools	default	add61f2ad1f7020d23ffc2a815f604071ac03c86	2026-04-05
+jarvis	alignn	atomgptlab/alignn	default	7b3111906ca61f6c1659cdf3b4f19f87b9a57692	2026-08-13
+jarvis	atomgpt	atomgptlab/atomgpt	default	40fb1bdf0037997e5cd35cdb4bb1d2b43fd88b8d	2026-09-22
+jarvis	jarvis_leaderboard	atomgptlab/jarvis_leaderboard	default	27c7d5591e876a1fc066af0ed5aab1480f5ff72a	2026-09-29
+jarvis	chipsff	atomgptlab/chipsff	default	7ab37a5e1ec65ad540dd7c6caaa555bda738d595	2025-09-14
+jarvis	chipstb	atomgptlab/chipstb	default	b2ca7be76d1b683108b11d460f679bf706c956de	2025-12-01
+jarvis	intermat	atomgptlab/intermat	default	709e6ebbcc7cb3840be33ad7ddc187d0c412022e	2025-09-14
+jarvis	slakonet	atomgptlab/slakonet	default	64559570cd602014c72a6503ef22e113748ed93c	2026-08-06
+jarvis	atomvision	atomgptlab/atomvision	default	9d547fc751df99bf0e33d7e5b55c842663f6961e	2025-09-14
+jarvis	chemnlp	atomgptlab/chemnlp	default	ffed25729e9f63071f8b872e7ef200c6fde0358e	2025-09-14
+jarvis	tb3py	atomgptlab/tb3py	default	0dbf909319d897af4686531776e151965ad5019a	2024-09-26
+jarvis	atombench	atomgptlab/atombench	default	324ed9d1d04ed947788a8435b8fc2e7dcfc76ea3	2026-06-15
+jarvis	agapi	atomgptlab/agapi	default	b367c87d99cec479737592b05883495df920e19e	2026-03-30
+jarvis	jarvis-tools-notebooks	atomgptlab/jarvis-tools-notebooks	default	9d9496e2ad53795b6dcdd8cd55827647bceb1e5b	2026-06-24
+jarvis	JARVIS-FF	knc6/JARVIS-FF	default	f0a516b41fdf02035f6d94fba7b2cb9838797862	2020-07-28

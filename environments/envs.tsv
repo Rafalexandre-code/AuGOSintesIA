@@ -13,3 +13,5 @@ qwen-llm	uv	3.12	qwen-llm.in	projects/literature-llm/Synthesis-Properties-Databa
 m2hub	conda	3.9	../projects/materials-ml/M2Hub/environment.yml	projects/materials-ml/M2Hub (PyG/DGL via conda)
 ambergo	conda	3.11	ambergo.yml	projects/atomistic/AmberGO (AmberTools; VMD/Discovery Studio instalados à parte)
 data-sources	uv	3.12	data-sources.in	tools/data_sources (OPTIMADE, MP, JARVIS, OpenAlex, Crossref, Unpaywall, PubChem, Zenodo, HF, MDF, eNanoMapper)
+jarvis	uv	3.11	jarvis.in	Ecossistema JARVIS (external/jarvis): jarvis-tools, ALIGNN/ALIGNN-FF, CHIPS-FF, InterMat, Leaderboard, SlaKoNet, AtomBench, AtomVision + MACE-MP, LAMMPS (JARVIS-FF)
+atomgpt	uv	3.10	atomgpt.in	external/jarvis/atomgpt: AtomGPT direto/inverso, DiffractGPT (GPU; pesos no Hugging Face)

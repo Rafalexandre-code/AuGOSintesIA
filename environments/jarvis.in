@@ -1,0 +1,27 @@
+# Ecossistema JARVIS (NIST) instalado a partir das cópias versionadas em external/jarvis/ (ver external/jarvis/README.md)
+-e ../external/jarvis/jarvis-tools        # JARVIS-Tools: Atoms, descritores CFID, I/O VASP/QE/LAMMPS, figshare, workflows
+-e ../external/jarvis/alignn              # JARVIS-ML: ALIGNN (propriedades) e ALIGNN-FF (campo de força universal)
+-e ../external/jarvis/chipsff             # CHIPS-FF: relaxação, vacância, superfície, interface, elástico, fônons com MLFF
+-e ../external/jarvis/intermat            # InterMat: interfaces/heteroestruturas (ex.: Au(111)/grafeno)
+-e ../external/jarvis/jarvis_leaderboard  # JARVIS-Leaderboard: conjuntos de benchmark (divisões train/val/test)
+-e ../external/jarvis/slakonet            # SlaKoNet: tight-binding Slater-Koster aprendido (estrutura eletrônica rápida)
+-e ../external/jarvis/atombench           # AtomBench: métricas de modelos generativos de estruturas (design inverso)
+-e ../external/jarvis/atomvision          # AtomVision: imagens STEM/TEM
+ase<3.27        # CHIPS-FF e AtomGPT importam ase.constraints.ExpCellFilter (removido no ASE 3.27)
+mace-torch      # MLFF universal com pesos no GitHub (MACE-MP-0): alternativa ao ALIGNN-FF quando o figshare está bloqueado
+lammps[mpi]     # JARVIS-FF: jarvis.io.lammps / jarvis.tasks.lammps (executável via módulo Python)
+torch-dftd      # dispersão D3 para MACE-MP (mace-mp-d3): adesão Au/grafeno é quase só van der Waals
+chgnet          # MLFF universal com pesos dentro do pacote (CHIPS-FF: calculator_type "chgnet")
+sevenn          # SevenNet (pesos no pacote; CHIPS-FF: "sevennet")
+elastic         # tensor elástico no CHIPS-FF
+phonopy         # fônons (jarvis-tools, CHIPS-FF)
+plotly<6       # CHIPS-FF exporta PNG com kaleido 0.2 (autocontido; o kaleido 1.x exige Chrome instalado)
+kaleido==0.2.1
+ruamel.yaml
+average-minimum-distance  # AtomBench importa `amd` (o pacote "amd" do PyPI que ele declara é outro)
+huggingface_hub # modelos AtomGPT (jarvis_data.py download --hf)
+botorch         # otimização bayesiana no espaço de GO (design inverso atomístico)
+pandas
+scikit-learn
+matplotlib
+pytest

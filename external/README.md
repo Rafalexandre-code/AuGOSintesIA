@@ -1,7 +1,7 @@
 # external — repositórios de referência para a proposta FAPESP GO–AuNP
 
-Cópias *shallow* (sem `.git`) de 75 repositórios do GitHub, clonadas em 2026-09-29 (17 adicionados na revisão de
-atualidade da proposta — marcados 🆕).
+Cópias *shallow* (sem `.git`) de 89 repositórios do GitHub, clonadas em 2026-09-29 (17 adicionados na revisão de
+atualidade da proposta — marcados 🆕 — e os 15 do ecossistema JARVIS em [`jarvis/`](jarvis/README.md)).
 Commit exato de cada um: [`tools/external_repos.lock.tsv`](../tools/external_repos.lock.tsv).
 
 ```bash
@@ -11,7 +11,7 @@ tools/fetch_external.sh --latest botorch  # atualiza só um
 tools/fetch_external.sh --full olympus    # reclona sem poda (ver "O que foi podado")
 ```
 
-Cada repositório mantém sua própria licença. **Nove não têm licença explícita**
+Cada repositório mantém sua própria licença. **Onze não têm licença explícita**
 (marcados com ⚠) — uso acadêmico/privado apenas; não torne este repositório público sem
 checar com os autores.
 
@@ -122,10 +122,32 @@ Usados por `tools/data_sources/` (ambiente `data-sources`); o inventário das fo
 | `zenodo_get` | dvolgyes/zenodo_get | AGPL-3.0 | baixar registros inteiros do Zenodo |
 | `foundry` | MLMI2-CSSI/foundry | MIT-like (U. Chicago) | Materials Data Facility / Foundry-ML (publicar e ler datasets prontos para ML) |
 | `optimade-python-tools` | Materials-Consortia | MIT | cliente OPTIMADE: NOMAD, Materials Cloud, Materials Project, OQMD, AFLOW, JARVIS numa só consulta |
+
+O cliente do JARVIS (`jarvis-tools`) e o resto do ecossistema estão na seção `jarvis/` abaixo.
 | `mp-api` | materialsproject/api | BSD-3 (LBNL) | Materials Project nativo (exige `MP_API_KEY`) |
-| `jarvis-tools` | usnistgov/jarvis | NIST (termos de uso) | JARVIS-DFT/ML; baixa os conjuntos sob demanda — podado (sem `jarvis/tests`, `jarvis/examples`) |
 | `pynanomapper` | ideaconsult/pynanomapper | MIT | eNanoMapper / NanoCommons (modelo substância→protocolo→medida) |
 | `ro-crate-py` 🆕 | ResearchObject/ro-crate-py | Apache-2.0 | empacotamento FAIR (RO-Crate) de dados + código + proveniência para o depósito |
+
+### `jarvis/` — ecossistema JARVIS (NIST) para o design inverso atomístico (GO Navigator §4.2, AuNP Designer §4.5)
+Todos instalados, a partir destas cópias, no ambiente `jarvis` (`tools/setup_env.sh jarvis`); uso integrado em
+[`code/atomistic/`](../code/atomistic/README.md) e índice detalhado em [`jarvis/README.md`](jarvis/README.md).
+| Pasta | Origem | Licença | Módulo JARVIS / para quê |
+|---|---|---|---|
+| `jarvis-tools` | atomgptlab/jarvis-tools | MIT (NIST) | **JARVIS-Tools**: `Atoms`, descritores CFID, I/O VASP/QE/LAMMPS/Wannier, `jarvis.db.figshare` (JARVIS-DFT/FF/ML), workflows (`jarvis.tasks`) — podado (sem `jarvis/tests`, `examples/vasp`) |
+| `alignn` | atomgptlab/alignn | NIST (termos de uso) | **JARVIS-ML**: ALIGNN (propriedades) e **ALIGNN-FF** (campo de força universal); treino sem DGL |
+| `atomgpt` | atomgptlab/atomgpt | NIST (termos de uso) | **JARVIS-ML generativo**: AtomGPT direto/**inverso** (propriedade → estrutura), DiffractGPT; 76 mil estruturas do JARVIS-DFT em texto (`atomgpt/data`) — ambiente `atomgpt` (GPU) |
+| `jarvis_leaderboard` | atomgptlab/jarvis_leaderboard | NIST (termos de uso) | **JARVIS-Leaderboard**: 346 conjuntos de benchmark com divisões train/val/test (dft_3d_*, AtomGen, vacâncias, superfícies…) — podado (sem `contributions/` e conjuntos > 5 MB) |
+| `chipsff` | atomgptlab/chipsff | NIST (termos de uso) | **CHIPS-FF**: avalia MLFFs universais contra o JARVIS-DFT (EOS, elásticas, superfícies, vacâncias, fônons, MD) |
+| `chipstb` | atomgptlab/chipstb | MIT | CHIPS-TB: o mesmo para modelos tight-binding |
+| `intermat` | atomgptlab/intermat | NIST (termos de uso) | **InterMat**: interfaces/heteroestruturas (ex.: Au(111)/grafite), W_ad, alinhamento de bandas — podado (sem `intermat/tests`) |
+| `slakonet` | atomgptlab/slakonet | Apache-2.0 | SlaKoNet: tight-binding Slater–Koster aprendido (bandas/DOS rápidas) — podado (vasprun dos testes) |
+| `atomvision` | atomgptlab/atomvision | NIST | AtomVision: redes para imagens STEM/TEM (classificação, segmentação) |
+| `chemnlp` | atomgptlab/chemnlp | MIT | ChemNLP: NLP de textos de química de materiais (fora do ambiente `jarvis`: exige ChemDataExtractor) |
+| `tb3py` | atomgptlab/tb3py | NIST | interface Python do ThreeBodyTB.jl (tight-binding de 3 corpos; exige Julia) |
+| `atombench` | atomgptlab/atombench | MIT | AtomBench: métricas de modelos generativos de cristais (design inverso) |
+| `agapi` | atomgptlab/agapi | Apache-2.0 | cliente da API AtomGPT.org (agentes; exige rede e chave) |
+| `jarvis-tools-notebooks` ⚠ | atomgptlab/jarvis-tools-notebooks | — | 160 tutoriais Colab (DFT, LAMMPS/JARVIS-FF, ALIGNN-FF, AtomGPT, InterMat…) — sem as saídas das células |
+| `JARVIS-FF` ⚠ | knc6/JARVIS-FF | — | **JARVIS-FF** original: scripts LAMMPS e dados (`data.json`: 3 291 cálculos, ~110 potenciais; `ec.json`) |
 
 ## O que foi podado (recuperável com `--full`)
 | Caminho | Tamanho | Motivo |
@@ -134,7 +156,10 @@ Usados por `tools/data_sources/` (ambiente `data-sources`); o inventário das fo
 | `shap/docs`, `shap/data` | 188 MB + 57 MB | apresentações/datasets de exemplo (baixados por `shap.datasets`) |
 | `BespokeSynthesisPlatform/Result/1_Chemistry_discovery/AI_decision_process/{513,573,667}nm.gif` | 96–97 MB cada | animações; os dados numéricos permanecem |
 | `mace/mace/calculators/foundations_models/mace-mpa-0-medium.model` | 76 MB | baixado automaticamente por `mace_mp(model="medium-mpa-0")` |
-| `jarvis-tools/jarvis/tests`, `jarvis-tools/jarvis/examples` | 198 MB + 30 MB | arquivos de teste VASP/Wannier e exemplos; o pacote fica completo |
+| `jarvis/jarvis-tools/jarvis/tests`, `jarvis/jarvis-tools/jarvis/examples/vasp` | 198 MB + 23 MB | arquivos de teste VASP/Wannier e exemplos VASP; o pacote e `examples/lammps` ficam |
+| `jarvis/jarvis_leaderboard/jarvis_leaderboard/contributions`; conjuntos > 5 MB de `benchmarks/` | 229 MB + ~200 MB | previsões enviadas por outros grupos; forças/tensões de MLFF (m3gnet_mpf, matpes, mptrj, alignn_ff_db) e qe_tb/ocp_all |
+| `jarvis/intermat/intermat/tests`, `jarvis/slakonet/slakonet/tests/vasprun*.xml` | 106 MB + 34 MB | saídas de DFT de teste |
+| saídas das células de `jarvis/jarvis-tools-notebooks` | 93 MB | imagens/tabelas das execuções no Colab; o código e o texto ficam (`tools/strip_notebook_outputs.py`) |
 | testes/docs/tutoriais de `causal-learn`, `MAPIE`, `ATHENA`, `pylabrobot`, `alabos`, `paper-qa`, `ivoryos`; `marker/data` | ~400 MB | só documentação, notebooks e dados de teste; os pacotes ficam completos |
 
 ## Arquivos LFS não incluídos (grandes demais para versionar aqui)

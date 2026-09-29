@@ -1,0 +1,184 @@
+site_name: AtomGPT.org API (AGAPI) Documentation
+site_url: https://atomgptlab.github.io/agapi
+site_description: Documentation for AtomGPT.org - 50+ web apps for materials science, AI, and quantum computation
+site_author: Kamal Choudhary
+repo_url: https://github.com/atomgptlab/agapi
+repo_name: atomgptlab/agapi
+edit_uri: edit/main/docs/
+
+copyright: "&copy; 2025 AtomGPTLab, Johns Hopkins University"
+
+theme:
+  name: material
+  logo: assets/logo.png
+  favicon: assets/favicon.png
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - toc.follow
+  font:
+    text: DM Sans
+    code: JetBrains Mono
+
+plugins:
+  - search
+  - tags
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/atomgptlab
+    - icon: fontawesome/brands/youtube
+      link: https://www.youtube.com/playlist?list=PLjf6vHVv7AoInTVQmfNSMs_12DBXYCcDd
+    - icon: fontawesome/brands/spotify
+      link: https://open.spotify.com/show/0BnqIOqf2D2cjlAsrqmTQs
+  analytics:
+    provider: google
+    property: G-DWX5E15SF5
+
+extra_css:
+  - stylesheets/extra.css
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - getting-started/index.md
+    - Quick Start: getting-started/quickstart.md
+    - Authentication: getting-started/authentication.md
+    - API Overview: getting-started/api-overview.md
+  - Apps:
+    - apps/index.md
+    - Explore:
+      - apps/explore/index.md
+      - Materials Explorer: apps/explore/materials-explorer.md
+      - Electronic DOS: apps/explore/electronic-dos.md
+      - Phonon DOS: apps/explore/phonon-dos.md
+      - Dielectric Function: apps/explore/dielectric-function.md
+      - Elastic Tensor: apps/explore/elastic-tensor.md
+      - Thermoelectric: apps/explore/thermoelectric.md
+      - EFG: apps/explore/efg.md
+      - Piezoelectric: apps/explore/piezoelectric.md
+      - IR Spectra: apps/explore/ir.md
+      - Spillage: apps/explore/spillage.md
+      - Vacancy Explorer: apps/explore/vacancy.md
+      - Surface Explorer: apps/explore/surface.md
+      - Interface Explorer: apps/explore/interface.md
+      - Interface Database: apps/explore/interface-db.md
+      - 2D Materials: apps/explore/twod.md
+      - Polymer Explorer: apps/explore/polymer.md
+      - Force Field DB: apps/explore/ff.md
+      - Periodic Table: apps/explore/periodic-table.md
+      - HEA Explorer: apps/explore/hea.md
+      - Reaction Network: apps/explore/reaction-network.md
+      - PDB Explorer: apps/explore/pdb-explorer.md
+      - OPTIMADE Explorer: apps/explore/optimade.md
+      - Convex Hull: apps/explore/convexhull.md
+      - Literature Explorer: apps/explore/literature.md
+      - OMIM Gene Explorer: apps/explore/omim.md
+      - SDSS SkyServer: apps/explore/sdss.md
+      - Web Browser: apps/explore/webbrowser.md
+      - Unit Converter: apps/explore/unit-converter.md
+      - Tokenizer Playground: apps/explore/tokenizer.md
+    - Build:
+      - apps/build/index.md
+      - Structure Visualizer: apps/build/structure-visualizer.md
+      - Heterostructure Builder: apps/build/heterostructure.md
+      - Polymer Chain Builder: apps/build/polymer-builder.md
+      - Workflow Builder: apps/build/workflow.md
+    - Predict:
+      - apps/predict/index.md
+      - ALIGNN Predictor: apps/predict/alignn.md
+      - ALIGNN-FF Dynamics: apps/predict/alignn-ff.md
+      - SlakoNet Bands: apps/predict/slakonet.md
+      - Wannier TB Bands: apps/predict/wtb.md
+      - Quantum Computation: apps/predict/quantum.md
+      - Protein Fold: apps/predict/protein-fold.md
+    - Characterize:
+      - apps/characterize/index.md
+      - XRD / DiffractGPT: apps/characterize/xrd.md
+      - Raman Matching: apps/characterize/raman.md
+      - MicroscopyGPT: apps/characterize/microscopy.md
+    - Apply:
+      - apps/apply/index.md
+      - SuperconGPT: apps/apply/supercon.md
+      - Solar Cell Screening: apps/apply/solar.md
+      - Battery Explorer: apps/apply/battery.md
+      - Catalysis: apps/apply/catalysis.md
+      - Direct Air Capture: apps/apply/dac.md
+      - HardMat: apps/apply/hardmat.md
+      - MeltMat: apps/apply/meltmat.md
+      - PourbaixMat: apps/apply/pourbaix.md
+    - Validate:
+      - apps/validate/index.md
+      - AI Detector: apps/validate/ai-detector.md
+      - Hallucination Detector: apps/validate/hallucination.md
+  - API Reference:
+    - api/index.md
+    - Python Client: api/python-client.md
+    - REST Endpoints: api/rest-endpoints.md
+    - AGAPI Agents: api/agents.md
+    - OPTIMADE: api/optimade.md
+  - Tutorials:
+    - tutorials/index.md
+    - Getting Started with JARVIS: tutorials/jarvis-basics.md
+    - ML Property Prediction: tutorials/ml-prediction.md
+    - ALIGNN-FF Molecular Dynamics: tutorials/alignn-ff-md.md
+    - Quantum VQE for Solids: tutorials/quantum-vqe.md
+    - Building Custom Apps: tutorials/custom-apps.md
+  - References:
+    - references/index.md
+    - Publications: references/publications.md
+    - Changelog: references/changelog.md

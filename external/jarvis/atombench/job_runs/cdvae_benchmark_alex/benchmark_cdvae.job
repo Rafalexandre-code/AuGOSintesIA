@@ -1,0 +1,35 @@
+#!/bin/bash
+#SBATCH --job-name=cdvae_alex
+#SBATCH --gres=gpu:1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=8
+#SBATCH --output=slurm_alex_cdvae_benchmark.out
+
+
+
+module load cuda/11.5.0
+eval "$(conda shell.bash hook)"
+conda activate cdvae
+export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"
+nvidia-smi
+unset ROOT
+unset PROJECT_ROOT
+source scripts/absolute_path.sh
+export PROJECT_ROOT="${ABS_PATH%/}/models/cdvae"
+export HYDRA_JOBS="${ABS_PATH%/}/job_runs/cdvae_benchmark_alex/hydra_outputs"
+export HYDRA_FULL_ERROR="1"
+export WABDB_DIR="${ABS_PATH%/}/job_runs/cdvae_benchmark_alex/wandb_outputs"
+#export WANDB_MODE="offline"
+source scripts/wandb_api_key.sh
+
+echo "running python script"
+python job_runs/cdvae_benchmark_alex/write_benchmark.py \
+    --run_dir job_runs/cdvae_benchmark_alex/hydra_outputs/singlerun/????-??-??/alexandria \
+    --use_tensor recon \
+    --data_dir models/cdvae/data/alexandria \
+    --split    test \
+    --output_csv job_runs/cdvae_benchmark_alex/AI-AtomGen-prop-dft_3d-test-rmse.csv \
+    --dump_json job_runs/cdvae_benchmark_alex/alexandria_cdvae.json
+echo "Done"
+
+

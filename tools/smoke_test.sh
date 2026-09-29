@@ -15,7 +15,7 @@ LOG="${SMOKE_LOG:-$ROOT/outputs/smoke_test.log}"; mkdir -p "$(dirname "$LOG")"; 
 export WANDB_MODE=disabled MPLBACKEND=Agg PYTHONDONTWRITEBYTECODE=1 EIS_INTERACTIVE=0
 install=0; names=()
 for a in "$@"; do case "$a" in --install) install=1 ;; -h|--help) sed -n '2,9p' "$0"; exit 0 ;; *) names+=("$a") ;; esac; done
-ALL=(data-sources core sdl bgolearn ramboau chem-mfbo bocode go-mace text-mined qubot-scripts matdesinne)
+ALL=(data-sources core jarvis atomgpt sdl bgolearn ramboau chem-mfbo bocode go-mace text-mined qubot-scripts matdesinne)
 [ "${#names[@]}" -eq 0 ] && names=("${ALL[@]}")
 
 copy() { local t; t="$(mktemp -d)"; cp -r "$ROOT/$1" "$t/"; echo "$t/$(basename "$1")"; }
@@ -61,6 +61,57 @@ EOF
   # código do projeto (code/): espectral, caracterização, Designer (4 braços, LBO, novelty), causal, estatística;
   # inclui o laço completo com o laboratório simulado e as tabelas validadas
   py -m pytest code/tests -q -p no:cacheprovider -W ignore 2>&1 | tail -1
+}
+
+t_jarvis() {
+  # ecossistema JARVIS (external/jarvis) + code/atomistic; tudo offline, exceto os pesos do MACE-MP (GitHub)
+  cd "$ROOT"
+  local t; t="$(mktemp -d)"
+  export JARVIS_OFFLINE_CACHE="$t/cache"
+  py -m pytest code/tests/test_atomistic.py -q -p no:cacheprovider -W ignore 2>&1 | tail -1
+  py code/atomistic/jarvis_data.py build-offline >/dev/null
+  echo "JARVIS-DFT offline: $(py code/atomistic/jarvis_data.py status | grep -c true) fontes ok"
+  # JARVIS-FF (LAMMPS/EAM) e MLFF contra o JARVIS-DFT; CHIPS-FF para o Au
+  py code/atomistic/jarvis_ff.py --calculators lammps-eam emt --out "$t" 2>/dev/null | grep -E "^ *(lammps-eam|emt) "
+  echo "CHIPS-FF (MACE-MP), superfícies comparadas com o DFT: $(cd "$t" && py "$ROOT/code/atomistic/chipsff_run.py" \
+       --jid JVASP-825 --calculators mace --steps 60 \
+       --properties relax_structure calculate_ev_curve analyze_surfaces analyze_defects 2>/dev/null | grep -c surf_en_entry)"
+  # JARVIS-ML: ALIGNN treinado nos dados de exemplo do próprio ALIGNN
+  cp -r external/jarvis/alignn/alignn/examples/sample_data "$t/sd"
+  (cd "$t" && "$ROOT/.venvs/$ENV/bin/train_alignn.py" --root_dir sd --config sd/config_example.json --output_dir a1 >/dev/null 2>&1)
+  [ -f "$t/a1/best_model.pt" ] && echo "ALIGNN treinado (sample_data)"
+  # design inverso GO–Au: screen → ALIGNN/ALIGNN-FF → predict → BO → interface (EMT só para ser rápido)
+  py code/atomistic/go_au.py screen --calc emt --oc 0.1 0.3 --foh 0.0 1.0 --reps 1 --nx 3 --nz 2 --steps 20 \
+     --save-frames --outdir "$t/scr" >/dev/null 2>&1
+  py code/atomistic/go_au.py train-alignn "$t/scr" --epochs 2 2>/dev/null | tail -1
+  py code/atomistic/go_au.py train-alignn-ff "$t/scr" --epochs 1 2>/dev/null | tail -1
+  py code/atomistic/go_au.py predict "$t/scr/alignn" --oc 0.2 --foh 0.5 --reps 1 --nx 3 --nz 2 2>/dev/null | tail -1
+  echo "BO GO–Au (resumos): $(py code/atomistic/go_au.py design --calc emt --target -1.0 --n-init 3 --n-iter 1 --reps 1 \
+       --nx 3 --nz 2 --steps 10 --outdir "$t/des" 2>/dev/null | grep -c '"melhor"')"
+  py code/atomistic/go_au.py interface --calc emt --separations 3.2 2>/dev/null | grep -o '"W_ad_J_m2": [-0-9.e]*'
+  rm -rf "$t"
+}
+
+t_atomgpt() {
+  # AtomGPT: a parte em CPU (modelo direto, conversão estrutura <-> texto usada pelo modelo inverso); o modelo inverso
+  # (LLM + LoRA) importa kernels CUDA e só é testado com GPU. Pesos: jarvis_data.py download --hf <repo> (com rede).
+  cd "$ROOT"
+  py - <<'EOF'
+import numpy as np
+from jarvis.core.atoms import Atoms
+from atomgpt.inverse_models.utils import get_crystal_string_t, text2atoms
+import atomgpt.forward_models.forward_models  # noqa: F401
+au = Atoms(lattice_mat=np.eye(3) * 4.08, coords=[[0, 0, 0], [.5, .5, 0], [.5, 0, .5], [0, .5, .5]],
+           elements=["Au"] * 4, cartesian=False)
+back = text2atoms("\n" + get_crystal_string_t(au))
+assert back.composition.reduced_formula == "Au" and abs(back.volume - au.volume) < 0.1
+print("AtomGPT: modelo direto importado, estrutura <-> texto ok")
+EOF
+  if command -v nvidia-smi >/dev/null && nvidia-smi >/dev/null 2>&1; then
+    py -c "import atomgpt.inverse_models.inverse_models; print('AtomGPT inverso importado (GPU)')"
+  else
+    echo "AtomGPT inverso: requer GPU NVIDIA (não testado nesta máquina)"
+  fi
 }
 
 t_sdl() {

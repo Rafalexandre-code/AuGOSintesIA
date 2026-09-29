@@ -20,7 +20,7 @@ qubot-zenodo	Qubots (Open-source modular lab robots)	zenodo	21530328	https://zen
 qubot-code	Qubot (hardware)	github	mat-fox/qubot	https://github.com/mat-fox/qubot	projects/self-driving-lab/qubot/hardware	presente	CAD/STL/manuais (idênticos)
 sdl	AbolhasaniLab/SDL	github	AbolhasaniLab/SDL	https://github.com/AbolhasaniLab/SDL	projects/bayesian-optimization/SDL	presente	laço de BO didático com ruído
 m2hub	M²Hub	github	yuanqidu/M2Hub	https://github.com/yuanqidu/M2Hub	projects/materials-ml/M2Hub	presente	GNNs de propriedades; usa tarefas do JARVIS
-jarvis	JARVIS (NIST)	api	-	https://jarvis.nist.gov	external/data-access/jarvis-tools	cliente	DFT/ML de materiais (camada computacional; jarvis-tools baixa os dados sob demanda)
+jarvis	JARVIS (NIST)	api	-	https://jarvis.nist.gov	external/jarvis	cliente	JARVIS-DFT/FF/ML/Tools/Leaderboard (15 repositórios; code/atomistic/jarvis_data.py: figshare ou reconstrução offline do dft_3d)
 matdesinne	MatDesINNe	github	jxzhangjhu/MatDesINNe	https://github.com/jxzhangjhu/MatDesINNe	projects/inverse-design/MatDesINNe	presente	design inverso com redes invertíveis
 nanocommons	NanoCommons KnowledgeBase / eNanoMapper / ACEnano	web	-	https://search.data.enanomapper.net	datasets/data-model|external/data-access/pynanomapper	modelo adotado	modelo de dados (substância→protocolo→medida com incerteza)
 nist-mdr	NIST Materials Data Repository	web	-	https://materialsdata.nist.gov	-	depósito	repositório para depositar o dataset final (DSpace/CDCS)

@@ -3,7 +3,8 @@
 Código próprio da proposta, organizado pelas seções do projeto FAPESP. `tools/data_sources/build_deposit.py` copia
 estas pastas para o depósito [`GO-AuNP-Autonomous-Design`](../deposit/GO-AuNP-Autonomous-Design/README.md).
 Ambiente: `tools/setup_env.sh core && source .venvs/core/bin/activate`. Testes: `python -m pytest code/tests -q`
-(21 testes; sinais com parâmetros conhecidos, laço completo simulado e regressões dos bugs corrigidos).
+(21 testes; sinais com parâmetros conhecidos, laço completo simulado e regressões dos bugs corrigidos). O módulo
+`atomistic/` usa o ambiente `jarvis` (10 testes em `code/tests/test_atomistic.py`, pulados no `core`).
 
 | Pasta | Seção | O que faz |
 |---|---|---|
@@ -13,6 +14,7 @@ Ambiente: `tools/setup_env.sh core && source .venvs/core/bin/activate`. Testes: 
 | [`aunp_designer/`](aunp_designer/designer.py) | §4.5, §4.7, §4.13, §4.17, §4.18 | **AuNP Designer**: GP Matérn-5/2 + ARD por objetivo; os **4 braços** da proposta (`recipe`, `batch` = GP multitarefa com o lote como tarefa, `go` = descritores do GO, `go+impurities` = + impurezas dos reagentes); qLogNEHVI ou qNEHVI; incerteza medida como ruído heteroscedástico; log(J + ε); seleção **novelty-aware** (w·a + (1−w)·n); **leave-one-batch-out** (RMSE, cobertura do IC 95 %); **SHAP** com estabilidade por bootstrap; propostas com bloco e ordem aleatorizada; `run_metadata.json` com commit, pacotes, semente e hash das tabelas |
 | [`benchmarking/`](benchmarking) | §4.11, §4.15, §4.18 | `simulator.py` + `sim_lab.py`: laboratório **simulado** (lotes de GO, impurezas, hardware; espectros por Mie; J pelo mesmo `uvvis.py`) gravado no modelo de dados. `campaign_sim.py`: campanha com os braços + aleatório, mesma inicialização (4 receitas × L1–L3) e orçamento; desfecho primário = melhor perda acumulada por rodada, média entre lotes. `stats.py`: HV/IGD/spread (pymoo), Friedman, Wilcoxon + Holm, bootstrap pareado, poder por reamostragem |
 | [`causal/`](causal/causal_analysis.py) | §4.9 | DAG GO–AuNP explícito (editável; exporta DOT/GML), estimação por backdoor no DoWhy com IC e 3 refutações, **E-value** (VanderWeele & Ding), descoberta exploratória por PC (causal-learn) |
+| [`atomistic/`](atomistic/README.md) | §4.2, §4.5 | **design inverso atomístico GO–Au com o ecossistema JARVIS**: JARVIS-DFT (inclusive reconstrução offline), JARVIS-FF (LAMMPS), CHIPS-FF, ALIGNN/ALIGNN-FF, InterMat; E_ads(Au_n) × química do GO (O/C, f_OH) por MLFF e BO até um alvo (ambiente `jarvis`) |
 | [`sustainability/`](sustainability/metrics.py) | §4.14 | E-factor, EcoScale (penalidade de rendimento calculada; as demais vêm da tabela de Van Aken et al. 2006) e **custo por informação útil** (CPU) |
 
 ```bash

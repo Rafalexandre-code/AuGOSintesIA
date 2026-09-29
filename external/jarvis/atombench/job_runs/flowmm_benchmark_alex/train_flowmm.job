@@ -1,0 +1,45 @@
+#!/bin/bash
+#SBATCH --job-name=flow_alex
+#SBATCH --gres=gpu:1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=8
+#SBATCH --output=slurm_alex_flowmm_train.out
+
+
+# setup
+eval "$(conda shell.bash hook)"
+source scripts/wandb_api_key.sh
+source scripts/absolute_path.sh
+module load cuda/11.5.0
+conda activate flowmm
+export HYDRA_FULL_ERROR="1"
+export WABDB_DIR="${ABS_PATH%/}/job_runs/flowmm_benchmark_alex/outputs/wandb_outputs"
+export FLOWMM_RUN_ROOT="${ABS_PATH%/}/job_runs/flowmm_benchmark_alex/outputs"
+
+SECONDS=0
+start_iso="$(date -Iseconds)"
+
+# commands
+nvidia-smi
+cd models/flowmm/
+bash create_env_file.sh
+python -u -m scripts_model.run \
+             data=alexandria \
+             model=null_params \
+             hydra.run.dir=$FLOWMM_RUN_ROOT \
+             train.model_checkpoints.save_top_k=1 \
+             train.pl_trainer.max_epochs=10 \
+             logging.val_check_interval=1 \
+             train.model_checkpoints.save_last=false \
+
+echo "Done"
+
+elapsed="$SECONDS"
+end_iso="$(date -Iseconds)"
+
+printf "Start: %s\nEnd:   %s\nElapsed: %ds (%.2f min, %.2f hr)\n" \
+  "$start_iso" "$end_iso" "$elapsed" \
+  "$(awk "BEGIN{print $elapsed/60}")" \
+  "$(awk "BEGIN{print $elapsed/3600}")"
+
+	
