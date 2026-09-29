@@ -17,6 +17,8 @@ from peft import PeftModel
 import numpy as np
 from collections import defaultdict
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
 def str2bool(s: str) -> bool:
     return s.lower() in ("1", "true", "t", "y", "yes")
 
@@ -34,12 +36,21 @@ def parse_gen_args():
     parser.add_argument("--batch-size", type=int, default=4, help="Batch size for batch inference")
     parser.add_argument("--bucket-size", type=int, default=8, help="Bucket size for bucketing")
     parser.add_argument("--use-flash-attention", type=str2bool, default=True, help="Whether to use Flash Attention 2")
+    # Paths (defaults are relative to this script's folder; env vars also accepted)
+    parser.add_argument("--base-model", default=os.environ.get("QWEN_BASE_MODEL", os.path.join(SCRIPT_DIR, "Qwen3-14B")),
+                        help="Base model directory (download from https://huggingface.co/Qwen/Qwen3-14B)")
+    parser.add_argument("--saves-path", default=os.environ.get("QWEN_SAVES_PATH", os.path.join(SCRIPT_DIR, "saves")),
+                        help="LoRA adapter dir (its checkpoint-* subfolders are tested too), e.g. from https://huggingface.co/Kai-gu/Qwen3-14B-finetune")
+    parser.add_argument("--test-data", default=os.environ.get("QWEN_TEST_DATA", os.path.join(SCRIPT_DIR, "test_labels.json")),
+                        help="Alpaca-format JSON with instruction/input/output")
+    parser.add_argument("--output-dir", default=os.environ.get("QWEN_OUTPUT_DIR", os.path.join(SCRIPT_DIR, "outputs")),
+                        help="Where optimized_results_<model>.json files are written (results/ keeps the paper outputs)")
     return vars(parser.parse_args())
 
 def load_test_data(file_path: str = None):
     """Load test dataset"""
     if file_path is None:
-        test_data_path = "/root/autodl-tmp/test_labels.json"
+        test_data_path = os.path.join(SCRIPT_DIR, "test_labels.json")
     else:
         test_data_path = file_path
     
@@ -388,7 +399,8 @@ def run_optimized_inference(model, tokenizer, test_samples: List[Dict], gen_args
         }
     }
 
-def test_single_optimized_model(base_model_path: str, adapter_path: str, test_data: List[Dict], gen_args: Dict = None):
+def test_single_optimized_model(base_model_path: str, adapter_path: str, test_data: List[Dict], gen_args: Dict = None,
+                                output_dir: str = os.path.join(SCRIPT_DIR, "outputs")):
     """Test single optimized model"""
     model_name = os.path.basename(adapter_path)
     print(f"\n" + "="*80)
@@ -414,7 +426,8 @@ def test_single_optimized_model(base_model_path: str, adapter_path: str, test_da
         results = run_optimized_inference(model, tokenizer, test_data, gen_args)
         
         # Save results
-        output_path = f"/root/autodl-tmp/optimized_results_{model_name}.json"
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_dir, f"optimized_results_{model_name}.json")
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(results, f, ensure_ascii=False, indent=2)
         
@@ -455,13 +468,18 @@ def main():
     
     # Parse command line arguments
     gen_args = parse_gen_args()
+
+    # Configuration (paths come from CLI flags / env vars; see parse_gen_args)
+    base_model_path = gen_args.pop("base_model")
+    saves_path = gen_args.pop("saves_path")
+    test_data_path = gen_args.pop("test_data")
+    output_dir = gen_args.pop("output_dir")
     print(f"📋 Using generation arguments: {gen_args}")
-    
-    # Configuration
-    base_model_path = "/root/autodl-tmp/Qwen3-14B"
-    saves_path = "/root/autodl-tmp/saves/checkpoint-1476"
-    test_data_path = "/root/autodl-tmp/inference_dataset_filtered_8192.json"
-    
+    for label, p in (("Base model", base_model_path), ("Adapter/saves", saves_path), ("Test data", test_data_path)):
+        if not os.path.exists(p):
+            print(f"❌ {label} not found: {p}")
+            return
+
     # Get all model paths to test and sort them
     model_paths = [os.path.join(saves_path, d) for d in os.listdir(saves_path) if d.startswith("checkpoint-")]
     model_paths.sort(key=lambda x: int(x.split('-')[-1]))  # Sort by checkpoint number
@@ -485,7 +503,7 @@ def main():
         print(f"\n=== Start testing model {i+1}/{len(model_paths)}: {model_name} ===")
         
         # Test single model, pass generation arguments
-        if test_single_optimized_model(base_model_path, adapter_path, test_data, gen_args):
+        if test_single_optimized_model(base_model_path, adapter_path, test_data, gen_args, output_dir=output_dir):
             success_count += 1
         
         # Force garbage collection between models

@@ -1,5 +1,5 @@
 ### model
-model_name_or_path: /root/autodl-tmp/Qwen3-14B
+model_name_or_path: Qwen3-14B  # relative to this folder (train.py runs here); or a HF id: Qwen/Qwen3-14B
 enable_liger_kernel: true 
 flash_attn: fa2
 
@@ -14,14 +14,14 @@ lora_dropout: 0.05
 
 ### dataset
 dataset: raw_training_data
-dataset_dir: /root/autodl-tmp
+dataset_dir: .  # folder with dataset_info.json
 template: qwen3
 cutoff_len: 8192
 overwrite_cache: true
 preprocessing_num_workers: 8 
 
 ### output
-output_dir: /root/autodl-tmp/saves/qwen3-14B-lora-1020(3)
+output_dir: saves/qwen3-14B-lora
 logging_steps: 10
 save_steps: 369
 plot_loss: true
