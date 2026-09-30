@@ -98,7 +98,7 @@ def get_calculator(name: str = "mace-mp", model_path: str | None = None, device:
                 path = default_path()   # baixa do figshare na primeira vez (bloqueado no contêiner de nuvem)
             except Exception as err:     # noqa: BLE001 — a mensagem abaixo diz o que fazer
                 raise RuntimeError("modelo ALIGNN-FF pré-treinado indisponível (figshare). Rode com rede: python "
-                                   "code/atomistic/jarvis_data.py download --alignn-ff v12.2.2024_mp_1.5mill, ou "
+                                   "code/atomistic/jarvis_data.py download --alignn-ff matpes_r2scan, ou "
                                    "passe --model-path de um ALIGNN-FF treinado (go_au.py train-alignn-ff).") from err
         return AlignnAtomwiseCalculator(path=path, device=device)
     if name == "chgnet":

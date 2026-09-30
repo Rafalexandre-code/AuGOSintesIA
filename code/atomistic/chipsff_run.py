@@ -37,7 +37,7 @@ def run(calc, jid=None, structure=None, ref_jid=None, properties=FAST, surfaces=
         outdir=None, steps=200):
     if not JD.figshare_reachable():
         JD.use_offline_cache()
-        if not os.path.isfile(os.path.join(JD.offline_cache_dir(), "jarvis_data", JD.DFT3D_TAG + ".zip")):
+        if not os.path.isfile(os.path.join(JD.offline_cache_dir(), "jarvis_data", JD.dft3d_tag() + ".zip")):
             JD.build_offline_dft3d()
         JD.build_offline_defects()   # vacancydb/surfacedb (rápido)
     from chipsff.general_material_analyzer import MaterialsAnalyzer

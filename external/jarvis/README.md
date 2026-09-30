@@ -40,9 +40,20 @@ tools/smoke_test.sh jarvis                                          # verifica c
 | `lammps` (PyPI) | `liblammps` precisa de `libmpi.so.12` | `lammps[mpi]` (MPICH do PyPI); o executável `lmp` funciona direto |
 
 ## O que só funciona com rede para figshare / Hugging Face
-Rode uma vez numa máquina com acesso e copie `~/.cache/atomgptlab` (ou defina `ATOMGPTLAB_CACHE`):
+Rode uma vez numa máquina com acesso. Os arquivos ficam em `~/.cache/atomgptlab` (conjuntos, ALIGNN-FF, SlaKoNet) e
+`~/.alignn2_models` (ALIGNN 2.0); `jarvis_data.py models` lista os nomes aceitos e `status` mostra o que já está lá.
 ```bash
 python code/atomistic/jarvis_data.py download --datasets dft_3d dft_2d jff vacancydb surfacedb alignn_ff_db \
-       --alignn-ff v12.2.2024_dft_3d_307k --alignn jv_formation_energy_peratom_alignn \
-       --slakonet slakonet_v1a --hf knc6/atomgpt_mistral_tc_supercon
+       --alignn formation_energy_peratom_radius optb88vdw_bandgap_radius \
+       --alignn-ff matpes_r2scan --slakonet slakonet_v1a --hf knc6/atomgpt_mistral_tc_supercon
 ```
+No Windows (PowerShell) basta um ambiente mínimo, sem LAMMPS/MPI:
+```powershell
+python -m venv .venvs\jarvis-dl
+.venvs\jarvis-dl\Scripts\python.exe -m pip install jarvis-tools alignn slakonet huggingface_hub
+.venvs\jarvis-dl\Scripts\python.exe code\atomistic\jarvis_data.py download --datasets dft_3d dft_2d jff vacancydb surfacedb --alignn formation_energy_peratom_radius optb88vdw_bandgap_radius --alignn-ff matpes_r2scan --slakonet slakonet_v1a
+```
+Os modelos antigos `jv_*_alignn` usam o carregador DGL (quebra sem o DGL); o `download` troca-os pelo equivalente
+ALIGNN 2.0 (`*_radius`). No ALIGNN-FF, `matpes_r2scan` (padrão atual, r²SCAN) e `matpes_pbe` são PyTorch puro; os
+modelos `v*.2024` (ex.: `v12.2.2024_dft_3d_307k`) são do formato antigo e exigem DGL para rodar. O nome do arquivo do dft_3d depende da versão do jarvis-tools (`jdft_3d-12-12-2022` na cópia
+de `external/jarvis`, `jdft_3d-9-24-2025` no PyPI 2026.6); `jarvis_data.py` pergunta ao jarvis-tools instalado.

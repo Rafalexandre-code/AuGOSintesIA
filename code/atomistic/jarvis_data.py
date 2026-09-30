@@ -19,8 +19,10 @@ Uso:
     python code/atomistic/jarvis_data.py search --elements Au          # entradas com as propriedades disponíveis
     python code/atomistic/jarvis_data.py leaderboard dft_3d_formation_energy_peratom --out fe.csv
     python code/atomistic/jarvis_data.py jff --elements Au             # JARVIS-FF (dados LAMMPS versionados)
-    python code/atomistic/jarvis_data.py download --datasets dft_3d dft_2d jff vacancydb surfacedb \
-           --alignn-ff v12.2.2024_dft_3d_307k --slakonet slakonet_v1a --hf knc6/atomgpt_mistral_tc_supercon
+    python code/atomistic/jarvis_data.py download --datasets dft_3d dft_2d jff vacancydb surfacedb \\
+           --alignn formation_energy_peratom_radius optb88vdw_bandgap_radius \\
+           --alignn-ff matpes_r2scan --slakonet slakonet_v1a --hf knc6/atomgpt_mistral_tc_supercon
+    python code/atomistic/jarvis_data.py models                        # nomes aceitos por download
 """
 from __future__ import annotations
 
@@ -37,7 +39,18 @@ JARVIS_EXT = os.path.join(ROOT, "external", "jarvis")
 LEADERBOARD = os.path.join(JARVIS_EXT, "jarvis_leaderboard", "jarvis_leaderboard", "benchmarks")
 ATOMGPT_STRUCTS = os.path.join(JARVIS_EXT, "atomgpt", "atomgpt", "data", "chemnlp_new_desc.json.zip")
 JFF_LEGACY = os.path.join(JARVIS_EXT, "JARVIS-FF", "data.json")
-DFT3D_TAG = "jdft_3d-12-12-2022.json"   # mesmo nome do arquivo do figshare (jarvis.db.figshare.get_db_info)
+DFT3D_TAG = "jdft_3d-12-12-2022.json"   # padrão da cópia em external/jarvis; ver dft3d_tag()
+
+
+def dft3d_tag() -> str:
+    """Nome do arquivo do dft_3d que o jarvis-tools INSTALADO procura (muda entre versões: a cópia de external/jarvis
+    usa jdft_3d-12-12-2022, o jarvis-tools 2026.6 do PyPI usa jdft_3d-9-24-2025)."""
+    try:
+        from jarvis.db.figshare import get_db_info
+
+        return get_db_info()["dft_3d"][1]
+    except Exception:   # noqa: BLE001 — sem jarvis-tools, vale o nome padrão
+        return DFT3D_TAG
 
 
 def offline_cache_dir() -> str:
@@ -161,9 +174,10 @@ def build_offline_dft3d(cache: str | None = None, limit: int | None = None) -> s
         out.append(rec)
     dest = os.path.join(cache, "jarvis_data")
     os.makedirs(dest, exist_ok=True)
-    path = os.path.join(dest, DFT3D_TAG + ".zip")
+    tag = dft3d_tag()
+    path = os.path.join(dest, tag + ".zip")
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr(DFT3D_TAG, json.dumps(out))
+        z.writestr(tag, json.dumps(out))
     with open(os.path.join(dest, "LEIA-ME.txt"), "w", encoding="utf-8") as fh:
         fh.write("Reconstrução OFFLINE do JARVIS-DFT 3D (jdft_3d-12-12-2022), feita por code/atomistic/jarvis_data.py\n"
                  "a partir de external/jarvis/{atomgpt (estruturas), jarvis_leaderboard (propriedades)}.\n"
@@ -214,18 +228,18 @@ def dft3d(prefer: str = "auto"):
     """Lista de registros do JARVIS-DFT 3D. prefer: 'auto' (original se estiver no cache ou o figshare responder;
     senão a reconstrução offline), 'original' ou 'offline'."""
     real = os.path.join(real_cache_dir(), "jarvis_data")
-    if prefer == "original" or (prefer == "auto" and (os.path.isfile(os.path.join(real, DFT3D_TAG + ".zip"))
+    if prefer == "original" or (prefer == "auto" and (os.path.isfile(os.path.join(real, dft3d_tag() + ".zip"))
                                                       or figshare_reachable())):
         from jarvis.db.figshare import data
 
         os.makedirs(real, exist_ok=True)
         return data("dft_3d", store_dir=real)
-    path = os.path.join(offline_cache_dir(), "jarvis_data", DFT3D_TAG + ".zip")
+    path = os.path.join(offline_cache_dir(), "jarvis_data", dft3d_tag() + ".zip")
     if not os.path.isfile(path):
         print("figshare inacessível: montando a reconstrução offline do dft_3d…", file=sys.stderr)
         build_offline_dft3d()
     with zipfile.ZipFile(path) as z:
-        return json.loads(z.read(DFT3D_TAG))
+        return json.loads(z.read(z.namelist()[0]))
 
 
 def search(records, elements=(), only=False, max_atoms=None, require=()):
@@ -260,33 +274,80 @@ def jff_legacy():
 
 
 # ---------------------------------------------------------------------------------------- download (com rede)
-def download(datasets=(), alignn=(), alignn_ff=(), slakonet=(), hf=()):
-    """Baixa conjuntos do figshare e modelos pré-treinados para os caches do jarvis-tools/ALIGNN/SlaKoNet e do
-    Hugging Face (AtomGPT). Rodar numa máquina com rede; depois os scripts funcionam offline."""
-    from jarvis.db.figshare import data
+def _alignn2_name(name: str) -> str:
+    """Aceita os nomes do ALIGNN 2.0 (ex.: formation_energy_peratom_radius) e traduz os antigos (jv_*_alignn), cujo
+    carregador exige DGL e quebra sem ele ('NoneType' object is not callable em AvgPooling)."""
+    from alignn.pretrained import ALIGNN2_MODELS
 
-    for name in datasets:
-        print(f"[dados] {name}: {len(data(name))} registros")
+    if name in ALIGNN2_MODELS:
+        return name
+    if name.startswith("jv_") and name.endswith("_alignn"):
+        new = name[len("jv_"):-len("_alignn")] + "_radius"
+        if new in ALIGNN2_MODELS:
+            print(f"[ALIGNN] '{name}' é um modelo antigo (DGL); usando o equivalente ALIGNN 2.0 '{new}'")
+            return new
+    raise KeyError(f"modelo ALIGNN desconhecido: {name} (veja: jarvis_data.py models)")
+
+
+def list_models() -> None:
+    """Nomes aceitos por `download` (ALIGNN 2.0, ALIGNN-FF, SlaKoNet, conjuntos do figshare)."""
+    from alignn.ff.ff import get_all_models
+    from alignn.pretrained import ALIGNN2_MODELS
+    from jarvis.db.figshare import get_db_info
+
+    print("--alignn (ALIGNN 2.0, PyTorch puro; *_radius e *_knn):")
+    for k, v in ALIGNN2_MODELS.items():
+        print(f"  {k:48s} {v.get('description', '')}")
+    print("\n--alignn-ff:", " ".join(sorted(get_all_models())))
+    try:
+        from slakonet.optim import SLAKONET_MODELS
+
+        print("\n--slakonet:", " ".join(SLAKONET_MODELS))
+    except ImportError:
+        pass
+    print("\n--datasets:", " ".join(sorted(get_db_info())))
+
+
+def download(datasets=(), alignn=(), alignn_ff=(), slakonet=(), hf=()) -> list:
+    """Baixa conjuntos do figshare e modelos pré-treinados para os caches do jarvis-tools (~/.cache/atomgptlab), do
+    ALIGNN 2.0 (~/.alignn2_models), do SlaKoNet e do Hugging Face (AtomGPT). Rodar numa máquina com rede; depois os
+    scripts funcionam offline. Uma falha não interrompe os outros itens; devolve a lista de falhas."""
+    falhas = []
+
+    def tenta(rotulo, fn):
+        try:
+            print(f"[{rotulo}] {fn()}")
+        except Exception as err:   # noqa: BLE001 — registra e segue para o próximo item
+            falhas.append(f"{rotulo}: {type(err).__name__}: {err}")
+            print(f"[{rotulo}] FALHOU: {type(err).__name__}: {err}", file=sys.stderr)
+
+    if datasets:
+        from jarvis.db.figshare import data
+
+        for name in datasets:
+            tenta(f"dados {name}", lambda n=name: f"{len(data(n))} registros")
     if alignn:
-        from alignn.pretrained import get_figshare_model
+        from alignn.pretrained import get_alignn2_model
 
         for name in alignn:
-            get_figshare_model(name)
-            print(f"[ALIGNN] {name} ok")
+            tenta(f"ALIGNN {name}", lambda n=name: get_alignn2_model(_alignn2_name(n)).get("best_model.pt"))
     if alignn_ff:
         from alignn.ff.ff import get_figshare_model_ff
 
         for name in alignn_ff:
-            print(f"[ALIGNN-FF] {name}: {get_figshare_model_ff(model_name=name)}")
+            tenta(f"ALIGNN-FF {name}", lambda n=name: get_figshare_model_ff(model_name=n))
     for name in slakonet:
         from slakonet.optim import default_model
 
-        default_model(model_name=name)
-        print(f"[SlaKoNet] {name} ok")
+        tenta(f"SlaKoNet {name}", lambda n=name: (default_model(model_name=n), "ok")[1])
     for repo in hf:
         from huggingface_hub import snapshot_download
 
-        print(f"[Hugging Face] {repo}: {snapshot_download(repo)}")
+        tenta(f"Hugging Face {repo}", lambda r=repo: snapshot_download(r))
+    print(f"\n{'tudo baixado' if not falhas else f'{len(falhas)} falha(s):'}")
+    for f in falhas:
+        print("  -", f)
+    return falhas
 
 
 def status() -> dict:
@@ -296,7 +357,10 @@ def status() -> dict:
         "cache_jarvis": real,
         "conjuntos_no_cache": sorted(os.path.basename(p)[:-4] for p in glob.glob(os.path.join(real, "jarvis_data", "*.zip"))),
         "modelos_alignn_ff": sorted(os.path.basename(p) for p in glob.glob(os.path.join(real, "alignn_ff", "*"))),
-        "reconstrucao_offline": os.path.isfile(os.path.join(offline_cache_dir(), "jarvis_data", DFT3D_TAG + ".zip")),
+        "modelos_alignn2": sorted(os.path.basename(p) for p in glob.glob(os.path.join(os.path.expanduser("~"),
+                                                                                     ".alignn2_models", "*"))),
+        "modelos_slakonet": sorted(os.path.basename(p) for p in glob.glob(os.path.join(real, "slakonet", "*"))),
+        "reconstrucao_offline": os.path.isfile(os.path.join(offline_cache_dir(), "jarvis_data", dft3d_tag() + ".zip")),
         "benchmarks_leaderboard_versionados": len(leaderboard_files()),
         "estruturas_atomgpt": os.path.isfile(ATOMGPT_STRUCTS),
         "jarvis_ff_legado": os.path.isfile(JFF_LEGACY),
@@ -308,6 +372,7 @@ def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("status")
+    sub.add_parser("models", help="nomes de modelos e conjuntos aceitos por download")
     b = sub.add_parser("build-offline")
     b.add_argument("--limit", type=int)
     s = sub.add_parser("search")
@@ -324,8 +389,8 @@ def main(argv=None) -> None:
     j.add_argument("--elements", nargs="*", default=[])
     d = sub.add_parser("download")
     d.add_argument("--datasets", nargs="*", default=[])
-    d.add_argument("--alignn", nargs="*", default=[], help="ex.: jv_formation_energy_peratom_alignn")
-    d.add_argument("--alignn-ff", nargs="*", default=[], help="ex.: v12.2.2024_dft_3d_307k")
+    d.add_argument("--alignn", nargs="*", default=[], help="ALIGNN 2.0, ex.: formation_energy_peratom_radius")
+    d.add_argument("--alignn-ff", nargs="*", default=[], help="ex.: matpes_r2scan (padrão do ALIGNN 2.0, sem DGL); os v*.2024 antigos exigem DGL")
     d.add_argument("--slakonet", nargs="*", default=[], help="ex.: slakonet_v1a (parâmetros TB da tabela periódica)")
     d.add_argument("--hf", nargs="*", default=[], help="modelos AtomGPT, ex.: knc6/atomgpt_mistral_tc_supercon")
     a = ap.parse_args(argv)
@@ -361,7 +426,9 @@ def main(argv=None) -> None:
             df = df[df["composition"].str.contains("|".join(a.elements))]
         print(df[["composition", "forcefield", "energy", "Bv", "Gv", "mpid"]].to_string(index=False, max_rows=40))
     elif a.cmd == "download":
-        download(a.datasets, a.alignn, a.alignn_ff, a.slakonet, a.hf)
+        sys.exit(1 if download(a.datasets, a.alignn, a.alignn_ff, a.slakonet, a.hf) else 0)
+    elif a.cmd == "models":
+        list_models()
 
 
 if __name__ == "__main__":
