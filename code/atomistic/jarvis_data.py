@@ -23,6 +23,8 @@ Uso:
            --alignn formation_energy_peratom_radius optb88vdw_bandgap_radius \\
            --alignn-ff matpes_r2scan --slakonet slakonet_v1a --hf knc6/atomgpt_mistral_tc_supercon
     python code/atomistic/jarvis_data.py models                        # nomes aceitos por download
+Cache: se existir <repo>/.cache/atomgptlab (ignorado pelo git; criado por `download --project` ou movendo
+~/.cache/atomgptlab para lá), todos os scripts de code/atomistic usam essa pasta; senão, ~/.cache/atomgptlab.
 """
 from __future__ import annotations
 
@@ -36,10 +38,38 @@ import zipfile
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 JARVIS_EXT = os.path.join(ROOT, "external", "jarvis")
+# cache DO PROJETO (ignorado pelo git): se <repo>/.cache/atomgptlab existir, o jarvis-tools, o ALIGNN-FF e o SlaKoNet
+# usam essa pasta em vez de ~/.cache/atomgptlab; idem <repo>/.cache/huggingface (AtomGPT) e .cache/alignn2_models
+PROJECT_CACHE = os.path.join(ROOT, ".cache")
 LEADERBOARD = os.path.join(JARVIS_EXT, "jarvis_leaderboard", "jarvis_leaderboard", "benchmarks")
 ATOMGPT_STRUCTS = os.path.join(JARVIS_EXT, "atomgpt", "atomgpt", "data", "chemnlp_new_desc.json.zip")
 JFF_LEGACY = os.path.join(JARVIS_EXT, "JARVIS-FF", "data.json")
 DFT3D_TAG = "jdft_3d-12-12-2022.json"   # padrão da cópia em external/jarvis; ver dft3d_tag()
+
+
+def use_project_cache(create: bool = False) -> bool:
+    """Aponta os caches do JARVIS/ALIGNN/Hugging Face para <repo>/.cache quando essa pasta existe (ou create=True).
+    Variáveis já definidas pelo usuário (ATOMGPTLAB_CACHE, HF_HOME) têm prioridade. Chamada ao importar o módulo."""
+    jarvis_dir = os.path.join(PROJECT_CACHE, "atomgptlab")
+    if create:
+        for sub in ("atomgptlab", "alignn2_models", "huggingface"):
+            os.makedirs(os.path.join(PROJECT_CACHE, sub), exist_ok=True)
+    if not os.path.isdir(jarvis_dir):
+        return False
+    os.environ.setdefault("ATOMGPTLAB_CACHE", jarvis_dir)
+    hf = os.path.join(PROJECT_CACHE, "huggingface")
+    if os.path.isdir(hf):
+        os.environ.setdefault("HF_HOME", hf)
+    return os.path.abspath(os.environ["ATOMGPTLAB_CACHE"]) == os.path.abspath(jarvis_dir)
+
+
+def alignn2_cache_dir() -> str | None:
+    """Pasta dos modelos ALIGNN 2.0: a do projeto quando o cache do projeto está em uso; senão o padrão do ALIGNN."""
+    d = os.path.join(PROJECT_CACHE, "alignn2_models")
+    return d if os.path.isdir(d) else None
+
+
+use_project_cache()
 
 
 def dft3d_tag() -> str:
@@ -330,7 +360,8 @@ def download(datasets=(), alignn=(), alignn_ff=(), slakonet=(), hf=()) -> list:
         from alignn.pretrained import get_alignn2_model
 
         for name in alignn:
-            tenta(f"ALIGNN {name}", lambda n=name: get_alignn2_model(_alignn2_name(n)).get("best_model.pt"))
+            tenta(f"ALIGNN {name}", lambda n=name: get_alignn2_model(_alignn2_name(n), cache_dir=alignn2_cache_dir())
+                  .get("best_model.pt"))
     if alignn_ff:
         from alignn.ff.ff import get_figshare_model_ff
 
@@ -357,8 +388,9 @@ def status() -> dict:
         "cache_jarvis": real,
         "conjuntos_no_cache": sorted(os.path.basename(p)[:-4] for p in glob.glob(os.path.join(real, "jarvis_data", "*.zip"))),
         "modelos_alignn_ff": sorted(os.path.basename(p) for p in glob.glob(os.path.join(real, "alignn_ff", "*"))),
-        "modelos_alignn2": sorted(os.path.basename(p) for p in glob.glob(os.path.join(os.path.expanduser("~"),
-                                                                                     ".alignn2_models", "*"))),
+        "cache_do_projeto": use_project_cache(),
+        "modelos_alignn2": sorted(os.path.basename(p) for p in glob.glob(os.path.join(
+            alignn2_cache_dir() or os.path.join(os.path.expanduser("~"), ".alignn2_models"), "*"))),
         "modelos_slakonet": sorted(os.path.basename(p) for p in glob.glob(os.path.join(real, "slakonet", "*"))),
         "reconstrucao_offline": os.path.isfile(os.path.join(offline_cache_dir(), "jarvis_data", dft3d_tag() + ".zip")),
         "benchmarks_leaderboard_versionados": len(leaderboard_files()),
@@ -393,6 +425,8 @@ def main(argv=None) -> None:
     d.add_argument("--alignn-ff", nargs="*", default=[], help="ex.: matpes_r2scan (padrão do ALIGNN 2.0, sem DGL); os v*.2024 antigos exigem DGL")
     d.add_argument("--slakonet", nargs="*", default=[], help="ex.: slakonet_v1a (parâmetros TB da tabela periódica)")
     d.add_argument("--hf", nargs="*", default=[], help="modelos AtomGPT, ex.: knc6/atomgpt_mistral_tc_supercon")
+    d.add_argument("--project", action="store_true",
+                   help="grava em <repo>/.cache (ignorado pelo git) em vez de ~/.cache; os scripts passam a usar essa pasta")
     a = ap.parse_args(argv)
 
     if a.cmd == "status":
@@ -426,6 +460,8 @@ def main(argv=None) -> None:
             df = df[df["composition"].str.contains("|".join(a.elements))]
         print(df[["composition", "forcefield", "energy", "Bv", "Gv", "mpid"]].to_string(index=False, max_rows=40))
     elif a.cmd == "download":
+        if a.project and not use_project_cache(create=True):
+            sys.exit("ATOMGPTLAB_CACHE já aponta para outra pasta; remova a variável para usar --project")
         sys.exit(1 if download(a.datasets, a.alignn, a.alignn_ff, a.slakonet, a.hf) else 0)
     elif a.cmd == "models":
         list_models()

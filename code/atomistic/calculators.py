@@ -23,6 +23,8 @@ import shutil
 import sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import jarvis_data  # noqa: E402,F401 — ativa o cache do projeto (<repo>/.cache) antes de importar jarvis/alignn
 GO_MACE_MODEL = os.path.join(ROOT, "projects", "atomistic", "GO-MACE-23", "models", "fitting", "potential",
                              "iter-12-final-model", "go-mace-23.pt")
 NAMES = ("alignn-ff", "mace-mp", "mace-mp-d3", "chgnet", "sevennet", "go-mace-23", "lammps-eam", "emt")

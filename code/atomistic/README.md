@@ -27,6 +27,9 @@ python code/atomistic/go_au.py screen --calc alignn-ff --model-path outputs/atom
 python code/atomistic/go_au.py interface --calc mace-mp-d3
 ```
 
+Dados e modelos pré-treinados: `jarvis_data.py download --project …` grava em `<repo>/.cache/` (ignorado pelo git) e
+os scripts usam essa pasta automaticamente; sem ela, usam `~/.cache/atomgptlab` (ver `external/jarvis/README.md`).
+
 ## Validação feita (2026-09-29, CPU)
 - **Reconstrução do JARVIS-DFT:** 50 estruturas comparadas com os POSCAR completos do ALIGNN: |ΔV/V| mediana 0,15 %
   (máx. 2,5 %), menor distância interatômica com erro ≤ 0,03 Å. Au fcc (JVASP-825): B = 148,6 GPa.

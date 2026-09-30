@@ -61,5 +61,6 @@ Cada pasta de primeiro nível tem um `README.md` com o seu índice.
 - Rede do contêiner de nuvem: só GitHub e PyPI. Zenodo/HF/figshare/OpenAlex/PubChem etc. ficam bloqueados; os scripts
   de `tools/data_sources/` que usam rede devem rodar localmente. JARVIS sem figshare: `code/atomistic/jarvis_data.py`
   monta uma reconstrução offline do dft_3d (marcada `reconstrucao_offline`, em `outputs/jarvis_offline_cache`); os
-  modelos pré-treinados (ALIGNN/ALIGNN-FF, SlaKoNet, AtomGPT) vêm por `jarvis_data.py download` numa máquina com rede.
+  modelos pré-treinados (ALIGNN/ALIGNN-FF, SlaKoNet, AtomGPT) vêm por `jarvis_data.py download [--project]` numa máquina
+  com rede. `<repo>/.cache/` (ignorado) é o cache do projeto: se existir, os scripts de `code/atomistic/` o usam.
 - `qubot/data/*/summary.csv` são regravados pelas análises; teste com `QUBOT_DATA_DIR=<cópia>`.

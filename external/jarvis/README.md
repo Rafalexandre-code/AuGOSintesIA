@@ -40,6 +40,9 @@ tools/smoke_test.sh jarvis                                          # verifica c
 | `lammps` (PyPI) | `liblammps` precisa de `libmpi.so.12` | `lammps[mpi]` (MPICH do PyPI); o executável `lmp` funciona direto |
 
 ## O que só funciona com rede para figshare / Hugging Face
+**Cache do projeto:** com `download --project` (ou movendo `~/.cache/atomgptlab` para `<repo>/.cache/atomgptlab`), os
+arquivos ficam dentro do repositório, numa pasta ignorada pelo git, e todos os scripts de `code/atomistic/` passam a
+usá-la; `.cache/huggingface` e `.cache/alignn2_models` funcionam do mesmo jeito. Nada disso vai para o GitHub.
 Rode uma vez numa máquina com acesso. Os arquivos ficam em `~/.cache/atomgptlab` (conjuntos, ALIGNN-FF, SlaKoNet) e
 `~/.alignn2_models` (ALIGNN 2.0); `jarvis_data.py models` lista os nomes aceitos e `status` mostra o que já está lá.
 ```bash
