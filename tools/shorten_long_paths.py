@@ -2,7 +2,7 @@
 """Encurta nomes de arquivo cujo caminho dentro deste repositório passa de um limite (padrão 180 caracteres).
 
 O Windows não faz checkout de caminhos com mais de ~260 caracteres (sem `git config core.longpaths true`), e o
-repositório costuma ficar em pastas como C:\\Users\\<nome>\\PycharmProjects\\AuGOSintesIA\\ (~45 caracteres). Usado
+repositório costuma ficar numa pasta de projetos do usuário (~45 caracteres). Usado
 por tools/fetch_external.sh em cada cópia de external/. O nome novo mantém o começo do original, acrescenta um
 hash curto (estável) e preserva a extensão; a correspondência fica em NOMES_ENCURTADOS.txt na raiz da cópia.
 
