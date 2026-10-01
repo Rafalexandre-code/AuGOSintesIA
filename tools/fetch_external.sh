@@ -13,7 +13,8 @@
 # intermat/tests, vasprun*.xml dos testes do slakonet, jarvis_leaderboard/contributions e os conjuntos > 5 MB
 # do leaderboard (forças/tensões de MLFF), saídas dos notebooks de jarvis-tools-notebooks (o código fica).
 # Os .gitattributes aninhados com LFS são renomeados para .gitattributes.upstream para não quebrar o clone
-# deste repositório.
+# deste repositório. Arquivos cujo caminho no repositório passa de 180 caracteres são encurtados (checkout no
+# Windows; lista em NOMES_ENCURTADOS.txt).
 set -euo pipefail
 export GIT_LFS_SKIP_SMUDGE=1   # objetos LFS de terceiros não são baixados (ver LFS_OBJECTS_NOT_INCLUDED.txt)
 
@@ -74,6 +75,9 @@ grep -v '^#' "$LOCK" | while IFS=$'\t' read -r cat name repo branch commit date;
     esac
     find "$src" -path "$src/.git" -prune -o -type f -size +50M -print -exec rm -f {} +
   fi
+  # Windows: caminhos com mais de ~260 caracteres não fazem checkout; nomes longos demais são encurtados
+  # (a lista original -> novo fica em NOMES_ENCURTADOS.txt dentro da pasta do repositório)
+  python3 "$ROOT/tools/shorten_long_paths.py" "$src" "external/$cat/$name" 180
   find "$src" -path "$src/.git" -prune -o -name .gitattributes -print | while read -r ga; do
     if grep -q lfs "$ga"; then mv "$ga" "$ga.upstream"; fi
   done

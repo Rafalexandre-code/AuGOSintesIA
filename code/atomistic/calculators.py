@@ -23,6 +23,8 @@ import shutil
 import sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import jarvis_data  # noqa: E402,F401 — ativa o cache do projeto (<repo>/.cache) antes de importar jarvis/alignn
 GO_MACE_MODEL = os.path.join(ROOT, "projects", "atomistic", "GO-MACE-23", "models", "fitting", "potential",
                              "iter-12-final-model", "go-mace-23.pt")
 NAMES = ("alignn-ff", "mace-mp", "mace-mp-d3", "chgnet", "sevennet", "go-mace-23", "lammps-eam", "emt")
@@ -98,7 +100,7 @@ def get_calculator(name: str = "mace-mp", model_path: str | None = None, device:
                 path = default_path()   # baixa do figshare na primeira vez (bloqueado no contêiner de nuvem)
             except Exception as err:     # noqa: BLE001 — a mensagem abaixo diz o que fazer
                 raise RuntimeError("modelo ALIGNN-FF pré-treinado indisponível (figshare). Rode com rede: python "
-                                   "code/atomistic/jarvis_data.py download --alignn-ff v12.2.2024_mp_1.5mill, ou "
+                                   "code/atomistic/jarvis_data.py download --alignn-ff matpes_r2scan, ou "
                                    "passe --model-path de um ALIGNN-FF treinado (go_au.py train-alignn-ff).") from err
         return AlignnAtomwiseCalculator(path=path, device=device)
     if name == "chgnet":
