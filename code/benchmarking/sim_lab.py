@@ -81,7 +81,7 @@ def run_syntheses(lab: str, syn: pd.DataFrame, rng: np.random.Generator) -> pd.D
     n_sp = len(pd.read_csv(os.path.join(lab, "spectra.csv"))) if os.path.exists(os.path.join(lab, "spectra.csv")) else 0
     spectra, char, outc, res = [], [], [], []
     for _, s in syn.iterrows():
-        cond = {k: float(s[k]) for k in sim.SPACE}
+        cond = {k: float(s[k]) for k in sim.SPACE if k in s and str(s[k]) not in ("", "nan")}
         r = sim.simulate(cond, s["go_batch_id"], s["reductant_lot_id"], s["hardware"], rng)
         n_sp += 1
         sp_id = f"UV-{n_sp:04d}"
@@ -104,7 +104,12 @@ def run_syntheses(lab: str, syn: pd.DataFrame, rng: np.random.Generator) -> pd.D
                   "direction": "minimize", "target_value": "", "notes": "SIMULADO"},
                  {"synthesis_id": sid, "objective": "size_mean_nm", "value": round(r["size_mean_nm"], 4),
                   "uncertainty": round(r["size_sd_nm"] / 10, 4), "direction": "target", "target_value": TARGET_SIZE_NM,
-                  "notes": "SIMULADO"}]
+                  "notes": "SIMULADO"},
+                 # restrições pré-registradas (config/preregistration.yaml): monodispersidade e produto mensurável
+                 {"synthesis_id": sid, "objective": "size_cv", "value": round(r["size_cv"], 5), "direction": "constraint",
+                  "target_value": 0.25, "notes": "SIMULADO"},
+                 {"synthesis_id": sid, "objective": "A_LSPR", "value": round(r["A_LSPR"], 5), "direction": "constraint",
+                  "target_value": 0.10, "notes": "SIMULADO"}]
         res.append({"synthesis_id": sid, "go_batch_id": s["go_batch_id"], **{k: r[k] for k in
                     ("spectral_loss_J", "size_mean_nm", "LSPR_nm", "yield_pct")}})
     _append(lab, "aunp_syntheses", syn.to_dict("records"))

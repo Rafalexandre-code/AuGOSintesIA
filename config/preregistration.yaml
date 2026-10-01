@@ -1,0 +1,112 @@
+# Plano de análise PRÉ-REGISTRADO da campanha GO–AuNP (proposta FAPESP, §III, §4.4, §4.5, §4.11, §4.14, §4.18).
+#
+# A proposta exige que alvo espectral, faixa, normalização, tolerâncias, ε e λ sejam definidos ANTES da comparação
+# entre estratégias. Este arquivo é a fonte única desses valores: Designer, gerador do plano, QC, benchmark e
+# sustentabilidade leem daqui. Fluxo:
+#   1. revisar com o orientador (status: draft);
+#   2. python code/campaign/prereg.py freeze     -> grava config/preregistration.lock.json (sha256, data, commit)
+#   3. depois de congelado, qualquer mudança precisa de uma entrada em `amendments` (data, o quê, por quê, antes
+#      de ver os resultados da comparação?); `prereg.py check` acusa mudanças não registradas.
+# Valores marcados "RASCUNHO" são propostas razoáveis da literatura, não decisões do grupo.
+
+version: 1
+status: draft            # draft | frozen  (frozen só via `prereg.py freeze`)
+title: "Valor da informação de matéria-prima multi-fonte na otimização de GO–AuNP"
+primary_hypothesis: >-
+  Uma política contextual (lote + descritores do GO, ± impurezas) reduz a melhor perda espectral acumulada
+  por rodada, média balanceada entre lotes, em relação à política só-receita, com o mesmo orçamento.
+
+# ---------------------------------------------------------------- espectro-alvo E*(λ) e perda J (Eq. 1)
+target_spectrum:
+  kind: mie              # mie | file
+  diameter_nm: 20.0      # RASCUNHO: AuNP esférica de 20 nm em água (LSPR ≈ 521 nm)
+  relative_dispersion: 0.08
+  medium_index: 1.333
+  file: null             # kind: file -> CSV (λ, absorbância), ex.: espectro de um padrão medido
+  range_nm: [400, 800]
+  step_nm: 2
+  normalization: max     # none | max | area — aplicada a E e a E* antes da comparação
+  amplitude: 0.8         # absorbância de referência do alvo (com normalization: none)
+loss:
+  s_m:                   # desvios sₘ por comprimento de onda (denominador da Eq. 1)
+    rule: "desvio-padrão entre >= 5 leituras repetidas da mesma preparação no piloto, por λ"
+    floor: 0.002         # piso (absorbância) para não dividir por ~0
+    file: config/s_m.csv # gerado por `prereg.py s-m <espectros repetidos>`; ausente -> s_m = floor
+  log_transform: true    # modelar log(J + ε)
+  epsilon:
+    value: 1.0e-3        # provisório até o piloto
+    rule: "1 % da mediana de J nas sínteses do piloto"   # `prereg.py epsilon datasets/lab`
+
+# ---------------------------------------------------------------- especificação (atendimento) e restrições
+specification:           # "atendimento às especificações" (§4.18)
+  spectral_loss_J_max: 1.0          # RASCUNHO
+  LSPR_nm: [515.0, 530.0]
+  size_mean_nm: [15.0, 25.0]
+objectives:               # comparação principal: qNEHVI para J e diâmetro (§4.5)
+  - {name: spectral_loss_J, direction: minimize, log: true}
+  - {name: size_mean_nm, direction: target, target: 20.0}
+constraints:              # otimização multiobjetivo SOB RESTRIÇÕES (Objetivo 3); feasible se lower <= y <= upper
+  - {name: size_cv, upper: 0.25}    # RASCUNHO: monodispersidade (TEM)
+  - {name: A_LSPR, lower: 0.10}     # RASCUNHO: produto mensurável (rendimento mínimo)
+
+# ---------------------------------------------------------------- AuNP Designer
+acquisition:
+  default: qnehvi                   # como na proposta (§4.5)
+  qlognehvi_only_if: heteroscedastic_noise   # `designer.py noise-check`: Levene/Brown–Forsythe entre preparações
+  heteroscedasticity_alpha: 0.05
+novelty:
+  weights: [0.0, 0.25, 0.5, 0.75, 1.0]      # sensibilidade de w investigada, não fixada (§4.5)
+representations: [recipe, batch, go, go+impurities, hierarchical]
+search_space:             # variáveis de decisão (Tabela 1); limites RASCUNHO
+  HAuCl4_mM: [0.1, 1.0]
+  reductant_to_Au_ratio: [1.0, 10.0]
+  GO_mg_mL: [0.0, 0.5]
+  pH: [3.0, 11.0]
+  temperature_C: [20.0, 90.0]
+  time_min: [5.0, 120.0]
+
+# ---------------------------------------------------------------- campanha (§4.11)
+batches:
+  development: [L1, L2, L3]
+  reserved: [L4, L5, L6]            # só confirmação; nunca entram no treino antes dela
+budget:                   # 60 sínteses independentes (controles não contam)
+  pilot: 8
+  initialization: 12               # 4 receitas de preenchimento × L1–L3
+  adaptive: 24
+  confirmation: 16
+  q_per_round: 2
+  syntheses_per_day: 6             # capacidade do bloco (dia/operador)
+controls:                 # fora das 60 sínteses do orçamento (§4.17)
+  no_GO_every_n_days: 3            # RASCUNHO: 1 controle sem GO a cada 3 dias de bancada (deriva do dia a dia)
+  GO_blank_per_batch: 1            # branco de GO tratado (mesmo redutor, sem Au) por lote usado
+stock_solutions:          # para calcular volumes de pipetagem
+  HAuCl4_mM: 10.0
+  reductant_mM: 100.0
+  GO_mg_mL: 2.0
+  total_volume_mL: 10.0
+  min_pipette_uL: 10.0
+
+# ---------------------------------------------------------------- decisão e incerteza (§4.18)
+primary_outcome:
+  metric: best_cumulative_loss_per_round
+  aggregation: balanced_mean_over_batches
+relevance_threshold: 0.20          # redução relativa de referência (não é ganho esperado)
+power: {target: 0.80, alpha: 0.05, test: wilcoxon_one_sided, min_simulation_seeds: 10}
+confidence_interval: {method: paired_bootstrap, level: 0.95, resamples: 5000}
+
+# ---------------------------------------------------------------- sustentabilidade e valor da informação (§4.14)
+sustainability:
+  boundary: [synthesis, characterization]
+  flows: [without_extra_characterization, with_extra_characterization]
+  cpu_lambda: 1.0                  # RASCUNHO: λ de CPU = custo / (Δperda + λ·Δincerteza), mesma escala de log J
+  currency: BRL
+miso:
+  sources:                # fontes de informação e custos relativos (RASCUNHO: ajustar ao laboratório)
+    - {name: UV-Vis, cost: 1.0}
+    - {name: DLS, cost: 2.0}
+    - {name: TEM, cost: 20.0}
+  target_source: TEM
+  models: [MGP, ICM, PCM]
+
+random_seed: 20261001
+amendments: []            # [{date: AAAA-MM-DD, change: "...", reason: "...", before_unblinding: true}]
