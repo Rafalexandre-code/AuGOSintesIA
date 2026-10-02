@@ -10,6 +10,7 @@ estratégia):
   gp-ei                 GP (representação go) + qLogNEI só em J — a BO clássica de um objetivo
   rf-qnehvi             floresta aleatória (ensemble) + qNEHVI sobre candidatos (representação go)
   novelty-w<w>          Designer 'go' com seleção novelty-aware, w de config/preregistration.yaml → novelty.weights
+  dnn-qnehvi | egbo | optuna-tpe | autopilot   exploratórios (strategies.py; aunp_designer/autopilot.py)
 Comparação: Friedman, Wilcoxon pareado + Holm, redução relativa com IC por bootstrap, poder por reamostragem e
 EXPERIMENTOS ATÉ O CRITÉRIO (critério = mediana final do braço de referência), com censura no orçamento:
 média restrita (RMST, Kaplan–Meier) e teste log-rank contra a referência.
@@ -68,7 +69,10 @@ def _novelty_weights() -> list[float]:
 ARMS = {"random": ("recipe", "random", {}), "recipe": ("recipe", "gp-qnehvi", {}),
         "batch": ("batch", "gp-qnehvi", {}), "go": ("go", "gp-qnehvi", {}),
         "go+impurities": ("go+impurities", "gp-qnehvi", {}), "hierarchical": ("hierarchical", "gp-qnehvi", {}),
-        "gp-ei": ("go", "gp-ei", {}), "rf-qnehvi": ("go", "rf-qnehvi", {})}
+        "gp-ei": ("go", "gp-ei", {}), "rf-qnehvi": ("go", "rf-qnehvi", {}),
+        # exploratórios da §4.15
+        "dnn-qnehvi": ("go", "dnn-qnehvi", {}), "egbo": ("go", "egbo", {}), "optuna-tpe": ("go", "optuna-tpe", {}),
+        "autopilot": ("go", "autopilot", {})}
 ARMS.update({f"novelty-w{w:g}": ("go", "novelty", {"w": w}) for w in _novelty_weights()})
 # Cenário prospectivo (o desenho REAL: 8 piloto + 12 inicialização compartilhados; 12 rodadas pareadas, 1 síntese
 # de cada braço por rodada, cada braço com a sua trajetória). "null" usa dois braços idênticos para medir o erro
@@ -120,6 +124,9 @@ def _propose(arm_spec, lab: str, space: dict, target: str, lots: dict, q: int, s
     compartilhados e as rodadas desse braço (comparação prospectiva pareada)."""
     import strategies
     rep, strat, kw = arm_spec
+    if strat == "autopilot":
+        import autopilot
+        return autopilot.propose(lab, space, target, lots, q, seed, acq, arm=arm)
     if strat == "random":
         from scipy.stats import qmc
         lo, hi = np.array([v[0] for v in space.values()]), np.array([v[1] for v in space.values()])
@@ -135,6 +142,8 @@ def _propose(arm_spec, lab: str, space: dict, target: str, lots: dict, q: int, s
         return strategies.propose_gp_ei(camp, space, q, fixed, seed)
     if strat == "rf-qnehvi":
         return strategies.propose_rf_qnehvi(camp, space, q, fixed, seed)
+    if strat in ("dnn-qnehvi", "egbo", "optuna-tpe"):
+        return getattr(strategies, "propose_" + strat.replace("-", "_"))(camp, space, q, fixed, seed)
     raise ValueError(strat)
 
 

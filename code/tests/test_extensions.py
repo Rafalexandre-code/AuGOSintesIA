@@ -12,7 +12,7 @@ import pytest
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 for sub in ("code/campaign", "code/aunp_designer", "code/transfer_learning", "code/benchmarking", "code/spectral",
             "code/go_navigator", "code/qc", "code/characterization", "code/miso", "code/decision", "code/kinetics",
-            "code/fingerprint", "tools/data_sources"):
+            "code/sustainability", "code/go_navigator", "tools/data_sources"):
     sys.path.insert(0, os.path.join(ROOT, sub))
 warnings.filterwarnings("ignore")
 
@@ -131,3 +131,58 @@ def test_miso_proposes_from_lab_tables(tmp_path):
     rec = r["recommendation_confirmed"]
     syn = pd.read_csv(os.path.join(lab, "lab", "aunp_syntheses.csv"))
     assert np.isclose(syn["HAuCl4_mM"], rec["HAuCl4_mM"]).any()          # confirmada = um ponto já medido por TEM
+
+
+def test_kinetics_identifiability_and_stop_rule():
+    import kinetics as kin
+    rng = np.random.default_rng(0)
+    t = np.linspace(0, 600, 120)
+    theta = [np.log10(2e-4), np.log10(0.03), 0.8, 0.02]
+    r = kin.check(t, kin.model(t, theta) + rng.normal(0, 0.005, t.size), n_recovery=6)
+    assert r["interpretable"] and r["positivity"] and r["conservation_max_error"] < 1e-8
+    assert np.log10(r["fit"]["k1"]) == pytest.approx(theta[0], abs=0.3) and np.log10(r["fit"]["k2"]) == pytest.approx(theta[1], abs=0.2)
+    t2 = np.linspace(400, 600, 40)                                          # só o platô: nada a identificar
+    r2 = kin.check(t2, kin.model(t2, theta) + rng.normal(0, 0.005, t2.size), n_recovery=5)
+    assert not r2["interpretable"] and r2["stop_reasons"]
+
+
+def test_batch_fingerprint_autoencoder_and_pca_fallback():
+    import fingerprint as fpm
+    rng = np.random.default_rng(1)
+    s = np.linspace(-1, 1, 24)                                              # 24 lotes numa variedade 1D
+    mean = pd.DataFrame({"C_O_ratio": 2 + 0.4 * s, "ID_IG": 1 + 0.1 * s ** 2, "d001_nm": 0.8 + 0.05 * np.sin(2 * s)},
+                        index=[f"B{i}" for i in range(24)])
+    sd = mean * 0 + 0.01
+    fp, info = fpm.fingerprint(mean, sd, latent=1, epochs=800)
+    assert info["method"] == "autoencoder" and abs(np.corrcoef(fp["fp1"], s)[0, 1]) > 0.95
+    with pytest.warns(UserWarning, match="PCA"):
+        fp2, info2 = fpm.fingerprint(mean.iloc[:4], sd.iloc[:4], latent=1)
+    assert info2["method"] == "PCA" and len(fp2) == 4
+
+
+def test_exploratory_strategies_and_sustainability_extensions(tmp_path):
+    import designer
+    import metrics
+    import strategies
+    lab = str(tmp_path / "d")
+    designer.demo(lab, iterations=1, q=2, seed=4)
+    lab = os.path.join(lab, "lab")
+    space = designer.DEFAULT_SPACE
+    camp = designer.load_campaign(lab, space, "go", designer.default_logs(), designer.default_eps(),
+                                  constraints=designer.default_constraints())
+    fixed = designer.fixed_context(lab, camp, "L2", {"reductant": "RED-A"})
+    for f in (strategies.propose_optuna_tpe, strategies.propose_dnn_qnehvi):
+        c = f(camp, space, 2, fixed, 0)
+        assert c.shape == (2, camp.X.shape[1]) and np.allclose(c["ctx_C_O_ratio"], fixed["ctx_C_O_ratio"])
+    c = strategies.propose_egbo(camp, space, 2, fixed, 0, pop=16, gens=3, n_sobol=64)
+    assert all(c[k].between(lo - 1e-9, hi + 1e-9).all() for k, (lo, hi) in space.items())
+    assert metrics.capital_recovery_factor(0.0, 10) == pytest.approx(0.1)
+    co = metrics.capex_opex({"discount_rate": 0.0, "instruments": {"X": {"capex": 1000, "lifetime_years": 10,
+                             "maintenance_per_year": 0, "analyses_per_year": 100}}, "consumables_per_analysis": {"X": 2}})
+    assert co["X"]["capex_per_analysis"] == pytest.approx(1.0) and co["X"]["total_per_analysis"] == pytest.approx(3.0)
+    g = metrics.complexgapi({"yield_pct": 95, "solvent": "ethanol", "time_min": 500},
+                            {"yield_pct": {"type": "numeric", "green_min": 89, "yellow_min": 70},
+                             "solvent": {"type": "categorical", "green": ["water"], "yellow": ["ethanol"]},
+                             "time_min": {"type": "numeric_max", "green_max": 60, "yellow_max": 240},
+                             "purification": {"type": "categorical", "green": ["none"]}})
+    assert g["pictogram"] == "GYR-" and g["counts"] == {"green": 1, "yellow": 1, "red": 1}

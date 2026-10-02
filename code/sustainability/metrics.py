@@ -17,6 +17,10 @@ Uso:
     python code/sustainability/metrics.py --waste-g 12.4 --product-g 0.018 --yield 82 --penalty safety=10 --penalty price=3
     python code/sustainability/metrics.py --cpu --cost 350 --dloss 0.8 --dunc 0.15 --lam 2
     python code/sustainability/metrics.py from-lab datasets/lab [--voi outputs/voi/voi.json]
+    python code/sustainability/metrics.py capex-opex            # custo por análise (config/sustainability_extensions.yaml)
+    python code/sustainability/metrics.py complexgapi --answers sintese.yaml   # pictograma ComplexGAPI (adaptado)
+Extensões condicionais (§4.14): CAPEX/OPEX por análise (investimento anualizado pelo fator de recuperação de capital
++ manutenção + consumíveis + mão de obra) e ComplexGAPI (parte de síntese; regras e limiares configuráveis).
 """
 from __future__ import annotations
 
@@ -122,9 +126,64 @@ def decide_characterization(flows: dict, delta_loss: float, delta_uncertainty: f
             "sEF_adicional": b["sEF"] - a["sEF"], "cEF_adicional": b["cEF"] - a["cEF"]}
 
 
+# ---------------------------------------------------------------------------------------------- extensões condicionais
+
+def capital_recovery_factor(rate: float, years: float) -> float:
+    return rate * (1 + rate) ** years / ((1 + rate) ** years - 1) if rate > 0 else 1 / years
+
+
+def capex_opex(cfg: dict) -> dict:
+    """Custo por análise = (investimento anualizado + manutenção)/análises por ano + consumíveis + mão de obra."""
+    r = float(cfg.get("discount_rate", 0.08))
+    out = {}
+    for tech, ins in cfg["instruments"].items():
+        annual = float(ins["capex"]) * capital_recovery_factor(r, float(ins["lifetime_years"]))
+        capex_pa = (annual + float(ins.get("maintenance_per_year", 0))) / float(ins["analyses_per_year"])
+        opex_pa = float(cfg.get("consumables_per_analysis", {}).get(tech, 0)) + \
+            float(cfg.get("labor_hours_per_analysis", {}).get(tech, 0)) * float(cfg.get("labor_rate_per_hour", 0))
+        out[tech] = {"capex_per_analysis": capex_pa, "opex_per_analysis": opex_pa,
+                     "total_per_analysis": capex_pa + opex_pa, "currency": cfg.get("currency", "")}
+    return out
+
+
+def complexgapi(answers: dict, criteria: dict) -> dict:
+    """Verde/amarelo/vermelho por critério segundo as regras configuradas; resumo e pictograma em texto."""
+    color = {}
+    for k, rule in criteria.items():
+        if k not in answers or answers[k] is None:
+            color[k] = "n/a"
+            continue
+        v, t = answers[k], rule["type"]
+        if t == "numeric":
+            color[k] = "green" if v >= rule["green_min"] else "yellow" if v >= rule["yellow_min"] else "red"
+        elif t == "numeric_max":
+            color[k] = "green" if v <= rule["green_max"] else "yellow" if v <= rule["yellow_max"] else "red"
+        else:
+            color[k] = next((c for c in ("green", "yellow") if v in rule.get(c, [])), "red")
+    n = {c: sum(1 for x in color.values() if x == c) for c in ("green", "yellow", "red")}
+    sym = {"green": "G", "yellow": "Y", "red": "R", "n/a": "-"}
+    return {"criteria": color, "counts": n, "pictogram": "".join(sym[color[k]] for k in criteria),
+            "score": (n["green"] + 0.5 * n["yellow"]) / max(sum(n.values()), 1)}
+
+
 def main() -> None:
     if len(sys.argv) > 1 and sys.argv[1] == "from-lab":
         return main_from_lab(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] in ("capex-opex", "complexgapi"):
+        import yaml
+        ap = argparse.ArgumentParser(prog=f"metrics.py {sys.argv[1]}")
+        ap.add_argument("--config", default=os.path.join(ROOT, "config", "sustainability_extensions.yaml"))
+        ap.add_argument("--answers", help="YAML/JSON com as respostas do ComplexGAPI (ex.: yield_pct: 85)")
+        a = ap.parse_args(sys.argv[2:])
+        cfg = yaml.safe_load(open(a.config, encoding="utf-8"))
+        if sys.argv[1] == "capex-opex":
+            res = capex_opex(cfg["capex_opex"])
+        else:
+            if not a.answers:
+                ap.error("complexgapi precisa de --answers")
+            res = complexgapi(yaml.safe_load(open(a.answers, encoding="utf-8")), cfg["complexgapi"]["criteria"])
+        print(json.dumps(res, indent=1, ensure_ascii=False))
+        return
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--waste-g", type=float)
     ap.add_argument("--product-g", type=float)
