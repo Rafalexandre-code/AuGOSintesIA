@@ -55,11 +55,19 @@ def test_factorial_design_and_exact_analysis(tmp_path):
     sim_lab.init_lab(lab, ("L1", "L3"), seed=0)
     sim_lab.run_syntheses(lab, syn.assign(status="done"), np.random.default_rng(0))
     r = factorial.analyze(lab)
-    assert r["permutation"]["exact"] and r["permutation"]["n_permutations"] == 24 ** 3
-    assert r["effect_GO_low_vs_high"] > 0 and r["permutation"]["p_two_sided"]["effect_GO_low_vs_high"] < 0.05
+    assert r["permutation_sharp_null"]["exact"] and r["permutation_sharp_null"]["n_permutations"] == 24 ** 3
+    go = r["main_effects_restricted_randomization"]["GO_low_vs_high"]
+    assert go["exact"] and go["n_assignments"] == 64 and r["effect_GO_low_vs_high"] > 0 and go["p_two_sided"] < 0.05
     rng = np.random.default_rng(0)                                   # sem efeito nenhum: p grandes em média
     df = pd.DataFrame([{"go": g, "imp": i, "block": b, "y": rng.normal()} for b in range(3) for g, i in factorial.CELLS])
     assert factorial.permutation_test(df)["p_two_sided"]["interaction"] > 0.01
+    # efeito GRANDE de GO e nenhum de impureza: a randomização restrita mantém o nível do teste da impureza
+    rej = []
+    for k in range(300):
+        y = rng.normal(0, 1, 12) + 5.0 * np.array([g == "low" for b in range(3) for g, _ in factorial.CELLS])
+        dk = pd.DataFrame([{"go": g, "imp": i, "block": b} for b in range(3) for g, i in factorial.CELLS]).assign(y=y)
+        rej.append(factorial.restricted_test(dk, "imp")["p_two_sided"] < 0.05)
+    assert np.mean(rej) <= 0.07
     w = factorial._weights(df["go"].to_numpy(), df["imp"].to_numpy())
     c = factorial.contrasts(df)
     assert w[2] @ df["y"].to_numpy() == pytest.approx(c["interaction"])
@@ -185,3 +193,23 @@ def test_exploratory_strategies_and_sustainability_extensions(tmp_path):
                              "time_min": {"type": "numeric_max", "green_max": 60, "yellow_max": 240},
                              "purification": {"type": "categorical", "green": ["none"]}})
     assert g["pictogram"] == "GYR-" and g["counts"] == {"green": 1, "yellow": 1, "red": 1}
+
+
+def test_sizing_scenarios_and_report(tmp_path):
+    """Fatorial ponta a ponta, resumos dos cenários de dimensionamento e o relatório."""
+    import json
+    import campaign_sim as cs
+    row = cs.run_factorial("null-r3", 0, str(tmp_path))[0]
+    assert 0 < row["p_imp"] <= 1 and 0 < row["p_go"] <= 1 and np.isfinite(row["eff_int"])
+    cv = pd.DataFrame([{**row, "seed": s} for s in range(3)])
+    fac = cs.summarize_factorial(cv)
+    bat = cs.summarize_batches(pd.DataFrame([{"arm": "contextual-K6", "seed": s, "n": 6, "p_batch": p,
+                                              "batch_ratio": 0.9, "batch_d": [-0.1] * 6, "best_loss": 1.0}
+                                             for s, p in enumerate((0.01, 0.2, 0.03))]))
+    assert bat["rows"]["contextual-K6"]["rejection"] == pytest.approx(2 / 3)
+    for name, s in (("factorial", fac), ("batches", bat)):
+        os.makedirs(tmp_path / "out" / name)
+        with open(tmp_path / "out" / name / "summary.json", "w") as fh:
+            json.dump(s, fh, default=float)
+    md = cs.report(str(tmp_path / "out"))
+    assert "Fatorial 2×2" in md and "Quantos lotes de GO" in md and "| 6 |" in md

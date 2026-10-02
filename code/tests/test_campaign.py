@@ -272,6 +272,13 @@ def test_paired_confirmation_with_frozen_predictions(tmp_path):
     sec = analysis.confirmation_optimization(lab, "recipe", "go", designer.default_eps())
     assert prim["n"] == 4 and prim["rmse_reference"] > 0 and 0 <= prim["p_value_sign_flip_one_sided"] <= 1
     assert sec["n"] == 2
+    again = analysis.frozen_predictions(lab, analysis.confirmation_long(lab), ("recipe", "go"), designer.default_eps())
+    m = preds.merge(again, on=["synthesis_id", "representation"])
+    assert len(m) == 8 and np.allclose(m["pred_logJ_x"], m["pred_logJ_y"], atol=1e-6)   # congeladas: refazíveis
+    bl = analysis.batch_level_predictive(lab, "recipe", "go", designer.default_eps(), predictions=preds)
+    assert bl["n_batches"] == 4 and bl["min_attainable_p"] == 1 / 16                    # 3 LBO + 1 reservado
+    assert [r["source"] for r in bl["per_batch"]].count("confirmação") == 1
+    assert 1 / 16 <= bl["p_value_sign_flip_one_sided"] <= 1
     with pytest.raises(Exception):                          # lote reservado já no treino → recusa
         plan.confirm_paired(lab, [("recipe", "recipe"), ("go", "go")], ["L1"], 2, space, designer.default_logs(),
                             designer.default_eps(), None, "qnehvi", {}, seed=0)

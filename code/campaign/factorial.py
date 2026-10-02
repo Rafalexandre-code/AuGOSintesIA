@@ -7,9 +7,12 @@ sorteada — o dia não se confunde com nenhum fator. Fica fora das 60 sínteses
 
 Análise (escala log J, ou outro desfecho com --outcome):
   * efeitos principais e interação por contrastes: Δ_GO, Δ_imp e (Δ_imp | C/O baixo) − (Δ_imp | C/O alto);
-  * teste EXATO por permutação dos rótulos das células dentro de cada bloco (4!^blocos atribuições; Monte Carlo acima
-    de 200 mil) — inferência baseada no desenho, válida sem normalidade;
-  * OLS com bloco (log J ~ GO × impureza + bloco), erros HC3 e IC 95 %, como confirmação.
+  * efeitos principais por RANDOMIZAÇÃO RESTRITA exata: o rótulo de um fator só troca dentro do mesmo bloco e do
+    mesmo nível do outro fator (2^(2r) atribuições) — válida sem normalidade e sem supor nada do outro fator;
+  * permutação das 4 células dentro de cada bloco (nulo nítido "nenhum efeito"), como complemento;
+  * interação: OLS com bloco (log J ~ GO × impureza + bloco), erros HC3 e IC 95 % — não há randomização que isole a
+    interação com os efeitos principais presentes.
+Poder por réplica no simulador: `campaign_sim.py --scenario factorial` (docs/SIMULACOES.md).
 A interação responde à pergunta causal da proposta: o efeito da impureza depende da química do lote de GO?
 
 Uso:
@@ -102,8 +105,37 @@ def _weights(go: np.ndarray, imp: np.ndarray) -> np.ndarray:
     return np.vstack([s_imp / (2 * nc), s_go / (2 * nc), s_imp * s_go / nc])
 
 
+def restricted_test(df: pd.DataFrame, factor: str, n_mc: int = 200_000, seed: int = 0) -> dict:
+    """Efeito principal de UM fator sem supor nada do outro: o rótulo do fator só troca entre as unidades do mesmo
+    bloco e do mesmo nível do outro fator (a randomização que o desenho realmente fez para esse contraste).
+    Com r réplicas: 2^(2r) atribuições por célula de 1 unidade (r = 3 → 64; p bilateral mínimo 2/64)."""
+    other = "go" if factor == "imp" else "imp"
+    d = df.sort_values(["block", other, factor]).reset_index(drop=True)
+    W = _weights(d["go"].to_numpy(), d["imp"].to_numpy())[0 if factor == "imp" else 1]
+    y = d["y"].to_numpy(float)
+    obs = float(W @ y)
+    strata = [np.asarray(g) for g in d.groupby(["block", other]).indices.values()]
+    perms = [np.array(list(itertools.permutations(g))) for g in strata]
+    total = int(np.prod([float(len(p)) for p in perms]))
+    rng = np.random.default_rng(seed)
+    if total <= n_mc:
+        grids = np.meshgrid(*[np.arange(len(p)) for p in perms], indexing="ij")
+        choice = np.stack([g.ravel() for g in grids], axis=1)
+    else:
+        choice = np.stack([rng.integers(len(p), size=n_mc) for p in perms], axis=1)
+    idx = np.concatenate([perms[b][choice[:, b]] for b in range(len(perms))], axis=1)
+    pos = np.concatenate(strata)
+    Y = np.empty((len(idx), len(y)))
+    Y[:, pos] = y[idx]
+    sims = Y @ W
+    return {"estimate": obs, "p_two_sided": float(np.mean(np.abs(sims) >= abs(obs) - 1e-12)),
+            "n_assignments": int(len(sims)), "exact": total <= n_mc}
+
+
 def permutation_test(df: pd.DataFrame, n_mc: int = 200_000, seed: int = 0) -> dict:
-    """p bilaterais exatos (ou Monte Carlo) permutando os rótulos das 4 células dentro de cada bloco."""
+    """p bilaterais exatos (ou Monte Carlo) permutando os rótulos das 4 células dentro de cada bloco. Testa o nulo
+    NÍTIDO "nenhuma célula difere": para um efeito principal com o outro fator ativo fica conservador (o outro
+    efeito entra na distribuição nula) — use restricted_test; para a interação, o OLS com bloco."""
     d = df.sort_values(["block", "go", "imp"]).reset_index(drop=True)
     W = _weights(d["go"].to_numpy(), d["imp"].to_numpy())
     y = d["y"].to_numpy(float)
@@ -150,7 +182,9 @@ def analyze(lab: str, outcome: str = "spectral_loss_J", log: bool = True) -> dic
         raise SystemExit(f"fatorial incompleto: células com dados {n.to_dict()}")
     return {"outcome": outcome, "scale": "log" if log else "linear", "n_per_cell": n.to_dict(),
             "cell_means": df.groupby(["go", "imp"])["y"].mean().to_dict(), **contrasts(df),
-            "permutation": permutation_test(df), "ols_hc3": ols(df)}
+            "main_effects_restricted_randomization": {"impurity": restricted_test(df, "imp"),
+                                                      "GO_low_vs_high": restricted_test(df, "go")},
+            "permutation_sharp_null": permutation_test(df), "ols_hc3": ols(df)}
 
 
 def main() -> None:

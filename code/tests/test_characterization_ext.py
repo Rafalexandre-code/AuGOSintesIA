@@ -83,9 +83,9 @@ def test_sers_enhancement_factor():
 def test_saxs_recovers_sphere_size():
     import saxs
     q = np.linspace(0.05, 1.5, 300)                                        # nm⁻¹
-    I = 1e3 * saxs.sphere_intensity(q, 10.0, 0.08) + 0.01
-    I *= 1 + rng.normal(0, 0.01, q.size)
-    r = saxs.analyze(q, I)
+    Iq = 1e3 * saxs.sphere_intensity(q, 10.0, 0.08) + 0.01
+    Iq *= 1 + rng.normal(0, 0.01, q.size)
+    r = saxs.analyze(q, Iq)
     assert r["size_mean_nm"][0] == pytest.approx(20.0, rel=0.03)
     assert r["size_cv"][0] == pytest.approx(0.08, abs=0.03)
     g = saxs.guinier(q, 1e3 * saxs.sphere_intensity(q, 10.0, 0.0))

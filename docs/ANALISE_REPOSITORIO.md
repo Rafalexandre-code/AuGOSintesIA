@@ -1238,8 +1238,13 @@ Correção (pré-registro em rascunho; validar com o orientador antes do `freeze
 - **confirmação** (16 sínteses nos lotes reservados): 8 pares, uma receita de cada braço **congelado**; antes de
   sintetizar, os modelos só-receita e contextual (mesmos dados) gravam a previsão de log J de cada síntese
   (`plan.py confirm` → `confirmation_predictions.csv` + sha256);
-- **desfecho primário**: valor preditivo do contexto em lotes nunca vistos — erro² de previsão pareado por síntese,
-  teste de randomização exato e Hodges–Lehmann (`campaign/analysis.py`); **secundário**: otimização nos 8 pares;
+- **desfecho primário**: valor preditivo do contexto em lotes nunca vistos, com o **lote** como unidade — em cada um dos
+  6 lotes mantidos fora do treino (L1–L3 por leave-one-batch-out; L4–L6 pelas previsões congeladas),
+  d_b = ln(RMSE_contexto/RMSE_receita); troca de sinais exata (p mínimo 1/64) e Hodges–Lehmann
+  (`campaign/analysis.py batch_level_predictive`). A primeira versão pareava o erro **por síntese**; a simulação
+  mostrou erro tipo I de 12,5 % no placebo (igual ao poder no cenário contextual), porque as 16 sínteses caem em só 3 lotes e compartilham o erro do lote —
+  ficou como descritiva; **secundário (descritivo)**: otimização nos 8 pares (erro tipo I simulado de até 12,5 %, porque
+  o teste condiciona aos modelos realizados);
 - **validação do desenho**: cenários contextual (poder), placebo (descritores embaralhados entre lotes: erro tipo I do
   primário) e nulo (braços idênticos) — resultados em [`SIMULACOES.md`](SIMULACOES.md) e na §18.3.
 
@@ -1266,5 +1271,38 @@ extrator LLM (GPU), DOI no Zenodo, relatório e manuscrito.
 
 ### 18.3 Resultados das simulações (SIMULADO)
 
-(preenchido pelos resultados registrados em `SIMULACOES.md`)
+Números do simulador (`code/benchmarking/simulator.py`), registrados em [`SIMULACOES.md`](SIMULACOES.md): dimensionam
+o protocolo, não preveem o ganho real.
+
+**Desenho real (40 campanhas por cenário).** Rejeição a α = 0,05 — contextual = poder; placebo e nulo = erro tipo I:
+
+| teste | contextual | placebo | nulo | papel |
+|---|---|---|---|---|
+| valor preditivo, **unidade = lote** (6 lotes) | 15 % (7–29) | 5 % (1–17) | 0 % | **primário** |
+| valor preditivo por síntese (16) | 12,5 % | 12,5 % | 0 % | descritivo |
+| otimização nos 8 pares de confirmação | 18 % | 8 % | 12,5 % | descritivo |
+| rodadas adaptativas pareadas | 5 % | 2,5 % | 12,5 % | exploratório |
+
+O primário por lote é o único teste que separa sinal de ruído com o erro tipo I no nível nominal. O poder é baixo
+porque, no simulador, o contexto melhora pouco a previsão de lote novo: ln(RMSE_contexto/RMSE_receita) tem média
+−0,016 (razão 0,984) e dp entre lotes de 0,37. Ou seja, o efeito existe na otimização (go+impurities −50 % de perda
+no cenário principal, com muitas campanhas), mas uma única campanha não o confirma.
+
+**Fatorial 2×2 (100 simulações por linha).** Receita fixa, GO C/O 2,2 × 1,5, iodeto 2 × 45 ppm:
+
+| réplicas (sínteses) | efeito do GO | efeito da impureza | interação | erro tipo I (nulo) |
+|---|---|---|---|---|
+| 3 (12) | 100 % | 46 % | 6 % | ≤ 5 % |
+| 4 (16) | 100 % | 82 % | 7 % | ≤ 3 % |
+| 6 (24) | 100 % | 95 % | 9 % | ≤ 4 % |
+
+A randomização restrita (o rótulo de um fator só troca dentro do mesmo bloco e nível do outro) substituiu a permutação
+das 4 células, que testava o nulo "nenhum efeito" e ficava conservadora para um fator quando o outro age. O
+pré-registro passou de 3 para 4 réplicas.
+
+**Recomendação para o orientador (antes do `freeze`).** A premissa do projeto ("a matéria-prima muda o resultado")
+tem teste com poder: o fatorial com 4 réplicas, hoje condicional e fora das 60 sínteses, cobre GO e impureza.
+A hipótese mais forte ("o contexto melhora a previsão de lote novo") tem teste válido, mas pouco poder com 6 lotes.
+Deve ser relatada como estimativa (razão de RMSE com IC), não como confirmação. Mais lotes de GO só ajudam se
+houver ganho preditivo real; a tabela abaixo mostra quanto, com as mesmas 60 sínteses.
 

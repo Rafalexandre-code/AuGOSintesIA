@@ -13,7 +13,7 @@ Cada pasta de primeiro nível tem um `README.md` com o seu índice.
   registrados, gerados por `campaign_sim.py report`); `projeto/Projeto_FAPESP_Iniciação_Rafael_Lopes.docx` (objetivos:
   GO Navigator, AuNP Designer com GP Matérn-5/2+ARD e qNEHVI, MISO, transfer learning entre lotes, causalidade, benchmark).
 - `config/` — `preregistration.yaml` (plano a priori: alvo E*, faixa, normalização, sₘ/ε pelo piloto, restrições,
-  orçamento 8/12/24/16, braços pareados, desfecho primário na confirmação, TEM, fatorial, MISO, valor da informação;
+  orçamento 8/12/24/16, braços pareados, desfecho primário por lote (LBO + confirmação), TEM, fatorial, MISO, valor da informação;
   RASCUNHO até `prereg.py freeze`), `qc_criteria.yaml` e `sustainability_extensions.yaml` (CAPEX/OPEX, ComplexGAPI).
 - `literature/` — 65 artigos citados em texto: `artigos_combinados.md`, `chunks.jsonl` (5 227 trechos p/ RAG),
   `relatorio.{csv,json}` (CSV com `;`).
@@ -32,7 +32,7 @@ Cada pasta de primeiro nível tem um `README.md` com o seu índice.
   LBO, novelty, SHAP + interações, `demo`; `autopilot.py`), `transfer_learning/` (GP hierárquico, correção de hardware),
   `miso/` (MGP/ICM/PCM + KG exato por custo; `propose` com dados reais), `decision/` (EVPI/EVSI), `kinetics/`
   (Finke–Watzky + identificabilidade), `benchmarking/` (laboratório SIMULADO, braços GP+EI/RF/DNN/EGBO/TPE/novelty/
-  autopilot, transferência, cenário prospectivo com placebo e nulo, poder, HV/IGD), `causal/` (DAG, DoWhy, E-value,
+  autopilot, transferência, cenário prospectivo com placebo e nulo, nº de lotes, fatorial, poder, HV/IGD), `causal/` (DAG, DoWhy, E-value,
   IPW por entropia, mediação, causal-learn), `sustainability/` (E-factor, EcoScale, CPU, CAPEX/OPEX, ComplexGAPI),
   `atomistic/` (ambiente
   `jarvis`: design inverso GO–Au com JARVIS-DFT/FF/ML/Tools, CHIPS-FF, InterMat; `test_atomistic.py`).

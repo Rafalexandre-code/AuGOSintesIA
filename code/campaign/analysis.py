@@ -6,13 +6,13 @@ teste por rodada na fase ADAPTATIVA tem poder ≈ 0 e é anticonservador (erro t
 vantagem de uma trajetória numa rodada se arrasta para as seguintes. A inferência confirmatória fica onde as
 observações são independentes: a CONFIRMAÇÃO nos lotes reservados, com modelos congelados.
 
-1. PRIMÁRIO — valor preditivo da informação de contexto (§6.1 cenários 1–4): antes de sintetizar, o modelo
-   só-receita e o contextual, CONGELADOS e treinados nos mesmos dados de desenvolvimento, preveem log J de cada
-   síntese de confirmação (confirmation_predictions.csv, gravado por plan.py confirm). Por síntese i:
-       d_i = (ŷ_ctx,i − y_i)² − (ŷ_ref,i − y_i)²      (negativo = o contexto previu melhor um lote NUNCA visto)
-   Teste de randomização por troca de sinais (unilateral), Hodges–Lehmann com IC exato e razão de RMSE.
-2. SECUNDÁRIO — otimização em lotes novos: nos pares de confirmação (uma receita de cada braço congelado, mesmo
-   lote e dia), d_p = log J(trat) − log J(ref); mesmo teste.
+1. PRIMÁRIO — valor preditivo da informação de contexto (§6.1 cenários 1–4), com o LOTE como unidade: em cada lote
+   mantido fora do treino (desenvolvimento por leave-one-batch-out; reservados pelas previsões CONGELADAS gravadas
+   antes da confirmação por plan.py confirm), d_b = ln(RMSE_contexto/RMSE_receita) do log J. Troca de sinais exata
+   sobre os lotes (6 → p mínimo 1/64) e Hodges–Lehmann. A versão por síntese é anticonservadora (sínteses do mesmo
+   lote compartilham o erro do lote: erro tipo I de 12,5 % no placebo simulado, igual ao poder) e fica como descritiva.
+2. SECUNDÁRIO (descritivo) — otimização em lotes novos: nos pares de confirmação, d_p = log J(trat) − log J(ref).
+   O teste condiciona aos modelos realizados (erro tipo I simulado de até 12,5 %), então o p-valor é só indicativo.
 3. EXPLORATÓRIO — fase adaptativa: d_r por rodada pareada e curvas de melhor perda acumulada por braço
    (o desfecho da proposta, aqui descritivo; o p-valor é reportado com o aviso de anticonservadorismo).
 
@@ -181,6 +181,65 @@ def predictive_comparison(lab: str, ref_rep: str, trt_rep: str, eps: float, leve
             "relative_error_reduction": 1 - rmse_trt / rmse_ref if rmse_ref > 0 else float("nan")}
 
 
+def frozen_predictions(lab: str, conf: pd.DataFrame, representations, eps: float) -> pd.DataFrame:
+    """Refaz as previsões congeladas (plan.py confirm) quando confirmation_predictions.csv não existe: os modelos
+    agrupados só usam dados de desenvolvimento, então o resultado não depende da confirmação. Os lotes de reagente
+    de cada síntese entram no contexto (braço go+impurities)."""
+    import designer
+    import plan as plan_mod
+    space = designer.DEFAULT_SPACE
+    roles = {r: c for r, c in designer.LOT_ROLES.items() if c in conf}
+    preds = []
+    for rep in representations:
+        for key, g in conf.groupby([c for c in roles.values()] or (lambda _: 0), dropna=False):
+            key = key if isinstance(key, tuple) else (key,)
+            lots = {r: v for r, v in zip(roles, key) if isinstance(v, str) and v}
+            _, predict = plan_mod._frozen_predictor(lab, rep, space, designer.default_logs(), eps,
+                                                    designer.default_constraints(), lots)
+            preds.append(predict(g[["synthesis_id", "go_batch_id"] + list(space)]))
+    return pd.concat(preds, ignore_index=True)
+
+
+def batch_level_predictive(lab: str, ref_rep: str, trt_rep: str, eps: float, predictions: pd.DataFrame | None = None,
+                           dev_batches=None, level: float = 0.95) -> dict:
+    """PRIMÁRIO (unidade = LOTE): para cada lote mantido fora — os de desenvolvimento por leave-one-batch-out e os
+    reservados pelas previsões congeladas da confirmação —, d_b = ln(RMSE_contexto / RMSE_receita) do log J.
+    As sínteses de um mesmo lote compartilham o erro do lote; tratá-las como independentes infla o erro tipo I
+    (simulação: 12,5 % no placebo). Com o lote como unidade, a troca de sinais é exata (6 lotes → p mínimo 1/64)."""
+    import designer
+    space = designer.DEFAULT_SPACE
+    lbo = designer.validate_lbo(lab, space, (ref_rep, trt_rep), designer.default_logs(), eps)
+    lbo = lbo[lbo["objective"] == "spectral_loss_J"]
+    if dev_batches is not None:
+        lbo = lbo[lbo["held_out_batch"].astype(str).isin(dev_batches)]
+    w = lbo.pivot_table(index="held_out_batch", columns="representation", values="rmse")
+    rows = [{"batch": b, "source": "LBO", "rmse_ref": float(r[ref_rep]), "rmse_trt": float(r[trt_rep])}
+            for b, r in w.dropna().iterrows()]
+    conf = confirmation_long(lab)
+    if not conf.empty:
+        if predictions is None:
+            path = os.path.join(lab, "confirmation_predictions.csv")
+            if os.path.exists(path):
+                predictions = pd.read_csv(path)
+            else:                                    # recomputa: modelos congelados só usam dados de desenvolvimento
+                predictions = frozen_predictions(lab, conf, (ref_rep, trt_rep), eps)
+        pv = predictions.pivot_table(index="synthesis_id", columns="representation", values="pred_logJ")
+        y = np.log(conf.set_index("synthesis_id")["value"].astype(float) + eps)
+        j = pv.join(y.rename("y"), how="inner").join(conf.set_index("synthesis_id")["go_batch_id"])
+        for b, g in j.groupby("go_batch_id"):
+            rows.append({"batch": b, "source": "confirmação", "rmse_ref": float(np.sqrt(np.mean((g[ref_rep] - g["y"]) ** 2))),
+                         "rmse_trt": float(np.sqrt(np.mean((g[trt_rep] - g["y"]) ** 2)))})
+    tab = pd.DataFrame(rows)
+    if tab.empty:
+        return {"status": "sem lotes avaliáveis"}
+    d = np.log(tab["rmse_trt"] / tab["rmse_ref"]).to_numpy(float)
+    hl = hodges_lehmann(d, level)
+    return {"n_batches": int(len(d)), "per_batch": tab.assign(d=d).to_dict("records"),
+            "p_value_sign_flip_one_sided": sign_flip_test(d, "less"), "hodges_lehmann_log_rmse_ratio": hl,
+            "rmse_ratio_estimate": float(np.exp(hl["estimate"])),
+            "min_attainable_p": float(0.5 ** len(d))}
+
+
 def confirmation_optimization(lab: str, ref: str, trt: str, eps: float, level: float = 0.95) -> dict:
     conf = confirmation_long(lab)
     if conf.empty:
@@ -214,9 +273,14 @@ def analyze(lab: str, arms: tuple[str, str] | None = None, eps: float | None = N
     red = {k: (1 - float(np.exp(v)) if np.isfinite(v) else float("nan"))
            for k, v in (("estimate", hl["estimate"]), ("ci_high", hl["ci"][0]), ("ci_low", hl["ci"][1]))}
     rep = {k: k for k in (ref, trt)}                  # braço = representação no desenho pré-registrado
-    primary = predictive_comparison(lab, rep[ref], rep[trt], eps, level)
+    primary = batch_level_predictive(lab, rep[ref], rep[trt], eps, dev_batches=batches, level=level)
+    per_syn = predictive_comparison(lab, rep[ref], rep[trt], eps, level)
     secondary = confirmation_optimization(lab, ref, trt, eps, level)
-    return {"primary_predictive_value": primary, "secondary_confirmation_optimization": secondary,
+    return {"primary_batch_level_predictive_value": primary,
+            "descriptive_per_synthesis_predictive": {**per_syn, "warning": "sínteses do mesmo lote não são "
+                                                     "independentes: p-valor anticonservador, leia como descritivo"},
+            "secondary_confirmation_optimization": {**secondary, "warning": "pares condicionados aos modelos "
+                                                    "realizados; erro tipo I simulado de até 12,5 % — descritivo"},
             "exploratory_adaptive_warning": "fase adaptativa: teste anticonservador sob dependência entre rodadas "
                                             "(erro tipo I simulado acima de α); leia como descritivo",
             "reference_arm": ref, "treatment_arm": trt, "n_pairs": int(len(d)), "epsilon": eps,
@@ -241,15 +305,16 @@ def main() -> None:
     ap.add_argument("--out")
     a = ap.parse_args()
     r = analyze(a.lab, tuple(a.arms) if a.arms else None)
-    pp, so = r["primary_predictive_value"], r["secondary_confirmation_optimization"]
-    if "n" in pp:
-        print(f"PRIMÁRIO (previsão em lotes reservados, {pp['n']} sínteses): RMSE de log J "
-              f"{pp['rmse_treatment']:.3f} ({r['treatment_arm']}) × {pp['rmse_reference']:.3f} ({r['reference_arm']}); "
-              f"redução {100 * pp['relative_error_reduction']:.0f} %; p = {pp['p_value_sign_flip_one_sided']:.4f}")
+    pp, so = r["primary_batch_level_predictive_value"], r["secondary_confirmation_optimization"]
+    if "n_batches" in pp:
+        hl = pp["hodges_lehmann_log_rmse_ratio"]
+        print(f"PRIMÁRIO (valor preditivo do contexto, {pp['n_batches']} lotes fora do treino): razão de RMSE "
+              f"{pp['rmse_ratio_estimate']:.3f} (IC {np.exp(hl['ci'][0]):.3f}–{np.exp(hl['ci'][1]):.3f}); "
+              f"p = {pp['p_value_sign_flip_one_sided']:.4f} (mínimo possível {pp['min_attainable_p']:.4f})")
     else:
         print("PRIMÁRIO:", pp.get("status"))
     if "n" in so:
-        print(f"SECUNDÁRIO (otimização, {so['n']} pares de confirmação): redução HL de J "
+        print(f"SECUNDÁRIO, descritivo (otimização, {so['n']} pares de confirmação): redução HL de J "
               f"{100 * so['relative_reduction']:.0f} %; p = {so['p_value_sign_flip_one_sided']:.4f}")
     hl, rr = r["hodges_lehmann_log_ratio"], r["relative_reduction"]
     print(f"EXPLORATÓRIO — {r['treatment_arm']} × {r['reference_arm']}: {r['n_pairs']} rodadas pareadas; "

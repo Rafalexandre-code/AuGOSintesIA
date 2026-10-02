@@ -79,7 +79,8 @@ budget:                   # 60 sínteses independentes (controles não contam)
 factorial_2x2:            # §4.9 (condicional, FORA das 60): lote de GO (C/O alto × baixo) × impureza (limpo × contaminado)
   impurity: CTAB                   # reagente cuja contaminação é testada (papel stabilizer); no simulador, iodeto no redutor
   impurity_role: stabilizer
-  replicates: 3                    # blocos completos: cada dia tem uma réplica de cada uma das 4 células
+  replicates: 4                    # blocos completos (cada dia: 1 réplica de cada célula). Simulação: poder para o
+                                   # efeito da impureza ≈ 46 % com 3, ≈ 82 % com 4 (16 sínteses) (docs/SIMULACOES.md)
   recipe: reference                # receita fixa (centro do espaço) para isolar os dois fatores
   analysis: exact_within_block_permutation   # code/campaign/factorial.py analyze (+ OLS com bloco, efeitos e IC)
 tem_subset:               # §4.12: TEM em ~30 sínteses, espalhadas por todas as etapas (plan.py marca a coluna tem)
@@ -111,19 +112,25 @@ arms:
   confirmation: paired_by_reserved_batch # 16 = 8 pares: 1 receita de cada braço CONGELADO, mesmo lote reservado e dia
   offline: [recipe, batch, go, go+impurities, hierarchical]   # designer.py validate (LBO) + campaign_sim.py
 primary_outcome:
-  metric: predictive_value_of_context    # confirmação: erro² de previsão de log J, contextual × só-receita
+  metric: predictive_value_of_context    # erro de previsão de log J em lote NUNCA visto, contextual × só-receita
+  unit: go_batch                         # d_b = ln(RMSE_contexto/RMSE_receita) por lote; sínteses do mesmo lote
+                                         # compartilham o erro do lote (por síntese: erro tipo I de 12,5 % simulado)
+  held_out_batches: [development_leave_one_batch_out, reserved_frozen_predictions]   # 3 + 3 = 6 lotes
   models: frozen_pooled                  # mesmos dados de desenvolvimento; só muda a representação (plan.py confirm)
   predictions_recorded_before_synthesis: true   # confirmation_predictions.csv + sha256 no manifesto
-  test: randomization_sign_flip_one_sided
+  test: randomization_sign_flip_one_sided       # exato sobre os lotes (6 → p mínimo 1/64)
   estimate: [hodges_lehmann, rmse_ratio]
 secondary_outcomes:
-  confirmation_optimization: paired_log_J_by_reserved_batch   # 8 pares, mesmo teste
+  per_synthesis_predictive: squared_error_difference   # DESCRITIVO (anticonservador; ver unit acima)
+  confirmation_optimization: paired_log_J_by_reserved_batch   # 8 pares; DESCRITIVO (erro tipo I simulado até 12,5 %)
   adaptive_rounds: paired_round_log_loss  # EXPLORATÓRIO (teste anticonservador sob dependência)
   descriptive: best_cumulative_loss_per_round   # desfecho original da proposta, por braço, média balanceada
   aggregation: balanced_mean_over_batches
 relevance_threshold: 0.20          # redução relativa de referência (não é ganho esperado)
-power: {target: 0.80, alpha: 0.05, test: randomization_sign_flip_one_sided, min_simulation_seeds: 10,
-        scenario: prospective}     # campaign_sim.py --scenario prospective (orçamento real; placebo e nulo = erro tipo I)
+power: {target: 0.80, alpha: 0.05, test: randomization_sign_flip_one_sided, unit: go_batch, min_simulation_seeds: 10,
+        scenario: prospective,     # campaign_sim.py --scenario prospective (orçamento real; placebo e nulo = erro tipo I)
+        sizing: batches,           # --scenario batches: poder × nº de lotes de GO com as mesmas 60 sínteses
+        factorial: factorial}      # --scenario factorial: poder do 2×2 por nº de réplicas (docs/SIMULACOES.md)
 confidence_interval: {method: paired_bootstrap, level: 0.95, resamples: 5000}
 
 # ---------------------------------------------------------------- sustentabilidade e valor da informação (§4.14)

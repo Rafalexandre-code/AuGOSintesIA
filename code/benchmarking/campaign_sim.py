@@ -17,8 +17,10 @@ média restrita (RMST, Kaplan–Meier) e teste log-rank contra a referência.
 
 Cenário `prospective` (o desenho REAL pré-registrado, config/preregistration.yaml → arms): 8 piloto + 12 de
 inicialização compartilhados e 12 rodadas pareadas — em cada rodada, cada braço propõe 1 síntese no mesmo lote, com
-modelo treinado só nos dados compartilhados + nas suas rodadas. Mede o poder do teste pré-registrado
-(code/campaign/analysis.py) e, no par "null" (dois braços idênticos), o erro tipo I sob a dependência adaptativa.
+modelo treinado só nos dados compartilhados + nas suas rodadas; depois 8 pares de confirmação em L4–L6. Mede o
+poder do desfecho primário (code/campaign/analysis.py: valor preditivo do contexto com o LOTE como unidade), o erro
+tipo I nos pares "placebo" (descritores embaralhados) e "null" (braços idênticos) e quantos lotes dariam 80 % de
+poder. `--resume` acrescenta o desfecho por lote a campanhas gravadas antes dele (refaz as previsões congeladas).
 
 Cenário `transfer` (lote reservado L4, §4.7): "do zero" (receita, só dados do L4: 4 receitas LHS + rodadas) contra
 "transfer-go" e "transfer-hierarchical" (24 sínteses de L1–L3 como histórico, nenhuma no L4 antes da 1ª rodada).
@@ -81,6 +83,13 @@ PROSPECTIVE = {"contextual": (("recipe", "recipe"), ("go+impurities", "go+impuri
                "placebo": (("recipe", "recipe"), ("go+impurities", "go+impurities")),   # descritores embaralhados
                "null": (("recipe", "recipe"), ("recipe_bis", "recipe"))}
 RESERVED = ("L4", "L5", "L6")
+# Cenário `batches`: quantos LOTES de GO o desfecho primário exige, com o mesmo orçamento (60 sínteses repartidas
+# entre K lotes). Lotes extras do simulador com C/O sorteado na faixa de L1–L6; "placebo" embaralha os descritores.
+BATCH_SIZING = {f"{kind}-K{k}": (kind, k) for kind in ("contextual", "placebo") for k in (6, 9, 12, 16)}
+SIZING_BUDGET = 60
+# Cenário `factorial`: poder do fatorial 2×2 (§4.9) por nº de réplicas (blocos) — "effect" = L1 × L3 (C/O 2,2 × 1,5)
+# e RED-A × RED-B (iodeto 2 × 45 ppm); "null" = mesmo lote de GO e mesmo lote de redutor rotulados como níveis.
+FACTORIAL_SIZING = {f"{kind}-r{r}": (kind, r) for kind in ("effect", "null") for r in (3, 4, 6)}
 
 
 def _placebo(lab: str, seed: int) -> None:
@@ -241,6 +250,7 @@ def run_prospective(pair: str, seed: int, rounds: int, root: str, acq: str | Non
     sim_lab.run_syntheses(lab, conf.assign(status="done"), rng)
     prim = analysis.predictive_comparison(lab, ref_rep, trt_rep, eps, predictions=preds)
     sec = analysis.confirmation_optimization(lab, ref_name, trt_name, eps)
+    bl = _batch_level(lab, ref_rep, trt_rep, preds)
     df = analysis.load_long(lab)
     pairs = analysis.paired_differences(df, ref_name, trt_name, eps)
     hl = analysis.hodges_lehmann(pairs["d"].to_numpy())
@@ -254,13 +264,130 @@ def run_prospective(pair: str, seed: int, rounds: int, root: str, acq: str | Non
                      "p_predictive": prim.get("p_value_sign_flip_one_sided", np.nan),
                      "rmse_ratio": prim.get("rmse_ratio", np.nan),
                      "p_confirm_opt": sec.get("p_value_sign_flip_one_sided", np.nan),
-                     "confirm_hl": sec.get("hodges_lehmann", {}).get("estimate", np.nan)})
+                     "confirm_hl": sec.get("hodges_lehmann", {}).get("estimate", np.nan), **bl})
     return rows
+
+
+def _batch_level(lab: str, ref_rep: str, trt_rep: str, preds=None) -> dict:
+    """Desfecho primário com o LOTE como unidade (analysis.batch_level_predictive): p exato e d_b por lote."""
+    sys.path.insert(0, os.path.join(ROOT, "code", "campaign"))
+    import analysis
+    r = analysis.batch_level_predictive(lab, ref_rep, trt_rep, designer.default_eps(), predictions=preds,
+                                        dev_batches=list(BATCHES))
+    if "n_batches" not in r:
+        return {"p_batch": np.nan, "batch_ratio": np.nan, "batch_d": []}
+    return {"p_batch": r["p_value_sign_flip_one_sided"], "batch_ratio": r["rmse_ratio_estimate"],
+            "batch_d": [float(x["d"]) for x in r["per_batch"]]}
+
+
+def _augment_prospective(path: str, root: str) -> dict:
+    """Campanhas prospectivas gravadas antes do desfecho por lote: recalcula-o do laboratório salvo (as previsões
+    congeladas só dependem dos dados de desenvolvimento, então são refeitas de forma idêntica)."""
+    import torch
+    torch.set_num_threads(1)
+    warnings.simplefilter("ignore")
+    with open(path, encoding="utf-8") as fh:
+        res = json.load(fh)
+    last = res["curve"][-1]
+    if "p_batch" not in last:
+        (_, ref_rep), (_, trt_rep) = PROSPECTIVE[res["arm"]]
+        last.update(_batch_level(os.path.join(root, "labs", f"{res['arm']}_s{res['seed']}", "lab"), ref_rep, trt_rep))
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(res, fh)
+    return res
+
+
+def _register_batches(k: int, seed: int) -> list[str]:
+    """K lotes novos no simulador: C/O ~ U(1,5; 2,4) (faixa de L1–L6) e ID/IG na mesma relação aproximada."""
+    import simulator as sim
+    rng = np.random.default_rng(seed + 7919 * k)
+    names = [f"K{k}S{seed}B{i:02d}" for i in range(k)]
+    for b, co in zip(names, rng.uniform(1.5, 2.4, k)):
+        sim.BATCHES[b] = {"C_O_ratio": float(co), "ID_IG": float(1.36 - 0.2 * co + rng.normal(0, 0.01))}
+    return names
+
+
+def run_batches(name: str, seed: int, root: str, budget: int = SIZING_BUDGET) -> list[dict]:
+    """Desfecho primário (valor preditivo por lote, leave-one-batch-out do modelo agrupado) com K lotes e o
+    orçamento fixo: receitas LHS em cada lote, metade com cada lote de redutor."""
+    sys.path.insert(0, os.path.join(ROOT, "code", "campaign"))
+    import analysis
+    kind, k = BATCH_SIZING[name]
+    space = designer.DEFAULT_SPACE
+    lab = os.path.join(root, "labs", f"{name}_s{seed}", "lab")
+    names = _register_batches(k, seed)
+    sim_lab.init_lab(lab, names, seed=seed)
+    if kind == "placebo":
+        _placebo(lab, seed)
+    rng = np.random.default_rng(seed)
+    sizes = [budget // k + (i < budget % k) for i in range(k)]
+    for i, (b, n) in enumerate(zip(names, sizes)):
+        rec = _lhs(space, n, seed * 1000 + i)
+        for h, lot in enumerate(("RED-A", "RED-B")):
+            part = rec.iloc[h::2].reset_index(drop=True)
+            if len(part):
+                syn = designer.proposals_to_syntheses(part, space, b, f"SIZING-{b}-{lot}", 0, lots={"reductant": lot},
+                                                      seed=seed).assign(status="done")
+                sim_lab.run_syntheses(lab, syn, rng)
+    r = analysis.batch_level_predictive(lab, "recipe", "go+impurities", designer.default_eps())
+    best = float(pd.read_csv(os.path.join(lab, "outcomes.csv")).query("objective == 'spectral_loss_J'")["value"].min())
+    return [{"arm": name, "seed": seed, "n": k, "best_loss": best,
+             "p_batch": r.get("p_value_sign_flip_one_sided", np.nan), "batch_ratio": r.get("rmse_ratio_estimate", np.nan),
+             "batch_d": [float(x["d"]) for x in r.get("per_batch", [])]}]
+
+
+def run_factorial(name: str, seed: int, root: str) -> list[dict]:
+    sys.path.insert(0, os.path.join(ROOT, "code", "campaign"))
+    import factorial
+    kind, r = FACTORIAL_SIZING[name]
+    lab = os.path.join(root, "labs", f"{name}_s{seed}", "lab")
+    sim_lab.init_lab(lab, ("L1", "L2", "L3"), seed=seed)
+    levels = ("L1", "L3", "RED-A", "RED-B") if kind == "effect" else ("L2", "L2", "RED-A", "RED-A")
+    syn = factorial.design(*levels, replicates=r, role="reductant", seed=seed, gold_lot="LOT-HAuCl4-SIM")
+    sim_lab.run_syntheses(lab, syn.assign(status="done"), np.random.default_rng(seed))
+    a = factorial.analyze(lab)
+    m = a["main_effects_restricted_randomization"]
+    return [{"arm": name, "seed": seed, "n": r, "best_loss": float(np.exp(min(a["cell_means"].values()))),
+             "p_imp": m["impurity"]["p_two_sided"], "p_go": m["GO_low_vs_high"]["p_two_sided"],
+             "p_int": a["ols_hc3"]["interaction"]["p"], "eff_imp": a["effect_impurity"],
+             "eff_go": a["effect_GO_low_vs_high"], "eff_int": a["interaction"]}]
+
+
+def summarize_factorial(cv: pd.DataFrame, alpha: float = 0.05) -> dict:
+    s = {"SIMULADO": True, "scenario": "factorial", "alpha": alpha, "rows": {}}
+    for name, g in cv.groupby("arm"):
+        kind, r = FACTORIAL_SIZING[name]
+        row = {"kind": kind, "replicates": r, "syntheses": 4 * r, "campaigns": int(len(g))}
+        for k in ("imp", "go", "int"):
+            p = g[f"p_{k}"].to_numpy(float)
+            row[f"rejection_{k}"] = float(np.mean(p < alpha))
+            row[f"rejection_{k}_ci95"] = _wilson(int(np.sum(p < alpha)), len(p))
+            row[f"median_effect_{k}"] = float(np.median(g[f"eff_{k}"]))
+        s["rows"][name] = row
+    return s
+
+
+def summarize_batches(cv: pd.DataFrame, alpha: float = 0.05) -> dict:
+    s = {"SIMULADO": True, "scenario": "batches", "alpha": alpha, "budget": SIZING_BUDGET, "rows": {}}
+    for name, g in cv.groupby("arm"):
+        kind, k = BATCH_SIZING[name]
+        p = g["p_batch"].to_numpy(float)
+        p = p[np.isfinite(p)]
+        d = np.concatenate([np.asarray(x, float) for x in g["batch_d"]] or [np.array([])])
+        s["rows"][name] = {"kind": kind, "batches": k, "campaigns": int(len(p)),
+                           "rejection": float(np.mean(p < alpha)) if len(p) else float("nan"),
+                           "rejection_ci95": _wilson(int(np.sum(p < alpha)), len(p)),
+                           "median_rmse_ratio": float(np.nanmedian(g["batch_ratio"].to_numpy(float))),
+                           "mean_batch_log_ratio": float(np.mean(d)) if len(d) else float("nan"),
+                           "sd_batch_log_ratio": float(np.std(d, ddof=1)) if len(d) > 1 else float("nan")}
+    return s
 
 
 def _job(scenario: str, arm: str, seed: int, rounds: int, q: int, root: str, acq: str | None, resume: bool):
     path = os.path.join(root, "jobs", f"{arm.replace('+', '_')}_s{seed}.json")
     if resume and os.path.exists(path):
+        if scenario == "prospective":
+            return _augment_prospective(path, root)
         with open(path, encoding="utf-8") as fh:
             return json.load(fh)
     import torch
@@ -269,6 +396,8 @@ def _job(scenario: str, arm: str, seed: int, rounds: int, q: int, root: str, acq
     t0 = time.time()
     curve = (run_campaign(arm, seed, rounds, q, root, acq) if scenario == "main"
              else run_prospective(arm, seed, rounds, root, acq) if scenario == "prospective"
+             else run_batches(arm, seed, root) if scenario == "batches"
+             else run_factorial(arm, seed, root) if scenario == "factorial"
              else run_transfer(arm, seed, rounds, q, root, acq))
     res = {"arm": arm, "seed": seed, "seconds": round(time.time() - t0, 1), "curve": curve}
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -407,6 +536,16 @@ def summarize_prospective(cv: pd.DataFrame, rounds: int, alpha: float = 0.05, th
             "fraction_HL_reduction_above_threshold": float(np.mean(1 - np.exp(hl) >= threshold)),
             "fraction_final_best_better": float(np.mean(fin < 1)),
             "median_final_geometric_reduction": float(1 - np.exp(np.median(np.log(fin))))}
+        if "p_batch" in g:
+            r_b = rate("p_batch")
+            pool = np.concatenate([np.asarray(x, float) for x in g["batch_d"] if isinstance(x, (list, np.ndarray))]
+                                  or [np.array([])])
+            s["pairs"][pair].update({
+                "primary_batch_rejection": r_b[0], "primary_batch_rejection_ci95": r_b[1],
+                "median_batch_rmse_ratio": float(np.nanmedian(g["batch_ratio"].to_numpy(float))),
+                "batches_per_campaign": int(np.median([len(x) for x in g["batch_d"] if isinstance(x, list)] or [0])),
+                "batch_effect_mean_log_ratio": float(np.mean(pool)) if len(pool) else float("nan"),
+                "batch_effect_sd": float(np.std(pool, ddof=1)) if len(pool) > 1 else float("nan")})
     return s
 
 
@@ -473,10 +612,11 @@ def report(out: str) -> str:
                   "`code/campaign/analysis.py` (randomização por troca de sinais, unilateral, α = "
                   f"{s['alpha']}), incluindo a confirmação: 8 pares nos lotes reservados L4–L6 com os braços "
                   "congelados e as previsões dos modelos congelados gravadas antes de sintetizar.",
-                  "", "| par | campanhas | **primário**: rejeição — valor preditivo (IC 95 %) | razão de RMSE mediana "
-                  "(contexto/receita) | secundário: rejeição — otimização nos pares de confirmação | exploratório: "
-                  "rejeição — rodadas adaptativas | P(melhor perda final do tratamento < referência) |",
-                  "|---|---|---|---|---|---|---|"]
+                  "", "| par | campanhas | **primário**: rejeição — valor preditivo, unidade = lote (IC 95 %) | "
+                  "razão de RMSE (HL, mediana) | descritivo: rejeição por síntese | secundário: rejeição — otimização "
+                  "nos pares de confirmação | exploratório: rejeição — rodadas adaptativas | P(melhor perda final do "
+                  "tratamento < referência) |",
+                  "|---|---|---|---|---|---|---|---|"]
 
         def pct(v, ci=None):
             if v is None or not np.isfinite(v):
@@ -484,14 +624,71 @@ def report(out: str) -> str:
             return f"{100 * v:.0f} %" + (f" ({100 * ci[0]:.0f}–{100 * ci[1]:.0f})" if ci else "")
         for pair, v in s["pairs"].items():
             lines.append(f"| {pair} | {v['campaigns']} | "
+                         f"{pct(v.get('primary_batch_rejection'), v.get('primary_batch_rejection_ci95'))} | "
+                         f"{v.get('median_batch_rmse_ratio', float('nan')):.2f} | "
                          f"{pct(v.get('primary_predictive_rejection'), v.get('primary_predictive_rejection_ci95'))} | "
-                         f"{v.get('median_rmse_ratio', float('nan')):.2f} | "
                          f"{pct(v.get('secondary_confirmation_rejection'), v.get('secondary_confirmation_rejection_ci95'))} | "
                          f"{pct(v['rejection_rate'], v['rejection_rate_ci95'])} | "
                          f"{pct(v['fraction_final_best_better'])} |")
         lines += ["", "Rejeição no par **contextual** = poder; nos pares **placebo** (descritores embaralhados entre lotes) "
                   "e **null** (braços idênticos) = erro tipo I. O valor preditivo não existe no null (mesma "
-                  "representação → previsões idênticas)."]
+                  "representação → previsões idênticas). O primário usa o **lote** como unidade: os 3 lotes de "
+                  "desenvolvimento por leave-one-batch-out e os 3 reservados pelas previsões congeladas (troca de "
+                  "sinais exata, p mínimo 1/64); a versão por síntese trata sínteses do mesmo lote como independentes "
+                  "e é anticonservadora (ver o placebo), por isso só descritiva."]
+        c = s["pairs"].get("contextual", {})
+        if "batch_effect_sd" in c:
+            lines += ["", f"No cenário contextual, d_b = ln(RMSE_contexto/RMSE_receita) tem média "
+                      f"{c['batch_effect_mean_log_ratio']:+.3f} (razão {np.exp(c['batch_effect_mean_log_ratio']):.3f}) e "
+                      f"dp entre lotes {c['batch_effect_sd']:.3f}: o ganho preditivo do contexto é pequeno diante da "
+                      "variação entre lotes. Quantos lotes o teste exigiria: seção seguinte (simulação direta com K "
+                      "lotes — reamostrar os d_b daqui ignoraria a correlação dentro da campanha e o aprendizado "
+                      "que mais lotes trazem)."]
+        lines.append("")
+    p = os.path.join(out, "batches", "summary.json")
+    if os.path.exists(p):
+        s = json.load(open(p, encoding="utf-8"))
+        rows = s["rows"]
+        ks = sorted({v["batches"] for v in rows.values()})
+        get = lambda kind, k: next((v for v in rows.values() if v["kind"] == kind and v["batches"] == k), None)  # noqa: E731
+
+        def cell(v):
+            if not v or not np.isfinite(v["rejection"]):
+                return "—"
+            lo, hi = v["rejection_ci95"]
+            return f"{100 * v['rejection']:.0f} % ({100 * lo:.0f}–{100 * hi:.0f})"
+        lines += [f"## Quantos lotes de GO o desfecho primário exige ({s['budget']} sínteses repartidas entre K lotes)",
+                  "", "`python code/benchmarking/campaign_sim.py --scenario batches --seeds 30 --workers 4`", "",
+                  "Receitas LHS em cada lote (metade com cada lote de redutor); desfecho primário por lote "
+                  "(leave-one-batch-out do modelo agrupado, recipe × go+impurities, troca de sinais exata, "
+                  f"α = {s['alpha']}). Lotes extras do simulador com C/O sorteado na faixa de L1–L6. É o limite "
+                  "superior do desenho real com K lotes (todo lote é avaliado com os outros K − 1 no treino).", "",
+                  "| lotes (K) | sínteses por lote | poder (contextual) | razão de RMSE mediana | erro tipo I (placebo) |",
+                  "|---|---|---|---|---|"]
+        for k in ks:
+            c, pl = get("contextual", k), get("placebo", k)
+            lines.append(f"| {k} | {s['budget'] / k:.1f} | {cell(c)} | "
+                         f"{c['median_rmse_ratio']:.2f} | {cell(pl)} |" if c else f"| {k} | — | — | — | {cell(pl)} |")
+        lines.append("")
+    p = os.path.join(out, "factorial", "summary.json")
+    if os.path.exists(p):
+        s = json.load(open(p, encoding="utf-8"))
+        lines += ["## Fatorial 2×2 (§4.9): poder por nº de réplicas (blocos completos)", "",
+                  "`python code/benchmarking/campaign_sim.py --scenario factorial --seeds 100 --workers 4`", "",
+                  "Receita fixa (centro do espaço); GO C/O 2,2 × 1,5 (L1 × L3) e redutor com 2 × 45 ppm de iodeto. "
+                  "Efeitos principais por randomização restrita exata (`factorial.py`), interação por OLS com bloco "
+                  f"(HC3); α = {s['alpha']}. \"null\": o mesmo lote nos dois níveis (erro tipo I).", "",
+                  "| cenário | réplicas | sínteses | rejeição — impureza | rejeição — GO | rejeição — interação | "
+                  "efeito mediano GO (log J) | efeito mediano impureza (log J) |", "|---|---|---|---|---|---|---|---|"]
+
+        def pc(v, ci):
+            return f"{100 * v:.0f} % ({100 * ci[0]:.0f}–{100 * ci[1]:.0f})"
+        for name in sorted(s["rows"], key=lambda n: (s["rows"][n]["kind"], s["rows"][n]["replicates"])):
+            v = s["rows"][name]
+            lines.append(f"| {v['kind']} | {v['replicates']} | {v['syntheses']} | "
+                         f"{pc(v['rejection_imp'], v['rejection_imp_ci95'])} | {pc(v['rejection_go'], v['rejection_go_ci95'])} | "
+                         f"{pc(v['rejection_int'], v['rejection_int_ci95'])} | {v['median_effect_go']:+.2f} | "
+                         f"{v['median_effect_imp']:+.2f} |")
         lines.append("")
     p = os.path.join(out, "transfer", "summary.json")
     if os.path.exists(p):
@@ -540,7 +737,7 @@ def main() -> None:
         print(report(sys.argv[2] if len(sys.argv) > 2 else os.path.join(ROOT, "outputs", "campaign_sim")))
         return
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--scenario", choices=["main", "transfer", "prospective"], default="main")
+    ap.add_argument("--scenario", choices=["main", "transfer", "prospective", "batches", "factorial"], default="main")
     ap.add_argument("--seeds", type=int, default=5)
     ap.add_argument("--rounds", type=int, help="main: rodadas adaptativas (padrão 12 = 24 sínteses com q=2); "
                                                 "transfer: sínteses no lote novo (padrão 16)")
@@ -552,15 +749,18 @@ def main() -> None:
     ap.add_argument("--resume", action="store_true", help="reaproveita jobs/*.json já concluídos")
     ap.add_argument("--out", default=os.path.join(ROOT, "outputs", "campaign_sim"))
     a = ap.parse_args()
-    table = {"main": ARMS, "transfer": TRANSFER_ARMS, "prospective": PROSPECTIVE}[a.scenario]
+    table = {"main": ARMS, "transfer": TRANSFER_ARMS, "prospective": PROSPECTIVE, "batches": BATCH_SIZING,
+             "factorial": FACTORIAL_SIZING}[a.scenario]
     arms = a.arms or list(table)
     bad = [x for x in arms if x not in table]
     if bad:
         ap.error(f"braços desconhecidos {bad}; disponíveis: {list(table)}")
-    rounds = a.rounds or {"main": 12, "transfer": 16, "prospective": 12}[a.scenario]
+    rounds = a.rounds or {"main": 12, "transfer": 16, "prospective": 12, "batches": 0, "factorial": 0}[a.scenario]
     cv = run_all(a.scenario, arms, a.seeds, rounds, a.q, a.out, a.acq, a.workers, a.resume)
     s = (summarize_main(cv, rounds, a.reference) if a.scenario == "main" else
-         summarize_prospective(cv, rounds) if a.scenario == "prospective" else summarize_transfer(cv, rounds))
+         summarize_prospective(cv, rounds) if a.scenario == "prospective" else
+         summarize_batches(cv) if a.scenario == "batches" else
+         summarize_factorial(cv) if a.scenario == "factorial" else summarize_transfer(cv, rounds))
     if a.scenario == "main":
         s["pareto"] = pareto_metrics(os.path.join(a.out, "main"), arms, a.seeds)
     s.update({"q": a.q, "acq": a.acq or designer.default_acq(), "prereg_sha256": _prereg_sha()})
