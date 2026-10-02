@@ -1241,12 +1241,15 @@ Correção (pré-registro em rascunho; validar com o orientador antes do `freeze
 - **desfecho primário**: valor preditivo do contexto em lotes nunca vistos, com o **lote** como unidade — em cada um dos
   6 lotes mantidos fora do treino (L1–L3 por leave-one-batch-out; L4–L6 pelas previsões congeladas),
   d_b = ln(RMSE_contexto/RMSE_receita); troca de sinais exata (p mínimo 1/64) e Hodges–Lehmann
-  (`campaign/analysis.py batch_level_predictive`). A primeira versão pareava o erro **por síntese**; a simulação
-  mostrou erro tipo I de 12,5 % no placebo (igual ao poder no cenário contextual), porque as 16 sínteses caem em só 3 lotes e compartilham o erro do lote —
-  ficou como descritiva; **secundário (descritivo)**: otimização nos 8 pares (erro tipo I simulado de até 12,5 %, porque
-  o teste condiciona aos modelos realizados);
-- **validação do desenho**: cenários contextual (poder), placebo (descritores embaralhados entre lotes: erro tipo I do
-  primário) e nulo (braços idênticos) — resultados em [`SIMULACOES.md`](SIMULACOES.md) e na §18.3.
+  (`campaign/analysis.py batch_level_predictive`). A primeira versão pareava o erro **por síntese**, o que trata
+  como independentes sínteses que compartilham o erro do lote (16 sínteses em só 3 lotes). Na simulação ela rejeitou
+  10 % sob o placebo e 12 % com efeito real, e ficou como descritiva. **Secundário (descritivo)**: otimização nos 8
+  pares; condiciona aos modelos realizados e rejeitou 18 % tanto sob o placebo quanto com efeito real;
+- **validação do desenho**: cenários contextual (poder), placebo e nulo (braços idênticos), com resultados em
+  [`SIMULACOES.md`](SIMULACOES.md) e na §18.3. No placebo, o contexto registrado não tem informação: os descritores
+  trocam de lote e o lote de redutor registrado é sorteado, enquanto o simulador usa o verdadeiro. A primeira versão
+  só trocava os valores de impureza entre os 2 lotes, o que mantinha a distinção entre eles informativa e media o
+  valor da impureza, não o erro tipo I. Foi corrigida e rodada de novo.
 
 ### 18.2 Itens parciais e ausentes tratados
 
@@ -1255,7 +1258,7 @@ Correção (pré-registro em rascunho; validar com o orientador antes do `freeze
 | Frente de Pareto no benchmark (HV/IGD/spread) | por campanha, com referência e frente comuns | `campaign_sim.py` (`pareto`) |
 | Interações no SHAP (§4.13) | H² de Friedman na média do GP, com bootstrap | `designer.py explain --interactions` |
 | Subconjunto de TEM (~30) | marcado no plano, espalhado por etapa, receita, lote, rodada e pares inteiros | `plan.py` (`tem`) |
-| Fatorial 2×2 (Objetivo 8) | blocos completos aleatorizados, permutação exata dentro dos blocos + OLS | `campaign/factorial.py` |
+| Fatorial 2×2 (Objetivo 8) | blocos completos aleatorizados (4 réplicas); efeitos principais por randomização restrita exata + Holm; interação por OLS com bloco | `campaign/factorial.py` |
 | Correção de hardware (§4.7) | GP na plataforma de referência + correção linear por plataforma, LOO com e sem | `transfer_learning/hardware.py` |
 | Modelo espectral diferenciável (Objetivo 4) | Neural Process latente + GP condições → z; banda calibrada; LBO; design inverso exploratório | `spectral/neural_process.py` |
 | MISO com dados reais | observações por técnica → objetivo; próxima (receita, técnica); recomendação confirmada; SAXS condicional | `miso.py propose` |
@@ -1278,31 +1281,47 @@ o protocolo, não preveem o ganho real.
 
 | teste | contextual | placebo | nulo | papel |
 |---|---|---|---|---|
-| valor preditivo, **unidade = lote** (6 lotes) | 15 % (7–29) | 5 % (1–17) | 0 % | **primário** |
-| valor preditivo por síntese (16) | 12,5 % | 12,5 % | 0 % | descritivo |
-| otimização nos 8 pares de confirmação | 18 % | 8 % | 12,5 % | descritivo |
-| rodadas adaptativas pareadas | 5 % | 2,5 % | 12,5 % | exploratório |
+| valor preditivo, **unidade = lote** (6 lotes) | 15 % (7–29) | 0 % (0–9) | 0 % | **primário** |
+| valor preditivo por síntese (16) | 12 % | 10 % | 0 % | descritivo |
+| otimização nos 8 pares de confirmação | 18 % | 18 % | 12 % | descritivo |
+| rodadas adaptativas pareadas | 5 % | 5 % | 12 % | exploratório |
 
-O primário por lote é o único teste que separa sinal de ruído com o erro tipo I no nível nominal. O poder é baixo
-porque, no simulador, o contexto melhora pouco a previsão de lote novo: ln(RMSE_contexto/RMSE_receita) tem média
-−0,016 (razão 0,984) e dp entre lotes de 0,37. Ou seja, o efeito existe na otimização (go+impurities −50 % de perda
-no cenário principal, com muitas campanhas), mas uma única campanha não o confirma.
+Só o primário por lote é válido (0 % sob o placebo) e separa sinal de ruído: 6/40 × 0/40, Fisher p = 0,013. O poder,
+porém, é de 15 %. No simulador, o contexto melhora pouco a previsão de lote novo: ln(RMSE_contexto/RMSE_receita) tem
+média −0,016 (razão 0,984) e dp entre lotes de 0,37. O efeito aparece na otimização (go+impurities −50 % de perda no
+cenário principal, com muitas campanhas), mas uma única campanha não o confirma.
 
-**Fatorial 2×2 (100 simulações por linha).** Receita fixa, GO C/O 2,2 × 1,5, iodeto 2 × 45 ppm:
+**Mais lotes não resolvem (40 campanhas por K, mesmas 60 sínteses).** Com receitas LHS em K lotes e o primário por
+leave-one-batch-out, o poder fica em 10–12 % para K = 6, 9, 12 e 16, a razão de RMSE mediana em 0,99–1,02 e o placebo
+rejeita 5–10 %. Somando todos os K, são 11 % × 9 % (Fisher p = 0,29): o teste deixa de separar sinal de ruído e
+fica levemente anticonservador, porque as dobras do LBO compartilham dados de treino. Com este orçamento, repartir
+as sínteses em mais lotes não ajuda; os 6 lotes (3 + 3 reservados com previsões congeladas) são o melhor desenho testado.
 
-| réplicas (sínteses) | efeito do GO | efeito da impureza | interação | erro tipo I (nulo) |
+**Fatorial 2×2 (100 simulações por linha).** Receita fixa, GO C/O 2,2 × 1,5, iodeto 2 × 45 ppm. Efeitos principais
+por randomização restrita exata com Holm entre os dois:
+
+| réplicas (sínteses) | efeito do GO | efeito da impureza | interação (OLS) | erro tipo I (nulo) |
 |---|---|---|---|---|
-| 3 (12) | 100 % | 46 % | 6 % | ≤ 5 % |
-| 4 (16) | 100 % | 82 % | 7 % | ≤ 3 % |
-| 6 (24) | 100 % | 95 % | 9 % | ≤ 4 % |
+| 3 (12) | 0 % | 0 % | 6 % | ≤ 5 % |
+| 4 (16) | 100 % | 82 % | 7 % | ≤ 2 % |
+| 6 (24) | 100 % | 95 % | 9 % | ≤ 2 % |
 
-A randomização restrita (o rótulo de um fator só troca dentro do mesmo bloco e nível do outro) substituiu a permutação
-das 4 células, que testava o nulo "nenhum efeito" e ficava conservadora para um fator quando o outro age. O
-pré-registro passou de 3 para 4 réplicas.
+Com 3 réplicas, o menor p exato possível (2/64 = 0,031) dobra para 0,0625 com Holm, e nada é rejeitado. Por isso o
+pré-registro passou de 3 para 4 réplicas. A randomização restrita (o rótulo de um fator só troca dentro do mesmo bloco
+e nível do outro) substituiu a permutação das 4 células, que testava o nulo "nenhum efeito" e ficava conservadora para
+um fator quando o outro age.
+
+**Algoritmos exploratórios no cenário principal (10 campanhas × 12 rodadas, perda final contra recipe).** EGBO
+(representação go) teve −56 % (IC 95 % 12–78 %) e é o único braço novo com intervalo que exclui zero, no nível do
+hierarchical (−55 %). O autopilot ficou em −23 % (não significativo). O TPE (Optuna) ficou em +37 %, pior que recipe.
+O DNN ensemble ficou em +167 %: com 12–36 pontos, o ensemble é mal calibrado e a aquisição se perde. Esses braços
+continuam exploratórios. Se o orientador quiser trocar o otimizador do braço contextual, sem mudar o número de
+braços (os pares por rodada e na confirmação exigem 2), o EGBO é o candidato.
 
 **Recomendação para o orientador (antes do `freeze`).** A premissa do projeto ("a matéria-prima muda o resultado")
 tem teste com poder: o fatorial com 4 réplicas, hoje condicional e fora das 60 sínteses, cobre GO e impureza.
-A hipótese mais forte ("o contexto melhora a previsão de lote novo") tem teste válido, mas pouco poder com 6 lotes.
-Deve ser relatada como estimativa (razão de RMSE com IC), não como confirmação. Mais lotes de GO só ajudam se
-houver ganho preditivo real; a tabela abaixo mostra quanto, com as mesmas 60 sínteses.
+Promovê-lo a teste confirmatório custa 16 sínteses (`premise_test` no pré-registro, em rascunho). A hipótese mais forte
+("o contexto melhora a previsão de lote novo") tem teste válido, mas com poder de ≈ 15 %. Ela deve ser relatada como
+estimativa (razão de RMSE com IC 95 %), e "não rejeitar" não é evidência de ausência. Os demais testes
+(por síntese, otimização na confirmação, rodadas adaptativas) não controlam o erro tipo I e ficam descritivos.
 

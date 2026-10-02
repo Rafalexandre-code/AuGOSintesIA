@@ -182,9 +182,19 @@ def analyze(lab: str, outcome: str = "spectral_loss_J", log: bool = True) -> dic
         raise SystemExit(f"fatorial incompleto: células com dados {n.to_dict()}")
     return {"outcome": outcome, "scale": "log" if log else "linear", "n_per_cell": n.to_dict(),
             "cell_means": df.groupby(["go", "imp"])["y"].mean().to_dict(), **contrasts(df),
-            "main_effects_restricted_randomization": {"impurity": restricted_test(df, "imp"),
-                                                      "GO_low_vs_high": restricted_test(df, "go")},
+            "main_effects_restricted_randomization": holm({"impurity": restricted_test(df, "imp"),
+                                                           "GO_low_vs_high": restricted_test(df, "go")}),
             "permutation_sharp_null": permutation_test(df), "ols_hc3": ols(df)}
+
+
+def holm(tests: dict) -> dict:
+    """Acrescenta p_holm (Holm–Bonferroni entre os efeitos principais, como no pré-registro → premise_test)."""
+    names = sorted(tests, key=lambda k: tests[k]["p_two_sided"])
+    m, running = len(names), 0.0
+    for i, k in enumerate(names):
+        running = max(running, min(1.0, (m - i) * tests[k]["p_two_sided"]))
+        tests[k]["p_holm"] = running
+    return tests
 
 
 def main() -> None:

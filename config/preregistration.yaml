@@ -79,8 +79,9 @@ budget:                   # 60 sínteses independentes (controles não contam)
 factorial_2x2:            # §4.9 (condicional, FORA das 60): lote de GO (C/O alto × baixo) × impureza (limpo × contaminado)
   impurity: CTAB                   # reagente cuja contaminação é testada (papel stabilizer); no simulador, iodeto no redutor
   impurity_role: stabilizer
-  replicates: 4                    # blocos completos (cada dia: 1 réplica de cada célula). Simulação: poder para o
-                                   # efeito da impureza ≈ 46 % com 3, ≈ 82 % com 4 (16 sínteses) (docs/SIMULACOES.md)
+  replicates: 4                    # blocos completos (cada dia: 1 réplica de cada célula). Com 3, o menor p exato
+                                   # (2/64) passa de 0,05 com Holm; com 4 (16 sínteses), poder simulado 82 % (impureza)
+                                   # e 100 % (GO) (docs/SIMULACOES.md)
   recipe: reference                # receita fixa (centro do espaço) para isolar os dois fatores
   analysis: exact_within_block_permutation   # code/campaign/factorial.py analyze (+ OLS com bloco, efeitos e IC)
 tem_subset:               # §4.12: TEM em ~30 sínteses, espalhadas por todas as etapas (plan.py marca a coluna tem)
@@ -114,15 +115,22 @@ arms:
 primary_outcome:
   metric: predictive_value_of_context    # erro de previsão de log J em lote NUNCA visto, contextual × só-receita
   unit: go_batch                         # d_b = ln(RMSE_contexto/RMSE_receita) por lote; sínteses do mesmo lote
-                                         # compartilham o erro do lote (por síntese: erro tipo I de 12,5 % simulado)
+                                         # compartilham o erro do lote (por síntese: 10 % sob placebo simulado)
   held_out_batches: [development_leave_one_batch_out, reserved_frozen_predictions]   # 3 + 3 = 6 lotes
   models: frozen_pooled                  # mesmos dados de desenvolvimento; só muda a representação (plan.py confirm)
   predictions_recorded_before_synthesis: true   # confirmation_predictions.csv + sha256 no manifesto
   test: randomization_sign_flip_one_sided       # exato sobre os lotes (6 → p mínimo 1/64)
   estimate: [hodges_lehmann, rmse_ratio]
+  reporting: estimate_with_ci_first      # poder simulado ≈ 15 % (erro tipo I 0 % no placebo): "não rejeitar" não é
+                                         # evidência de ausência; relatar a razão de RMSE com IC 95 %
+premise_test:             # RECOMENDADO (decidir com o orientador antes do freeze): teste COM PODER da premissa
+  design: factorial_2x2   # "a matéria-prima muda o resultado" — fatorial abaixo, com receita fixa
+  effects: [GO_low_vs_high, impurity]    # randomização restrita exata (factorial.py), Holm entre os dois efeitos
+  power_simulated: {GO_low_vs_high: 1.00, impurity: 0.82}    # 4 réplicas; erro tipo I ≤ 3 % (docs/SIMULACOES.md)
+  status: proposed        # hoje o fatorial é condicional (fora das 60): promovê-lo custa 16 sínteses
 secondary_outcomes:
   per_synthesis_predictive: squared_error_difference   # DESCRITIVO (anticonservador; ver unit acima)
-  confirmation_optimization: paired_log_J_by_reserved_batch   # 8 pares; DESCRITIVO (erro tipo I simulado até 12,5 %)
+  confirmation_optimization: paired_log_J_by_reserved_batch   # 8 pares; DESCRITIVO (18 % sob placebo simulado)
   adaptive_rounds: paired_round_log_loss  # EXPLORATÓRIO (teste anticonservador sob dependência)
   descriptive: best_cumulative_loss_per_round   # desfecho original da proposta, por braço, média balanceada
   aggregation: balanced_mean_over_batches

@@ -10,9 +10,10 @@ observações são independentes: a CONFIRMAÇÃO nos lotes reservados, com mode
    mantido fora do treino (desenvolvimento por leave-one-batch-out; reservados pelas previsões CONGELADAS gravadas
    antes da confirmação por plan.py confirm), d_b = ln(RMSE_contexto/RMSE_receita) do log J. Troca de sinais exata
    sobre os lotes (6 → p mínimo 1/64) e Hodges–Lehmann. A versão por síntese é anticonservadora (sínteses do mesmo
-   lote compartilham o erro do lote: erro tipo I de 12,5 % no placebo simulado, igual ao poder) e fica como descritiva.
+   lote compartilham o erro do lote; no simulador rejeitou 10 % sob o placebo e 12 % com efeito real) e fica descritiva.
 2. SECUNDÁRIO (descritivo) — otimização em lotes novos: nos pares de confirmação, d_p = log J(trat) − log J(ref).
-   O teste condiciona aos modelos realizados (erro tipo I simulado de até 12,5 %), então o p-valor é só indicativo.
+   O teste condiciona aos modelos realizados (no simulador, 18 % de rejeição sob o placebo — o mesmo que com efeito
+   real), então o p-valor não tem valor inferencial.
 3. EXPLORATÓRIO — fase adaptativa: d_r por rodada pareada e curvas de melhor perda acumulada por braço
    (o desfecho da proposta, aqui descritivo; o p-valor é reportado com o aviso de anticonservadorismo).
 
@@ -205,7 +206,8 @@ def batch_level_predictive(lab: str, ref_rep: str, trt_rep: str, eps: float, pre
     """PRIMÁRIO (unidade = LOTE): para cada lote mantido fora — os de desenvolvimento por leave-one-batch-out e os
     reservados pelas previsões congeladas da confirmação —, d_b = ln(RMSE_contexto / RMSE_receita) do log J.
     As sínteses de um mesmo lote compartilham o erro do lote; tratá-las como independentes infla o erro tipo I
-    (simulação: 12,5 % no placebo). Com o lote como unidade, a troca de sinais é exata (6 lotes → p mínimo 1/64)."""
+    (simulação: 10 % sob o placebo). Com o lote como unidade, a troca de sinais é exata (6 lotes → p mínimo 1/64);
+    no desenho real simulado: 0 % sob o placebo e 15 % de poder."""
     import designer
     space = designer.DEFAULT_SPACE
     lbo = designer.validate_lbo(lab, space, (ref_rep, trt_rep), designer.default_logs(), eps)
@@ -280,7 +282,7 @@ def analyze(lab: str, arms: tuple[str, str] | None = None, eps: float | None = N
             "descriptive_per_synthesis_predictive": {**per_syn, "warning": "sínteses do mesmo lote não são "
                                                      "independentes: p-valor anticonservador, leia como descritivo"},
             "secondary_confirmation_optimization": {**secondary, "warning": "pares condicionados aos modelos "
-                                                    "realizados; erro tipo I simulado de até 12,5 % — descritivo"},
+                                                    "realizados; rejeitou 18 % sob o placebo simulado — descritivo"},
             "exploratory_adaptive_warning": "fase adaptativa: teste anticonservador sob dependência entre rodadas "
                                             "(erro tipo I simulado acima de α); leia como descritivo",
             "reference_arm": ref, "treatment_arm": trt, "n_pairs": int(len(d)), "epsilon": eps,

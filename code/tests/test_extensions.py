@@ -58,6 +58,9 @@ def test_factorial_design_and_exact_analysis(tmp_path):
     assert r["permutation_sharp_null"]["exact"] and r["permutation_sharp_null"]["n_permutations"] == 24 ** 3
     go = r["main_effects_restricted_randomization"]["GO_low_vs_high"]
     assert go["exact"] and go["n_assignments"] == 64 and r["effect_GO_low_vs_high"] > 0 and go["p_two_sided"] < 0.05
+    imp = r["main_effects_restricted_randomization"]["impurity"]
+    lo, hi = sorted((go, imp), key=lambda t: t["p_two_sided"])
+    assert lo["p_holm"] == pytest.approx(min(1, 2 * lo["p_two_sided"])) and hi["p_holm"] >= lo["p_holm"]
     rng = np.random.default_rng(0)                                   # sem efeito nenhum: p grandes em média
     df = pd.DataFrame([{"go": g, "imp": i, "block": b, "y": rng.normal()} for b in range(3) for g, i in factorial.CELLS])
     assert factorial.permutation_test(df)["p_two_sided"]["interaction"] > 0.01
@@ -212,4 +215,4 @@ def test_sizing_scenarios_and_report(tmp_path):
         with open(tmp_path / "out" / name / "summary.json", "w") as fh:
             json.dump(s, fh, default=float)
     md = cs.report(str(tmp_path / "out"))
-    assert "Fatorial 2×2" in md and "Quantos lotes de GO" in md and "| 6 |" in md
+    assert "Fatorial 2×2" in md and "Mais lotes de GO" in md and "| 6 |" in md
