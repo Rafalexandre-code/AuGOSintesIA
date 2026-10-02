@@ -210,6 +210,7 @@ def summarize_main(cv: pd.DataFrame, rounds: int, reference: str = "recipe") -> 
     s = {"SIMULADO": True, "scenario": "main", "arms": arms, "seeds": seeds, "rounds": rounds,
          "median_final_best_loss": final.groupby("arm")["final_best_loss"].median().to_dict(),
          "comparison": stats.compare_arms(final) if seeds >= 2 else None, "relative_reduction_vs_reference": {},
+         "geometric_reduction_vs_reference": {},
          "power_vs_reference": {}, "reference": reference}
     if reference in arms and seeds >= 2:
         wide = final.pivot_table(index="seed", columns="arm", values="final_best_loss")
@@ -220,6 +221,8 @@ def summarize_main(cv: pd.DataFrame, rounds: int, reference: str = "recipe") -> 
             if arm == reference:
                 continue
             s["relative_reduction_vs_reference"][arm] = stats.paired_bootstrap_relative_reduction(
+                wide[reference].to_numpy(), wide[arm].to_numpy())
+            s["geometric_reduction_vs_reference"][arm] = stats.paired_bootstrap_geometric_reduction(
                 wide[reference].to_numpy(), wide[arm].to_numpy())
             if seeds >= 8:   # com poucas campanhas-base a reamostragem é degenerada (poder ≈ 0 ou 1)
                 s["power_vs_reference"][arm] = stats.power_by_resampling(
@@ -254,17 +257,20 @@ def report(out: str) -> str:
         s = json.load(open(p, encoding="utf-8"))
         lines += [f"## Cenário principal (L1–L3): {s['seeds']} sementes × {s['rounds']} rodadas", "",
                   "`python code/benchmarking/campaign_sim.py --seeds 10 --rounds 12 --q 2 --workers 4`", "",
-                  "| braço | mediana da melhor perda final | redução vs " + s["reference"] + " (IC 95 %) | "
-                  "experimentos até o critério (RMST) | atingiram | log-rank p |", "|---|---|---|---|---|---|"]
+                  "| braço | mediana da melhor perda final | redução geométrica vs " + s["reference"] + " (IC 95 %) | "
+                  "campanhas melhores | experimentos até o critério (RMST) | atingiram | log-rank p |",
+                  "|---|---|---|---|---|---|---|"]
         ttc = s.get("time_to_criterion", {}).get("arms", {})
         for arm in sorted(s["median_final_best_loss"], key=s["median_final_best_loss"].get):
-            rr = s["relative_reduction_vs_reference"].get(arm)
-            red = f"{100 * rr['mean_reduction']:.1f} % ({100 * rr['ci95'][0]:.1f}; {100 * rr['ci95'][1]:.1f})" if rr else "—"
+            rr = s.get("geometric_reduction_vs_reference", {}).get(arm)
+            red = (f"{100 * rr['geometric_reduction']:.0f} % ({100 * rr['ci95'][0]:.0f}; {100 * rr['ci95'][1]:.0f})"
+                   if rr else "—")
+            better = f"{100 * rr['fraction_better']:.0f} %" if rr else "—"
             t = ttc.get(arm, {})
             fmt = lambda k, f: format(t[k], f) if k in t and np.isfinite(t[k]) else "—"     # noqa: E731
             pct = f"{100 * t['fraction_reached']:.0f} %" if "fraction_reached" in t else "—"
-            lines.append(f"| {arm} | {s['median_final_best_loss'][arm]:.3f} | {red} | {fmt('rmst', '.1f')} | {pct} | "
-                         f"{fmt('logrank_p', '.3g')} |")
+            lines.append(f"| {arm} | {s['median_final_best_loss'][arm]:.3f} | {red} | {better} | {fmt('rmst', '.1f')} | "
+                         f"{pct} | {fmt('logrank_p', '.3g')} |")
         if s.get("time_to_criterion"):
             lines += ["", f"Critério: melhor perda balanceada ≤ {s['time_to_criterion']['threshold']:.3f} (mediana final "
                       f"do braço {s['reference']}). Tempo = nº total de sínteses (inclui as 12 iniciais, iguais em "

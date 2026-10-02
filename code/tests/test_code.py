@@ -266,6 +266,12 @@ def test_time_to_criterion_and_logrank():
     assert r["arms"]["slow"]["rmst"] == pytest.approx(10.0) and r["arms"]["slow"]["fraction_reached"] == 0.0
     assert r["arms"]["fast"]["logrank_p"] < 0.01
     assert stats.logrank(np.array([3.0, 5, np.inf]), np.array([3.0, 5, np.inf]), 10) == pytest.approx(1.0)
+    g = stats.paired_bootstrap_geometric_reduction(np.array([2.0, 4.0, 1.0, 8.0]), np.array([1.0, 2.0, 0.5, 4.0]))
+    assert g["geometric_reduction"] == pytest.approx(0.5) and g["fraction_better"] == 1.0
+    r = stats.paired_bootstrap_relative_reduction(np.array([1.0, 1.0, 0.01]), np.array([0.5, 0.5, 0.2]))
+    assert r["mean_reduction"] < -5                     # a média aritmética explode com uma base pequena…
+    assert stats.paired_bootstrap_geometric_reduction(np.array([1.0, 1.0, 0.01]),
+                                                      np.array([0.5, 0.5, 0.2]))["geometric_reduction"] > -1   # …a geométrica não
 
 def test_causal_runs(sim_lab_dir):
     import causal_analysis as ca

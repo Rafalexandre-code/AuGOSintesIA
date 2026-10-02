@@ -70,6 +70,19 @@ def paired_bootstrap_relative_reduction(base: np.ndarray, new: np.ndarray, n_boo
                                                              float(np.percentile(boots, 97.5)))}
 
 
+def paired_bootstrap_geometric_reduction(base: np.ndarray, new: np.ndarray, n_boot: int = 5000, seed: int = 0) -> dict:
+    """Redução GEOMÉTRICA 1 − exp(média de ln(new/base)) com IC 95 % por bootstrap pareado. Robusta quando a perda varia
+    em ordens de grandeza entre campanhas: a média aritmética de 1 − new/base é dominada pelas campanhas cuja base é
+    pequena (uma só pode levar a média a −1000 %), a do log-razão não."""
+    base, new = np.asarray(base, float), np.asarray(new, float)
+    rng = np.random.default_rng(seed)
+    lr = np.log(new / base)
+    boots = np.array([np.mean(lr[rng.integers(0, len(lr), len(lr))]) for _ in range(n_boot)])
+    return {"geometric_reduction": float(1 - np.exp(np.mean(lr))),
+            "ci95": (float(1 - np.exp(np.percentile(boots, 97.5))), float(1 - np.exp(np.percentile(boots, 2.5)))),
+            "fraction_better": float(np.mean(lr < 0))}
+
+
 def power_by_resampling(base: np.ndarray, new: np.ndarray, n_campaigns: list[int], alpha: float = 0.05,
                         n_sim: int = 2000, seed: int = 0) -> pd.DataFrame:
     """Poder empírico: reamostra n campanhas pareadas e aplica Wilcoxon unilateral (new < base)."""
