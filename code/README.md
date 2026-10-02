@@ -3,7 +3,7 @@
 Código próprio da proposta, organizado pelas seções do projeto FAPESP. `tools/data_sources/build_deposit.py` copia
 estas pastas para o depósito [`GO-AuNP-Autonomous-Design`](../deposit/GO-AuNP-Autonomous-Design/README.md).
 Ambiente: `tools/setup_env.sh core && source .venvs/core/bin/activate` (Windows: `tools\setup_env.ps1 core` e
-`.\.venvs\core\Scripts\Activate.ps1`). Testes: `python -m pytest code/tests -q` (53 testes no `core`: sinais com
+`.\.venvs\core\Scripts\Activate.ps1`). Testes: `python -m pytest code/tests -q` (75 testes no `core`: sinais com
 parâmetros conhecidos, soluções analíticas, laço completo simulado e regressões dos bugs corrigidos). O módulo
 `atomistic/` usa o ambiente `jarvis` (10 testes em `code/tests/test_atomistic.py`, pulados no `core`).
 Os valores do plano (alvo E\*, faixa, normalização, sₘ, ε, restrições, orçamento, custos) vêm de
@@ -11,18 +11,19 @@ Os valores do plano (alvo E\*, faixa, normalização, sₘ, ε, restrições, or
 
 | Pasta | Seção | O que faz |
 |---|---|---|
-| [`campaign/`](campaign) | §4.11, §4.16 | `prereg.py`: **plano pré-registrado** (validação, selo sha256, `freeze`/`check`, emendas; sₘ e ε pelas regras do piloto). `plan.py`: **gerador do plano experimental** 8/12/24/16 (piloto, LHS maximin × lotes, rodadas adaptativas, confirmação nos lotes reservados com modelo congelado), dias em blocos balanceados, ordem aleatorizada, controles sem GO e brancos de GO, volumes de pipetagem e fichas de bancada |
-| [`spectral/`](spectral) | §4.4, §4.6 | `uvvis.py` (lê CSV com `,`/`;`/TAB/espaços e vírgula decimal): branco, diluição e caminho óptico; λ_LSPR, A_LSPR, FWHM, A_LSPR/A450; diâmetro pelas relações de Haiss et al. (2007); **perda espectral J da Eq. (1)** e log(J + ε) (`--prereg` usa alvo/sₘ/ε pré-registrados). `mie.py`: espectros de AuNP/AgNP por Mie com as constantes ópticas de Johnson & Christy, amortecimento por tamanho e população log-normal |
-| [`characterization/`](characterization) | §4.2, §4.4, §4.12 | `raman.py` (D/G com **larguras**, ID/IG), `xps.py` (Shirley + C 1s, C/O), `ftir.py` (**deconvolução C=O/H₂O/C=C** — a água em ~1620 cm⁻¹ não é tomada por C=C —, razões de grupos oxigenados e alerta de umidade), `xrd.py` (**d001** por Bragg, Lc por Scherrer, nº de camadas, fração grafítica, **cristalito de Au(111)**), `dls.py` (**cumulantes ISO 22412** a partir de g2(τ): Z-average e PDI, ou repasse da tabela do instrumento), `tem.py` (tamanhos por limiar + watershed; `--go-association`: **fração de AuNP sobre o GO** com IC de Wilson e seletividade de nucleação, por Otsu em 3 classes). Todos geram linhas no formato das tabelas de caracterização |
+| [`campaign/`](campaign) | §4.9, §4.11, §4.16, §4.18 | `prereg.py`: **plano pré-registrado** (validação, selo sha256, `freeze`/`check`, emendas; sₘ e ε pelas regras do piloto). `plan.py`: **plano 8/12/24/16** — LHS maximin × lotes, dias balanceados, ordem aleatória, controles, **2 braços prospectivos pareados por rodada** (`--arm`), **confirmação em pares** com os braços congelados e **previsões gravadas antes de sintetizar**, subconjunto de **TEM** (~30), volumes e fichas. `analysis.py`: **análise pré-registrada** — primário = valor preditivo do contexto nos lotes reservados; secundário = otimização nos pares de confirmação (randomização exata, Hodges–Lehmann); fase adaptativa exploratória. `factorial.py`: **fatorial 2×2** GO (C/O) × impureza em blocos completos, permutação exata dentro dos blocos + OLS |
+| [`spectral/`](spectral) | §4.4, §4.6 | `uvvis.py`: branco, diluição, caminho óptico; λ_LSPR, A_LSPR, FWHM; Haiss; **perda J (Eq. 1)** e log(J + ε) (`--prereg`). `mie.py`: Mie com Johnson & Christy, amortecimento por tamanho, população log-normal. `neural_process.py`: **modelo espectral diferenciável** (Neural Process latente sobre A(λ) + GP condições → z): previsão com banda calibrada, LBO, design inverso pelo J esperado (exploratório; aviso < 200 espectros) |
+| [`characterization/`](characterization) | §4.2, §4.4, §4.12 | `raman.py` (larguras, ID/IG; `--per-spectrum`) e `raman_map.py` (**distribuição espacial**: sd espacial, I de Moran), `xps.py` (Shirley + C 1s; `--survey`: at%, O/C, **S/C**), `ftir.py` (C=O/H₂O/C=C deconvoluídas), `xrd.py` (d001, Scherrer, cristalito de Au), `dls.py` (cumulantes ISO 22412), `tem.py` (tamanhos; `--go-association`), `afm.py` (espessura, tamanho lateral, monocamadas), `zeta.py` (Smoluchowski/Henry), `icp.py` (**balanço de Au**: recuperação, conversão, carga), `ocp.py` (OCP como variável de processo), `sers.py` (EF analítico, uniformidade), `saxs.py` (Guinier + esferas polidispersas). Todos geram linhas das tabelas de caracterização |
 | [`qc/`](qc/qc_check.py) | §4.12 | **QC automático** pelos critérios de `config/qc_criteria.yaml` (faixa de absorbância, réplicas de leitura, contagem de partículas na TEM, idade da dispersão de GO, preparação independente) e **cartas de controle** Shewhart + EWMA nos controles sem GO; sínteses reprovadas saem do treino do Designer |
-| [`go_navigator/`](go_navigator/batch_descriptors.py) | §4.2 | descritores por **lote de GO** (média ± sd, desvio entre lotes) e contexto padronizado para o GP |
-| [`aunp_designer/`](aunp_designer/designer.py) | §4.5, §4.7, §4.13, §4.17, §4.18 | **AuNP Designer**: GP Matérn-5/2 + ARD (prior de comprimento escalado pela dimensão) por objetivo; os 4 braços da proposta + `hierarchical`; **qNEHVI** por padrão e qLogNEHVI só se o `noise-check` (Brown–Forsythe entre réplicas + Breusch–Pagan nos resíduos, Holm) indicar heteroscedasticidade; **restrições** (CV de tamanho, A_LSPR) com P(viável); tempo de reação no espaço de busca; ruído medido como variância de observação; seleção **novelty-aware**; **LBO**; **SHAP**; `run_metadata.json` |
-| [`transfer_learning/`](transfer_learning/hierarchical.py) | §4.7 | **GP hierárquico** global + fornecedor + lote (um lote novo é previsto com a incerteza honesta de "não visto"), frações de variância por nível, **experimentos até igualar o do-zero** com censura (RMST de Kaplan–Meier) |
-| [`miso/`](miso/miso.py) | §4.8 | **MISO** UV-Vis/DLS/TEM (alvo TEM) com os modelos **MGP, ICM e PCM** (como no ClancyLab-PAL) e **gradiente do conhecimento discreto exato por unidade de custo**; fontes simuladas fisicamente (UV-Vis por inversão de Mie, cega perto de 20 nm); benchmark contra só-TEM |
+| [`go_navigator/`](go_navigator) | §4.2 | `batch_descriptors.py`: descritores por **lote de GO** (média ± sd, desvio entre lotes) e contexto padronizado. `fingerprint.py`: **Batch Fingerprint** (autoencoder com aumento pela incerteza; PCA com aviso se há poucos lotes), utilidade por LBO e **Active Subspace** por gradientes do GP |
+| [`aunp_designer/`](aunp_designer) | §4.5, §4.7, §4.13, §4.17, §4.18 | `designer.py`: **AuNP Designer** — GP Matérn-5/2 + ARD (prior de comprimento escalado pela dimensão); 4 braços + `hierarchical`; **qNEHVI** padrão e qLogNEHVI pela regra `noise-check`; **restrições** com P(viável); `--arm` (trajetória própria do braço); novelty-aware; **LBO**; **SHAP** + **interações** (H² de Friedman, `explain --interactions`); `run_metadata.json`. `autopilot.py`: **seleção dinâmica do modelo** por erro prequencial + calibração (inspirado no SPACESHIP) |
+| [`transfer_learning/`](transfer_learning) | §4.7 | `hierarchical.py`: **GP hierárquico** global + fornecedor + lote, frações de variância, experimentos até igualar o do-zero (RMST). `hardware.py`: **correção linear entre plataformas** (GP na referência + ridge por plataforma; deslocamento com IC e RMSE leave-one-out com e sem correção) |
+| [`miso/`](miso/miso.py) | §4.8 | **MISO** UV-Vis/DLS/TEM (alvo TEM; SAXS condicional) com **MGP, ICM e PCM** e **gradiente do conhecimento discreto exato por custo**; `propose` lê as tabelas do laboratório e sugere (receita, técnica) + a recomendação **confirmada** pela TEM (regra pré-registrada); `benchmark` em simulação contra só-TEM |
 | [`decision/`](decision/voi.py) | §4.14 | **EVPI/EVSI** de caracterizar um lote novo de GO antes de sintetizar (pesos de importância + estimador de diferenças), todos os subconjuntos de técnicas, valor líquido com o valor da informação pré-registrado |
-| [`benchmarking/`](benchmarking) | §4.11, §4.15, §4.18 | `simulator.py` + `sim_lab.py`: laboratório **simulado** gravado no modelo de dados (inclui restrições, leitura duplicada e recursos). `strategies.py`: GP+qLogNEI, **RF + qNEHVI** (ensemble), Sobol. `campaign_sim.py`: braços (representações, GP+EI, RF+qNEHVI, novelty w de 0 a 1), cenário de **transferência** para lote reservado, paralelo e retomável; `report` gera [`docs/SIMULACOES.md`](../docs/SIMULACOES.md). `stats.py`: HV/IGD/spread, Friedman, Wilcoxon + Holm, bootstrap pareado, poder por reamostragem, **experimentos até o critério** (RMST + log-rank) |
+| [`kinetics/`](kinetics/kinetics.py) | §4.10 | **cinética reduzida (Finke–Watzky) condicional**: conservação/positividade por integração numérica, recuperação de parâmetros em dados sintéticos, **perfis de verossimilhança**, resíduos e a **regra de parada** da proposta |
+| [`benchmarking/`](benchmarking) | §4.11, §4.15, §4.18 | `simulator.py` + `sim_lab.py`: laboratório **simulado**. `strategies.py`: GP+qLogNEI, RF+qNEHVI, **DNN ensemble + qNEHVI**, **EGBO**, **TPE (Optuna)**, Sobol. `campaign_sim.py`: cenários `main` (todos os braços, inclusive novelty w de 0 a 1 e autopilot; HV/IGD/spread), `transfer` (lote reservado) e **`prospective`** (o desenho real com placebo e nulo para o erro tipo I); `report` gera [`docs/SIMULACOES.md`](../docs/SIMULACOES.md). `stats.py`: Friedman, Wilcoxon + Holm, bootstrap, redução geométrica, poder, experimentos até o critério (RMST + log-rank) |
 | [`causal/`](causal/causal_analysis.py) | §4.9 | DAG GO–AuNP explícito, backdoor no DoWhy com refutações, **E-value**; **IPW por balanceamento de entropia** (balanço exato; ou propensão clássica) com SMD/correlação antes e depois; **mediação** (NDE/NIE com interação T×M, avisando confundidores induzidos pelo tratamento); PC (causal-learn) exploratório |
-| [`sustainability/`](sustainability/metrics.py) | §4.14 | E-factor (sEF sem água e cEF), EcoScale e **custo por informação útil** a partir das tabelas `resources`/`aunp_syntheses` (`from-lab`), com a decisão "caracterização adicional compensa?" ligada ao EVSI (`--voi`) |
+| [`sustainability/`](sustainability/metrics.py) | §4.14 | E-factor (sEF/cEF), EcoScale, **CPU** a partir das tabelas (`from-lab`, decisão ligada ao EVSI); extensões condicionais **CAPEX/OPEX** por análise e **ComplexGAPI** (síntese) com regras configuráveis |
 | [`atomistic/`](atomistic/README.md) | §4.2, §4.5 | **design inverso atomístico GO–Au com o ecossistema JARVIS** (ambiente `jarvis`) |
 
 ```bash
@@ -42,7 +43,16 @@ python code/decision/voi.py datasets/lab --out outputs/voi.json               # 
 python code/sustainability/metrics.py from-lab datasets/lab --voi outputs/voi.json
 python code/causal/causal_analysis.py datasets/lab --ipw --treatment GO_mg_mL --outcome size_mean_nm
 python code/causal/causal_analysis.py datasets/lab --mediation --treatment C_O_ratio --mediator size_mean_nm
+python code/aunp_designer/designer.py propose datasets/lab --arm go+impurities --batch L2 --q 1
+python code/campaign/plan.py confirm datasets/lab --lot reductant=RED-A      # pares + previsões congeladas
+python code/campaign/analysis.py datasets/lab                                 # análise pré-registrada
+python code/campaign/factorial.py plan --go-high L1 --go-low L3 --clean LOT-A --contaminated LOT-B
+python code/miso/miso.py propose datasets/lab --model PCM                      # próxima (receita, técnica)
+python code/spectral/neural_process.py lbo datasets/lab                       # NP espectral entre lotes
+python code/transfer_learning/hardware.py datasets/lab                        # correção entre plataformas
+python code/kinetics/kinetics.py curva_A400.csv                               # cinética + identificabilidade
 python code/benchmarking/campaign_sim.py --seeds 10 --rounds 12 --workers 4   # benchmark + poder (SIMULADO)
+python code/benchmarking/campaign_sim.py --scenario prospective --seeds 40 --workers 4   # desenho real
 python code/miso/miso.py benchmark --seeds 8 --workers 4                      # MISO (SIMULADO)
 ```
 
@@ -64,6 +74,14 @@ python code/miso/miso.py benchmark --seeds 8 --workers 4                      # 
   com ~31 % menos experimentos, e MISO com PCM + recomendação confirmada por TEM 4× melhor que só-TEM.
 
 ## Notas técnicas sobre a proposta
+- **Onde a inferência é válida (desenho, §4.18):** a simulação do desenho real mostrou que comparar braços rodada a
+  rodada na fase adaptativa não tem poder e infla o erro tipo I (a vantagem de uma trajetória se arrasta). O desfecho
+  confirmatório passou para a confirmação: previsões congeladas em lotes nunca vistos (valor preditivo do contexto) e
+  pares de receitas dos braços congelados — `campaign/analysis.py`, `docs/SIMULACOES.md`. A mudança é do
+  pré-registro (em rascunho) e deve ser validada com o orientador antes do `freeze`.
+- **Design inverso pelo NP:** prevê espectros entre lotes bem melhor que a referência, mas a otimização por gradiente
+  ainda propõe receitas ruins em simulação (mesmo com 300 espectros): use-o para gerar candidatos e deixe a decisão
+  para o GP do Designer.
 - **qNEHVI × qLogNEHVI:** o qLogNEHVI (Ament et al., NeurIPS 2023) é a reformulação numericamente estável do qNEHVI
   (Daulton et al., 2021). O padrão segue a proposta (qNEHVI) e a troca é decidida por regra pré-registrada
   (`designer.py noise-check` / `--acq auto`); `--acq qlognehvi` força a versão estável.

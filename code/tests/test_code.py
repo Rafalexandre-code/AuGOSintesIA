@@ -285,7 +285,12 @@ def test_cli_help():
                    "code/characterization/xps.py", "code/characterization/tem.py", "code/sustainability/metrics.py",
                    "code/characterization/ftir.py", "code/characterization/xrd.py", "code/characterization/dls.py",
                    "code/miso/miso.py", "code/decision/voi.py", "code/qc/qc_check.py", "code/campaign/plan.py",
-                   "code/campaign/prereg.py"):
+                   "code/campaign/prereg.py", "code/campaign/analysis.py", "code/campaign/factorial.py",
+                   "code/spectral/neural_process.py", "code/characterization/afm.py", "code/characterization/zeta.py",
+                   "code/characterization/icp.py", "code/characterization/ocp.py", "code/characterization/raman_map.py",
+                   "code/characterization/sers.py", "code/characterization/saxs.py", "code/kinetics/kinetics.py",
+                   "code/go_navigator/fingerprint.py", "code/aunp_designer/autopilot.py",
+                   "code/transfer_learning/hardware.py"):
         assert subprocess.run([sys.executable, os.path.join(ROOT, script), "--help"], capture_output=True).returncode == 0
 
 

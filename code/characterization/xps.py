@@ -133,7 +133,7 @@ def main() -> None:
     ap.add_argument("--survey-areas", nargs=2, type=float, metavar=("A_C1s", "A_O1s"))
     ap.add_argument("--rsf", nargs=2, type=float, metavar=("RSF_C", "RSF_O"))
     ap.add_argument("--survey", nargs="+", metavar="LINHA=ÁREA", help="áreas do survey (ex.: C1s=… O1s=… S2p=…): "
-                                                                     "at% e razões O/C, S/C, N/C")
+                                                                     "at%% e razões O/C, S/C, N/C")
     ap.add_argument("--sample", default="SAMPLE")
     ap.add_argument("--out")
     a = ap.parse_args()
