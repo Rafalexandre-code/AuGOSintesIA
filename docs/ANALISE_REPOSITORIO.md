@@ -47,6 +47,7 @@
 15. [Proposta × ferramentas: revisão de atualidade (2026-09-29)](#15-proposta--ferramentas-revisão-de-atualidade-2026-09-29)
 16. [Ecossistema JARVIS e design inverso atomístico GO–Au](#16-ecossistema-jarvis-e-design-inverso-atomístico-goau)
 17. [Fechamento do checklist do núcleo da proposta (2026-10-02)](#17-fechamento-do-checklist-do-núcleo-da-proposta-2026-10-02)
+18. [Segunda auditoria: desenho estatístico e itens restantes (2026-10-02)](#18-segunda-auditoria-desenho-estatístico-e-itens-restantes-2026-10-02)
 
 ---
 
@@ -1214,4 +1215,56 @@ dados reais, não para prever o ganho real.
   confirmada"** (o melhor entre os pontos já medidos por TEM), o **PCM vence**: arrependimento final 0,0042 (mediana
   0,0013) contra 0,017 do só-TEM, com 88 % × 75 % das campanhas atingindo o critério. Recomendação: pré-registrar
   a regra confirmada e medir no piloto a correlação entre fontes perto do alvo antes de usar o MISO na bancada.
+
+---
+
+## 18. Segunda auditoria: desenho estatístico e itens restantes (2026-10-02)
+
+A segunda auditoria (proposta inteira × repositório) achou um problema de **desenho** e itens parciais. Todos foram
+tratados; o que depende da bancada continua a fazer.
+
+### 18.1 O problema de desenho e a correção
+
+O plano tinha 24 sínteses adaptativas para comparar 4 representações, mas não dizia qual braço propõe cada uma, e a
+simulação de poder usava 24 adaptativas **por braço** e várias campanhas — a bancada terá **uma**. Simulando o desenho
+real (`campaign_sim.py --scenario prospective`), a comparação rodada a rodada entre 2 braços teve poder ≈ 2,5 % e
+erro tipo I de **12,5 %** (IC 5,5–26 %) num par nulo: a vantagem que uma trajetória ganha cedo se arrasta pelas
+rodadas seguintes, e as rodadas não são independentes.
+
+Correção (pré-registro em rascunho; validar com o orientador antes do `freeze`):
+- **adaptativas**: 2 braços prospectivos (recipe × go+impurities), 1 síntese de cada por rodada, mesmo lote e dia;
+  cada braço treina só com os dados compartilhados e as suas rodadas (`designer.py propose --arm`) — fase
+  **exploratória** (curvas de melhor perda acumulada, o desfecho original, passam a descritivas);
+- **confirmação** (16 sínteses nos lotes reservados): 8 pares, uma receita de cada braço **congelado**; antes de
+  sintetizar, os modelos só-receita e contextual (mesmos dados) gravam a previsão de log J de cada síntese
+  (`plan.py confirm` → `confirmation_predictions.csv` + sha256);
+- **desfecho primário**: valor preditivo do contexto em lotes nunca vistos — erro² de previsão pareado por síntese,
+  teste de randomização exato e Hodges–Lehmann (`campaign/analysis.py`); **secundário**: otimização nos 8 pares;
+- **validação do desenho**: cenários contextual (poder), placebo (descritores embaralhados entre lotes: erro tipo I do
+  primário) e nulo (braços idênticos) — resultados em [`SIMULACOES.md`](SIMULACOES.md) e na §18.3.
+
+### 18.2 Itens parciais e ausentes tratados
+
+| Item | Solução | Onde |
+|---|---|---|
+| Frente de Pareto no benchmark (HV/IGD/spread) | por campanha, com referência e frente comuns | `campaign_sim.py` (`pareto`) |
+| Interações no SHAP (§4.13) | H² de Friedman na média do GP, com bootstrap | `designer.py explain --interactions` |
+| Subconjunto de TEM (~30) | marcado no plano, espalhado por etapa, receita, lote, rodada e pares inteiros | `plan.py` (`tem`) |
+| Fatorial 2×2 (Objetivo 8) | blocos completos aleatorizados, permutação exata dentro dos blocos + OLS | `campaign/factorial.py` |
+| Correção de hardware (§4.7) | GP na plataforma de referência + correção linear por plataforma, LOO com e sem | `transfer_learning/hardware.py` |
+| Modelo espectral diferenciável (Objetivo 4) | Neural Process latente + GP condições → z; banda calibrada; LBO; design inverso exploratório | `spectral/neural_process.py` |
+| MISO com dados reais | observações por técnica → objetivo; próxima (receita, técnica); recomendação confirmada; SAXS condicional | `miso.py propose` |
+| AFM, zeta, ICP, OCP, SERS, SAXS, Raman espacial, S/C por XPS | módulos com testes de parâmetros conhecidos; OCP e SAXS no modelo de dados | `characterization/` |
+| Batch Fingerprint + Active Subspace | autoencoder com aumento pela incerteza (PCA com aviso se há poucos lotes), LBO, gradientes do GP | `go_navigator/fingerprint.py` |
+| Autopilot (SPACESHIP) | escolha do modelo por erro prequencial + calibração | `aunp_designer/autopilot.py` |
+| Cinética e identificabilidade (Objetivo 7) | Finke–Watzky, conservação numérica, recuperação, perfis, resíduos, regra de parada | `kinetics/kinetics.py` |
+| Algoritmos exploratórios da §4.15 | DNN ensemble + qNEHVI, EGBO, TPE (Optuna), autopilot como braços (A* não se aplica a espaço contínuo; Olympus como referência externa) | `strategies.py`, `campaign_sim.py` |
+| CAPEX/OPEX e ComplexGAPI | custo por análise e pictograma por regras configuráveis | `metrics.py capex-opex / complexgapi` |
+
+Continuam fora do alcance do repositório: medir (dados experimentais, piloto para sₘ e ε, `freeze`), rodar o
+extrator LLM (GPU), DOI no Zenodo, relatório e manuscrito.
+
+### 18.3 Resultados das simulações (SIMULADO)
+
+(preenchido pelos resultados registrados em `SIMULACOES.md`)
 
