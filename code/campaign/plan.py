@@ -120,12 +120,12 @@ def generate(seed: int | None = None, cfg: dict | None = None) -> dict:
     ref = reference_recipe(space)
     slots = []
 
-    def add(stage, day, batch, recipe=None, rnd="", control="none", note=""):
+    def add(stage, day, batch, recipe=None, rnd="", control="none", note="", arm=""):
         red = ""
         if recipe:
             red = recipe.get("reductant_mM", round(recipe["reductant_to_Au_ratio"] * recipe["HAuCl4_mM"], 4)
                              if "reductant_to_Au_ratio" in recipe and "HAuCl4_mM" in recipe else "")
-        slots.append({"stage": stage, "day": day, "round": rnd, "go_batch_id": batch, "is_control": control,
+        slots.append({"stage": stage, "day": day, "round": rnd, "arm": arm, "go_batch_id": batch, "is_control": control,
                       **({k: recipe.get(k, "") for k in space} if recipe else {k: "" for k in space}),
                       "reductant_mM": red, "notes": note})
 
@@ -147,15 +147,16 @@ def generate(seed: int | None = None, cfg: dict | None = None) -> dict:
         day += 1
         for r, b in d:
             add("initialization", day, b, recipes.iloc[r].to_dict(), note=f"receita de preenchimento R{r + 1}")
-    # adaptativas: uma rodada por dia (precisa do resultado anterior); receitas vêm do Designer
-    q = int(bud["q_per_round"])
-    n_rounds = int(np.ceil(int(bud["adaptive"]) / q))
-    left = int(bud["adaptive"])
+    # adaptativas: rodadas PAREADAS (uma síntese de cada braço prospectivo, mesmo lote e mesmo dia; a ordem dentro do
+    # dia é sorteada abaixo) — a comparação entre braços fica bloqueada por lote e dia e o teste de randomização
+    # (code/campaign/analysis.py) vale pelo próprio desenho. Uma rodada por dia: cada braço precisa do resultado anterior.
+    arms_ = prereg.arms(cfg)["prospective"]
+    n_rounds = int(bud["adaptive"]) // len(arms_)
     for r in range(1, n_rounds + 1):
         day += 1
-        for _ in range(min(q, left)):
-            add("adaptive", day, dev[(r - 1) % len(dev)], rnd=r, note="receita = AuNP Designer (designer.py propose)")
-        left -= q
+        for arm in arms_:
+            add("adaptive", day, dev[(r - 1) % len(dev)], rnd=r, arm=arm,
+                note=f"receita = designer.py propose --arm {arm} --batch {dev[(r - 1) % len(dev)]} --q 1")
     # confirmação: lotes reservados, dias balanceados
     n_c = int(bud["confirmation"])
     conf_batches = [reserved[i % len(reserved)] for i in range(n_c)]
@@ -195,6 +196,8 @@ def generate(seed: int | None = None, cfg: dict | None = None) -> dict:
             "init_maximin_distance": dmin,
             "batch_day_balance": counted[counted["stage"] == "initialization"].groupby(["day", "go_batch_id"]).size()
             .unstack(fill_value=0).to_dict(orient="index"),
+            "adaptive_per_arm": counted[counted["stage"] == "adaptive"]["arm"].value_counts().to_dict(),
+            "adaptive_rounds": int(n_rounds),
             "prereg_sha256": prereg.sha256(cfg), "prereg_state": prereg.check()["state"], "seed": seed}
     expected = sum(int(bud[s]) for s in prereg.STAGES)
     if diag["total_syntheses"] != expected:
@@ -244,7 +247,8 @@ def bench_sheets(plan: pd.DataFrame, space: dict, out_dir: str) -> list[str]:
         for _, r in g.iterrows():
             vals = [str(r[k]) if r[k] != "" else "Designer" for k in space]
             vv = [str(r.get(c, "")) if pd.notna(r.get(c, "")) else "" for c in vcols]
-            lines.append(f"| ☐ | {r['slot_id']} | {r['stage']} | {r['go_batch_id'] or '—'} | {r['is_control']} | "
+            stg = f"{r['stage']} ({r['arm']}, rodada {r['round']})" if r.get("arm") else r["stage"]
+            lines.append(f"| ☐ | {r['slot_id']} | {stg} | {r['go_batch_id'] or '—'} | {r['is_control']} | "
                          + " | ".join(vals) + " | " + " | ".join(vv) + f" | {r.get('volume_warnings', '') or ''} |")
         f = os.path.join(out_dir, f"dia_{int(d):02d}.md")
         with open(f, "w", encoding="utf-8") as fh:

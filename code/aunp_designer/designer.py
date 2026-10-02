@@ -75,6 +75,7 @@ except Exception as _exc:  # noqa: BLE001 — sem pyyaml/arquivo: segue com a c�
     warnings.warn(f"pré-registro indisponível ({_exc}); usando FALLBACK_SPACE")
     _PREREG, DEFAULT_SPACE = None, FALLBACK_SPACE
 REPRESENTATIONS = ("recipe", "batch", "go", "go+impurities", "hierarchical")
+ARM_SEP = ":"                          # design_id = "<braço>:<rodada>"
 CONFIRMATION_CAMPAIGN = "CONFIRMATION"
 LOT_ROLES = {"gold": "gold_precursor_lot_id", "reductant": "reductant_lot_id", "stabilizer": "stabilizer_lot_id"}
 
@@ -91,10 +92,21 @@ def _read(lab: str, table: str) -> pd.DataFrame | None:
 
 # ---------------------------------------------------------------------------------------------- dados
 
-def usable_syntheses(lab: str, include_confirmation: bool = False) -> pd.DataFrame:
+def arm_of(design_id) -> str:
+    """Braço que propôs a síntese (design_id = "<braço>:<rodada>"; vazio = dado compartilhado: piloto, inicialização)."""
+    d = "" if pd.isna(design_id) else str(design_id)
+    return d.split(ARM_SEP, 1)[0] if ARM_SEP in d else ""
+
+
+def usable_syntheses(lab: str, include_confirmation: bool = False, arm: str | None = None) -> pd.DataFrame:
     """Sínteses que entram no modelo: sem falhas/planejadas, sem brancos de GO (sem Au) e — salvo pedido explícito —
-    sem a confirmação (o modelo que recomenda a confirmação fica congelado; §4.11)."""
+    sem a confirmação (o modelo que recomenda a confirmação fica congelado; §4.11). Com `arm`, cada braço da
+    comparação prospectiva vê só os dados compartilhados (piloto, inicialização) e as SUAS rodadas adaptativas:
+    as trajetórias ficam independentes, como exige a comparação (config/preregistration.yaml → arms)."""
     syn = pd.read_csv(os.path.join(lab, "aunp_syntheses.csv"))
+    if arm is not None and "design_id" in syn:
+        owner = syn["design_id"].map(arm_of)
+        syn = syn[(owner == "") | (owner == arm)]
     if "status" in syn:
         syn = syn[~syn["status"].astype(str).isin(["failed", "planned"])]
     if "is_control" in syn:
@@ -212,8 +224,8 @@ def _suppliers(lab: str) -> dict:
 
 
 def load_campaign(lab: str, space: dict, representation: str = "go", log_objectives=(), eps: float = 1e-3,
-                  use_noise: bool = True, constraints: dict | None = None) -> Campaign:
-    syn = usable_syntheses(lab)
+                  use_noise: bool = True, constraints: dict | None = None, arm: str | None = None) -> Campaign:
+    syn = usable_syntheses(lab, arm=arm)
     out = pd.read_csv(os.path.join(lab, "outcomes.csv"))
     allobj = out.drop_duplicates("objective").set_index("objective")[["direction", "target_value"]]
     objs = allobj[allobj["direction"] != "constraint"]
@@ -493,7 +505,7 @@ def hypervolume(Y: np.ndarray, ref: np.ndarray) -> float:
 
 def proposals_to_syntheses(cands: pd.DataFrame, space: dict, batch: str | None, campaign: str, iteration: int,
                            method: str = "in_situ_reduction_on_GO", lots: dict | None = None, seed: int = 0,
-                           hardware: str = "") -> pd.DataFrame:
+                           hardware: str = "", arm: str | None = None) -> pd.DataFrame:
     """Linhas de aunp_syntheses; ordem de execução aleatorizada dentro do bloco da rodada (§4.11)."""
     cols = _syn_columns()
     order = np.random.default_rng(seed + iteration).permutation(len(cands)) + 1
@@ -501,7 +513,8 @@ def proposals_to_syntheses(cands: pd.DataFrame, space: dict, batch: str | None, 
     for k, r in cands.reset_index(drop=True).iterrows():
         row = {c: "" for c in cols}
         row.update({"synthesis_id": f"{campaign}-it{iteration:02d}-{k + 1:02d}", "go_batch_id": batch or "",
-                    "method": method, "campaign_id": campaign, "design_id": f"it{iteration:02d}-q{k + 1}",
+                    "method": method, "campaign_id": campaign,
+                    "design_id": (f"{arm}{ARM_SEP}" if arm else "") + f"it{iteration:02d}-q{k + 1}",
                     "fidelity": "high", "block": f"{campaign}-it{iteration:02d}", "run_order": int(order[k]),
                     "status": "planned", "hardware": hardware, "notes": "proposta do AuNP Designer"})
         for role, lot in (lots or {}).items():
@@ -776,6 +789,8 @@ def main() -> None:
     p.add_argument("--novelty-w", type=float, help="peso w do escore novelty-aware (0–1); omitido = só aquisição")
     p.add_argument("--lot", action="append", default=[], help="lote a usar na rodada: papel=lote (gold|reductant|stabilizer)")
     p.add_argument("--q", type=int, default=4)
+    p.add_argument("--arm", help="braço da comparação prospectiva (ex.: recipe, go+impurities): treina só com os dados "
+                                 "compartilhados + as rodadas desse braço e marca o design_id")
     p.add_argument("--campaign", default="CAMP")
     p.add_argument("--iteration", type=int, default=1)
     p.add_argument("--seed", type=int, default=0)
@@ -835,14 +850,18 @@ def main() -> None:
             if not sep or role not in LOT_ROLES:
                 ap.error(f"--lot {x!r}: use papel=lote, papel ∈ {sorted(LOT_ROLES)}")
             lots[role] = lot
-        camp = load_campaign(a.lab_dir, space, a.representation, a.log_objectives, a.eps, constraints=cons)
-        print(f"{len(camp.X)} sínteses; objetivos: {dict(camp.objs['direction'])}; restrições: {camp.cons}; "
+        arm = a.arm or None
+        if arm and a.representation != arm and arm in REPRESENTATIONS:
+            ap.error(f"--arm {arm} usa a representação {arm}; não combine com --representation {a.representation}")
+        rep = arm if arm in REPRESENTATIONS else a.representation
+        camp = load_campaign(a.lab_dir, space, rep, a.log_objectives, a.eps, constraints=cons, arm=arm)
+        print(f"{len(camp.X)} sínteses{f' (braço {arm}: compartilhadas + as suas)' if arm else ''}; objetivos: {dict(camp.objs['direction'])}; restrições: {camp.cons}; "
               f"entradas: {list(camp.X.columns)}; "
               f"ruído medido: {[n for n, v in zip(camp.objs.index, camp.Yvar) if v is not None] or 'nenhum'}")
         fixed = fixed_context(a.lab_dir, camp, a.batch, lots)
         cands = propose(camp, space, q=a.q, fixed=fixed, acq=a.acq, novelty_w=a.novelty_w, seed=a.seed, lab=a.lab_dir)
         print(f"aquisição: {cands.attrs.get('acq')}")
-        syn = proposals_to_syntheses(cands, space, a.batch, a.campaign, a.iteration, lots=lots, seed=a.seed)
+        syn = proposals_to_syntheses(cands, space, a.batch, a.campaign, a.iteration, lots=lots, seed=a.seed, arm=arm)
         out = a.out or os.path.join(outdir, f"proposals_{date.today()}.csv")
         os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
         syn.to_csv(out, index=False)

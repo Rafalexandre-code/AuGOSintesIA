@@ -170,3 +170,74 @@ def test_experiments_to_match():
     transfer = np.array([[4, 3, 3, 2, 2], [5, 3, 2, 2, 2]], float)
     r = H.experiments_to_match(transfer, scratch, scratch_budget=5)
     assert r["reference_performance"] == 3 and r["relative_saving"] > 0.4
+
+
+# ------------------------------------------------------------------ comparação prospectiva pareada (§4.18)
+
+def test_plan_pairs_arms_by_round():
+    import plan
+    import prereg
+    cfg = prereg.load()
+    arms = prereg.arms(cfg)["prospective"]
+    p = plan.generate(cfg=cfg)["plan"]
+    ad = p[p["stage"] == "adaptive"]
+    assert ad["arm"].value_counts().to_dict() == {a: int(cfg["budget"]["adaptive"]) // len(arms) for a in arms}
+    per = ad.groupby("round").agg(n=("arm", "size"), arms=("arm", "nunique"), days=("day", "nunique"),
+                                  batches=("go_batch_id", "nunique"))
+    assert (per["n"] == len(arms)).all() and (per["arms"] == len(arms)).all()
+    assert (per["days"] == 1).all() and (per["batches"] == 1).all()     # mesmo dia e mesmo lote no par
+
+
+def test_prereg_rejects_bad_arms():
+    import copy
+    import prereg
+    cfg = copy.deepcopy(prereg.load())
+    cfg["arms"]["prospective"] = ["recipe", "nao_existe"]
+    with pytest.raises(prereg.PreregError):
+        prereg.validate(cfg)
+    cfg = copy.deepcopy(prereg.load())
+    cfg["arms"]["prospective"] = ["recipe", "go", "hierarchical", "batch", "go+impurities"]   # 24 não divide por 5
+    with pytest.raises(prereg.PreregError):
+        prereg.validate(cfg)
+
+
+def test_arm_filter_keeps_trajectories_independent(lab, tmp_path):
+    import designer
+    work = tmp_path / "lab"
+    shutil.copytree(lab, work)
+    syn = pd.read_csv(work / "aunp_syntheses.csv")
+    syn["design_id"] = syn["design_id"].astype(object)
+    adapt = syn.index[syn["campaign_id"].astype(str).str.startswith("SIM")]
+    half = len(adapt) // 2
+    syn.loc[adapt[:half], "design_id"] = "recipe:it01-q1"
+    syn.loc[adapt[half:], "design_id"] = "go+impurities:it01-q1"
+    syn.to_csv(work / "aunp_syntheses.csv", index=False)
+    n_all = len(designer.usable_syntheses(str(work)))
+    a = set(designer.usable_syntheses(str(work), arm="recipe")["synthesis_id"])
+    b = set(designer.usable_syntheses(str(work), arm="go+impurities")["synthesis_id"])
+    shared = a & b
+    assert len(a) + len(b) - len(shared) == n_all and len(a - b) == half and len(b - a) == len(adapt) - half
+    assert designer.arm_of("go+impurities:it03-q1") == "go+impurities" and designer.arm_of("D05-02") == ""
+
+
+def test_randomization_analysis_exact_and_calibrated():
+    import analysis
+    from scipy.stats import wilcoxon
+    rng = np.random.default_rng(1)
+    d = rng.normal(-0.3, 0.5, 12)
+    assert analysis.sign_flip_test(d) == analysis.sign_flip_test(d[::-1])           # exato: não depende da ordem
+    assert abs(analysis.sign_flip_test(d) - wilcoxon(d, alternative="less").pvalue) < 0.02
+    f = np.cumsum(analysis._signed_rank_null(12))
+    assert f[13] <= 0.025 < f[14]                                  # valor crítico tabelado: n = 12 → 13
+    cover = np.mean([(lambda h: h["ci"][0] <= 0.2 <= h["ci"][1])(analysis.hodges_lehmann(rng.normal(0.2, 1, 12)))
+                     for _ in range(600)])
+    assert 0.92 <= cover <= 0.99
+    alpha = np.mean([analysis.sign_flip_test(rng.normal(0, 1, 10)) < 0.05 for _ in range(600)])
+    assert alpha <= 0.07
+    long = pd.DataFrame({"arm": ["recipe", "go", "recipe", "go", ""], "round": [1, 1, 2, 2, None],
+                         "go_batch_id": ["L1", "L1", "L2", "L2", "L1"], "value": [2.0, 1.0, 4.0, 1.0, 3.0]})
+    pr = analysis.paired_differences(long, "recipe", "go", 0.0)
+    assert np.allclose(pr["d"], [np.log(0.5), np.log(0.25)])
+    cur = analysis.cumulative_curves(long, ["recipe", "go"], ["L1", "L2"]).set_index(["arm", "round"])
+    assert cur.loc[("go", 2), "best_loss_balanced"] == pytest.approx(1.0)
+    assert np.isnan(cur.loc[("recipe", 0), "best_loss_balanced"]) or cur.loc[("recipe", 0), "n_batches_with_data"] == 1

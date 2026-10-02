@@ -14,6 +14,11 @@ Comparação: Friedman, Wilcoxon pareado + Holm, redução relativa com IC por b
 EXPERIMENTOS ATÉ O CRITÉRIO (critério = mediana final do braço de referência), com censura no orçamento:
 média restrita (RMST, Kaplan–Meier) e teste log-rank contra a referência.
 
+Cenário `prospective` (o desenho REAL pré-registrado, config/preregistration.yaml → arms): 8 piloto + 12 de
+inicialização compartilhados e 12 rodadas pareadas — em cada rodada, cada braço propõe 1 síntese no mesmo lote, com
+modelo treinado só nos dados compartilhados + nas suas rodadas. Mede o poder do teste pré-registrado
+(code/campaign/analysis.py) e, no par "null" (dois braços idênticos), o erro tipo I sob a dependência adaptativa.
+
 Cenário `transfer` (lote reservado L4, §4.7): "do zero" (receita, só dados do L4: 4 receitas LHS + rodadas) contra
 "transfer-go" e "transfer-hierarchical" (24 sínteses de L1–L3 como histórico, nenhuma no L4 antes da 1ª rodada).
 Métrica da proposta: nº de experimentos NO L4 até igualar o desempenho final do do-zero (com censura) e economia
@@ -22,6 +27,7 @@ relativa (code/transfer_learning/hierarchical.py → experiments_to_match).
 Uso:
     python code/benchmarking/campaign_sim.py --seeds 10 --rounds 12 --q 2 --workers 4                # cenário main
     python code/benchmarking/campaign_sim.py --scenario transfer --seeds 10 --workers 4
+    python code/benchmarking/campaign_sim.py --scenario prospective --seeds 40 --workers 4      # desenho real + nulo
     python code/benchmarking/campaign_sim.py --seeds 2 --rounds 3 --arms recipe go                    # teste rápido
     python code/benchmarking/campaign_sim.py report outputs/campaign_sim > docs/SIMULACOES.md         # resumo
 Saídas em outputs/campaign_sim/<cenário>/: jobs/*.json (retomáveis com --resume), curves.csv, final.csv,
@@ -64,6 +70,12 @@ ARMS = {"random": ("recipe", "random", {}), "recipe": ("recipe", "gp-qnehvi", {}
         "go+impurities": ("go+impurities", "gp-qnehvi", {}), "hierarchical": ("hierarchical", "gp-qnehvi", {}),
         "gp-ei": ("go", "gp-ei", {}), "rf-qnehvi": ("go", "rf-qnehvi", {})}
 ARMS.update({f"novelty-w{w:g}": ("go", "novelty", {"w": w}) for w in _novelty_weights()})
+# Cenário prospectivo (o desenho REAL: 8 piloto + 12 inicialização compartilhados; 12 rodadas pareadas, 1 síntese
+# de cada braço por rodada, cada braço com a sua trajetória). "null" usa dois braços idênticos para medir o erro
+# tipo I do teste sob a dependência adaptativa.
+PROSPECTIVE = {"contextual": (("recipe", "recipe"), ("go+impurities", "go+impurities")),
+               "hierarchical": (("recipe", "recipe"), ("hierarchical", "hierarchical")),
+               "null": (("recipe", "recipe"), ("recipe_bis", "recipe"))}
 TRANSFER_ARMS = {"scratch": ("recipe", "gp-qnehvi", {}), "transfer-go": ("go", "gp-qnehvi", {}),
                  "transfer-hierarchical": ("hierarchical", "gp-qnehvi", {})}
 
@@ -83,8 +95,10 @@ def _loss_sequence(lab: str, batch: str) -> list[float]:
     return j.loc[j["go_batch_id"] == batch, "value"].astype(float).tolist()
 
 
-def _propose(arm_spec, lab: str, space: dict, target: str, lots: dict, q: int, seed: int, acq: str | None):
-    """Uma rodada de qualquer braço -> DataFrame de receitas (colunas do espaço)."""
+def _propose(arm_spec, lab: str, space: dict, target: str, lots: dict, q: int, seed: int, acq: str | None,
+             arm: str | None = None):
+    """Uma rodada de qualquer braço -> DataFrame de receitas (colunas do espaço). Com `arm`, o modelo só vê os dados
+    compartilhados e as rodadas desse braço (comparação prospectiva pareada)."""
     import strategies
     rep, strat, kw = arm_spec
     if strat == "random":
@@ -92,7 +106,7 @@ def _propose(arm_spec, lab: str, space: dict, target: str, lots: dict, q: int, s
         lo, hi = np.array([v[0] for v in space.values()]), np.array([v[1] for v in space.values()])
         return pd.DataFrame(qmc.scale(qmc.Sobol(len(space), seed=seed).random(q), lo, hi), columns=list(space))
     camp = designer.load_campaign(lab, space, rep, designer.default_logs(), designer.default_eps(),
-                                  constraints=designer.default_constraints())
+                                  constraints=designer.default_constraints(), arm=arm)
     fixed = designer.fixed_context(lab, camp, target, lots)
     if strat == "gp-qnehvi":
         return designer.propose(camp, space, q=q, fixed=fixed, acq=acq, seed=seed)
@@ -159,6 +173,49 @@ def run_transfer(arm: str, seed: int, budget: int, q: int, root: str, acq: str |
     return [{"arm": arm, "seed": seed, "n": i + 1, "best_loss": float(v)} for i, v in enumerate(seq)]
 
 
+def run_prospective(pair: str, seed: int, rounds: int, root: str, acq: str | None = None) -> list[dict]:
+    """Uma campanha com o desenho pré-registrado; devolve d_r por rodada e, na última linha, o teste e o HL."""
+    sys.path.insert(0, os.path.join(ROOT, "code", "campaign"))
+    import analysis
+    import plan as plan_mod
+    space = designer.DEFAULT_SPACE
+    lab = os.path.join(root, "labs", f"{pair}_s{seed}", "lab")
+    sim_lab.init_lab(lab, BATCHES, seed=seed)
+    rng = np.random.default_rng(seed)
+    ref = pd.DataFrame([plan_mod.reference_recipe(space)])
+    for b, n in zip(BATCHES, (4, 2, 2)):                      # piloto: receita de referência, 8 preparações
+        syn = designer.proposals_to_syntheses(pd.concat([ref] * n, ignore_index=True), space, b, f"PILOT-{b}", 0,
+                                              seed=seed).assign(status="done")
+        sim_lab.run_syntheses(lab, syn, rng)
+    recipes = _lhs(space, 4, seed)
+    for b in BATCHES:
+        syn = designer.proposals_to_syntheses(recipes, space, b, f"INIT-{b}", 0, seed=seed).assign(status="done")
+        sim_lab.run_syntheses(lab, syn, rng)
+    (ref_name, ref_rep), (trt_name, trt_rep) = PROSPECTIVE[pair]
+    for r in range(1, rounds + 1):
+        target = BATCHES[(r - 1) % len(BATCHES)]
+        lots = {"reductant": ("RED-A", "RED-B")[r % 2]}
+        new = []
+        for k, (name, rep) in enumerate(((ref_name, ref_rep), (trt_name, trt_rep))):
+            cands = _propose((rep, "gp-qnehvi", {}), lab, space, target, lots, 1, seed * 1000 + 10 * r + k, acq,
+                             arm=name)
+            new.append(designer.proposals_to_syntheses(cands, space, target, f"ADAPT-{name.replace('+', '_')}", r,
+                                                       lots=lots, seed=seed, arm=name).assign(status="done"))
+        sim_lab.run_syntheses(lab, pd.concat(new, ignore_index=True), rng)
+    eps = designer.default_eps()
+    df = analysis.load_long(lab)
+    pairs = analysis.paired_differences(df, ref_name, trt_name, eps)
+    hl = analysis.hodges_lehmann(pairs["d"].to_numpy())
+    cur = analysis.cumulative_curves(df, [ref_name, trt_name], list(BATCHES)).pivot(index="round", columns="arm",
+                                                                                        values="best_loss_balanced")
+    rows = [{"arm": pair, "seed": seed, "n": int(rr["round"]), "d": float(rr["d"]),
+             "best_ref": float(cur.loc[int(rr["round"]), ref_name]), "best_loss": float(cur.loc[int(rr["round"]), trt_name])}
+            for _, rr in pairs.iterrows()]
+    rows[-1].update({"p_sign_flip": analysis.sign_flip_test(pairs["d"].to_numpy()), "hl": hl["estimate"],
+                     "hl_lo": hl["ci"][0], "hl_hi": hl["ci"][1]})
+    return rows
+
+
 def _job(scenario: str, arm: str, seed: int, rounds: int, q: int, root: str, acq: str | None, resume: bool):
     path = os.path.join(root, "jobs", f"{arm.replace('+', '_')}_s{seed}.json")
     if resume and os.path.exists(path):
@@ -169,6 +226,7 @@ def _job(scenario: str, arm: str, seed: int, rounds: int, q: int, root: str, acq
     warnings.simplefilter("ignore")
     t0 = time.time()
     curve = (run_campaign(arm, seed, rounds, q, root, acq) if scenario == "main"
+             else run_prospective(arm, seed, rounds, root, acq) if scenario == "prospective"
              else run_transfer(arm, seed, rounds, q, root, acq))
     res = {"arm": arm, "seed": seed, "seconds": round(time.time() - t0, 1), "curve": curve}
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -246,6 +304,33 @@ def summarize_transfer(cv: pd.DataFrame, budget: int) -> dict:
     return s
 
 
+def summarize_prospective(cv: pd.DataFrame, rounds: int, alpha: float = 0.05, threshold: float = 0.20) -> dict:
+    """Poder (fração de campanhas com p < α), erro tipo I (cenário null), distribuição do efeito e cobertura."""
+    last = cv.sort_values("n").groupby(["arm", "seed"]).tail(1)
+    s = {"SIMULADO": True, "scenario": "prospective", "rounds": rounds, "alpha": alpha, "pairs": {}}
+    for pair, g in last.groupby("arm"):
+        pv = g["p_sign_flip"].to_numpy(float)
+        hl = g["hl"].to_numpy(float)
+        fin = g["best_loss"].to_numpy(float) / g["best_ref"].to_numpy(float)
+        s["pairs"][pair] = {
+            "campaigns": int(len(g)), "rejection_rate": float(np.mean(pv < alpha)),
+            "rejection_rate_ci95": _wilson(int(np.sum(pv < alpha)), len(pv)),
+            "median_relative_reduction_HL": float(1 - np.exp(np.median(hl))),
+            "fraction_HL_reduction_above_threshold": float(np.mean(1 - np.exp(hl) >= threshold)),
+            "fraction_final_best_better": float(np.mean(fin < 1)),
+            "median_final_geometric_reduction": float(1 - np.exp(np.median(np.log(fin))))}
+    return s
+
+
+def _wilson(k: int, n: int, z: float = 1.959964) -> tuple[float, float]:
+    if n == 0:
+        return (float("nan"), float("nan"))
+    p = k / n
+    den = 1 + z * z / n
+    mid, half = (p + z * z / (2 * n)) / den, z * np.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / den
+    return (float(max(0.0, mid - half)), float(min(1.0, mid + half)))
+
+
 def report(out: str) -> str:
     """Markdown com os resumos (cenários main/transfer e MISO, se existirem)."""
     lines = ["# Simulações registradas (SIMULADO)", "",
@@ -283,6 +368,24 @@ def report(out: str) -> str:
         fp = (s.get("comparison") or {}).get("friedman_p")
         if fp is not None and np.isfinite(fp):
             lines += ["", f"Friedman p = {fp:.3g} (todos os braços); Wilcoxon pareados com Holm em summary.json."]
+        lines.append("")
+    p = os.path.join(out, "prospective", "summary.json")
+    if os.path.exists(p):
+        s = json.load(open(p, encoding="utf-8"))
+        lines += [f"## Desenho real pré-registrado: 8 + 12 compartilhadas, {s['rounds']} rodadas pareadas (1 síntese de "
+                  "cada braço por rodada, mesmo lote e dia)", "",
+                  "`python code/benchmarking/campaign_sim.py --scenario prospective --seeds 40 --workers 4`", "",
+                  "Cada linha é um par de braços simulado muitas vezes com o orçamento real; a análise é a de "
+                  "`code/campaign/analysis.py` (randomização por troca de sinais, unilateral, α = "
+                  f"{s['alpha']}). No cenário **null** os dois braços são idênticos: a taxa de rejeição é o erro tipo I.",
+                  "", "| par | campanhas | rejeição de H0 (poder ou erro tipo I; IC 95 %) | redução HL mediana | "
+                  "P(HL ≥ 20 %) | P(melhor perda final do tratamento < referência) |", "|---|---|---|---|---|---|"]
+        for pair, v in s["pairs"].items():
+            lo, hi = v["rejection_rate_ci95"]
+            lines.append(f"| {pair} | {v['campaigns']} | {100 * v['rejection_rate']:.0f} % ({100 * lo:.0f}–{100 * hi:.0f}) | "
+                         f"{100 * v['median_relative_reduction_HL']:.0f} % | "
+                         f"{100 * v['fraction_HL_reduction_above_threshold']:.0f} % | "
+                         f"{100 * v['fraction_final_best_better']:.0f} % |")
         lines.append("")
     p = os.path.join(out, "transfer", "summary.json")
     if os.path.exists(p):
@@ -331,7 +434,7 @@ def main() -> None:
         print(report(sys.argv[2] if len(sys.argv) > 2 else os.path.join(ROOT, "outputs", "campaign_sim")))
         return
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--scenario", choices=["main", "transfer"], default="main")
+    ap.add_argument("--scenario", choices=["main", "transfer", "prospective"], default="main")
     ap.add_argument("--seeds", type=int, default=5)
     ap.add_argument("--rounds", type=int, help="main: rodadas adaptativas (padrão 12 = 24 sínteses com q=2); "
                                                 "transfer: sínteses no lote novo (padrão 16)")
@@ -343,14 +446,15 @@ def main() -> None:
     ap.add_argument("--resume", action="store_true", help="reaproveita jobs/*.json já concluídos")
     ap.add_argument("--out", default=os.path.join(ROOT, "outputs", "campaign_sim"))
     a = ap.parse_args()
-    table = ARMS if a.scenario == "main" else TRANSFER_ARMS
+    table = {"main": ARMS, "transfer": TRANSFER_ARMS, "prospective": PROSPECTIVE}[a.scenario]
     arms = a.arms or list(table)
     bad = [x for x in arms if x not in table]
     if bad:
         ap.error(f"braços desconhecidos {bad}; disponíveis: {list(table)}")
-    rounds = a.rounds or (12 if a.scenario == "main" else 16)
+    rounds = a.rounds or {"main": 12, "transfer": 16, "prospective": 12}[a.scenario]
     cv = run_all(a.scenario, arms, a.seeds, rounds, a.q, a.out, a.acq, a.workers, a.resume)
-    s = summarize_main(cv, rounds, a.reference) if a.scenario == "main" else summarize_transfer(cv, rounds)
+    s = (summarize_main(cv, rounds, a.reference) if a.scenario == "main" else
+         summarize_prospective(cv, rounds) if a.scenario == "prospective" else summarize_transfer(cv, rounds))
     s.update({"q": a.q, "acq": a.acq or designer.default_acq(), "prereg_sha256": _prereg_sha()})
     root = os.path.join(a.out, a.scenario)
     if a.scenario == "main":

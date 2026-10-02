@@ -85,6 +85,15 @@ def validate(cfg: dict) -> None:
         raise PreregError("relevance_threshold deve estar entre 0 e 1")
     if cfg["acquisition"]["default"] not in ("qnehvi", "qlognehvi"):
         raise PreregError("acquisition.default: qnehvi | qlognehvi")
+    if "arms" in cfg:
+        pa = cfg["arms"].get("prospective", [])
+        unknown = [x for x in pa + cfg["arms"].get("offline", []) if x not in cfg.get("representations", [])]
+        if unknown:
+            raise PreregError(f"arms: braços fora de representations: {unknown}")
+        if len(pa) < 2 or cfg["arms"].get("reference", pa[0]) not in pa:
+            raise PreregError("arms.prospective precisa de ≥ 2 braços, incluindo arms.reference")
+        if int(bud["adaptive"]) % len(pa):
+            raise PreregError("budget.adaptive deve ser múltiplo do nº de braços prospectivos (pareamento por rodada)")
 
 
 # ---------------------------------------------------------------------------------------------- acessores
@@ -97,6 +106,17 @@ def search_space(cfg: dict | None = None) -> dict:
 def log_objectives(cfg: dict | None = None) -> tuple:
     cfg = cfg or load()
     return tuple(o["name"] for o in cfg["objectives"] if o.get("log"))
+
+
+def arms(cfg: dict | None = None) -> dict:
+    """Braços prospectivos e de referência (comparação pareada por rodada) e braços avaliados fora da bancada."""
+    cfg = cfg or load()
+    a = dict(cfg.get("arms") or {})
+    a.setdefault("prospective", ["recipe", "go+impurities"])
+    a.setdefault("reference", a["prospective"][0])
+    a.setdefault("allocation", "paired_by_round")
+    a.setdefault("offline", list(cfg.get("representations", [])))
+    return a
 
 
 def constraints(cfg: dict | None = None) -> dict:
