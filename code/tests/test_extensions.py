@@ -85,3 +85,49 @@ def test_hardware_linear_correction_recovers_offset():
     r = hardware.fit(df, space, "y", n_boot=60)["platforms"]["flow_reactor"]
     assert r["offset"] == pytest.approx(0.8, abs=0.1) and r["offset_significant"]
     assert r["correction_improves"] and r["rmse_loo_corrected"] < 0.3 * r["rmse_loo_uncorrected"]
+
+
+
+def test_neural_process_predicts_spectra_with_calibrated_band():
+    import neural_process as npm
+    import simulator as sim
+    from scipy.stats import qmc
+    import torch
+    torch.manual_seed(0)
+    rng = np.random.default_rng(0)
+    keys = list(sim.SPACE)
+    U = qmc.LatinHypercube(len(keys), seed=1).random(60)
+    X, S, B = [], [], []
+    for i, u in enumerate(U):
+        b = ("L1", "L2", "L3")[i % 3]
+        c = {k: lo + x * (hi - lo) for (k, (lo, hi)), x in zip(sim.SPACE.items(), u)}
+        S.append(sim.simulate(c, b, rng=rng)["spectrum"])
+        X.append([c[k] for k in keys] + [sim.BATCHES[b]["C_O_ratio"]])
+        B.append(b)
+    X, S, B = np.array(X), np.array(S), np.array(B)
+    bounds = np.vstack([[sim.SPACE[k][0] for k in keys] + [1.4], [sim.SPACE[k][1] for k in keys] + [2.3]])
+    m = npm.SpectralNP(sim.WL, dz=4, hidden=64).fit(S, steps=800)
+    assert np.sqrt(np.mean((m.reconstruct(S) - S) ** 2)) < 0.5 * S.std()
+    tr, te = B != "L2", B == "L2"                                     # lote do meio: interpolação de contexto
+    cm = npm.ConditionalSpectralModel(m, bounds).fit(X[tr], S[tr])
+    p = cm.predict(X[te], n_samples=100)
+    assert np.sqrt(np.mean((p["mean"] - S[te]) ** 2)) < np.sqrt(np.mean((S[tr].mean(0) - S[te]) ** 2))
+    cover = np.mean((S[te] >= p["q05"]) & (S[te] <= p["q95"]))
+    assert 0.5 < cover <= 1.0
+    with pytest.warns(UserWarning, match="estudo computacional"):
+        d = npm.inverse_design(cm, sim.target_spectrum(), 0.02, "max", fixed={6: 2.2}, n_starts=4, steps=20,
+                               n_train=len(S), X_obs=X[tr], y_obs=np.arange(tr.sum(), dtype=float))
+    assert np.all(d["x"] >= bounds[0] - 1e-6) and np.all(d["x"] <= bounds[1] + 1e-6) and d["x"][6] == pytest.approx(2.2)
+
+
+def test_miso_proposes_from_lab_tables(tmp_path):
+    import designer
+    import miso
+    lab = str(tmp_path / "d")
+    designer.demo(lab, iterations=1, q=2, seed=4)
+    r = miso.propose_from_lab(os.path.join(lab, "lab"), "PCM", n_candidates=64, top=3)
+    assert r["n_observations"]["TEM"] > 0 and r["n_observations"]["UV-Vis"] > 0
+    assert len(r["next_queries"]) == 3 and all(q["technique"] in r["noise_var"] for q in r["next_queries"])
+    rec = r["recommendation_confirmed"]
+    syn = pd.read_csv(os.path.join(lab, "lab", "aunp_syntheses.csv"))
+    assert np.isclose(syn["HAuCl4_mM"], rec["HAuCl4_mM"]).any()          # confirmada = um ponto já medido por TEM

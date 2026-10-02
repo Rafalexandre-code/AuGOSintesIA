@@ -21,6 +21,7 @@ pode enganar, e que o benchmark precisa mostrar. `benchmark` compara MGP/ICM/PCM
 recomendação × custo acumulado; custo até o critério com censura).
 
 Uso:
+    python code/miso/miso.py propose datasets/lab [--model PCM --batch L2]     # dados reais: próxima (receita, técnica)
     python code/miso/miso.py run --model MGP --seed 0 [--budget 160]
     python code/miso/miso.py benchmark --seeds 8 --workers 4               # SIMULADO -> outputs/miso/
 """
@@ -35,9 +36,10 @@ import time
 import warnings
 
 import numpy as np
+import pandas as pd
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-for _sub in ("benchmarking", "spectral", "campaign", "transfer_learning"):
+for _sub in ("benchmarking", "spectral", "campaign", "transfer_learning", "aunp_designer", "qc", "go_navigator"):
     sys.path.insert(0, os.path.join(HERE, "..", _sub))
 import simulator as sim  # noqa: E402
 
@@ -50,7 +52,7 @@ def sources_from_prereg() -> tuple[tuple[str, float], ...]:
     try:
         import prereg
         m = prereg.load()["miso"]
-        src = [(s["name"], float(s["cost"])) for s in m["sources"]]
+        src = [(s["name"], float(s["cost"])) for s in m["sources"] if s.get("available", True)]
         tgt = m.get("target_source", src[-1][0])
         return tuple(sorted(src, key=lambda s: s[0] != tgt))
     except Exception:            # noqa: BLE001 — pré-registro ausente/inválido: valores padrão documentados
@@ -383,6 +385,85 @@ def run(kind: str, seed: int = 0, budget: float = 160.0, sources=None, n_candida
             "queries": {n: int(np.sum(np.array(s) == k)) for k, n in enumerate(names)}}
 
 
+# ---------------------------------------------------------------------------------------------- dados reais
+
+def lab_observations(lab: str, batch: str | None = None) -> dict:
+    """Observações do laboratório por fonte (aunp_characterization), convertidas em tamanho e no objetivo
+    y = −[ln(d/d*)]²; variância por fonte pelo método delta a partir da incerteza registrada (piso 1e-4)."""
+    import designer
+    import prereg
+    cfg = prereg.load()
+    m = cfg["miso"]
+    target = float(m.get("objective", {}).get("target", 20.0))
+    specs = [s for s in m["sources"] if s.get("available", True)]
+    tgt = m.get("target_source", specs[-1]["name"])
+    specs = sorted(specs, key=lambda s: s["name"] != tgt)
+    space = designer.DEFAULT_SPACE
+    syn = designer.usable_syntheses(lab)
+    if batch:
+        syn = syn[syn["go_batch_id"].astype(str) == batch]
+    syn = syn.set_index("synthesis_id")
+    ch = pd.read_csv(os.path.join(lab, "aunp_characterization.csv"))
+    U, s, y, var = [], [], [], {}
+    lo = np.array([space[k][0] for k in space])
+    hi = np.array([space[k][1] for k in space])
+    for j, sp in enumerate(specs):
+        rows = ch[(ch["technique"].astype(str) == sp["name"]) & (ch["quantity"].astype(str) == sp.get("quantity"))
+                  & ch["synthesis_id"].isin(syn.index)]
+        vs = []
+        for _, r in rows.iterrows():
+            v = float(r["value"])
+            d = size_from_lspr(v) if sp.get("to_size") == "mie_lspr" else v
+            if not np.isfinite(d) or d <= 0:
+                continue
+            x = syn.loc[r["synthesis_id"], list(space)].to_numpy(float)
+            U.append((x - lo) / (hi - lo))
+            s.append(j)
+            y.append(float(objective_from_size(d, target)))
+            u = pd.to_numeric(r.get("uncertainty"), errors="coerce")
+            if np.isfinite(u) and sp.get("to_size") != "mie_lspr":
+                vs.append((2 * np.log(d / target) / d) ** 2 * u ** 2)
+        y_j = np.array(y)[np.array(s) == j] if s else np.array([])
+        var[j] = max(float(np.median(vs)) if vs else (float(np.var(y_j)) * 0.05 if len(y_j) > 2 else 1e-3), 1e-4)
+    return {"U": np.array(U), "s": np.array(s, int), "y": np.array(y), "noise": np.array([var[j] for j in range(len(specs))]),
+            "names": [sp["name"] for sp in specs], "costs": np.array([float(sp["cost"]) for sp in specs]),
+            "space": space, "lo": lo, "hi": hi, "target": target}
+
+
+def propose_from_lab(lab: str, kind: str = "PCM", batch: str | None = None, n_candidates: int = 512, top: int = 5,
+                     seed: int = 0) -> dict:
+    """Próxima consulta (receita, técnica) por KG/custo com os dados reais, e a recomendação atual (confirmada pela
+    fonte-alvo, como pré-registrado; e o argmax do modelo, para comparação)."""
+    import torch
+    from scipy.stats import qmc
+    o = lab_observations(lab, batch)
+    if len(o["y"]) < 4 or not np.any(o["s"] == 0):
+        raise SystemExit(f"dados insuficientes para o MISO: {len(o['y'])} observações; a fonte-alvo {o['names'][0]} "
+                         "precisa de pelo menos 1")
+    S = len(o["names"])
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        model = build_model(kind, o["U"], o["s"], o["y"], o["noise"], S)
+    D = np.vstack([qmc.Sobol(len(o["space"]), seed=seed).random(n_candidates), o["U"]])
+    sc = kg_per_cost(model, D, o["costs"], o["noise"], list(range(S)))
+    flat = np.argsort(sc.ravel())[::-1][:top]
+    to_x = lambda u: dict(zip(o["space"], map(float, o["lo"] + u * (o["hi"] - o["lo"]))))   # noqa: E731
+    queries = [{"technique": o["names"][j], "kg_per_cost": float(sc[j, i]), **to_x(D[i])}
+               for j, i in (np.unravel_index(k, sc.shape) for k in flat)]
+    with torch.no_grad():
+        mu = model.posterior(torch.tensor(np.c_[D, np.zeros(len(D))], dtype=torch.double)).mean.squeeze(-1).numpy()
+        Ut = o["U"][o["s"] == 0]
+        mt = model.posterior(torch.tensor(np.c_[Ut, np.zeros(len(Ut))], dtype=torch.double)).mean.squeeze(-1).numpy()
+    conf = Ut[int(np.argmax(mt))]
+    return {"model": kind, "batch": batch, "n_observations": {n: int(np.sum(o["s"] == j)) for j, n in enumerate(o["names"])},
+            "noise_var": dict(zip(o["names"], map(float, o["noise"]))), "next_queries": queries,
+            "recommendation_confirmed": {**to_x(conf), "predicted_objective": float(mt.max())},
+            "recommendation_model_argmax": {**to_x(D[int(np.argmax(mu))]), "predicted_objective": float(mu.max()),
+                                            "abs_log_ratio_d_target": float(np.sqrt(max(-mu.max(), 0)))},
+            "note": "objetivo = −[ln(d/d*)]²; recomendação pré-registrada = confirmada (melhor entre os pontos medidos "
+                    "pela fonte-alvo)"}
+
+
 def cost_to_criterion(history: list[dict], threshold: float, key: str = "regret") -> float:
     """Custo acumulado até o arrependimento ficar ≤ limiar (inf = censurado no orçamento)."""
     for h in history:
@@ -448,6 +529,12 @@ def main() -> None:
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--budget", type=float, default=160.0)
     p.add_argument("--candidates", type=int, default=128)
+    pl = sub.add_parser("propose", help="próxima consulta (receita, técnica) com os dados do laboratório")
+    pl.add_argument("lab")
+    pl.add_argument("--model", choices=MODELS[:3], default="PCM")
+    pl.add_argument("--batch")
+    pl.add_argument("--top", type=int, default=5)
+    pl.add_argument("--out")
     b = sub.add_parser("benchmark")
     b.add_argument("--seeds", type=int, default=8)
     b.add_argument("--budget", type=float, default=160.0)
@@ -457,6 +544,13 @@ def main() -> None:
     b.add_argument("--workers", type=int, default=1, help="processos em paralelo")
     b.add_argument("--out", default=os.path.join(HERE, "..", "..", "outputs", "miso"))
     a = ap.parse_args()
+    if a.cmd == "propose":
+        r = propose_from_lab(a.lab, a.model, a.batch, top=a.top)
+        print(json.dumps(r, indent=1, ensure_ascii=False, default=float))
+        if a.out:
+            with open(a.out, "w", encoding="utf-8") as fh:
+                json.dump(r, fh, indent=1, ensure_ascii=False, default=float)
+        return
     if a.cmd == "run":
         r = run(a.model, a.seed, a.budget, n_candidates=a.candidates, verbose=True)
         print(json.dumps({k: v for k, v in r.items() if k != "history"}, indent=1))

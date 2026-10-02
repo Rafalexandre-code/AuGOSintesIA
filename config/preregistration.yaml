@@ -137,10 +137,13 @@ sustainability:
   currency: BRL
 miso:
   sources:                # fontes de informação e custos relativos (RASCUNHO: ajustar ao laboratório)
-    - {name: UV-Vis, cost: 1.0}
-    - {name: DLS, cost: 2.0}
-    - {name: TEM, cost: 20.0}
+    - {name: UV-Vis, cost: 1.0, quantity: LSPR_nm, to_size: mie_lspr}   # tamanho pela inversão de Mie do LSPR
+    - {name: DLS, cost: 2.0, quantity: hydrodynamic_nm}
+    - {name: TEM, cost: 20.0, quantity: size_mean_nm}
+    - {name: SAXS, cost: 50.0, quantity: size_mean_nm, available: false}  # colaboração condicional (§4.12)
+  # XPS não mede tamanho de AuNP: entra no valor da informação da caracterização do GO (code/decision/voi.py).
   target_source: TEM
+  recommendation: confirmed   # recomenda o melhor entre os pontos medidos pela fonte-alvo (simulação: 4× melhor)
   models: [MGP, ICM, PCM]
   objective: {quantity: size_mean_nm, transform: neg_squared_log_ratio, target: 20.0}   # y = −[ln(d/20)]²
   budget: 160.0           # custo total por campanha simulada (unidades de custo acima)
