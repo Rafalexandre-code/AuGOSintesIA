@@ -149,7 +149,7 @@ aunp_syntheses,protocol_id,fk:protocols,0,,,
 aunp_syntheses,notes,str,0,,,
 aunp_characterization,measurement_id,id,1,,,ex.: M-AU-0001
 aunp_characterization,synthesis_id,fk:aunp_syntheses,1,,,
-aunp_characterization,technique,enum,1,,UV-Vis|TEM|SEM|DLS|zeta|XRD|XPS|ICP-OES|ICP-MS|SERS|catalysis|other,técnica
+aunp_characterization,technique,enum,1,,UV-Vis|TEM|SEM|DLS|zeta|XRD|XPS|ICP-OES|ICP-MS|SERS|SAXS|OCP|catalysis|other,técnica
 aunp_characterization,quantity,str,1,,,"LSPR_nm, LSPR_FWHM_nm, A_LSPR, A400, size_mean_nm, size_sd_nm, n_particles, aspect_ratio, hydrodynamic_nm, PDI, zeta_mV, Au_loading_wt, yield_pct, k_app_s-1, spectral_loss_J, GO_associated_fraction …"
 aunp_characterization,spectrum_id,fk:spectra,0,,,espectro de origem (proveniência)
 aunp_characterization,value,float,1,,,valor medido/derivado

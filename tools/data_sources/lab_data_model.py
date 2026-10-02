@@ -167,7 +167,7 @@ TABLES: dict[str, dict] = {
         ("measurement_id", "id", True, "", "ex.: M-AU-0001", None),
         ("synthesis_id", "fk:aunp_syntheses", True, "", "", None),
         ("technique", E, True, "", "técnica", ["UV-Vis", "TEM", "SEM", "DLS", "zeta", "XRD", "XPS", "ICP-OES",
-                                               "ICP-MS", "SERS", "catalysis", "other"]),
+                                               "ICP-MS", "SERS", "SAXS", "OCP", "catalysis", "other"]),
         ("quantity", S, True, "", "LSPR_nm, LSPR_FWHM_nm, A_LSPR, A400, size_mean_nm, size_sd_nm, n_particles, "
                                   "aspect_ratio, hydrodynamic_nm, PDI, zeta_mV, Au_loading_wt, yield_pct, k_app_s-1, spectral_loss_J, "
                                   "GO_associated_fraction …", None),
