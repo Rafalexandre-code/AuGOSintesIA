@@ -21,7 +21,7 @@ formato do modelo de dados, status=planned), fichas/dia_XX.md (folhas de bancada
 
 Uso:
     python code/campaign/plan.py generate [--out outputs/plano] [--seed 20261001]
-    python code/campaign/plan.py confirm datasets/lab [--representation go]   # receitas dos lotes reservados
+    python code/campaign/plan.py confirm datasets/lab [--lot reductant=LOT]   # pares + previsões congeladas
 """
 from __future__ import annotations
 
@@ -157,13 +157,19 @@ def generate(seed: int | None = None, cfg: dict | None = None) -> dict:
         for arm in arms_:
             add("adaptive", day, dev[(r - 1) % len(dev)], rnd=r, arm=arm,
                 note=f"receita = designer.py propose --arm {arm} --batch {dev[(r - 1) % len(dev)]} --q 1")
-    # confirmação: lotes reservados, dias balanceados
+    # confirmação: lotes reservados, em PARES (uma receita de cada braço congelado, mesmo lote e mesmo dia). Os
+    # modelos não aprendem mais nada aqui: os pares são independentes entre si — é onde a inferência é válida
+    # (code/campaign/analysis.py → confirmation); o desfecho primário é o erro de PREVISÃO dos modelos congelados.
     n_c = int(bud["confirmation"])
-    conf_batches = [reserved[i % len(reserved)] for i in range(n_c)]
-    for d in _balanced_days([(i, b) for i, b in enumerate(conf_batches)], cap, rng):
+    n_pairs = n_c // len(arms_)
+    pair_batches = [reserved[i % len(reserved)] for i in range(n_pairs)]
+    per_day = max(1, cap // len(arms_))
+    for d in _balanced_days([(i, b) for i, b in enumerate(pair_batches)], per_day, rng):
         day += 1
-        for _, b in d:
-            add("confirmation", day, b, note="receita = modelo congelado (plan.py confirm)")
+        for i, b in d:
+            for arm in arms_:
+                add("confirmation", day, b, rnd=f"P{i + 1:02d}", arm=arm,
+                    note=f"par P{i + 1:02d}: receita do modelo congelado do braço {arm} (plan.py confirm)")
     # controles
     plan = pd.DataFrame(slots)
     ctl = cfg.get("controls", {}) or {}
@@ -236,9 +242,12 @@ def _tem_subset(plan: pd.DataFrame, spec: dict, rng: np.random.Generator) -> lis
         mark[ad.index[ad["round"].isin(pick)]] = "sim"
     co = plan[plan["stage"] == "confirmation"]
     n = int(spec.get("confirmation", 0))
-    if n and len(co):
-        per = co.groupby("go_batch_id", group_keys=False).apply(lambda g: g.head(int(np.ceil(n / co["go_batch_id"].nunique()))))
-        mark[per.index[:n]] = "sim"
+    if n and len(co):                       # pares inteiros, alternando os lotes reservados
+        size = co.groupby("round").size().max()
+        pairs = co.drop_duplicates("round").sort_values(["go_batch_id", "round"])
+        pairs = pairs.assign(k=pairs.groupby("go_batch_id").cumcount()).sort_values(["k", "go_batch_id"])
+        chosen = list(pairs["round"][: max(1, n // size)])
+        mark[co.index[co["round"].isin(chosen)]] = "sim"
     return mark.tolist()
 
 
@@ -297,42 +306,90 @@ def bench_sheets(plan: pd.DataFrame, space: dict, out_dir: str) -> list[str]:
     return files
 
 
-def confirm(lab: str, representation: str = "go", acq: str | None = None, seed: int = 0) -> tuple[pd.DataFrame, dict]:
-    """Receitas de confirmação para os lotes reservados com um modelo CONGELADO (só dados de desenvolvimento)."""
-    sys.path.insert(0, os.path.join(ROOT, "code", "aunp_designer"))
+def _frozen_predictor(lab: str, representation: str, space: dict, logs, eps, cons, lots: dict | None):
+    """Modelo CONGELADO de uma representação, treinado em TODOS os dados de desenvolvimento (sem filtro de braço):
+    a comparação preditiva isola o valor da INFORMAÇÃO de contexto (mesmos dados, só muda a representação)."""
+    import torch
     import designer
+    camp = designer.load_campaign(lab, space, representation, logs, eps, constraints=cons)
+    model, *_ = designer.build_model(camp, space)
+    names = list(camp.objs.index)
+    j = names.index("spectral_loss_J")
+
+    def predict(syn: pd.DataFrame) -> pd.DataFrame:
+        rows = []
+        for b, g in syn.groupby("go_batch_id"):
+            fixed = designer.fixed_context(lab, camp, b, lots or {})
+            X = pd.DataFrame({c: (g[c].astype(float).values if c in space else fixed.get(c, 0.0))
+                              for c in camp.X.columns})
+            with torch.no_grad():
+                post = model.models[j].posterior(torch.tensor(X.to_numpy(float), dtype=torch.double))
+            mu = post.mean.squeeze(-1).numpy()
+            sd = post.variance.clamp_min(0).sqrt().squeeze(-1).numpy()
+            pred = -mu if "spectral_loss_J" in camp.logs else np.log(np.clip(-mu, 0, None) + eps)
+            rows += [{"synthesis_id": sid, "representation": representation, "pred_logJ": float(m), "pred_sd": float(v),
+                      "n_training_syntheses": int(len(camp.X))} for sid, m, v in zip(g["synthesis_id"], pred, sd)]
+        return pd.DataFrame(rows)
+    return camp, predict
+
+
+def confirm_paired(lab: str, arms: list[tuple[str, str]], reserved: list[str], n_pairs: int, space: dict, logs=(),
+                   eps: float = 1e-3, cons: dict | None = None, acq: str | None = None, lots: dict | None = None,
+                   seed: int = 0) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Pares de confirmação: cada braço (nome, representação), CONGELADO na sua trajetória, propõe uma receita por
+    par no lote reservado do par; depois os modelos agrupados de cada representação PREVEEM todas as sínteses
+    (previsões gravadas antes de sintetizar). Devolve (sínteses planejadas, previsões)."""
+    import designer
+    pair_batch = {p + 1: reserved[p % len(reserved)] for p in range(n_pairs)}
+    rows = []
+    for k, (name, rep) in enumerate(arms):
+        camp = designer.load_campaign(lab, space, rep, logs, eps, constraints=cons, arm=name)
+        leak = set(camp.batches.astype(str)) & set(reserved)
+        if leak:
+            raise prereg.PreregError(f"lotes reservados {sorted(leak)} já aparecem no treino — a confirmação perderia "
+                                     "a independência")
+        for b in sorted(set(pair_batch.values())):
+            pairs = [p for p, bb in pair_batch.items() if bb == b]
+            try:
+                fixed = designer.fixed_context(lab, camp, b, lots or {})
+            except ValueError as err:
+                raise prereg.PreregError(f"lote reservado {b}: {err}. Caracterize os lotes reservados "
+                                         "(go_characterization → go_descriptors) antes da confirmação") from err
+            cands = designer.propose(camp, space, q=len(pairs), fixed=fixed, acq=acq, seed=seed + 7 * k, lab=lab)
+            syn = designer.proposals_to_syntheses(cands, space, b, CONFIRMATION_CAMPAIGN, 99, seed=seed, arm=name,
+                                                  lots=lots)
+            for i, p in enumerate(pairs):
+                syn.loc[i, "synthesis_id"] = f"CONF-P{p:02d}-{k + 1}"
+                syn.loc[i, "design_id"] = f"{name}:conf-p{p:02d}"
+                syn.loc[i, "block"] = f"CONF-P{p:02d}"
+            rows.append(syn)
+    syn = pd.concat(rows, ignore_index=True).sort_values("synthesis_id").reset_index(drop=True)
+    preds = []
+    for rep in dict.fromkeys(r for _, r in arms):
+        _, predict = _frozen_predictor(lab, rep, space, logs, eps, cons, lots)
+        preds.append(predict(syn))
+    return syn, pd.concat(preds, ignore_index=True)
+
+
+def confirm(lab: str, acq: str | None = None, seed: int = 0, lots: dict | None = None) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
+    """Confirmação pré-registrada nos lotes reservados (pares por braço + previsões dos modelos congelados)."""
+    sys.path.insert(0, os.path.join(ROOT, "code", "aunp_designer"))
     cfg = prereg.load()
     prereg.guard("plan.py confirm")
     space = prereg.search_space(cfg)
-    camp = designer.load_campaign(lab, space, representation, prereg.log_objectives(cfg), prereg.epsilon(cfg),
-                                  constraints=prereg.constraints(cfg))
-    reserved = list(cfg["batches"]["reserved"])
-    leak = set(camp.batches.astype(str)) & set(reserved)
-    if leak:
-        raise prereg.PreregError(f"lotes reservados {sorted(leak)} já aparecem no treino — a confirmação perderia a "
-                                 f"independência")
-    n = int(cfg["budget"]["confirmation"])
-    per = {b: n // len(reserved) + (1 if i < n % len(reserved) else 0) for i, b in enumerate(reserved)}
-    rows = []
-    for b, k in per.items():
-        try:
-            fixed = designer.fixed_context(lab, camp, b, {})
-        except ValueError as err:
-            raise prereg.PreregError(f"lote reservado {b}: {err}. Caracterize os lotes reservados (go_characterization "
-                                     f"→ go_descriptors) antes da confirmação, ou use --representation hierarchical "
-                                     f"(não exige descritores)") from err
-        cands = designer.propose(camp, space, q=k, fixed=fixed, acq=acq or cfg["acquisition"]["default"],
-                                 seed=seed, lab=lab)
-        rows.append(designer.proposals_to_syntheses(cands, space, b, CONFIRMATION_CAMPAIGN, 99, seed=seed))
-    syn = pd.concat(rows, ignore_index=True)
+    arms_ = prereg.arms(cfg)["prospective"]
+    n_pairs = int(cfg["budget"]["confirmation"]) // len(arms_)
+    syn, preds = confirm_paired(lab, [(a, a) for a in arms_], list(cfg["batches"]["reserved"]), n_pairs, space,
+                                prereg.log_objectives(cfg), prereg.epsilon(cfg), prereg.constraints(cfg),
+                                acq or cfg["acquisition"]["default"], lots, seed)
     tables = {f: hashlib.sha256(open(os.path.join(lab, f), "rb").read()).hexdigest()
               for f in sorted(os.listdir(lab)) if f.endswith(".csv")}
-    manifest = {"frozen_model": {"representation": representation, "n_training_syntheses": int(len(camp.X)),
-                                 "training_batches": sorted(set(camp.batches.astype(str))), "tables_sha256": tables},
+    manifest = {"frozen_models": {"arms": arms_, "tables_sha256": tables},
+                "predictions_sha256": hashlib.sha256(preds.to_csv(index=False).encode()).hexdigest(),
                 "prereg_sha256": prereg.sha256(cfg),
-                "rule": "resultados destas sínteses NÃO entram no treino (designer.usable_syntheses exclui "
-                        f"campaign_id={CONFIRMATION_CAMPAIGN})"}
-    return syn, manifest
+                "rule": "previsões gravadas ANTES das sínteses; resultados destas sínteses NÃO entram no treino "
+                        f"(designer.usable_syntheses exclui campaign_id={CONFIRMATION_CAMPAIGN})"}
+    return syn, preds, manifest
 
 
 def main(argv=None) -> None:
@@ -344,7 +401,7 @@ def main(argv=None) -> None:
     g.add_argument("--lot", action="append", default=[], help="papel=lote_id (gold|reductant|stabilizer)")
     c = sub.add_parser("confirm")
     c.add_argument("lab")
-    c.add_argument("--representation", default="go")
+    c.add_argument("--lot", action="append", default=[], help="papel=lote_id dos lotes de reagente da confirmação")
     c.add_argument("--out", default=os.path.join(ROOT, "outputs", "plano"))
     a = ap.parse_args(argv)
     os.makedirs(a.out, exist_ok=True)
@@ -372,10 +429,15 @@ def main(argv=None) -> None:
         print(f"-> {os.path.relpath(a.out, ROOT)}/ (plano_experimental.csv, aunp_syntheses_planejadas.csv, "
               f"{len(sheets)} fichas, plano_manifest.json)")
     else:
-        syn, man = confirm(a.lab, a.representation)
+        lots = dict(x.split("=", 1) for x in a.lot)
+        syn, preds, man = confirm(a.lab, lots=lots)
         syn.to_csv(os.path.join(a.out, "confirmacao_planejada.csv"), index=False)
+        preds.to_csv(os.path.join(a.lab, "confirmation_predictions.csv"), index=False)
         json.dump(man, open(os.path.join(a.out, "confirmacao_manifest.json"), "w"), indent=1)
-        print(syn[["synthesis_id", "go_batch_id"] + [c for c in prereg.search_space() if c in syn]].to_string(index=False))
+        print(syn[["synthesis_id", "design_id", "go_batch_id"] + [c for c in prereg.search_space() if c in syn]]
+              .to_string(index=False))
+        print(f"previsões dos modelos congelados -> {os.path.relpath(os.path.join(a.lab, 'confirmation_predictions.csv'), ROOT)}"
+              f" (sha256 no manifesto; não edite depois de sintetizar)")
 
 
 if __name__ == "__main__":

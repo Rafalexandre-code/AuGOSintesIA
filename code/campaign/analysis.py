@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""Análise pré-registrada da comparação prospectiva entre braços (§4.18; config/preregistration.yaml → arms,
-primary_outcome).
+"""Análise pré-registrada da comparação entre braços (§4.18; config/preregistration.yaml → arms, primary_outcome).
 
-Desenho: em cada rodada adaptativa r, cada braço prospectivo propõe UMA síntese, no mesmo lote de GO e no mesmo dia
-(ordem sorteada dentro do dia); cada braço treina só com os dados compartilhados e as suas rodadas
-(`designer.py propose --arm`). A unidade de análise é o par da rodada:
+Por que esta estrutura (simulação registrada em docs/SIMULACOES.md, cenário prospectivo): com o orçamento real, o
+teste por rodada na fase ADAPTATIVA tem poder ≈ 0 e é anticonservador (erro tipo I ≈ 12 % no par nulo), porque a
+vantagem de uma trajetória numa rodada se arrasta para as seguintes. A inferência confirmatória fica onde as
+observações são independentes: a CONFIRMAÇÃO nos lotes reservados, com modelos congelados.
 
-    d_r = log(J_trat + ε) − log(J_ref + ε)        (negativo = o braço de tratamento acertou mais perto do alvo)
-
-* Teste: randomização por troca de sinais, unilateral (H1: d < 0), EXATO para até 20 pares (2^n atribuições) e por
-  Monte Carlo acima disso. É inferência baseada no desenho: sob H0 os rótulos dos dois braços dentro do par são
-  permutáveis; não exige normalidade nem independência entre rodadas além do pareamento.
-* Estimativa: Hodges–Lehmann (mediana das médias de Walsh) com IC exato pela distribuição do posto sinalizado;
-  em escala de razão: redução relativa = 1 − exp(HL), comparada ao limiar de relevância pré-registrado (20 %).
-* Descritivo (desfecho da proposta): melhor perda acumulada por rodada e por braço, média balanceada entre lotes,
-  contando os dados compartilhados e as rodadas do próprio braço.
+1. PRIMÁRIO — valor preditivo da informação de contexto (§6.1 cenários 1–4): antes de sintetizar, o modelo
+   só-receita e o contextual, CONGELADOS e treinados nos mesmos dados de desenvolvimento, preveem log J de cada
+   síntese de confirmação (confirmation_predictions.csv, gravado por plan.py confirm). Por síntese i:
+       d_i = (ŷ_ctx,i − y_i)² − (ŷ_ref,i − y_i)²      (negativo = o contexto previu melhor um lote NUNCA visto)
+   Teste de randomização por troca de sinais (unilateral), Hodges–Lehmann com IC exato e razão de RMSE.
+2. SECUNDÁRIO — otimização em lotes novos: nos pares de confirmação (uma receita de cada braço congelado, mesmo
+   lote e dia), d_p = log J(trat) − log J(ref); mesmo teste.
+3. EXPLORATÓRIO — fase adaptativa: d_r por rodada pareada e curvas de melhor perda acumulada por braço
+   (o desfecho da proposta, aqui descritivo; o p-valor é reportado com o aviso de anticonservadorismo).
 
 Uso:
     python code/campaign/analysis.py datasets/lab [--arms recipe go+impurities] [--out outputs/analise.json]
@@ -143,6 +143,58 @@ def cumulative_curves(df: pd.DataFrame, arms: list[str], batches: list[str]) -> 
     return pd.DataFrame(rows)
 
 
+def confirmation_long(lab: str, objective: str = "spectral_loss_J") -> pd.DataFrame:
+    syn = pd.read_csv(os.path.join(lab, "aunp_syntheses.csv"))
+    syn = syn[syn["campaign_id"].astype(str) == "CONFIRMATION"]
+    if "status" in syn:
+        syn = syn[~syn["status"].astype(str).isin(["failed", "planned"])]
+    out = pd.read_csv(os.path.join(lab, "outcomes.csv"))
+    df = syn.merge(out[out["objective"] == objective][["synthesis_id", "value"]], on="synthesis_id")
+    parts = df["design_id"].astype(str).str.extract(r"^(.+):conf-p(\d+)$")
+    return df.assign(arm=parts[0], pair=pd.to_numeric(parts[1]))
+
+
+def _paired_block(d: np.ndarray, level: float) -> dict:
+    hl = hodges_lehmann(d, level)
+    return {"n": int(len(d)), "p_value_sign_flip_one_sided": sign_flip_test(d, "less") if len(d) else float("nan"),
+            "hodges_lehmann": hl}
+
+
+def predictive_comparison(lab: str, ref_rep: str, trt_rep: str, eps: float, level: float = 0.95,
+                          predictions: pd.DataFrame | None = None) -> dict:
+    """Primário: erro quadrático de previsão de log J (modelos congelados) contextual × só-receita, por síntese."""
+    path = os.path.join(lab, "confirmation_predictions.csv")
+    preds = predictions if predictions is not None else (pd.read_csv(path) if os.path.exists(path) else None)
+    conf = confirmation_long(lab)
+    if preds is None or conf.empty:
+        return {"status": "sem confirmação ou sem confirmation_predictions.csv (plan.py confirm)"}
+    w = preds.pivot_table(index="synthesis_id", columns="representation", values="pred_logJ")
+    if ref_rep not in w or trt_rep not in w:
+        return {"status": f"previsões sem {ref_rep} e/ou {trt_rep}"}
+    y = np.log(conf.set_index("synthesis_id")["value"].astype(float) + eps)
+    j = w.join(y.rename("y"), how="inner")
+    e_ref, e_trt = (j[ref_rep] - j["y"]) ** 2, (j[trt_rep] - j["y"]) ** 2
+    d = (e_trt - e_ref).to_numpy(float)
+    rmse_ref, rmse_trt = float(np.sqrt(e_ref.mean())), float(np.sqrt(e_trt.mean()))
+    return {**_paired_block(d, level), "rmse_reference": rmse_ref, "rmse_treatment": rmse_trt,
+            "rmse_ratio": rmse_trt / rmse_ref if rmse_ref > 0 else float("nan"),
+            "relative_error_reduction": 1 - rmse_trt / rmse_ref if rmse_ref > 0 else float("nan")}
+
+
+def confirmation_optimization(lab: str, ref: str, trt: str, eps: float, level: float = 0.95) -> dict:
+    conf = confirmation_long(lab)
+    if conf.empty:
+        return {"status": "sem confirmação"}
+    conf["logJ"] = np.log(conf["value"].astype(float) + eps)
+    w = conf.pivot_table(index="pair", columns="arm", values="logJ").dropna()
+    if ref not in w or trt not in w:
+        return {"status": "pares incompletos"}
+    d = (w[trt] - w[ref]).to_numpy(float)
+    hl = _paired_block(d, level)
+    hl["relative_reduction"] = 1 - float(np.exp(hl["hodges_lehmann"]["estimate"])) if len(d) else float("nan")
+    return hl
+
+
 def analyze(lab: str, arms: tuple[str, str] | None = None, eps: float | None = None, batches=None,
             level: float = 0.95) -> dict:
     import prereg
@@ -161,7 +213,13 @@ def analyze(lab: str, arms: tuple[str, str] | None = None, eps: float | None = N
     thr = float(cfg["relevance_threshold"])
     red = {k: (1 - float(np.exp(v)) if np.isfinite(v) else float("nan"))
            for k, v in (("estimate", hl["estimate"]), ("ci_high", hl["ci"][0]), ("ci_low", hl["ci"][1]))}
-    return {"reference_arm": ref, "treatment_arm": trt, "n_pairs": int(len(d)), "epsilon": eps,
+    rep = {k: k for k in (ref, trt)}                  # braço = representação no desenho pré-registrado
+    primary = predictive_comparison(lab, rep[ref], rep[trt], eps, level)
+    secondary = confirmation_optimization(lab, ref, trt, eps, level)
+    return {"primary_predictive_value": primary, "secondary_confirmation_optimization": secondary,
+            "exploratory_adaptive_warning": "fase adaptativa: teste anticonservador sob dependência entre rodadas "
+                                            "(erro tipo I simulado acima de α); leia como descritivo",
+            "reference_arm": ref, "treatment_arm": trt, "n_pairs": int(len(d)), "epsilon": eps,
             "pairs": pairs.to_dict("records"),
             "p_value_sign_flip_one_sided": sign_flip_test(d, "less"),
             "hodges_lehmann_log_ratio": hl,
@@ -183,8 +241,18 @@ def main() -> None:
     ap.add_argument("--out")
     a = ap.parse_args()
     r = analyze(a.lab, tuple(a.arms) if a.arms else None)
+    pp, so = r["primary_predictive_value"], r["secondary_confirmation_optimization"]
+    if "n" in pp:
+        print(f"PRIMÁRIO (previsão em lotes reservados, {pp['n']} sínteses): RMSE de log J "
+              f"{pp['rmse_treatment']:.3f} ({r['treatment_arm']}) × {pp['rmse_reference']:.3f} ({r['reference_arm']}); "
+              f"redução {100 * pp['relative_error_reduction']:.0f} %; p = {pp['p_value_sign_flip_one_sided']:.4f}")
+    else:
+        print("PRIMÁRIO:", pp.get("status"))
+    if "n" in so:
+        print(f"SECUNDÁRIO (otimização, {so['n']} pares de confirmação): redução HL de J "
+              f"{100 * so['relative_reduction']:.0f} %; p = {so['p_value_sign_flip_one_sided']:.4f}")
     hl, rr = r["hodges_lehmann_log_ratio"], r["relative_reduction"]
-    print(f"{r['treatment_arm']} × {r['reference_arm']}: {r['n_pairs']} rodadas pareadas; "
+    print(f"EXPLORATÓRIO — {r['treatment_arm']} × {r['reference_arm']}: {r['n_pairs']} rodadas pareadas; "
           f"p (randomização, unilateral) = {r['p_value_sign_flip_one_sided']:.4f}")
     print(f"redução relativa de J (Hodges–Lehmann) = {100 * rr['estimate']:.1f} % "
           f"(IC {100 * hl['achieved_level']:.1f} %: {100 * rr['ci95'][0]:.1f} a {100 * rr['ci95'][1]:.1f} %); "

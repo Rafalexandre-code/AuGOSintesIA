@@ -74,8 +74,27 @@ ARMS.update({f"novelty-w{w:g}": ("go", "novelty", {"w": w}) for w in _novelty_we
 # de cada braço por rodada, cada braço com a sua trajetória). "null" usa dois braços idênticos para medir o erro
 # tipo I do teste sob a dependência adaptativa.
 PROSPECTIVE = {"contextual": (("recipe", "recipe"), ("go+impurities", "go+impurities")),
-               "hierarchical": (("recipe", "recipe"), ("hierarchical", "hierarchical")),
+               "placebo": (("recipe", "recipe"), ("go+impurities", "go+impurities")),   # descritores embaralhados
                "null": (("recipe", "recipe"), ("recipe_bis", "recipe"))}
+RESERVED = ("L4", "L5", "L6")
+
+
+def _placebo(lab: str, seed: int) -> None:
+    """Contexto SEM informação: os descritores de GO trocam de lote (permutação sem ponto fixo) e as impurezas
+    trocam de lote de reagente. O simulador continua usando a química verdadeira — mede o erro tipo I do desfecho."""
+    rng = np.random.default_rng(seed + 991)
+    d = pd.read_csv(os.path.join(lab, "go_descriptors.csv"))
+    ids = sorted(d["go_batch_id"].unique())
+    while True:
+        perm = rng.permutation(ids)
+        if not np.any(perm == np.array(ids)):
+            break
+    d["go_batch_id"] = d["go_batch_id"].map(dict(zip(ids, perm)))
+    d.to_csv(os.path.join(lab, "go_descriptors.csv"), index=False)
+    ra = pd.read_csv(os.path.join(lab, "reagent_analyses.csv"))
+    lots = sorted(ra["lot_id"].unique())
+    ra["lot_id"] = ra["lot_id"].map(dict(zip(lots, lots[::-1])))
+    ra.to_csv(os.path.join(lab, "reagent_analyses.csv"), index=False)
 TRANSFER_ARMS = {"scratch": ("recipe", "gp-qnehvi", {}), "transfer-go": ("go", "gp-qnehvi", {}),
                  "transfer-hierarchical": ("hierarchical", "gp-qnehvi", {})}
 
@@ -180,7 +199,9 @@ def run_prospective(pair: str, seed: int, rounds: int, root: str, acq: str | Non
     import plan as plan_mod
     space = designer.DEFAULT_SPACE
     lab = os.path.join(root, "labs", f"{pair}_s{seed}", "lab")
-    sim_lab.init_lab(lab, BATCHES, seed=seed)
+    sim_lab.init_lab(lab, BATCHES + RESERVED, seed=seed)       # reservados caracterizados, nunca no treino
+    if pair == "placebo":
+        _placebo(lab, seed)
     rng = np.random.default_rng(seed)
     ref = pd.DataFrame([plan_mod.reference_recipe(space)])
     for b, n in zip(BATCHES, (4, 2, 2)):                      # piloto: receita de referência, 8 preparações
@@ -203,6 +224,14 @@ def run_prospective(pair: str, seed: int, rounds: int, root: str, acq: str | Non
                                                        lots=lots, seed=seed, arm=name).assign(status="done"))
         sim_lab.run_syntheses(lab, pd.concat(new, ignore_index=True), rng)
     eps = designer.default_eps()
+    # confirmação: 8 pares nos lotes reservados com os braços congelados + previsões congeladas
+    lots = {"reductant": "RED-B"}
+    conf, preds = plan_mod.confirm_paired(lab, [(ref_name, ref_rep), (trt_name, trt_rep)], list(RESERVED), 8, space,
+                                          designer.default_logs(), eps, designer.default_constraints(), acq, lots,
+                                          seed)
+    sim_lab.run_syntheses(lab, conf.assign(status="done"), rng)
+    prim = analysis.predictive_comparison(lab, ref_rep, trt_rep, eps, predictions=preds)
+    sec = analysis.confirmation_optimization(lab, ref_name, trt_name, eps)
     df = analysis.load_long(lab)
     pairs = analysis.paired_differences(df, ref_name, trt_name, eps)
     hl = analysis.hodges_lehmann(pairs["d"].to_numpy())
@@ -212,7 +241,11 @@ def run_prospective(pair: str, seed: int, rounds: int, root: str, acq: str | Non
              "best_ref": float(cur.loc[int(rr["round"]), ref_name]), "best_loss": float(cur.loc[int(rr["round"]), trt_name])}
             for _, rr in pairs.iterrows()]
     rows[-1].update({"p_sign_flip": analysis.sign_flip_test(pairs["d"].to_numpy()), "hl": hl["estimate"],
-                     "hl_lo": hl["ci"][0], "hl_hi": hl["ci"][1]})
+                     "hl_lo": hl["ci"][0], "hl_hi": hl["ci"][1],
+                     "p_predictive": prim.get("p_value_sign_flip_one_sided", np.nan),
+                     "rmse_ratio": prim.get("rmse_ratio", np.nan),
+                     "p_confirm_opt": sec.get("p_value_sign_flip_one_sided", np.nan),
+                     "confirm_hl": sec.get("hodges_lehmann", {}).get("estimate", np.nan)})
     return rows
 
 
@@ -347,7 +380,18 @@ def summarize_prospective(cv: pd.DataFrame, rounds: int, alpha: float = 0.05, th
         pv = g["p_sign_flip"].to_numpy(float)
         hl = g["hl"].to_numpy(float)
         fin = g["best_loss"].to_numpy(float) / g["best_ref"].to_numpy(float)
+        def rate(col):
+            v = g[col].to_numpy(float) if col in g else np.array([])
+            v = v[np.isfinite(v)]
+            return (float(np.mean(v < alpha)) if len(v) else float("nan"), _wilson(int(np.sum(v < alpha)), len(v)))
+        r_pred, r_conf = rate("p_predictive"), rate("p_confirm_opt")
+        rr = g["rmse_ratio"].to_numpy(float) if "rmse_ratio" in g else np.array([np.nan])
         s["pairs"][pair] = {
+            "primary_predictive_rejection": r_pred[0], "primary_predictive_rejection_ci95": r_pred[1],
+            "median_rmse_ratio": float(np.nanmedian(rr)), "fraction_context_predicts_better": float(np.nanmean(rr < 1)),
+            "secondary_confirmation_rejection": r_conf[0], "secondary_confirmation_rejection_ci95": r_conf[1],
+            "median_confirmation_reduction": float(1 - np.exp(np.nanmedian(g["confirm_hl"]))) if "confirm_hl" in g
+            else float("nan"),
             "campaigns": int(len(g)), "rejection_rate": float(np.mean(pv < alpha)),
             "rejection_rate_ci95": _wilson(int(np.sum(pv < alpha)), len(pv)),
             "median_relative_reduction_HL": float(1 - np.exp(np.median(hl))),
@@ -418,15 +462,27 @@ def report(out: str) -> str:
                   "`python code/benchmarking/campaign_sim.py --scenario prospective --seeds 40 --workers 4`", "",
                   "Cada linha é um par de braços simulado muitas vezes com o orçamento real; a análise é a de "
                   "`code/campaign/analysis.py` (randomização por troca de sinais, unilateral, α = "
-                  f"{s['alpha']}). No cenário **null** os dois braços são idênticos: a taxa de rejeição é o erro tipo I.",
-                  "", "| par | campanhas | rejeição de H0 (poder ou erro tipo I; IC 95 %) | redução HL mediana | "
-                  "P(HL ≥ 20 %) | P(melhor perda final do tratamento < referência) |", "|---|---|---|---|---|---|"]
+                  f"{s['alpha']}), incluindo a confirmação: 8 pares nos lotes reservados L4–L6 com os braços "
+                  "congelados e as previsões dos modelos congelados gravadas antes de sintetizar.",
+                  "", "| par | campanhas | **primário**: rejeição — valor preditivo (IC 95 %) | razão de RMSE mediana "
+                  "(contexto/receita) | secundário: rejeição — otimização nos pares de confirmação | exploratório: "
+                  "rejeição — rodadas adaptativas | P(melhor perda final do tratamento < referência) |",
+                  "|---|---|---|---|---|---|---|"]
+
+        def pct(v, ci=None):
+            if v is None or not np.isfinite(v):
+                return "—"
+            return f"{100 * v:.0f} %" + (f" ({100 * ci[0]:.0f}–{100 * ci[1]:.0f})" if ci else "")
         for pair, v in s["pairs"].items():
-            lo, hi = v["rejection_rate_ci95"]
-            lines.append(f"| {pair} | {v['campaigns']} | {100 * v['rejection_rate']:.0f} % ({100 * lo:.0f}–{100 * hi:.0f}) | "
-                         f"{100 * v['median_relative_reduction_HL']:.0f} % | "
-                         f"{100 * v['fraction_HL_reduction_above_threshold']:.0f} % | "
-                         f"{100 * v['fraction_final_best_better']:.0f} % |")
+            lines.append(f"| {pair} | {v['campaigns']} | "
+                         f"{pct(v.get('primary_predictive_rejection'), v.get('primary_predictive_rejection_ci95'))} | "
+                         f"{v.get('median_rmse_ratio', float('nan')):.2f} | "
+                         f"{pct(v.get('secondary_confirmation_rejection'), v.get('secondary_confirmation_rejection_ci95'))} | "
+                         f"{pct(v['rejection_rate'], v['rejection_rate_ci95'])} | "
+                         f"{pct(v['fraction_final_best_better'])} |")
+        lines += ["", "Rejeição no par **contextual** = poder; nos pares **placebo** (descritores embaralhados entre lotes) "
+                  "e **null** (braços idênticos) = erro tipo I. O valor preditivo não existe no null (mesma "
+                  "representação → previsões idênticas)."]
         lines.append("")
     p = os.path.join(out, "transfer", "summary.json")
     if os.path.exists(p):

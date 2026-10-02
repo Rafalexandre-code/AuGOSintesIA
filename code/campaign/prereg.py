@@ -94,6 +94,8 @@ def validate(cfg: dict) -> None:
             raise PreregError("arms.prospective precisa de ≥ 2 braços, incluindo arms.reference")
         if int(bud["adaptive"]) % len(pa):
             raise PreregError("budget.adaptive deve ser múltiplo do nº de braços prospectivos (pareamento por rodada)")
+        if int(bud["confirmation"]) % len(pa):
+            raise PreregError("budget.confirmation deve ser múltiplo do nº de braços prospectivos (pares de confirmação)")
 
 
 # ---------------------------------------------------------------------------------------------- acessores

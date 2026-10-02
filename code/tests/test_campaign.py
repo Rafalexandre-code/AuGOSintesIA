@@ -241,3 +241,37 @@ def test_randomization_analysis_exact_and_calibrated():
     cur = analysis.cumulative_curves(long, ["recipe", "go"], ["L1", "L2"]).set_index(["arm", "round"])
     assert cur.loc[("go", 2), "best_loss_balanced"] == pytest.approx(1.0)
     assert np.isnan(cur.loc[("recipe", 0), "best_loss_balanced"]) or cur.loc[("recipe", 0), "n_batches_with_data"] == 1
+
+
+def test_paired_confirmation_with_frozen_predictions(tmp_path):
+    """Pares de confirmação (uma receita de cada braço congelado no mesmo lote reservado) e previsões congeladas de
+    cada representação para TODAS as sínteses; a análise primária usa essas previsões."""
+    import analysis
+    import designer
+    import plan
+    import sim_lab
+    lab = str(tmp_path / "lab")
+    sim_lab.init_lab(lab, ("L1", "L2", "L3", "L4"), seed=3)
+    space = designer.DEFAULT_SPACE
+    rng = np.random.default_rng(3)
+    from scipy.stats import qmc
+    rec = pd.DataFrame(qmc.scale(qmc.LatinHypercube(len(space), seed=3).random(5),
+                                 [v[0] for v in space.values()], [v[1] for v in space.values()]), columns=list(space))
+    for b in ("L1", "L2", "L3"):
+        sim_lab.run_syntheses(lab, designer.proposals_to_syntheses(rec, space, b, f"INIT-{b}", 0, seed=3)
+                              .assign(status="done"), rng)
+    syn, preds = plan.confirm_paired(lab, [("recipe", "recipe"), ("go", "go")], ["L4"], 2, space,
+                                     designer.default_logs(), designer.default_eps(), designer.default_constraints(),
+                                     "qnehvi", {"reductant": "RED-A"}, seed=0)
+    assert len(syn) == 4 and set(syn["go_batch_id"]) == {"L4"}
+    assert sorted(syn["design_id"]) == ["go:conf-p01", "go:conf-p02", "recipe:conf-p01", "recipe:conf-p02"]
+    assert len(preds) == 8 and set(preds["representation"]) == {"recipe", "go"}
+    sim_lab.run_syntheses(lab, syn.assign(status="done"), rng)
+    assert not set(designer.usable_syntheses(lab)["synthesis_id"]) & set(syn["synthesis_id"])   # nunca treina
+    prim = analysis.predictive_comparison(lab, "recipe", "go", designer.default_eps(), predictions=preds)
+    sec = analysis.confirmation_optimization(lab, "recipe", "go", designer.default_eps())
+    assert prim["n"] == 4 and prim["rmse_reference"] > 0 and 0 <= prim["p_value_sign_flip_one_sided"] <= 1
+    assert sec["n"] == 2
+    with pytest.raises(Exception):                          # lote reservado já no treino → recusa
+        plan.confirm_paired(lab, [("recipe", "recipe"), ("go", "go")], ["L1"], 2, space, designer.default_logs(),
+                            designer.default_eps(), None, "qnehvi", {}, seed=0)

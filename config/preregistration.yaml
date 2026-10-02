@@ -98,26 +98,32 @@ stock_solutions:          # para calcular volumes de pipetagem
   min_pipette_uL: 10.0
 
 # ---------------------------------------------------------------- decisão e incerteza (§4.18)
-# Alocação das 24 adaptativas (§4.5, §4.18). Uma campanha real só comporta UMA trajetória por braço: com 4 braços
-# seriam 6 sínteses cada e nenhuma inferência entre campanhas. Por isso: 2 braços prospectivos, intercalados e
-# PAREADOS por rodada (mesmo lote e mesmo dia; ordem dentro do dia sorteada), cada um treinando só com os dados
-# compartilhados (piloto + inicialização) e as suas rodadas; os 5 braços completos são comparados fora da bancada
-# (LBO nos dados reais + campanhas simuladas). Escolha a revisar com o orientador ANTES do freeze.
+# Alocação e análise (§4.5, §4.18). Uma campanha real só comporta UMA trajetória por braço. A simulação do desenho
+# real (campaign_sim.py --scenario prospective; docs/SIMULACOES.md) mostrou que o teste por rodada na fase
+# adaptativa tem poder ≈ 0 e erro tipo I inflado (≈ 12 % no par nulo: a vantagem de uma trajetória se arrasta entre
+# rodadas). Por isso a inferência confirmatória fica na CONFIRMAÇÃO, onde os modelos estão congelados e as
+# observações são independentes. Escolha a revisar com o orientador ANTES do freeze.
 arms:
   prospective: [recipe, go+impurities]   # não contextual × contextual multi-fonte (hipótese central, §4.18)
   reference: recipe
-  allocation: paired_by_round            # 12 rodadas × (1 síntese de cada braço), mesmo lote de GO e mesmo dia
+  allocation: paired_by_round            # adaptativas: 12 rodadas × 1 síntese de cada braço, mesmo lote e dia
   training: own_trajectory               # designer.py propose --arm <braço>
+  confirmation: paired_by_reserved_batch # 16 = 8 pares: 1 receita de cada braço CONGELADO, mesmo lote reservado e dia
   offline: [recipe, batch, go, go+impurities, hierarchical]   # designer.py validate (LBO) + campaign_sim.py
 primary_outcome:
-  metric: paired_round_log_loss          # d_r = log J(contextual) − log J(receita) na rodada r (mesmo lote e dia)
-  test: randomization_sign_flip_one_sided   # exato e baseado no desenho (ordem sorteada dentro do par)
-  estimate: hodges_lehmann               # com IC 95 % exato (médias de Walsh)
-  descriptive: best_cumulative_loss_per_round   # curva de melhor perda acumulada, média balanceada entre lotes
+  metric: predictive_value_of_context    # confirmação: erro² de previsão de log J, contextual × só-receita
+  models: frozen_pooled                  # mesmos dados de desenvolvimento; só muda a representação (plan.py confirm)
+  predictions_recorded_before_synthesis: true   # confirmation_predictions.csv + sha256 no manifesto
+  test: randomization_sign_flip_one_sided
+  estimate: [hodges_lehmann, rmse_ratio]
+secondary_outcomes:
+  confirmation_optimization: paired_log_J_by_reserved_batch   # 8 pares, mesmo teste
+  adaptive_rounds: paired_round_log_loss  # EXPLORATÓRIO (teste anticonservador sob dependência)
+  descriptive: best_cumulative_loss_per_round   # desfecho original da proposta, por braço, média balanceada
   aggregation: balanced_mean_over_batches
 relevance_threshold: 0.20          # redução relativa de referência (não é ganho esperado)
 power: {target: 0.80, alpha: 0.05, test: randomization_sign_flip_one_sided, min_simulation_seeds: 10,
-        scenario: prospective}     # campaign_sim.py --scenario prospective (orçamento real; inclui cenário nulo)
+        scenario: prospective}     # campaign_sim.py --scenario prospective (orçamento real; placebo e nulo = erro tipo I)
 confidence_interval: {method: paired_bootstrap, level: 0.95, resamples: 5000}
 
 # ---------------------------------------------------------------- sustentabilidade e valor da informação (§4.14)
