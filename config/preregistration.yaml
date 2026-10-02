@@ -98,7 +98,10 @@ confidence_interval: {method: paired_bootstrap, level: 0.95, resamples: 5000}
 sustainability:
   boundary: [synthesis, characterization]
   flows: [without_extra_characterization, with_extra_characterization]
+  basic_characterization: [UV-Vis]  # fluxo "sem caracterização adicional"; o resto (TEM, XPS, DLS…) é a adicional
   cpu_lambda: 1.0                  # RASCUNHO: λ de CPU = custo / (Δperda + λ·Δincerteza), mesma escala de log J
+  value_per_unit_information: 2000.0   # RASCUNHO (BRL): quanto vale 1 unidade de (Δlog J + λ·Δincerteza);
+                                       # caracterizar compensa se o CPU incremental ≤ este valor
   currency: BRL
 miso:
   sources:                # fontes de informação e custos relativos (RASCUNHO: ajustar ao laboratório)

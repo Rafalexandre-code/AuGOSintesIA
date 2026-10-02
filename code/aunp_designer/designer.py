@@ -49,7 +49,7 @@ import pandas as pd
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 for sub in ("code/go_navigator", "tools/data_sources", "code/benchmarking", "code/spectral", "code/campaign",
-            "code/transfer_learning"):
+            "code/transfer_learning", "code/qc"):
     sys.path.insert(0, os.path.join(ROOT, sub))
 from batch_descriptors import standardized_context  # noqa: E402
 import prereg  # noqa: E402
@@ -101,6 +101,13 @@ def usable_syntheses(lab: str, include_confirmation: bool = False) -> pd.DataFra
         syn = syn[syn["is_control"].astype(str) != "GO_blank"]
     if not include_confirmation and "campaign_id" in syn:
         syn = syn[syn["campaign_id"].astype(str) != CONFIRMATION_CAMPAIGN]
+    from qc_check import failed_syntheses
+    bad = failed_syntheses(lab)                     # QC (config/qc_criteria.yaml): `fail` não sustenta a decisão
+    if bad:
+        n0 = len(syn)
+        syn = syn[~syn["synthesis_id"].astype(str).isin(bad)]
+        if len(syn) < n0:
+            warnings.warn(f"{n0 - len(syn)} síntese(s) com QC=fail excluídas (qc_results.csv)")
     return syn.reset_index(drop=True)
 
 

@@ -1,7 +1,6 @@
 """Testes do planejamento da campanha e das extensões do Designer (pré-registro, plano experimental, restrições,
 GP hierárquico, noise-check, métrica de transferência). Rodar: .venvs/core/bin/python -m pytest code/tests -q
 """
-import json
 import os
 import shutil
 import sys

@@ -175,3 +175,25 @@ outcomes,feasible,int,0,,,1/0 (restrições satisfeitas)
 outcomes,derived_from,list,0,,,measurement_id separados por |
 outcomes,model_version,str,0,,,versão do modelo/otimizador que usou o dado
 outcomes,notes,str,0,,,
+resources,resource_id,id,1,,,ex.: RES-0001
+resources,synthesis_id,fk:aunp_syntheses,0,,,síntese associada (vazio = preparo de GO/geral)
+resources,go_batch_id,fk:go_batches,0,,,lote de GO associado (caracterização do lote)
+resources,flow,enum,1,,synthesis|characterization|go_preparation|other,etapa dentro da fronteira do sistema
+resources,technique,str,0,,,"técnica de caracterização (UV-Vis, TEM, XPS…), se flow=characterization"
+resources,category,enum,1,,reagent|solvent|consumable|energy|instrument_time|labor|waste,tipo de recurso
+resources,item,str,1,,,"o que foi consumido/gerado (ex.: HAuCl4, água ultrapura, grade de TEM, resíduo aquoso de Au)"
+resources,lot_id,fk:reagent_lots,0,,,lote do reagente consumido
+resources,amount,float,1,,,quantidade na unidade abaixo
+resources,unit,str,1,,,"g, mL, kWh, h, unidade…"
+resources,mass_g,float,0,g,,massa (insumo ou resíduo) para o E-factor; água pode ser excluída (sEF)
+resources,cost,float,0,,,custo do item
+resources,currency,str,0,,,ex.: BRL
+resources,date,date,0,,,
+resources,operator,str,0,,,
+resources,notes,str,0,,,
+qc_results,synthesis_id,fk:aunp_syntheses,1,,,
+qc_results,check,str,1,,,"verificação (uvvis_duplicate_reads, tem_particle_count, control_chart_day_*…)"
+qc_results,status,enum,1,,pass|warn|fail,resultado
+qc_results,value,str,0,,,valor observado
+qc_results,limit,str,0,,,critério aplicado
+qc_results,message,str,0,,,

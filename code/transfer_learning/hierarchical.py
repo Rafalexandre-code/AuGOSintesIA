@@ -19,7 +19,6 @@ import numpy as np
 
 
 def _delta_kernel_class():
-    import torch
     from gpytorch.kernels import Kernel
 
     class DeltaKernel(Kernel):
