@@ -22,7 +22,7 @@ recomendação × custo acumulado; custo até o critério com censura).
 
 Uso:
     python code/miso/miso.py run --model MGP --seed 0 [--budget 160]
-    python code/miso/miso.py benchmark --seeds 8 --out outputs/miso         # SIMULADO
+    python code/miso/miso.py benchmark --seeds 8 --workers 4               # SIMULADO -> outputs/miso/
 """
 from __future__ import annotations
 
@@ -377,18 +377,29 @@ def cost_to_criterion(history: list[dict], threshold: float) -> float:
     return float("inf")
 
 
+def _bench_job(kind: str, seed: int, budget: float, kw: dict) -> dict:
+    import torch
+    torch.set_num_threads(1)
+    warnings.simplefilter("ignore")
+    t0 = time.time()
+    r = run(kind, seed, budget, **kw)
+    r["seconds"] = round(time.time() - t0, 1)
+    return r
+
+
 def benchmark(seeds: int = 8, budget: float = 160.0, models=MODELS, out: str | None = None, threshold: float = 0.01,
-              **kw) -> dict:
+              workers: int = 1, **kw) -> dict:
     import hierarchical
-    runs = []
-    for seed in range(seeds):
-        for kind in models:
-            t0 = time.time()
-            r = run(kind, seed, budget, **kw)
-            r["seconds"] = round(time.time() - t0, 1)
-            runs.append(r)
-            print(f"{kind:8s} semente {seed}: arrependimento final {r['final_regret']:.4f}  consultas {r['queries']}  "
-                  f"({r['seconds']} s)", flush=True)
+    from concurrent.futures import ProcessPoolExecutor
+    jobs = [(kind, seed, budget, kw) for seed in range(seeds) for kind in models]
+    if workers > 1:
+        with ProcessPoolExecutor(workers) as ex:
+            runs = list(ex.map(_bench_job, *zip(*jobs)))
+    else:
+        runs = [_bench_job(*j) for j in jobs]
+    for r in runs:
+        print(f"{r['model']:8s} semente {r['seed']}: arrependimento final {r['final_regret']:.4f}  "
+              f"consultas {r['queries']}  ({r['seconds']} s)", flush=True)
     summary = {}
     for kind in models:
         rr = [r for r in runs if r["model"] == kind]
@@ -420,13 +431,14 @@ def main() -> None:
     b.add_argument("--models", nargs="+", choices=MODELS, default=list(MODELS))
     b.add_argument("--candidates", type=int, default=128)
     b.add_argument("--threshold", type=float, default=0.01, help="critério de arrependimento (unidades do objetivo)")
+    b.add_argument("--workers", type=int, default=1, help="processos em paralelo")
     b.add_argument("--out", default=os.path.join(HERE, "..", "..", "outputs", "miso"))
     a = ap.parse_args()
     if a.cmd == "run":
         r = run(a.model, a.seed, a.budget, n_candidates=a.candidates, verbose=True)
         print(json.dumps({k: v for k, v in r.items() if k != "history"}, indent=1))
     else:
-        res = benchmark(a.seeds, a.budget, a.models, a.out, a.threshold, n_candidates=a.candidates)
+        res = benchmark(a.seeds, a.budget, a.models, a.out, a.threshold, a.workers, n_candidates=a.candidates)
         print(json.dumps(res["summary"], indent=1, default=float))
 
 

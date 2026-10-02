@@ -3,9 +3,9 @@
 
 Estrutura gerada (proposta do projeto; cada versão recebe um DOI próprio no Zenodo, sob um "concept DOI" comum):
   GO-AuNP-Autonomous-Design/
-    dataset/{literature,go_batches,synthesis,characterization,raw_data}
-    code/{go_navigator,aunp_designer,transfer_learning,benchmarking}
-    models/  protocols/  metadata/  documentation/
+    dataset/{literature,go_batches,synthesis,characterization,quality,raw_data}
+    code/{campaign,qc,go_navigator,aunp_designer,transfer_learning,miso,decision,benchmarking,spectral,…}
+    plan/  models/  protocols/  metadata/  documentation/
 Os dados de laboratório são lidos de datasets/lab/ (preencha a partir de datasets/data-model/templates/) e validados
 antes da cópia; o que não existir ainda fica só com o README da pasta. Gera MANIFEST.tsv (sha256 de cada arquivo)
 e um .zip pronto para upload.
@@ -38,15 +38,22 @@ MAPPING = {
                            "{lab}/go_samples.csv", "{lab}/go_descriptors.csv"],
     "dataset/synthesis": ["{lab}/aunp_syntheses.csv", "{lab}/outcomes.csv"],
     "dataset/characterization": ["{lab}/spectra.csv", "{lab}/go_characterization.csv", "{lab}/aunp_characterization.csv"],
+    "dataset/quality": ["{lab}/qc_results.csv", "{lab}/qc_control_chart.csv", "{lab}/resources.csv"],
     "dataset/raw_data": ["{lab}/raw_data/**/*"],
     "protocols": ["{lab}/protocols.csv", "{lab}/protocols/**/*"],
+    "plan": ["config/preregistration.yaml", "config/preregistration.lock.json", "config/s_m.csv",
+             "config/qc_criteria.yaml", "docs/DMP.md"],
     "metadata": ["datasets/data-model/data_dictionary.csv", "datasets/data-model/go_aunp.schema.json",
                  "tools/data_sources/sources.tsv", "deposit/GO-AuNP-Autonomous-Design/.zenodo.json",
                  "deposit/GO-AuNP-Autonomous-Design/CITATION.cff"],
     "documentation": ["deposit/GO-AuNP-Autonomous-Design/README.md", "docs/FONTES_DE_DADOS.md"],
+    "code/campaign": ["{code}/campaign/**/*"],
+    "code/qc": ["{code}/qc/**/*"],
     "code/go_navigator": ["{code}/go_navigator/**/*"],
     "code/aunp_designer": ["{code}/aunp_designer/**/*"],
     "code/transfer_learning": ["{code}/transfer_learning/**/*"],
+    "code/miso": ["{code}/miso/**/*"],
+    "code/decision": ["{code}/decision/**/*"],
     "code/benchmarking": ["{code}/benchmarking/**/*"],
     "code/spectral": ["{code}/spectral/**/*"],
     "code/characterization": ["{code}/characterization/**/*"],
@@ -63,13 +70,19 @@ FOLDER_DOCS = {
     "dataset/synthesis": "Sínteses de AuNP (condições = variáveis do otimizador) e desfechos/objetivos.",
     "dataset/characterization": "Medidas de GO (XPS, Raman, AFM…) e de AuNP (UV-Vis, TEM, DLS…) com incerteza.",
     "dataset/raw_data": "Arquivos brutos dos instrumentos (espectros, imagens), referenciados em raw_data_file.",
+    "dataset/quality": "Resultados do QC automático, cartas de controle e recursos consumidos (massas, custos, energia).",
+    "plan": "Plano pré-registrado (com selo sha256), sₘ do piloto, critérios de QC e plano de gestão de dados.",
+    "code/campaign": "Pré-registro (leitura, selo, emendas) e gerador do plano experimental 8/12/24/16.",
+    "code/qc": "Controle de qualidade automático e cartas de controle Shewhart/EWMA.",
+    "code/miso": "MISO: MGP/ICM/PCM e gradiente do conhecimento por custo (UV-Vis/DLS/TEM).",
+    "code/decision": "Valor da informação (EVPI/EVSI) da caracterização de lotes novos.",
     "code/go_navigator": "Código do GO Navigator (descritores de lote, espaço latente de GO).",
-    "code/aunp_designer": "Código do AuNP Designer (GP Matérn-5/2+ARD, qNEHVI, MISO).",
-    "code/transfer_learning": "Transferência entre lotes/fontes de GO.",
+    "code/aunp_designer": "Código do AuNP Designer (GP Matérn-5/2+ARD, qNEHVI, restrições, LBO, novelty, SHAP).",
+    "code/transfer_learning": "GP hierárquico (global + fornecedor + lote) e métrica de experimentos até igualar o do-zero.",
     "code/benchmarking": "Laboratório simulado, simulação de campanha/poder e estatística de benchmark.",
     "code/spectral": "UV-Vis, perda espectral J e Mie.",
-    "code/characterization": "Raman, XPS e TEM.",
-    "code/causal": "DAG, DoWhy, E-value.",
+    "code/characterization": "Raman, XPS, FTIR, XRD, DLS e TEM (com associação AuNP–GO).",
+    "code/causal": "DAG, DoWhy, E-value, IPW por balanceamento de entropia, mediação.",
     "code/sustainability": "E-factor, EcoScale, custo por informação útil.",
     "code/atomistic": "Design inverso atomístico GO–Au com o JARVIS (dados, JARVIS-FF, CHIPS-FF, ALIGNN, InterMat).",
     "code/tests": "Testes automatizados do código.",

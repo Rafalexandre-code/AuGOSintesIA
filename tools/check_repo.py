@@ -114,13 +114,20 @@ def environments() -> list[str]:
             out.append(f"{name}: especificação ausente {spec}")
         if typ == "uv" and not os.path.exists(os.path.join(envdir, f"{name}.lock.txt")):
             out.append(f"{name}: lock ausente")
-        for f in (spec, f"{name}.lock.txt"):
+        for f in (spec, f"{name}.lock.txt", f"{name}.windows.lock.txt"):
             p = os.path.join(envdir, f)
             if os.path.exists(p):
                 for m in re.finditer(r"^(?:-e|-r)\s+(\S+)", open(p, encoding="utf-8").read(), re.M):
                     target = re.sub(r"\[.*\]$", "", m.group(1))
                     if not os.path.exists(os.path.join(envdir, target)):
                         out.append(f"{name}: {f} referencia {target}, que não existe")
+        win = os.path.join(envdir, f"{name}.windows.lock.txt")
+        if os.path.exists(win):        # o lock de Windows tem de fixar as MESMAS versões (tools/lock_windows.sh)
+            pins = lambda f: dict(re.findall(r"^([A-Za-z0-9_.\-]+)==(\S+)", open(f, encoding="utf-8").read(), re.M))  # noqa: E731
+            lin, w = pins(os.path.join(envdir, f"{name}.lock.txt")), pins(win)
+            diff = sorted(k for k in set(lin) & set(w) if lin[k] != w[k])
+            if diff:
+                out.append(f"{name}: windows.lock.txt difere do lock de Linux em {diff[:5]} (rode tools/lock_windows.sh)")
     return out
 
 

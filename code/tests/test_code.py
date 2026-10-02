@@ -240,6 +240,33 @@ def test_novelty_and_lbo(sim_lab_dir):
     assert set(res["representation"]) == {"recipe", "go"} and res["rmse"].notna().all()
 
 
+
+def test_baseline_strategies_propose(sim_lab_dir):
+    import designer
+    import strategies
+    camp = designer.load_campaign(sim_lab_dir, designer.DEFAULT_SPACE, "go", ("spectral_loss_J",))
+    fixed = designer.fixed_context(sim_lab_dir, camp, "L2", None)
+    for f in (strategies.propose_gp_ei, strategies.propose_rf_qnehvi, strategies.propose_random):
+        c = f(camp, designer.DEFAULT_SPACE, 2, fixed, 0)
+        assert c.shape == (2, camp.X.shape[1]) and np.allclose(c["ctx_C_O_ratio"], fixed["ctx_C_O_ratio"])
+        for k, (lo, hi) in designer.DEFAULT_SPACE.items():
+            assert c[k].between(lo - 1e-9, hi + 1e-9).all()
+
+
+def test_time_to_criterion_and_logrank():
+    import pandas as pd
+    import stats
+    rows = []
+    for seed in range(6):
+        for n in range(1, 11):
+            rows.append({"arm": "fast", "seed": seed, "n": n, "value": 10 - n})            # atinge 5 em n = 5
+            rows.append({"arm": "slow", "seed": seed, "n": n, "value": 10 - 0.4 * n})      # nunca atinge (censura)
+    r = stats.time_to_criterion(pd.DataFrame(rows), 5.0, reference="slow")
+    assert r["arms"]["fast"]["rmst"] == pytest.approx(5.0) and r["arms"]["fast"]["fraction_reached"] == 1.0
+    assert r["arms"]["slow"]["rmst"] == pytest.approx(10.0) and r["arms"]["slow"]["fraction_reached"] == 0.0
+    assert r["arms"]["fast"]["logrank_p"] < 0.01
+    assert stats.logrank(np.array([3.0, 5, np.inf]), np.array([3.0, 5, np.inf]), 10) == pytest.approx(1.0)
+
 def test_causal_runs(sim_lab_dir):
     import causal_analysis as ca
     r = ca.estimate(sim_lab_dir, "C_O_ratio", "size_mean_nm", refute=False)
@@ -249,7 +276,10 @@ def test_causal_runs(sim_lab_dir):
 def test_cli_help():
     for script in ("code/aunp_designer/designer.py", "code/benchmarking/campaign_sim.py", "code/causal/causal_analysis.py",
                    "code/spectral/uvvis.py", "code/spectral/mie.py", "code/characterization/raman.py",
-                   "code/characterization/xps.py", "code/characterization/tem.py", "code/sustainability/metrics.py"):
+                   "code/characterization/xps.py", "code/characterization/tem.py", "code/sustainability/metrics.py",
+                   "code/characterization/ftir.py", "code/characterization/xrd.py", "code/characterization/dls.py",
+                   "code/miso/miso.py", "code/decision/voi.py", "code/qc/qc_check.py", "code/campaign/plan.py",
+                   "code/campaign/prereg.py"):
         assert subprocess.run([sys.executable, os.path.join(ROOT, script), "--help"], capture_output=True).returncode == 0
 
 
