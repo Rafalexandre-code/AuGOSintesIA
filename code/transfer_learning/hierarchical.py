@@ -34,14 +34,25 @@ def _delta_kernel_class():
     return DeltaKernel
 
 
+def matern52(d: int, active_dims=None):
+    """Matérn-5/2 + ARD com o prior de comprimento escalado pela dimensão (padrão do BoTorch; Hvarfner et al., ICML
+    2024): sem ele, com poucas dezenas de pontos a máxima verossimilhança leva os comprimentos a ~0 e o GP vira ruído
+    branco (média constante longe dos dados, aquisição e valor da informação nulos)."""
+    import math
+    from gpytorch.kernels import MaternKernel
+    from gpytorch.priors import LogNormalPrior
+    return MaternKernel(nu=2.5, ard_num_dims=d, active_dims=active_dims,
+                        lengthscale_prior=LogNormalPrior(math.sqrt(2) + math.log(d) / 2, math.sqrt(3)))
+
+
 def hierarchical_kernel(recipe_dims: list[int], level_dims: list[int]):
     """k_g(x) + Σ_ℓ δ_ℓ · k_ℓ(x) sobre as colunas `recipe_dims` (contínuas) e `level_dims` (rótulos inteiros)."""
-    from gpytorch.kernels import MaternKernel, ScaleKernel
+    from gpytorch.kernels import ScaleKernel
     Delta = _delta_kernel_class()
     d = len(recipe_dims)
-    k = ScaleKernel(MaternKernel(nu=2.5, ard_num_dims=d, active_dims=recipe_dims))
+    k = ScaleKernel(matern52(d, recipe_dims))
     for lv in level_dims:
-        k = k + ScaleKernel(MaternKernel(nu=2.5, ard_num_dims=d, active_dims=recipe_dims)) * Delta(active_dims=[lv])
+        k = k + ScaleKernel(matern52(d, recipe_dims)) * Delta(active_dims=[lv])
     return k
 
 

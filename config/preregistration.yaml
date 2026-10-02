@@ -110,6 +110,16 @@ miso:
     - {name: TEM, cost: 20.0}
   target_source: TEM
   models: [MGP, ICM, PCM]
+  objective: {quantity: size_mean_nm, transform: neg_squared_log_ratio, target: 20.0}   # y = −[ln(d/20)]²
+  budget: 160.0           # custo total por campanha simulada (unidades de custo acima)
+
+value_of_information:     # §4.14: caracterizar um lote NOVO de GO antes de sintetizar compensa? (code/decision/voi.py)
+  objective: spectral_loss_J        # utilidade = esse objetivo na escala do modelo (maximização, log se em log_transform)
+  representation: go
+  technique_costs: {XPS: 450.0, Raman: 60.0, FTIR: 40.0, XRD: 80.0, TGA: 70.0, AFM: 150.0, DLS: 30.0}  # RASCUNHO (BRL/lote)
+  default_noise_z: 0.3    # ruído de medida em unidades de desvio ENTRE lotes, se não houver réplicas
+  prior_samples: 2000
+  measurement_samples: 400
 
 random_seed: 20261001
 amendments: []            # [{date: AAAA-MM-DD, change: "...", reason: "...", before_unblinding: true}]

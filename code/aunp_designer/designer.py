@@ -342,7 +342,7 @@ def build_model(camp: Campaign, space: dict, rows=None):
     import torch
     from botorch.models import ModelListGP, MultiTaskGP, SingleTaskGP
     from botorch.models.transforms import Normalize, Standardize
-    from gpytorch.kernels import MaternKernel, ScaleKernel
+    from gpytorch.kernels import ScaleKernel
     import hierarchical
 
     idx = np.arange(len(camp.X)) if rows is None else np.asarray(rows)
@@ -364,12 +364,12 @@ def build_model(camp: Campaign, space: dict, rows=None):
             t = list(camp.X.columns).index(camp.task_col)
             base = [j for j in range(d) if j != t]
             m = MultiTaskGP(tx, y, task_feature=t, train_Yvar=yv,
-                            covar_module=MaternKernel(nu=2.5, ard_num_dims=d - 1),
+                            covar_module=hierarchical.matern52(d - 1),
                             input_transform=Normalize(d, indices=base, bounds=bounds),
                             outcome_transform=Standardize(1), all_tasks=list(camp.task_map.values()))
         else:
             m = SingleTaskGP(tx, y, train_Yvar=yv,
-                             covar_module=ScaleKernel(MaternKernel(nu=2.5, ard_num_dims=d)),     # Matérn-5/2 + ARD
+                             covar_module=ScaleKernel(hierarchical.matern52(d)),     # Matérn-5/2 + ARD
                              input_transform=Normalize(d, bounds=bounds), outcome_transform=Standardize(1))
         _fit(m)
         models.append(m)

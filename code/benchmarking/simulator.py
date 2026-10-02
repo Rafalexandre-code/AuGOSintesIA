@@ -59,7 +59,9 @@ def target_spectrum() -> np.ndarray:
 
 
 def simulate(cond: dict, batch: str, reagent_lot: str = "RED-A", hardware: str = "hot_plate",
-             rng: np.random.Generator | None = None) -> dict:
+             rng: np.random.Generator | None = None, noiseless: bool = False) -> dict:
+    """noiseless=True devolve o valor ESPERADO (sem variação síntese a síntese nem ruído de medida): é a "verdade"
+    usada para calcular arrependimento nos benchmarks."""
     rng = rng or np.random.default_rng()
     co = BATCHES[batch]["C_O_ratio"]
     iod = REAGENT_LOTS[reagent_lot]["iodide_ppm"]
@@ -69,14 +71,15 @@ def simulate(cond: dict, batch: str, reagent_lot: str = "RED-A", hardware: str =
         * (1 - 0.35 * sites) * (1 - 0.004 * (T - 20)) * (1 + 0.003 * iod)
     t = float(cond.get("time_min", DEFAULT_TIME_MIN))
     d *= 1 + 0.06 * np.log(max(t, 1.0) / DEFAULT_TIME_MIN)
-    d = float(np.clip(d * rng.lognormal(0, 0.04), 3, 150))
+    d = float(np.clip(d * (1.0 if noiseless else rng.lognormal(0, 0.04)), 3, 150))
     ph_opt = 6.0 + 1.5 * (co - 1.6)
-    sigma = 0.07 + 0.05 * abs(cond["pH"] - ph_opt) / 4 + 0.001 * iod + 0.02 * rng.random()
+    sigma = 0.07 + 0.05 * abs(cond["pH"] - ph_opt) / 4 + 0.001 * iod + 0.02 * (0.5 if noiseless else rng.random())
     yld = (1 - np.exp(-cond["reductant_to_Au_ratio"] / 2.5)) * np.exp(-((cond["pH"] - ph_opt) / 3.5) ** 2) \
         * (0.85 + 0.15 * sites) * (1 - np.exp(-t / 15.0))
     conc = cond["HAuCl4_mM"] / 0.5
     spec = 0.8 * conc * yld * unit_spectrum(d, sigma) + cond["GO_mg_mL"] * 0.15 * (450 / WL) ** 3
-    spec = spec + rng.normal(0, NOISE_SD, WL.size)
+    if not noiseless:
+        spec = spec + rng.normal(0, NOISE_SD, WL.size)
     desc = uvvis.lspr(WL, spec)
     J = uvvis.spectral_loss_J(WL, spec, WL, target_spectrum(), s=NOISE_SD * 5, grid=WL)
     return {"spectrum": spec, "size_mean_nm": d, "size_sd_nm": d * sigma, "size_cv": sigma, "LSPR_nm": desc["LSPR_nm"],
