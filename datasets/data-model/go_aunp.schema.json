@@ -256,6 +256,7 @@
             "ci95",
             "range",
             "instrument",
+            "fit_se",
             "none"
           ]
         },
@@ -640,6 +641,7 @@
             "ci95",
             "range",
             "instrument",
+            "fit_se",
             "none"
           ]
         },
@@ -1004,6 +1006,7 @@
             "ci95",
             "range",
             "instrument",
+            "fit_se",
             "none"
           ]
         },

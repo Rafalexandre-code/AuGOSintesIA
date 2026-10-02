@@ -106,6 +106,78 @@ def test_tem_sizes():
     assert s["size_mean_nm"] == pytest.approx(20, abs=1.5)
 
 
+
+def test_tem_go_association():
+    import tem
+    from skimage.draw import disk
+    img, cs = np.full((600, 600), 210.0), []
+    img[:, :300] = 150.0                                     # folha de GO (contraste fraco) na metade esquerda
+    on_target = 0
+    while len(cs) < 24:
+        c = rng.integers(40, 560, 2)
+        if abs(c[1] - 300) < 30 or not all(np.hypot(*(c - o)) > 50 for o in cs):
+            continue
+        cs.append(c)
+        on_target += c[1] < 300
+        rr, cc = disk(tuple(c), 12, shape=img.shape)
+        img[rr, cc] = 50.0
+    img += rng.normal(0, 6, img.shape)
+    lab = tem.segment(img, min_diameter_px=20, classes=3)
+    s = tem.summarize(tem.particle_sizes(lab, 1.0))
+    assert s["n_particles"] >= 22                            # o GO não vira "partícula" com 3 classes
+    a = tem.association_summary([tem.go_association(img, lab)], [1.0])
+    assert a["n_classified"] >= 22
+    assert a["GO_associated_fraction"] == pytest.approx(on_target / 24, abs=0.06)
+    assert a["GO_area_fraction"] == pytest.approx(0.5, abs=0.05)
+    assert a["GO_associated_ci_low"] < a["GO_associated_fraction"] < a["GO_associated_ci_high"]
+    rows = tem.to_rows({**s, **a}, "SYN-1")
+    assert {"GO_associated_fraction", "nucleation_selectivity"} <= {r["quantity"] for r in rows}
+
+
+def test_ftir_ratios_and_water_flag():
+    import ftir
+    x = np.linspace(600, 4000, 3401)
+    G = lambda c, w, a: a * np.exp(-0.5 * ((x - c) / w) ** 2)   # noqa: E731
+    bands = {"CO": G(1725, 20, 0.30), "H2O": G(1625, 22, 0.20), "CC": G(1580, 25, 0.40),
+             "COC": G(1230, 18, 0.25), "alk": G(1055, 20, 0.35), "OH": G(3350, 180, 0.15)}
+    y = sum(bands.values()) + 0.05 + 2e-5 * (x - 600) + rng.normal(0, 0.002, x.size)
+    r = ftir.analyze(x, y)
+    area = {k: np.trapezoid(v, x) for k, v in bands.items()}
+    assert r["FTIR_CO_CC"] == pytest.approx(area["CO"] / area["CC"], rel=0.10)
+    assert r["FTIR_COC_CC"] == pytest.approx(area["COC"] / area["CC"], rel=0.15)
+    assert r["FTIR_water_frac"] == pytest.approx(area["H2O"] / (area["H2O"] + area["CC"]), abs=0.08)
+    rows = ftir.to_rows(ftir.summarize([r, ftir.analyze(x, y + rng.normal(0, 0.002, x.size))]), "GO-1", max_water=0.1)
+    assert any("umidade" in row["notes"] for row in rows if row["quantity"] == "FTIR_water_frac")
+
+
+def test_xrd_d001_and_au_crystallite():
+    import xrd
+    tt = np.arange(5, 45, 0.02)
+    y = (xrd.pseudo_voigt(tt, 1000, 10.5, 1.2, 0.3) + xrd.pseudo_voigt(tt, 600, 38.2, 0.8, 0.5)
+         + 300 * np.exp(-tt / 15) + 50 + rng.normal(0, 3, tt.size))
+    r = xrd.analyze(tt, y)
+    assert r["d001_nm"][0] == pytest.approx(xrd.bragg_d_nm(10.5), rel=0.005)
+    assert r["d001_nm"][0] == pytest.approx(0.842, abs=0.005)
+    L = 0.94 * 1.5406 / (np.radians(0.8) * np.cos(np.radians(19.1))) / 10
+    assert r["Au_crystallite_nm"][0] == pytest.approx(L, rel=0.05)
+    assert r["frac_graphitic"][0] < 0.05                      # sem pico de grafite em 26,5°
+    assert r["n_layers"][0] > 1
+
+
+def test_dls_cumulants_recover_size():
+    import dls
+    tau = np.logspace(-7, -1, 200)
+    q2 = dls.q_vector(173, 633) ** 2
+    D = lambda d: 1.380649e-23 * 298.15 / (3 * np.pi * dls.water_viscosity_mPas(25) * 1e-3 * d * 1e-9)   # noqa: E731
+    g2 = 1 + 0.8 * np.exp(-2 * D(50) * q2 * tau) + rng.normal(0, 1e-4, tau.size)
+    r = dls.analyze(tau, g2)
+    assert r["hydrodynamic_nm"] == pytest.approx(50, rel=0.03) and r["PDI"] < 0.05
+    sizes = np.exp(rng.normal(np.log(50), 0.35, 400))       # polidisperso: PDI cresce
+    g1 = np.mean([d ** 6 * np.exp(-D(d) * q2 * tau) for d in sizes], axis=0) / np.mean(sizes ** 6)
+    r2 = dls.analyze(tau, 0.8 * g1 ** 2)                     # formato g2 − 1
+    assert r2["PDI"] > 0.05
+    assert dls.water_viscosity_mPas(25) == pytest.approx(0.890, abs=0.005)
+
 # ------------------------------------------------------------------ estatística e sustentabilidade
 
 def test_stats():

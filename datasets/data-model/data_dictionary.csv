@@ -29,7 +29,7 @@ reagent_analyses,analyte,str,1,,,"iodide, Fe, Cu, Ag, water, residual_solvent, a
 reagent_analyses,method,str,0,,,"IC, ICP-MS, ICP-OES, KF, GC, titulação, CoA…"
 reagent_analyses,value,float,1,,,valor medido/derivado
 reagent_analyses,uncertainty,float,0,,,incerteza do valor (mesma unidade)
-reagent_analyses,uncertainty_type,enum,0,,sd|sem|ci95|range|instrument|none,tipo de incerteza
+reagent_analyses,uncertainty_type,enum,0,,sd|sem|ci95|range|instrument|fit_se|none,tipo de incerteza
 reagent_analyses,n_replicates,int,0,,,nº de réplicas/regiões/partículas usadas
 reagent_analyses,unit,str,1,,,"unidade (UO/SI): nm, eV, %, at%, mg/mL, mV, a.u. …"
 reagent_analyses,instrument,str,0,,,equipamento/modelo
@@ -93,7 +93,7 @@ go_characterization,quantity,str,1,,,"C_O_ratio, sp2_fraction, C-O_fraction, C=O
 go_characterization,spectrum_id,fk:spectra,0,,,espectro de origem (proveniência)
 go_characterization,value,float,1,,,valor medido/derivado
 go_characterization,uncertainty,float,0,,,incerteza do valor (mesma unidade)
-go_characterization,uncertainty_type,enum,0,,sd|sem|ci95|range|instrument|none,tipo de incerteza
+go_characterization,uncertainty_type,enum,0,,sd|sem|ci95|range|instrument|fit_se|none,tipo de incerteza
 go_characterization,n_replicates,int,0,,,nº de réplicas/regiões/partículas usadas
 go_characterization,unit,str,1,,,"unidade (UO/SI): nm, eV, %, at%, mg/mL, mV, a.u. …"
 go_characterization,instrument,str,0,,,equipamento/modelo
@@ -154,7 +154,7 @@ aunp_characterization,quantity,str,1,,,"LSPR_nm, LSPR_FWHM_nm, A_LSPR, A400, siz
 aunp_characterization,spectrum_id,fk:spectra,0,,,espectro de origem (proveniência)
 aunp_characterization,value,float,1,,,valor medido/derivado
 aunp_characterization,uncertainty,float,0,,,incerteza do valor (mesma unidade)
-aunp_characterization,uncertainty_type,enum,0,,sd|sem|ci95|range|instrument|none,tipo de incerteza
+aunp_characterization,uncertainty_type,enum,0,,sd|sem|ci95|range|instrument|fit_se|none,tipo de incerteza
 aunp_characterization,n_replicates,int,0,,,nº de réplicas/regiões/partículas usadas
 aunp_characterization,unit,str,1,,,"unidade (UO/SI): nm, eV, %, at%, mg/mL, mV, a.u. …"
 aunp_characterization,instrument,str,0,,,equipamento/modelo

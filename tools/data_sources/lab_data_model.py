@@ -30,7 +30,7 @@ REAGENT_DICT = os.path.join(ROOT, "datasets", "reagents", "reagent_dictionary.cs
 # (coluna, tipo, obrigatória, unidade, descrição, vocabulário/FK)
 # tipo: id | fk:<tabela> | str | float | int | date | enum | list
 S, F, I, D, E, L = "str", "float", "int", "date", "enum", "list"
-UNC = ["sd", "sem", "ci95", "range", "instrument", "none"]
+UNC = ["sd", "sem", "ci95", "range", "instrument", "fit_se", "none"]
 MEAS_TAIL = [
     ("value", F, True, "", "valor medido/derivado", None),
     ("uncertainty", F, False, "", "incerteza do valor (mesma unidade)", None),
