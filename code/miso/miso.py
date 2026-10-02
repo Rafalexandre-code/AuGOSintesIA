@@ -337,14 +337,27 @@ def run(kind: str, seed: int = 0, budget: float = 160.0, sources=None, n_candida
         U.append(u), s.append(j), y.append(src.measure(u, names[j]))
         spent += costs[j]
     hist, state, it = [], None, 0
+    truth_cache: dict = {}
+
+    def true_at(u):
+        key = tuple(np.round(u, 12))
+        if key not in truth_cache:
+            truth_cache[key] = float(src.truth(np.asarray([u]))[0])
+        return truth_cache[key]
 
     def record(model):
+        """Duas regras de recomendação: (a) argmax da média a posteriori da fonte-alvo no conjunto D; (b) CONFIRMADA:
+        entre os pontos já medidos pela fonte-alvo, o de maior média a posteriori — não aposta num ponto que só as
+        fontes baratas viram (protege contra fontes baratas enganosas perto do ótimo)."""
         import torch
         with torch.no_grad():
             mu = model.posterior(torch.tensor(np.c_[D, np.zeros(len(D))], dtype=torch.double)).mean.squeeze(-1).numpy()
+            Ut = np.array([u for u, ss in zip(U, s) if ss == 0])
+            mt = model.posterior(torch.tensor(np.c_[Ut, np.zeros(len(Ut))], dtype=torch.double)).mean.squeeze(-1).numpy()
         k = int(np.argmax(mu))
-        hist.append({"cost": spent, "regret": float(best_true - truth[k]), "n_obs": len(y),
-                     "n_target": int(np.sum(np.array(s) == 0))})
+        hist.append({"cost": spent, "regret": float(best_true - truth[k]),
+                     "regret_confirmed": max(float(best_true - true_at(Ut[int(np.argmax(mt))])), 0.0),
+                     "n_obs": len(y), "n_target": int(np.sum(np.array(s) == 0))})
     while True:
         Ua, sa, ya = np.array(U), np.array(s), np.array(y)
         refit = state is None or it % refit_every == 0
@@ -366,15 +379,33 @@ def run(kind: str, seed: int = 0, budget: float = 160.0, sources=None, n_candida
         if verbose:
             print(f"[{kind} s{seed}] it {it:3d} fonte {names[j]:7s} custo {spent:6.1f} regret {hist[-1]['regret']:.4f}")
     return {"model": kind, "seed": seed, "budget": budget, "sources": dict(sources), "history": hist,
-            "final_regret": hist[-1]["regret"], "queries": {n: int(np.sum(np.array(s) == k)) for k, n in enumerate(names)}}
+            "final_regret": hist[-1]["regret"], "final_regret_confirmed": hist[-1]["regret_confirmed"],
+            "queries": {n: int(np.sum(np.array(s) == k)) for k, n in enumerate(names)}}
 
 
-def cost_to_criterion(history: list[dict], threshold: float) -> float:
+def cost_to_criterion(history: list[dict], threshold: float, key: str = "regret") -> float:
     """Custo acumulado até o arrependimento ficar ≤ limiar (inf = censurado no orçamento)."""
     for h in history:
-        if h["regret"] <= threshold:
+        if h[key] <= threshold:
             return h["cost"]
     return float("inf")
+
+
+def summarize_runs(runs: list[dict], budget: float, threshold: float) -> dict:
+    import hierarchical
+    out = {}
+    for kind in dict.fromkeys(r["model"] for r in runs):
+        rr = [r for r in runs if r["model"] == kind]
+        row = {"queries_mean": {k: float(np.mean([r["queries"][k] for r in rr])) for k in rr[0]["queries"]},
+               "best_regret_during_mean": float(np.mean([min(h["regret"] for h in r["history"]) for r in rr]))}
+        for rule, key in (("", "regret"), ("_confirmed", "regret_confirmed")):
+            fr = np.array([r["history"][-1][key] for r in rr])
+            ctc = np.array([cost_to_criterion(r["history"], threshold, key) for r in rr])
+            row.update({f"final_regret{rule}_mean": float(fr.mean()), f"final_regret{rule}_median": float(np.median(fr)),
+                        f"hit_rate{rule}": float(np.mean(np.isfinite(ctc))),
+                        f"cost_to_criterion{rule}_rmst": hierarchical.censored_mean(ctc, budget)})
+        out[kind] = row
+    return out
 
 
 def _bench_job(kind: str, seed: int, budget: float, kw: dict) -> dict:
@@ -389,7 +420,6 @@ def _bench_job(kind: str, seed: int, budget: float, kw: dict) -> dict:
 
 def benchmark(seeds: int = 8, budget: float = 160.0, models=MODELS, out: str | None = None, threshold: float = 0.01,
               workers: int = 1, **kw) -> dict:
-    import hierarchical
     from concurrent.futures import ProcessPoolExecutor
     jobs = [(kind, seed, budget, kw) for seed in range(seeds) for kind in models]
     if workers > 1:
@@ -400,14 +430,7 @@ def benchmark(seeds: int = 8, budget: float = 160.0, models=MODELS, out: str | N
     for r in runs:
         print(f"{r['model']:8s} semente {r['seed']}: arrependimento final {r['final_regret']:.4f}  "
               f"consultas {r['queries']}  ({r['seconds']} s)", flush=True)
-    summary = {}
-    for kind in models:
-        rr = [r for r in runs if r["model"] == kind]
-        fr = np.array([r["final_regret"] for r in rr])
-        ctc = np.array([cost_to_criterion(r["history"], threshold) for r in rr])
-        summary[kind] = {"final_regret_mean": float(fr.mean()), "final_regret_median": float(np.median(fr)),
-                         "hit_rate": float(np.mean(np.isfinite(ctc))),
-                         "cost_to_criterion_rmst": hierarchical.censored_mean(ctc, budget)}
+    summary = summarize_runs(runs, budget, threshold)
     res = {"SIMULADO": True, "criterion_regret": threshold, "budget": budget, "seeds": seeds, "summary": summary,
            "runs": runs}
     if out:

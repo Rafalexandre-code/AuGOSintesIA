@@ -1072,6 +1072,9 @@ Resultado em 2026-09-29: `check_repo.py --regen` → 0 problemas; `smoke_test.sh
 (no `core`: os 21 testes de `code/tests`; nos demais: SDL, Bgolearn, RAMBOAU, chem-MFBO, BOCoDe/AgNP, GO-MACE-23, notebook de Cruse,
 Qubot, cINN do MatDesINNe com localização, clientes de dados); depois, `jarvis` OK (10 testes de
 `code/tests/test_atomistic.py`, JARVIS-FF, CHIPS-FF, ALIGNN/ALIGNN-FF, BO GO–Au, InterMat — §16).
+Em 2026-10-02, depois do fechamento do checklist (§17): 53 testes no `core` (1 módulo pulado: o atomístico, que roda
+no `jarvis`), `check_repo.py --regen` → 0 problemas (agora também confere os locks de Windows), `tools/setup_env.ps1`
+exercitado no PowerShell 7.5, e `smoke_test.sh core` OK.
 
 ---
 
@@ -1186,4 +1189,29 @@ Uma melhoria transversal saiu desse trabalho: o GP do Designer não tinha prior 
 de pontos os comprimentos colapsavam (~0,004 na escala normalizada) — o modelo virava ruído branco, com média
 constante longe dos dados, o que zerava aquisição e valor da informação. Agora usa o prior LogNormal escalado pela
 dimensão (padrão do BoTorch; Hvarfner et al., ICML 2024).
+
+### 17.1 O que as simulações registradas mostram (SIMULADO — [`SIMULACOES.md`](SIMULACOES.md))
+
+Os números valem para o laboratório simulado; servem para dimensionar o protocolo e escolher regras **antes** dos
+dados reais, não para prever o ganho real.
+
+- **Cenário principal (10 sementes × 13 braços × 12 rodadas, Friedman p ≈ 3·10⁻⁸).** Os melhores braços contra o de
+  receita foram o **hierárquico** (redução geométrica da melhor perda de 55 %, IC 95 % 9–80 %; melhor em 7 de 10
+  campanhas) e o **go+impurities** (50 %, IC −8–81 %). O poder de detectar o hierárquico × receita é 0,67 com 10
+  campanhas e 0,92 com 20; para go+impurities, 0,43 e 0,71. Logo, **uma única campanha real não tem poder para essa
+  comparação**: o desfecho primário deve ser lido com o IC e a simulação de poder, como a proposta já prevê.
+  Seleção quase só por novidade (w = 0 ou 0,25) é muito pior que o acaso; w = 1 (só aquisição) é competitivo; RF +
+  qNEHVI e GP + EI ficam atrás do GP + qNEHVI multiobjetivo.
+- **Média aritmética × geométrica.** A média de 1 − novo/base é dominada pelas campanhas de base pequena (IC de até
+  −1400 %); o relatório usa a redução geométrica (log-razão), robusta quando a perda varia em ordens de grandeza.
+- **Transferência para o lote reservado L4 (10 sementes, 16 sínteses no lote novo).** Começar com o histórico de
+  L1–L3 (braços go e hierárquico) alcança o desempenho final do treino do zero com cerca de **31–32 % menos
+  experimentos no lote novo** (RMST 9,2–9,3 × 13,5), e chega a uma perda mediana ~2× menor ao fim do orçamento.
+- **MISO (8 sementes, orçamento 160).** Perto do alvo de 20 nm o UV-Vis é quase cego (o LSPR anda < 1 nm) e o DLS é
+  inflado pelo GO: as fontes baratas **enganam**. Recomendando pelo argmax da média a posteriori, o MISO piora ao
+  acumular dados baratos (PCM: arrependimento final 0,30 contra 0,043 do só-TEM), embora tenha passado pelo
+  critério mais cedo e mais barato (88 % das campanhas, custo RMST 96 × 120). Com a regra **"recomendação
+  confirmada"** (o melhor entre os pontos já medidos por TEM), o **PCM vence**: arrependimento final 0,0042 (mediana
+  0,0013) contra 0,017 do só-TEM, com 88 % × 75 % das campanhas atingindo o critério. Recomendação: pré-registrar
+  a regra confirmada e medir no piloto a correlação entre fontes perto do alvo antes de usar o MISO na bancada.
 

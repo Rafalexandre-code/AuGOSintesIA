@@ -304,13 +304,25 @@ def report(out: str) -> str:
     if os.path.exists(p):
         s = json.load(open(p, encoding="utf-8"))
         lines += [f"## MISO (UV-Vis/DLS/TEM, alvo TEM): {s['seeds']} sementes, orçamento {s['budget']:g}", "",
-                  "`python code/miso/miso.py benchmark --seeds 8`", "",
-                  "| modelo | arrependimento final (média) | mediana | atingiram o critério | custo até o critério (RMST) |",
-                  "|---|---|---|---|---|"]
+                  "`python code/miso/miso.py benchmark --seeds 8 --workers 4`", "",
+                  "| modelo | consultas médias (TEM / UV-Vis / DLS) | recomendação pelo modelo: arrependimento final "
+                  "média (mediana) | atingiram | custo até o critério (RMST) | recomendação CONFIRMADA por TEM: "
+                  "arrependimento final média (mediana) | atingiram | custo até o critério (RMST) |",
+                  "|---|---|---|---|---|---|---|---|"]
         for k, v in s["summary"].items():
-            lines.append(f"| {k} | {v['final_regret_mean']:.4f} | {v['final_regret_median']:.4f} | "
-                         f"{100 * v['hit_rate']:.0f} % | {v['cost_to_criterion_rmst']['rmst']:.1f} |")
-        lines += ["", f"Critério: arrependimento simples ≤ {s['criterion_regret']} (objetivo −[ln(d/20)]²).", ""]
+            qm = v.get("queries_mean", {})
+            qs = " / ".join(f"{qm.get(n, 0):.1f}" for n in ("TEM", "UV-Vis", "DLS"))
+            row = f"| {k} | {qs} | {v['final_regret_mean']:.4f} ({v['final_regret_median']:.4f}) | " \
+                  f"{100 * v['hit_rate']:.0f} % | {v['cost_to_criterion_rmst']['rmst']:.1f} |"
+            if "final_regret_confirmed_mean" in v:
+                row += (f" {v['final_regret_confirmed_mean']:.4f} ({v['final_regret_confirmed_median']:.4f}) | "
+                        f"{100 * v['hit_rate_confirmed']:.0f} % | {v['cost_to_criterion_confirmed_rmst']['rmst']:.1f} |")
+            else:
+                row += " — | — | — |"
+            lines.append(row)
+        lines += ["", f"Critério: arrependimento simples ≤ {s['criterion_regret']} (objetivo −[ln(d/20)]²). "
+                  "Recomendação pelo modelo = argmax da média a posteriori da TEM no conjunto de candidatos; "
+                  "confirmada = o melhor (pela média a posteriori) entre os pontos já medidos por TEM.", ""]
     return "\n".join(lines)
 
 

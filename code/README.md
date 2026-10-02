@@ -3,7 +3,7 @@
 Código próprio da proposta, organizado pelas seções do projeto FAPESP. `tools/data_sources/build_deposit.py` copia
 estas pastas para o depósito [`GO-AuNP-Autonomous-Design`](../deposit/GO-AuNP-Autonomous-Design/README.md).
 Ambiente: `tools/setup_env.sh core && source .venvs/core/bin/activate` (Windows: `tools\setup_env.ps1 core` e
-`.\.venvs\core\Scripts\Activate.ps1`). Testes: `python -m pytest code/tests -q` (52 testes no `core`: sinais com
+`.\.venvs\core\Scripts\Activate.ps1`). Testes: `python -m pytest code/tests -q` (53 testes no `core`: sinais com
 parâmetros conhecidos, soluções analíticas, laço completo simulado e regressões dos bugs corrigidos). O módulo
 `atomistic/` usa o ambiente `jarvis` (10 testes em `code/tests/test_atomistic.py`, pulados no `core`).
 Os valores do plano (alvo E\*, faixa, normalização, sₘ, ε, restrições, orçamento, custos) vêm de
@@ -59,6 +59,9 @@ python code/miso/miso.py benchmark --seeds 8 --workers 4                      # 
   σ = 0,5/1/2 (analítico 0,8/0,5/0,2).
 - **IPW e mediação:** com confundimento forte (ingênuo 4,4 para efeito real 2), o balanceamento por entropia
   recupera 2 com balanço exato; a mediação recupera NDE/NIE, inclusive com interação T×M.
+- **Simulações registradas** (SIMULADO, [`docs/SIMULACOES.md`](../docs/SIMULACOES.md); leitura em §17.1 da
+  análise): braço hierárquico −55 % de perda × receita (poder 0,67 com 10 campanhas), transferência para lote novo
+  com ~31 % menos experimentos, e MISO com PCM + recomendação confirmada por TEM 4× melhor que só-TEM.
 
 ## Notas técnicas sobre a proposta
 - **qNEHVI × qLogNEHVI:** o qLogNEHVI (Ament et al., NeurIPS 2023) é a reformulação numericamente estável do qNEHVI
