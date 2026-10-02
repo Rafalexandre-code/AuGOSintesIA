@@ -76,6 +76,17 @@ budget:                   # 60 sínteses independentes (controles não contam)
   confirmation: 16
   q_per_round: 2
   syntheses_per_day: 6             # capacidade do bloco (dia/operador)
+factorial_2x2:            # §4.9 (condicional, FORA das 60): lote de GO (C/O alto × baixo) × impureza (limpo × contaminado)
+  impurity: CTAB                   # reagente cuja contaminação é testada (papel stabilizer); no simulador, iodeto no redutor
+  impurity_role: stabilizer
+  replicates: 3                    # blocos completos: cada dia tem uma réplica de cada uma das 4 células
+  recipe: reference                # receita fixa (centro do espaço) para isolar os dois fatores
+  analysis: exact_within_block_permutation   # code/campaign/factorial.py analyze (+ OLS com bloco, efeitos e IC)
+tem_subset:               # §4.12: TEM em ~30 sínteses, espalhadas por todas as etapas (plan.py marca a coluna tem)
+  pilot: 2
+  initialization: 6                # cobre as 4 receitas e os 3 lotes
+  adaptive_rounds: 6               # rodadas igualmente espaçadas, os DOIS braços do par (12 sínteses)
+  confirmation: 8                  # equilibrado entre os lotes reservados
 controls:                 # fora das 60 sínteses do orçamento (§4.17)
   no_GO_every_n_days: 3            # RASCUNHO: 1 controle sem GO a cada 3 dias de bancada (deriva do dia a dia)
   GO_blank_per_batch: 1            # branco de GO tratado (mesmo redutor, sem Au) por lote usado

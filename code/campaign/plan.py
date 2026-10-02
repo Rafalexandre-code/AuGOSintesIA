@@ -179,6 +179,7 @@ def generate(seed: int | None = None, cfg: dict | None = None) -> dict:
             add("control", int(d), b, {**ref, "HAuCl4_mM": 0.0, "reductant_mM": red_ref}, control="GO_blank",
                 note="branco de GO tratado: mesmo redutor, sem Au (fundo óptico, §4.17)")
     plan = pd.DataFrame(slots)
+    plan["tem"] = _tem_subset(plan, cfg.get("tem_subset") or {}, rng)
     # ordem aleatória dentro do dia e identificadores
     plan["run_order"] = 0
     for d, idx in plan.groupby("day").groups.items():
@@ -197,12 +198,48 @@ def generate(seed: int | None = None, cfg: dict | None = None) -> dict:
             "batch_day_balance": counted[counted["stage"] == "initialization"].groupby(["day", "go_batch_id"]).size()
             .unstack(fill_value=0).to_dict(orient="index"),
             "adaptive_per_arm": counted[counted["stage"] == "adaptive"]["arm"].value_counts().to_dict(),
+            "tem_per_stage": counted[counted["tem"] == "sim"]["stage"].value_counts().to_dict(),
             "adaptive_rounds": int(n_rounds),
             "prereg_sha256": prereg.sha256(cfg), "prereg_state": prereg.check()["state"], "seed": seed}
     expected = sum(int(bud[s]) for s in prereg.STAGES)
     if diag["total_syntheses"] != expected:
         raise prereg.PreregError(f"plano com {diag['total_syntheses']} sínteses; orçamento = {expected}")
     return {"plan": plan, "diagnostics": diag, "space": space}
+
+
+def _tem_subset(plan: pd.DataFrame, spec: dict, rng: np.random.Generator) -> list[str]:
+    """Marca as sínteses que vão para TEM (§4.12): espalhadas por etapa, receita, lote e rodada, não escolhidas pelo
+    resultado (a escolha é feita no plano, antes dos dados)."""
+    mark = pd.Series("", index=plan.index)
+    if not spec:
+        return mark.tolist()
+    pil = plan.index[plan["stage"] == "pilot"]
+    mark[pil[:int(spec.get("pilot", 0))]] = "sim"
+    ini = plan[plan["stage"] == "initialization"]
+    if len(ini):                            # alterna receitas e lotes (cobre todos antes de repetir)
+        order = ini.assign(rec=ini["notes"].str.extract(r"R(\d+)")[0]).sample(frac=1, random_state=int(rng.integers(1e9)))
+        chosen, seen_r, seen_b = [], set(), set()
+        for idx, r in order.iterrows():
+            if len(chosen) >= int(spec.get("initialization", 0)):
+                break
+            if r["rec"] in seen_r and r["go_batch_id"] in seen_b and len(seen_r) < order["rec"].nunique():
+                continue
+            chosen.append(idx)
+            seen_r.add(r["rec"])
+            seen_b.add(r["go_batch_id"])
+        mark[chosen] = "sim"
+    ad = plan[plan["stage"] == "adaptive"]
+    k = int(spec.get("adaptive_rounds", 0))
+    if k and len(ad):
+        rounds = sorted(ad["round"].unique())
+        pick = [rounds[int(round(i))] for i in np.linspace(len(rounds) / k - 1, len(rounds) - 1, k)]
+        mark[ad.index[ad["round"].isin(pick)]] = "sim"
+    co = plan[plan["stage"] == "confirmation"]
+    n = int(spec.get("confirmation", 0))
+    if n and len(co):
+        per = co.groupby("go_batch_id", group_keys=False).apply(lambda g: g.head(int(np.ceil(n / co["go_batch_id"].nunique()))))
+        mark[per.index[:n]] = "sim"
+    return mark.tolist()
 
 
 LOT_COLUMNS = {"gold": "gold_precursor_lot_id", "reductant": "reductant_lot_id", "stabilizer": "stabilizer_lot_id"}
@@ -222,7 +259,8 @@ def to_syntheses(plan: pd.DataFrame, space: dict, campaign_prefix: str = "", lot
                     "campaign_id": stage if r["stage"] != "control" else "CONTROL", "design_id": r["slot_id"],
                     "fidelity": "high", "is_control": r["is_control"], "block": r["block"],
                     "run_order": int(r["run_order"]), "status": "planned",
-                    "preparation_id": f"PREP-{r['slot_id']}", "notes": r["notes"]})
+                    "preparation_id": f"PREP-{r['slot_id']}",
+                    "notes": r["notes"] + (" | TEM planejada (§4.12)" if r.get("tem") == "sim" else "")})
         for role, lot in (lots or {}).items():
             row[LOT_COLUMNS[role]] = lot
         for v in space:
@@ -248,6 +286,8 @@ def bench_sheets(plan: pd.DataFrame, space: dict, out_dir: str) -> list[str]:
             vals = [str(r[k]) if r[k] != "" else "Designer" for k in space]
             vv = [str(r.get(c, "")) if pd.notna(r.get(c, "")) else "" for c in vcols]
             stg = f"{r['stage']} ({r['arm']}, rodada {r['round']})" if r.get("arm") else r["stage"]
+            if r.get("tem") == "sim":
+                stg += " **+TEM**"
             lines.append(f"| ☐ | {r['slot_id']} | {stg} | {r['go_batch_id'] or '—'} | {r['is_control']} | "
                          + " | ".join(vals) + " | " + " | ".join(vv) + f" | {r.get('volume_warnings', '') or ''} |")
         f = os.path.join(out_dir, f"dia_{int(d):02d}.md")

@@ -261,6 +261,41 @@ def run_all(scenario: str, arms, seeds: int, rounds: int, q: int, out: str, acq=
     return cv
 
 
+def _objective_points(lab: str) -> np.ndarray:
+    """Pontos (log J, |d − alvo|) a MINIMIZAR, um por síntese — o espaço dos 2 objetivos da comparação principal."""
+    out = pd.read_csv(os.path.join(lab, "outcomes.csv"))
+    w = out.pivot_table(index="synthesis_id", columns="objective", values="value")
+    tgt = float(pd.to_numeric(out.loc[out["objective"] == "size_mean_nm", "target_value"], errors="coerce").dropna().iloc[0])
+    w = w.dropna(subset=["spectral_loss_J", "size_mean_nm"])
+    return np.c_[np.log(w["spectral_loss_J"].to_numpy() + designer.default_eps()),
+                 np.abs(w["size_mean_nm"].to_numpy() - tgt)]
+
+
+def _pareto(F: np.ndarray) -> np.ndarray:
+    keep = [i for i, f in enumerate(F) if not np.any(np.all(F <= f, axis=1) & np.any(F < f, axis=1))]
+    return F[keep]
+
+
+def pareto_metrics(root: str, arms, seeds: int) -> dict:
+    """Hipervolume, IGD e spread (§4.15) de cada campanha, com ponto de referência e frente de referência COMUNS
+    (a frente não dominada da união de todas as campanhas de todos os braços)."""
+    pts = {}
+    for a in arms:
+        for sd in range(seeds):
+            lab = os.path.join(root, "labs", f"{a.replace('+', '_')}_s{sd}", "lab")
+            if os.path.exists(os.path.join(lab, "outcomes.csv")):
+                pts[(a, sd)] = _objective_points(lab)
+    if not pts:
+        return {}
+    allF = np.vstack(list(pts.values()))
+    ref = allF.max(axis=0) + 0.05 * (allF.max(axis=0) - allF.min(axis=0))
+    front = _pareto(allF)
+    rows = [{"arm": a, "seed": sd, **stats.hv_igd_spread(_pareto(F), ref, front)} for (a, sd), F in pts.items()]
+    df = pd.DataFrame(rows)
+    return {"reference_point": ref.tolist(), "per_arm_median": df.groupby("arm")[["hypervolume", "igd", "spread"]]
+            .median().to_dict(orient="index"), "per_campaign": rows}
+
+
 def summarize_main(cv: pd.DataFrame, rounds: int, reference: str = "recipe") -> dict:
     final = cv[cv["round"] == rounds].rename(columns={"best_loss": "final_best_loss"})
     seeds = final["seed"].nunique()
@@ -360,6 +395,12 @@ def report(out: str) -> str:
             lines += ["", f"Critério: melhor perda balanceada ≤ {s['time_to_criterion']['threshold']:.3f} (mediana final "
                       f"do braço {s['reference']}). Tempo = nº total de sínteses (inclui as 12 iniciais, iguais em "
                       f"todos os braços); censura no orçamento ({s['time_to_criterion']['budget']:g} sínteses)."]
+        pm = (s.get("pareto") or {}).get("per_arm_median")
+        if pm:
+            lines += ["", "Frente de Pareto (log J × |d − 20 nm|; mediana entre campanhas; referência e frente comuns a "
+                      "todos os braços):", "", "| braço | hipervolume ↑ | IGD ↓ | spread ↓ |", "|---|---|---|---|"]
+            for arm in sorted(pm, key=lambda k: -pm[k]["hypervolume"]):
+                lines.append(f"| {arm} | {pm[arm]['hypervolume']:.2f} | {pm[arm]['igd']:.3f} | {pm[arm]['spread']:.2f} |")
         if isinstance(s["power_vs_reference"], dict) and s["power_vs_reference"]:
             lines += ["", "Poder (Wilcoxon unilateral, α = 0,05) por nº de campanhas:", "",
                       "| braço | n=5 | n=10 | n=20 | n=40 |", "|---|---|---|---|---|"]
@@ -455,6 +496,8 @@ def main() -> None:
     cv = run_all(a.scenario, arms, a.seeds, rounds, a.q, a.out, a.acq, a.workers, a.resume)
     s = (summarize_main(cv, rounds, a.reference) if a.scenario == "main" else
          summarize_prospective(cv, rounds) if a.scenario == "prospective" else summarize_transfer(cv, rounds))
+    if a.scenario == "main":
+        s["pareto"] = pareto_metrics(os.path.join(a.out, "main"), arms, a.seeds)
     s.update({"q": a.q, "acq": a.acq or designer.default_acq(), "prereg_sha256": _prereg_sha()})
     root = os.path.join(a.out, a.scenario)
     if a.scenario == "main":

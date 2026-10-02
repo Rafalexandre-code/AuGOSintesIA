@@ -35,6 +35,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import itertools
 import json
 import os
 import re
@@ -681,6 +682,57 @@ def explain(lab: str, space: dict, representation: str = "go", n_boot: int = 5, 
     return pd.DataFrame(table)
 
 
+def h_statistic(f, X: np.ndarray, j: int, k: int) -> float:
+    """H² de Friedman & Popescu (2008) para o par (j, k): fração da variância da dependência parcial conjunta que não
+    é soma das dependências individuais (0 = aditivo; 1 = só interação). Médias sobre os próprios dados."""
+    n = len(X)
+
+    def pd_at(cols):
+        out = np.empty(n)
+        for i in range(n):
+            Z = X.copy()
+            Z[:, cols] = X[i, cols]
+            out[i] = f(Z).mean()
+        return out - out.mean()
+    pj, pk, pjk = pd_at([j]), pd_at([k]), pd_at([j, k])
+    den = np.sum(pjk ** 2)
+    return float(np.sum((pjk - pj - pk) ** 2) / den) if den > 0 else 0.0
+
+
+def interactions(lab: str, space: dict, representation: str = "go", top: int = 5, n_boot: int = 3,
+                 log_objectives=(), seed: int = 0, max_rows: int = 60) -> pd.DataFrame:
+    """Interações (§4.13) entre as `top` variáveis de maior efeito principal, pelo H² de Friedman na média a
+    posteriori do GP de cada objetivo, com média ± sd por bootstrap (estabilidade). Explicação do MODELO, não causal."""
+    import torch
+    camp = load_campaign(lab, space, representation, log_objectives)
+    rng = np.random.default_rng(seed)
+    X = camp.X.to_numpy(float)
+    cols = list(camp.X.columns)
+    free = [i for i, c in enumerate(cols) if X[:, i].std() > 0]
+
+    def run(rows):
+        model, *_ = build_model(camp, space, rows=rows)
+        Xs = X[rows][: max_rows]
+        res = {}
+        for o, name in enumerate(camp.objs.index):
+            f = lambda z, o=o: model.models[o].posterior(torch.tensor(z, dtype=torch.double)).mean.detach().numpy().ravel()  # noqa: E731
+            main = {j: np.var([f(np.where(np.arange(len(cols)) == j, xi, Xs)).mean() for xi in Xs[:, j]]) for j in free}
+            keep = sorted(main, key=main.get, reverse=True)[:top]
+            for a_, b_ in itertools.combinations(sorted(keep), 2):
+                res[(name, cols[a_], cols[b_])] = h_statistic(f, Xs, a_, b_)
+        return res
+    full = run(np.arange(len(X)))
+    boots = [run(np.unique(rng.choice(len(X), len(X), replace=True))) for _ in range(n_boot)]
+    rows = []
+    for key, h in full.items():
+        bs = [b[key] for b in boots if key in b]
+        rows.append({"objective": key[0], "feature_a": key[1], "feature_b": key[2], "H2": h,
+                     "H2_boot_mean": float(np.mean(bs)) if bs else np.nan,
+                     "H2_boot_sd": float(np.std(bs, ddof=1)) if len(bs) > 1 else np.nan,
+                     "boot_presence": len(bs) / max(n_boot, 1)})
+    return pd.DataFrame(rows).sort_values(["objective", "H2"], ascending=[True, False]).reset_index(drop=True)
+
+
 # ---------------------------------------------------------------------------------------------- proveniência
 
 def run_metadata(args: dict, lab: str | None) -> dict:
@@ -802,6 +854,7 @@ def main() -> None:
     common(e)
     e.add_argument("--representation", choices=REPRESENTATIONS, default="go")
     e.add_argument("--n-boot", type=int, default=5)
+    e.add_argument("--interactions", action="store_true", help="também o H² de Friedman entre as variáveis principais")
     nc = sub.add_parser("noise-check", help="heteroscedasticidade comprovada? (escolha qNEHVI × qLogNEHVI)")
     common(nc)
     nc.add_argument("--representation", choices=REPRESENTATIONS, default="recipe")
@@ -843,6 +896,12 @@ def main() -> None:
         res.to_csv(path, index=False)
         print(res.sort_values(["objective", "mean_abs_shap"], ascending=[True, False]).to_string(index=False))
         print(f"-> {os.path.relpath(path, ROOT)}")
+        if a.interactions:
+            it = interactions(a.lab_dir, space, a.representation, n_boot=a.n_boot, log_objectives=a.log_objectives)
+            p2 = os.path.join(outdir, f"interactions_{stamp}.csv")
+            it.to_csv(p2, index=False)
+            print(it.round(3).to_string(index=False))
+            print(f"-> {os.path.relpath(p2, ROOT)}")
     else:
         lots = {}
         for x in a.lot:
