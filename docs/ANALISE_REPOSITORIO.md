@@ -46,6 +46,7 @@
 14. [`code/` — GO Navigator e AuNP Designer; verificação do repositório](#14-code--go-navigator-e-aunp-designer-verificação-do-repositório)
 15. [Proposta × ferramentas: revisão de atualidade (2026-09-29)](#15-proposta--ferramentas-revisão-de-atualidade-2026-09-29)
 16. [Ecossistema JARVIS e design inverso atomístico GO–Au](#16-ecossistema-jarvis-e-design-inverso-atomístico-goau)
+17. [Fechamento do checklist do núcleo da proposta (2026-10-02)](#17-fechamento-do-checklist-do-núcleo-da-proposta-2026-10-02)
 
 ---
 
@@ -1032,7 +1033,7 @@ Auditoria completa, fonte por fonte: [`FONTES_DE_DADOS.md`](FONTES_DE_DADOS.md).
     deles (`L−1`, `tribasic dihydrate`…) é excluída da contagem.
   - `build_literature_seed.py` → `datasets/literature-seed/`: 15 928 sínteses de Au; 312 citam GO/rGO. As classes de
     morfologia vêm dos regex de Cruse (`rsc/aunp_morph_syns_regex.json`), mais cluster, casca e partícula genérica.
-  - `lab_data_model.py` → `datasets/data-model/`: 11 tabelas (incluindo impurezas dos reagentes e espectros brutos), com validador, para a cadeia lote de GO → caracterização
+  - `lab_data_model.py` → `datasets/data-model/`: 13 tabelas (incluindo impurezas dos reagentes, espectros brutos, recursos consumidos e resultados de QC), com validador, para a cadeia lote de GO → caracterização
     com incerteza → síntese → UV-Vis/TEM → desfecho.
   - `build_deposit.py` → `deposit/GO-AuNP-Autonomous-Design/`: estrutura do depósito, `.zenodo.json`,
     `CITATION.cff`, MANIFEST com sha256.
@@ -1051,8 +1052,8 @@ otimização bayesiana. Agora ele existe em [`code/`](../code/README.md) (ambien
 - `code/go_navigator/batch_descriptors.py`: média ± sd de cada descritor por lote de GO (de `go_characterization`
   ou `go_descriptors`) e a versão padronizada, que serve de contexto do GP.
 - `code/aunp_designer/designer.py`: um GP **Matérn-5/2 + ARD** por objetivo (BoTorch), os 4 braços da proposta
-  (receita / + lote / + GO / + impurezas), qLogNEHVI ou qNEHVI, LBO, seleção novelty-aware, SHAP e proveniência
-  (§15). As propostas saem no formato de `aunp_syntheses.csv`. `designer.py demo` roda o laço completo com o
+  (receita / + lote / + GO / + impurezas) e o hierárquico, qNEHVI (padrão) ou qLogNEHVI pela regra pré-registrada,
+  restrições, LBO, seleção novelty-aware, SHAP e proveniência (§15, §17). As propostas saem no formato de `aunp_syntheses.csv`. `designer.py demo` roda o laço completo com o
   laboratório **simulado** de `code/benchmarking` (espectros por Mie, J calculado pelo mesmo código dos dados reais;
   dados SIMULADOS em `outputs/`), e as tabelas geradas passam no validador.
 - `tools/search_literature.py`: busca BM25, sem dependências, nos 5 227 trechos dos 65 artigos (`literature/chunks.jsonl`).
@@ -1084,27 +1085,28 @@ web). Detalhes do código em [`code/README.md`](../code/README.md); das ferramen
 | Seção | Pede | Agora no repositório |
 |---|---|---|
 | 4.1 Curadoria | literatura → receitas | semente (Cruse + NSP + AuNCs), pipeline OpenAlex→Crossref→Unpaywall, NanoExtractor, LeMat-Synth; 🆕 `marker` (PDF→texto), `paper-qa` (RAG com citação), ChemDataExtractor2 |
-| 4.2 GO Navigator | C/O, XPS C 1s, larguras D/G, AFM…; incerteza; Batch Fingerprint, Active Subspace; LBO | 🆕 `code/characterization/{xps,raman}.py` (Shirley + C 1s; larguras com fundo conjunto), `go_navigator` (média ± sd, desvio entre lotes), LBO no Designer; 🆕 ATHENA (Active Subspaces) |
+| 4.2 GO Navigator | C/O, XPS C 1s, larguras D/G, FTIR, XRD (d001), DLS, AFM…; incerteza; Batch Fingerprint, Active Subspace; LBO | 🆕 `code/characterization/{xps,raman,ftir,xrd,dls}.py` (Shirley + C 1s; larguras com fundo conjunto; FTIR com a água deconvoluída; d001/Scherrer; cumulantes ISO 22412), `go_navigator` (média ± sd, desvio entre lotes), LBO no Designer; 🆕 ATHENA (Active Subspaces) |
 | 4.3 Impurezas | descritores de impurezas por lote | 🆕 tabela `reagent_analyses` + braço `go+impurities` |
-| 4.4 Produto / J | UV-Vis padronizado, **J (Eq. 1)**, diâmetro | 🆕 `code/spectral/uvvis.py` (branco, diluição, caminho óptico, J, log(J+ε), Haiss), tabela `spectra` |
-| 4.5 Designer | Matérn-5/2+ARD, 4 representações, qNEHVI, LBO, novelty-aware, Autopilot | 🆕 os 4 braços, qNEHVI/qLogNEHVI, ruído medido, LBO, novelty (w·a+(1−w)·n); Autopilot: SPACESHIP em `external/` |
+| 4.4 Produto / J | UV-Vis padronizado, **J (Eq. 1)** com alvo, faixa, normalização, sₘ e ε fixados a priori | 🆕 `code/spectral/uvvis.py` (branco, diluição, caminho óptico, J, log(J+ε), Haiss; `--prereg`), tabela `spectra`, 🆕 `config/preregistration.yaml` + `code/campaign/prereg.py` (selo sha256, regras de sₘ e ε pelo piloto) |
+| 4.5 Designer | Matérn-5/2+ARD, 4 representações, qNEHVI, restrições, LBO, novelty-aware, Autopilot | 🆕 os 4 braços + hierárquico, qNEHVI padrão e qLogNEHVI só pela regra de heteroscedasticidade (`noise-check`), restrições com P(viável), tempo no espaço, ruído medido, LBO, novelty (w·a+(1−w)·n, varredura de w no benchmark); Autopilot: SPACESHIP em `external/` |
 | 4.6 Espectro diferenciável | Neural Processes, VAE/difusão | 🆕 `mie.py` (espectros físicos), activephasemap (Vaddi 2025), neuralprocesses; HEAD, TNP, MatDesINNe |
-| 4.7 Transferência | GP multitarefa/hierárquico; NP fine-tuning; hardware | 🆕 braço `batch` (MultiTaskGP/ICM), contexto do GO, coluna `hardware`; BayBE (TaskParameter) |
-| 4.8 MISO | KG sensível a custo; MGP/ICM/PCM | chem-MFBO, misoKG, PAL; 🆕 Emukit; coluna `fidelity` |
-| 4.9 Causal | DAG, randomização/blocos, propensity, E-value, mediação | 🆕 `code/causal` (DAG, DoWhy + refutações, E-value, PC do causal-learn); colunas `block`/`run_order` com aleatorização automática |
+| 4.7 Transferência | GP multitarefa/hierárquico; NP fine-tuning; hardware; "experimentos até igualar o do-zero" | 🆕 braço `batch` (MultiTaskGP/ICM), contexto do GO, 🆕 GP hierárquico global + fornecedor + lote (`code/transfer_learning`), métrica com censura (RMST) e cenário de transferência para lote reservado no benchmark; coluna `hardware`; BayBE (TaskParameter) |
+| 4.8 MISO | KG sensível a custo; MGP/ICM/PCM | 🆕 `code/miso/miso.py` (MGP, ICM, PCM; KG discreto exato por custo; UV-Vis/DLS/TEM simulados; benchmark contra só-TEM); chem-MFBO, misoKG, PAL, Emukit; coluna `fidelity` |
+| 4.9 Causal | DAG, randomização/blocos, propensity, E-value, mediação | 🆕 `code/causal` (DAG, DoWhy + refutações, E-value, **IPW por balanceamento de entropia** com diagnóstico de balanço, **mediação** NDE/NIE, PC do causal-learn); blocos balanceados e ordem aleatória no gerador do plano |
 | 4.10 Física/identificabilidade | perfil de verossimilhança | pyPESTO (sem mudança) |
-| 4.11 Campanha | 60 sínteses, simulação de poder | 🆕 `code/benchmarking/campaign_sim.py` (4 receitas × L1–L3, rodadas adaptativas, poder por reamostragem) |
-| 4.12 TEM | tamanho e distribuição | 🆕 `code/characterization/tem.py` (+ RosettaSciIO p/ .dm3/.dm4); SAM para casos difíceis (links em `external/README.md`) |
+| 4.11 Campanha | 8/12/24/16 sínteses, plano a priori, blocos, controles, simulação de poder | 🆕 `code/campaign/plan.py` (plano completo com dias balanceados, ordem aleatória, controles, volumes e fichas; confirmação com modelo congelado), SOPs em `datasets/lab/protocols/`, `code/benchmarking/campaign_sim.py` (poder registrado em `docs/SIMULACOES.md`) |
+| 4.12 TEM / QC | tamanho e distribuição; associação AuNP–GO; critérios de qualidade | 🆕 `code/characterization/tem.py` (+ RosettaSciIO; `--go-association`: fração sobre o GO e seletividade de nucleação); 🆕 `code/qc/qc_check.py` + `config/qc_criteria.yaml` (critérios, cartas Shewhart/EWMA); SAM para casos difíceis |
 | 4.13 SHAP | importância + estabilidade | 🆕 `designer.py explain` (SHAP no GP + Spearman por bootstrap) |
-| 4.14 Sustentabilidade | E-factor, EcoScale, CPU | 🆕 `code/sustainability/metrics.py` |
-| 4.15 Benchmark | HV, IGD, spread; Friedman/Wilcoxon + Holm | 🆕 `code/benchmarking/stats.py` (pymoo + scipy); BOCoDe, Olympus, EGBO; 🆕 pymoo, LLAMBO |
+| 4.14 Sustentabilidade | E-factor, EcoScale, CPU, EVSI/EVPI | 🆕 `code/sustainability/metrics.py` (sEF/cEF e CPU a partir da tabela `resources`), 🆕 `code/decision/voi.py` (EVPI/EVSI por técnica e subconjunto) |
+| 4.15 Benchmark | GP+EI/qNEHVI, RF+qNEHVI, novelty; HV, IGD, spread; Friedman/Wilcoxon + Holm; experimentos até o critério | 🆕 `code/benchmarking/{strategies,campaign_sim,stats}.py` (braços, RMST + log-rank); BOCoDe, Olympus, EGBO; 🆕 pymoo, LLAMBO |
 | 4.16 SDL/cloud lab | integração condicional | Qubot, RoboChem-Flex, Octopus; 🆕 PyLabRobot, MADSci, AlabOS, IvoryOS |
-| 4.17 Rastreabilidade | proveniência, controles, espectros brutos | 🆕 `is_control`, `preparation_id`, `status` (falhas ficam), `spectra`; `run_metadata.json` em cada execução do Designer; 🆕 ro-crate-py (RO-Crate) |
+| 4.17 Rastreabilidade | proveniência, controles, espectros brutos, Instance Maps, DMP | 🆕 `is_control`, `preparation_id`, `status` (falhas ficam), `spectra`; `run_metadata.json`; 🆕 `tools/data_sources/instance_map.py` (W3C PROV-O → RO-Crate, GraphML, linhagem Mermaid), `docs/DMP.md`, auditoria da extração da literatura (`audit_extraction.py`) |
 | 4.18 Incerteza/decisão | IC por bootstrap pareado, cobertura | 🆕 `stats.paired_bootstrap_relative_reduction`, cobertura no LBO; 🆕 MAPIE (conformal) |
 
-Correções técnicas registradas em `code/README.md` ("Notas técnicas"): qLogNEHVI × qNEHVI (não é questão de ruído
-heteroscedástico), faixas de validade das relações de Haiss, viés das linhas de base flexíveis no Raman de GO e
-número mínimo de sementes para a simulação de poder.
+Correções técnicas registradas em `code/README.md` ("Notas técnicas"): qNEHVI × qLogNEHVI (padrão da proposta e
+regra pré-registrada para trocar), prior de comprimento do GP, faixas de validade das relações de Haiss e do LSPR,
+viés das linhas de base flexíveis no Raman de GO, número mínimo de sementes para a simulação de poder e confundimento
+da receita pelo lote na análise causal.
 
 
 ---
@@ -1143,3 +1145,45 @@ ALIGNN-FF, SlaKoNet completo, AtomGPT) e o dft_3d original vêm por `jarvis_data
 O AtomGPT inverso (LLM) exige GPU: o ambiente `atomgpt` foi instalado e testado aqui só na parte em CPU (modelo
 direto, conversão estrutura ↔ texto; `smoke_test.sh atomgpt`). MLFFs universais servem para
 ordenar composições de GO; os finalistas devem ser confirmados por DFT.
+
+---
+
+## 17. Fechamento do checklist do núcleo da proposta (2026-10-02)
+
+O checklist das propostas centrais (sem as exploratórias ou condicionais) tinha 16 itens ✅, 8 🟡 parciais e 16 ❌
+ausentes. Todos os 24 foram tratados; só o que depende da bancada (medir) continua, por natureza, a fazer.
+
+| Item (antes) | Solução | Onde / como usar |
+|---|---|---|
+| Dados experimentais (❌) | infraestrutura completa para coletá-los com qualidade: plano, fichas, SOPs, QC, validação; os dados em si dependem do laboratório | `code/campaign/plan.py generate`, `datasets/lab/protocols/`, `code/qc/qc_check.py`, `lab_data_model.py validate` |
+| Plano a priori (❌) | `config/preregistration.yaml` com alvo E\*, faixa, normalização, sₘ/ε por **regras** do piloto, restrições, λ, limiar de 20 %, orçamento; selo sha256 + emendas datadas (como num registro de ensaio clínico) | `code/campaign/prereg.py show/s-m/epsilon/freeze/check` |
+| SOPs e critérios de QC (❌) | 8 SOPs v0.1 (UV-Vis, síntese, dispersão e caracterização do GO, reagentes, TEM, DLS, dados) + critérios em YAML **verificados automaticamente**, com cartas Shewhart/EWMA nos controles; sínteses reprovadas saem do treino | `datasets/lab/protocols/`, `config/qc_criteria.yaml`, `code/qc/qc_check.py` |
+| DMP (❌) | plano de gestão de dados de uma página no modelo FAPESP | [`docs/DMP.md`](DMP.md) |
+| Instance Maps (❌) | grafo **W3C PROV-O** de cada síntese (reagentes → lote de GO → preparo → medidas → desfecho → proposta) exportado como RO-Crate 1.1, GraphML e linhagem Mermaid, com checagem de integridade (arquivos ausentes, sha256) | `tools/data_sources/instance_map.py build/lineage` |
+| Auditoria da extração (❌) | auditoria **física** automática (LSPR × tamanho pela teoria de Mie: 84 % coerentes, IC 81–87 %, em 675 pares do NSP), amostragem estratificada para auditoria humana, precisão/ausência falsa com IC de Wilson e κ de Cohen; o parser de tamanhos do Cruse foi corrigido (± e faixas) | `tools/data_sources/audit_extraction.py physics/sample/score` |
+| Tempo no espaço (🟡) | `time_min` [5, 120] no pré-registro, no Designer, no plano e no simulador (rendimento saturante, amadurecimento de Ostwald) | `config/preregistration.yaml` |
+| FTIR / XRD / DLS (❌) | FTIR com deconvolução C=O/H₂O/C=C (a água não é tomada por C=C), XRD com d001/Scherrer/nº de camadas/cristalito de Au, DLS por cumulantes ISO 22412 a partir de g2(τ) | `code/characterization/{ftir,xrd,dls}.py` |
+| Associação AuNP–GO na TEM (❌) | Otsu em 3 classes + anel ao redor de cada partícula: fração sobre o GO (IC de Wilson) e **seletividade de nucleação** | `tem.py --go-association` |
+| qNEHVI × qLogNEHVI (🟡) | qNEHVI é o padrão (como na proposta); qLogNEHVI só se a regra pré-registrada (Brown–Forsythe entre réplicas + Breusch–Pagan nos resíduos, Holm) indicar heteroscedasticidade | `designer.py noise-check`, `--acq auto` |
+| Restrições (❌) | CV de tamanho e A_LSPR mínima como desfechos modelados; aquisição com restrições e P(viável) por proposta | `config/preregistration.yaml → constraints` |
+| Sensibilidade de w (🟡) | w ∈ {0; 0,25; 0,5; 0,75; 1} como braços do benchmark | `campaign_sim.py` (braços `novelty-w*`) |
+| GP hierárquico (❌) | global + fornecedor + lote; lote novo previsto com a incerteza de "não visto"; frações de variância | `code/transfer_learning/hierarchical.py`, braço `hierarchical` |
+| MISO com KG por custo (❌) | MGP/ICM/PCM e **KG discreto exato** (envelope superior, sem Monte Carlo) dividido pelo custo; UV-Vis/DLS/TEM simulados fisicamente | `code/miso/miso.py run/benchmark` |
+| MGP × ICM × PCM (❌) | os três modelos na mesma campanha simulada, contra só-TEM, com custo até o critério (censura) | `miso.py benchmark` → [`SIMULACOES.md`](SIMULACOES.md) |
+| EVSI/EVPI (❌) | valor da informação de cada técnica (e de cada subconjunto) para um lote novo, por pesos de importância e estimador de diferenças; decisão pelo valor pré-registrado | `code/decision/voi.py`, `metrics.py from-lab --voi` |
+| Propensity score (❌) | **balanceamento por entropia** (balanço exato; propensão clássica como alternativa) com SMD/correlação antes e depois e bootstrap | `causal_analysis.py --ipw` |
+| Mediação (❌) | NDE/NIE com interação T×M e bootstrap; aviso quando a receita (escolhida pelo otimizador) confunde mediador–desfecho | `causal_analysis.py --mediation` |
+| Poder simulado e registrado (🟡) | 10 sementes × 13 braços × 12 rodadas, com o hash do pré-registro | [`SIMULACOES.md`](SIMULACOES.md) |
+| Gerador do plano real (❌) | 8/12/24/16, LHS maximin × lotes, dias em blocos balanceados (lote não confundido com dia), ordem aleatória, controles, volumes e fichas; confirmação com modelo congelado e verificação de vazamento | `code/campaign/plan.py generate/confirm` |
+| Braços GP+EI/qNEHVI, RF+qNEHVI, novelty (❌) | GP+qLogNEI em J, RF (ensemble) + qNEHVI, Designer com novelty | `code/benchmarking/strategies.py`, `campaign_sim.py` |
+| Benchmark de MISO/novelty/TL (❌) | cenários `main` (todos os braços) e `transfer` (lote reservado L4: do-zero × transfer-go × hierárquico) + benchmark do MISO | `campaign_sim.py --scenario`, `miso.py benchmark` |
+| Experimentos até o critério / até igualar o do-zero (❌) | tempo até evento com censura: RMST de Kaplan–Meier e log-rank | `stats.time_to_criterion`, `hierarchical.experiments_to_match` |
+| Campos de consumo de recursos (❌) | tabela `resources` (massa, custo, horas de instrumento, energia por síntese/técnica) → sEF/cEF e CPU por fluxo | `metrics.py from-lab` |
+| Commits só no ramo (🟡) | — | abrir PR para `main` quando quiser incorporar |
+| Windows (🟡) | `tools/setup_env.ps1` + locks de Windows com as mesmas versões (11 de 14 ambientes uv; os 3 restantes exigem WSL2), checados pelo `check_repo.py` | [`environments/README.md`](../environments/README.md#windows-powershell) |
+
+Uma melhoria transversal saiu desse trabalho: o GP do Designer não tinha prior de comprimento, e com poucas dezenas
+de pontos os comprimentos colapsavam (~0,004 na escala normalizada) — o modelo virava ruído branco, com média
+constante longe dos dados, o que zerava aquisição e valor da informação. Agora usa o prior LogNormal escalado pela
+dimensão (padrão do BoTorch; Hvarfner et al., ICML 2024).
+

@@ -15,7 +15,6 @@ import pandas as pd
 
 
 def _pool(bounds, cols, fixed: dict, n: int, seed: int):
-    import torch
     from torch.quasirandom import SobolEngine
     pool = bounds[0] + (bounds[1] - bounds[0]) * SobolEngine(len(cols), scramble=True, seed=seed).draw(n).double()
     for k, v in (fixed or {}).items():

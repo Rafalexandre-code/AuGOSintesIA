@@ -6,8 +6,8 @@ síntese de AuNP → UV-Vis/TEM → desfecho**. A fonte única é `tools/data_so
 
 | Arquivo | Conteúdo |
 |---|---|
-| `templates/*.csv` | cabeçalhos das 11 tabelas: `protocols`, `reagent_lots`, `reagent_analyses` (impurezas por lote — §4.3), `spectra` (arquivo bruto + diluição, caminho óptico, branco, tempo após o preparo — §4.4/§4.17), `go_batches`, `go_samples`, `go_characterization`, `go_descriptors`, `aunp_syntheses` (+ `hardware`, `is_control`, `preparation_id`, `block`, `run_order`, `status`), `aunp_characterization`, `outcomes` |
-| `data_dictionary.csv` | 176 colunas: tabela, tipo, obrigatória, unidade, valores permitidos, descrição |
+| `templates/*.csv` | cabeçalhos das 13 tabelas: `protocols`, `reagent_lots`, `reagent_analyses` (impurezas por lote — §4.3), `spectra` (arquivo bruto + diluição, caminho óptico, branco, tempo após o preparo — §4.4/§4.17), `go_batches`, `go_samples`, `go_characterization`, `go_descriptors`, `aunp_syntheses` (+ `hardware`, `is_control`, `preparation_id`, `block`, `run_order`, `status`), `aunp_characterization`, `outcomes`, `resources` (massas, custos, horas de instrumento e energia por síntese/técnica — §4.14) e `qc_results` (verificações de `code/qc/qc_check.py`: pass/warn/fail) |
+| `data_dictionary.csv` | 198 colunas: tabela, tipo, obrigatória, unidade, valores permitidos, descrição |
 | `go_aunp.schema.json` | JSON Schema (draft 2020-12) do registro completo, para exportar a MDF/Zenodo |
 
 Fluxo: copie os modelos para `datasets/lab/`, preencha (uma linha por grandeza medida, sempre com `unit`,

@@ -310,7 +310,7 @@ def pilot_noise(src: SimulatedSources, names: tuple[str, ...], n: int = 5) -> np
 
 
 def run(kind: str, seed: int = 0, budget: float = 160.0, sources=None, n_candidates: int = 128,
-        n_init_cheap: int = 8, n_init_target: int = 2, refit_every: int = 4, max_iter: int = 60,
+        n_init_cheap: int = 8, n_init_target: int = 2, refit_every: int = 4, max_iter: int = 150,
         batch: str = "L1", verbose: bool = False) -> dict:
     """Uma campanha simulada. Retorna o histórico (custo acumulado, arrependimento simples da recomendação)."""
     from scipy.stats import qmc

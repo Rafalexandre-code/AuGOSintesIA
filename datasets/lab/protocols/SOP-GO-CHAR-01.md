@@ -7,7 +7,7 @@ de deconvoluções e efeitos de umidade/solvente. Cada descritor com incerteza e
 |---|---|---|---|---|
 | XPS C 1s + survey | filme seco | 3 regiões | C_O_ratio, C-C_fraction, C-O_fraction, C=O_fraction, O-C=O_fraction | `code/characterization/xps.py` (Shirley) |
 | Raman (mapa) | filme drop-cast | ≥ 25 pontos | ID_IG, FWHM_D, FWHM_G (larguras priorizadas, não só ID/IG) | `code/characterization/raman.py` |
-| FTIR (ATR) | filme seco **e** após 24 h em dessecador | 3 | FTIR_CO_CC, FTIR_COC_CC, FTIR_OH_CC + flag de água | `code/characterization/ftir.py` |
+| FTIR (ATR) | filme seco **e** após 24 h em dessecador | 3 | FTIR_CO_CC, FTIR_COC_CC, FTIR_CO_alkoxy_CC, FTIR_OH_CC, FTIR_water_frac (alerta de umidade) | `code/characterization/ftir.py` |
 | XRD | filme/pó | 1 (+ réplica de preparo) | d001_nm, Lc_nm, n_layers, frac_graphitic | `code/characterization/xrd.py` |
 | DLS + zeta | dispersão 0,1 mg/mL | 3 | hydrodynamic_nm, PDI, zeta_mV (tamanho de GO por DLS é aparente) | `code/characterization/dls.py` |
 | AFM (se disponível) | Si/SiO₂ | ≥ 50 folhas | thickness_nm, lateral_size_um | — |

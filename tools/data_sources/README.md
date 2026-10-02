@@ -9,7 +9,9 @@ Scripts offline só usam a biblioteca padrão; os clientes opcionais ficam no am
 | `sources.tsv` | — | registro das 37 fontes (tipo, identificador, URL, pasta local, status, papel) | — |
 | `reagents.py` | não (`--online` opcional) | dicionário de reagentes PubChem (`build`), normalização de nomes (`normalize`), cobertura em Cruse et al. (`cruse`) | `datasets/reagents/` |
 | `build_literature_seed.py` | não | semente GO–AuNP: Cruse + NSP (produtos de Au) + AuNCs, reagentes normalizados | `datasets/literature-seed/` |
-| `lab_data_model.py` | não | modelo de dados do laboratório (`templates`) e validação de CSVs preenchidos (`validate`) | `datasets/data-model/` |
+| `lab_data_model.py` | não | modelo de dados do laboratório, 13 tabelas (`templates`), e validação de CSVs preenchidos (`validate`) | `datasets/data-model/` |
+| `instance_map.py` | não | **Instance Map** W3C PROV-O de cada síntese (reagentes → lote de GO → preparo → medidas → desfecho → proposta): RO-Crate 1.1 com sha256 dos arquivos, GraphML e linhagem Mermaid (`lineage <síntese>`), com checagem de integridade | `outputs/instance_map/` |
+| `audit_extraction.py` | não | auditoria da extração da literatura: física (`physics`: LSPR × tamanho por Mie), amostra estratificada para auditoria humana (`sample`) e pontuação (`score`: precisão, ausência falsa, IC de Wilson, κ de Cohen) | `outputs/audit/` |
 | `fetch_records.py` | sim | confere (`check`) ou baixa (`download`) registros de Zenodo, Figshare e Hugging Face | `outputs/records/` |
 | `literature_pipeline.py` | sim | OpenAlex → Crossref → Unpaywall → PDF/XML do PMC → fila para o extrator LLM | `outputs/literature_pipeline/` |
 | `optimade_query.py` | sim | camada computacional: NOMAD, Materials Cloud, MP, OQMD, AFLOW, JARVIS via OPTIMADE | `outputs/optimade/` |
