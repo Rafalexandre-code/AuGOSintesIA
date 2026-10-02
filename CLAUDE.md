@@ -22,7 +22,7 @@ Cada pasta de primeiro nível tem um `README.md` com o seu índice.
   (.ge3: 5 frames 2048×2048 uint16, offset 8192). Gerados por `tools/data_sources/` (regeráveis): `reagents/`
   (dicionário PubChem; editar só `aliases.tsv`), `literature-seed/` (Cruse+NSP+AuNCs; `go_aunp_subset.csv`),
   `data-model/` (13 tabelas + validador, inclusive `resources` e `qc_results`), `optical-constants/` (n, k de Au/Ag para Mie). `lab/` = dados medidos (a preencher; validar com `lab_data_model.py validate`; SOPs em `lab/protocols/`).
-- `code/` — código do projeto (ambiente `core`; testes `python -m pytest code/tests`, 75): `campaign/` (`prereg.py` lê/sela
+- `code/` — código do projeto (ambiente `core`; testes `python -m pytest code/tests`, 76): `campaign/` (`prereg.py` lê/sela
   o pré-registro; `plan.py` gera o plano 8/12/24/16 — braços pareados por rodada, confirmação em pares com previsões
   congeladas, TEM, controles, fichas; `analysis.py` = análise pré-registrada; `factorial.py` = fatorial 2×2), `spectral/`
   (UV-Vis, perda J, Mie, Neural Process espectral), `characterization/` (Raman + mapa espacial, XPS + survey S/C, FTIR, XRD,

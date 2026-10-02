@@ -3,7 +3,7 @@
 Código próprio da proposta, organizado pelas seções do projeto FAPESP. `tools/data_sources/build_deposit.py` copia
 estas pastas para o depósito [`GO-AuNP-Autonomous-Design`](../deposit/GO-AuNP-Autonomous-Design/README.md).
 Ambiente: `tools/setup_env.sh core && source .venvs/core/bin/activate` (Windows: `tools\setup_env.ps1 core` e
-`.\.venvs\core\Scripts\Activate.ps1`). Testes: `python -m pytest code/tests -q` (75 testes no `core`: sinais com
+`.\.venvs\core\Scripts\Activate.ps1`). Testes: `python -m pytest code/tests -q` (76 testes no `core`: sinais com
 parâmetros conhecidos, soluções analíticas, laço completo simulado e regressões dos bugs corrigidos). O módulo
 `atomistic/` usa o ambiente `jarvis` (10 testes em `code/tests/test_atomistic.py`, pulados no `core`).
 Os valores do plano (alvo E\*, faixa, normalização, sₘ, ε, restrições, orçamento, custos) vêm de
