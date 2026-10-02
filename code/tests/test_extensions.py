@@ -148,7 +148,6 @@ def test_kinetics_identifiability_and_stop_rule():
 
 def test_batch_fingerprint_autoencoder_and_pca_fallback():
     import fingerprint as fpm
-    rng = np.random.default_rng(1)
     s = np.linspace(-1, 1, 24)                                              # 24 lotes numa variedade 1D
     mean = pd.DataFrame({"C_O_ratio": 2 + 0.4 * s, "ID_IG": 1 + 0.1 * s ** 2, "d001_nm": 0.8 + 0.05 * np.sin(2 * s)},
                         index=[f"B{i}" for i in range(24)])
