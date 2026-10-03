@@ -180,8 +180,12 @@ def regen() -> list[str]:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--regen", action="store_true")
+    ap.add_argument("--no-lfs", action="store_true", help="não exige os arquivos LFS baixados (CI: cota de banda)")
     a = ap.parse_args()
-    check("arquivos Git LFS presentes", lfs())
+    if a.no_lfs:
+        print("--  arquivos Git LFS presentes (ignorado: --no-lfs)")
+    else:
+        check("arquivos Git LFS presentes", lfs())
     check("links relativos dos .md", md_links())
     check("sintaxe Python (.py e notebooks)", py_syntax())
     check("caminhos absolutos de máquina", abs_paths())
