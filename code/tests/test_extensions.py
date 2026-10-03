@@ -12,7 +12,7 @@ import pytest
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 for sub in ("code/campaign", "code/aunp_designer", "code/transfer_learning", "code/benchmarking", "code/spectral",
             "code/go_navigator", "code/qc", "code/characterization", "code/miso", "code/decision", "code/kinetics",
-            "code/sustainability", "code/go_navigator", "tools/data_sources"):
+            "code/sustainability", "code/go_navigator", "code/sdl", "tools/data_sources"):
     sys.path.insert(0, os.path.join(ROOT, sub))
 warnings.filterwarnings("ignore")
 
@@ -252,3 +252,60 @@ def test_calibration_recovers_simulator_knobs(tmp_path):
     assert (c["noise"], c["batch"]) == (2.0, 0.0)
     assert 0.8 < c["instrument"] < 1.25 and c["n_syntheses"] == 20
     assert set(c["batches"]) == {"L1", "L2", "L3"} and sim.CAL == saved            # não vaza estado
+
+
+def test_closed_loop_simulated_and_manual(tmp_path):
+    """Laço fechado: o executor simulado devolve só brutos; a ingestão deriva os desfechos; o Designer treina com
+    todas as sínteses; o executor manual grava a fila neutra (volumes, passos, medidas) e a ficha."""
+    import json
+    import os
+    sys.path.insert(0, os.path.join(ROOT, "code", "sdl"))
+    import ingest
+    import loop
+    lab = str(tmp_path / "lab")
+    h = loop.demo(rounds=1, q=1, seed=3, lab=lab)
+    assert h.loc[0, "n_training"] == 20 and h.loc[0, "qc_fail"] == 0      # piloto + inicialização, metade sem TEM
+    out = pd.read_csv(os.path.join(lab, "outcomes.csv"))
+    assert out["model_version"].astype(str).str.startswith("ingest").all()   # nada veio pronto do simulador
+    assert ingest.compare(lab, ingest.derive(lab)["outcomes"]).empty
+    r = loop.step(lab, "L2", "go+impurities", 2, {"reductant": "RED-A"}, 2, "ADAPTIVE",
+                  loop.ManualExecutor(str(tmp_path / "fila")), seed=1, tem=True)
+    q = json.load(open(r["written"], encoding="utf-8"))
+    assert q["schema"] == loop.SCHEMA and len(q["jobs"]) == 2 and q["n_training"] == 21 and not r["executed"]
+    j = q["jobs"][0]
+    assert set(j["recipe"]) == set(q["variables"]) and j["volumes_uL"]["V_water_uL"] > 0 and "TEM" in j["measure"]
+    syn = pd.read_csv(os.path.join(lab, "aunp_syntheses.csv"))
+    assert (syn["status"] == "planned").sum() == 2
+    assert os.path.exists(r["written"].replace(".json", ".md"))
+
+
+def test_deposit_build_and_zenodo_upload_sequence(tmp_path):
+    """Depósito: monta a versão; o envio ao Zenodo (sem rede: API falsa) cria a nova versão, apaga os arquivos
+    herdados, envia .zip + MANIFEST, grava os metadados e só publica com publish=True."""
+    import os
+    import subprocess
+    import zenodo_upload as zu
+    out = tmp_path / "dep"
+    subprocess.run([sys.executable, os.path.join(ROOT, "tools/data_sources/build_deposit.py"), "--version", "0.0.1",
+                    "--out", str(out)], check=True, capture_output=True)
+    folder = str(out / "GO-AuNP-Autonomous-Design-v0.0.1")
+    meta = zu.load_metadata(folder)
+    assert meta["version"] == "0.0.1" and len(zu.files_to_send(folder)) == 2
+    assert os.path.exists(os.path.join(folder, "code", "campaign", "ingest.py"))
+    calls = []
+
+    def fake(method, url, token, body=None, data=None, ctype=None):
+        calls.append((method, url.split("/api/deposit/depositions")[-1] if "depositions" in url else url.split("/")[-1]))
+        if url.endswith("newversion"):
+            return {"links": {"latest_draft": "https://sandbox.zenodo.org/api/deposit/depositions/99"}}
+        if method == "GET":
+            return {"id": 99, "links": {"bucket": "https://b/bucket"}, "files": [{"id": "old"}]}
+        if url.endswith("publish"):
+            return {"doi": "10.5072/zenodo.99", "conceptdoi": "10.5072/zenodo.1"}
+        return {}
+    r = zu.upload(folder, "tok", sandbox=True, concept="1", publish=False, call=fake)
+    assert not r["published"] and ("DELETE", "/99/files/old") in calls
+    assert [c for c in calls if c[0] == "PUT"][-1] == ("PUT", "/99")                # metadados depois dos arquivos
+    calls.clear()
+    r = zu.upload(folder, "tok", sandbox=True, concept="1", publish=True, call=fake)
+    assert r["doi"] == "10.5072/zenodo.99" and calls[-1] == ("POST", "/99/actions/publish")
