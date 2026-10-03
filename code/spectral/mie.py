@@ -32,7 +32,7 @@ def load_nk(material: str = "Au") -> tuple[np.ndarray, np.ndarray]:
     import yaml
     path = os.path.join(OPTICAL, DATASETS[material])
     d = yaml.safe_load(open(path, encoding="utf-8"))
-    rows = np.array([[float(x) for x in l.split()] for l in d["DATA"][0]["data"].strip().splitlines()])
+    rows = np.array([[float(x) for x in line.split()] for line in d["DATA"][0]["data"].strip().splitlines()])
     return rows[:, 0] * 1000.0, rows[:, 1] - 1j * rows[:, 2]
 
 
@@ -77,6 +77,70 @@ def ensemble_extinction(wl_nm: np.ndarray, d_mean_nm: float, sigma_rel: float = 
     w = np.exp(-z ** 2 / 2)
     w /= w.sum()
     return sum(wi * extinction_cross_section(wl_nm, di, material, n_medium) for wi, di in zip(w, ds))
+
+
+FIT_GRID_NM = np.arange(400.0, 801.0, 4.0)
+FIT_D_NM = np.exp(np.linspace(np.log(3.0), np.log(160.0), 90))
+FIT_SIGMA = (0.03, 0.06, 0.10, 0.15, 0.22, 0.30, 0.40)
+
+
+def _cross_table(material: str = "Au", n_medium: float = 1.333) -> np.ndarray:
+    """C_ext(d, λ) na grade de ajuste, guardada em <repo>/.cache (ignorado) para não refazer o Mie a cada chamada."""
+    cache = os.path.join(ROOT, ".cache", f"mie_fit_{material}_{n_medium:.3f}.npy")
+    if os.path.exists(cache):
+        t = np.load(cache)
+        if t.shape == (len(FIT_D_NM), len(FIT_GRID_NM)):
+            return t
+    t = np.array([extinction_cross_section(FIT_GRID_NM, d, material, n_medium) for d in FIT_D_NM])
+    try:
+        os.makedirs(os.path.dirname(cache), exist_ok=True)
+        np.save(cache, t)
+    except OSError:
+        pass
+    return t
+
+
+def _ensemble_from_table(table: np.ndarray, d_mean: float, sigma_rel: float) -> np.ndarray:
+    s = np.sqrt(np.log(1 + sigma_rel ** 2))
+    mu = np.log(d_mean) - s ** 2 / 2
+    lnd = np.log(FIT_D_NM)
+    w = np.exp(-0.5 * ((lnd - mu) / s) ** 2)
+    w /= w.sum()
+    return w @ table
+
+
+def fit_size_distribution(wl_nm: np.ndarray, absorbance_: np.ndarray, material: str = "Au", n_medium: float = 1.333,
+                          background: bool = True) -> dict:
+    """Ajuste do espectro inteiro por Mie: A(λ) ≈ a·C_ext,ensemble(λ; d, σ) + b·(450/λ)³ + c, com a, b, c ≥ 0
+    (NNLS) e busca em grade de (d, σ) log-normal. O fundo em potência cobre GO e espalhamento; c, a linha de base.
+    Devolve d e σ do melhor ajuste e, em `d_post_mean_nm`/`d_post_sd_log`, a média e o dp de ln d pesados por
+    exp(−Δχ²/2): perto do mínimo do LSPR (~15 nm) o tamanho é pouco identificável e o dp diz isso."""
+    from scipy.optimize import nnls
+    w = np.asarray(wl_nm, float)
+    o = np.argsort(w)
+    A = np.interp(FIT_GRID_NM, w[o], np.asarray(absorbance_, float)[o])
+    table = _cross_table(material, n_medium)
+    bg = [(450.0 / FIT_GRID_NM) ** 3, np.ones_like(FIT_GRID_NM)] if background else []
+    res = []
+    for sg in FIT_SIGMA:
+        for d in FIT_D_NM[2:-2]:
+            e = _ensemble_from_table(table, d, sg)
+            M = np.column_stack([e / e.max(), *bg])
+            coef, rn = nnls(M, A)
+            res.append((rn ** 2, d, sg, coef))
+    rss = np.array([r[0] for r in res])
+    n, k = len(A), 3 + len(bg)
+    s2 = max(rss.min() / max(n - k, 1), 1e-12)
+    wt = np.exp(-(rss - rss.min()) / (2 * s2))
+    wt /= wt.sum()
+    lnd = np.log([r[1] for r in res])
+    sig = np.array([r[2] for r in res])
+    best = res[int(np.argmin(rss))]
+    m = float(wt @ lnd)
+    return {"d_fit_nm": float(best[1]), "sigma_fit": float(best[2]), "amplitude": float(best[3][0]),
+            "background": float(best[3][1]) if background else 0.0, "rmse": float(np.sqrt(best[0] / n)),
+            "d_post_mean_nm": float(np.exp(m)), "d_post_sd_log": float(np.sqrt(max(wt @ (lnd - m) ** 2, 0.0))),
+            "sigma_post_mean": float(wt @ sig)}
 
 
 def absorbance(wl_nm: np.ndarray, d_mean_nm: float, n_particles_per_mL: float, path_cm: float = 1.0,

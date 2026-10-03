@@ -196,7 +196,7 @@ def _normalize_torch(a, how: str):
 def inverse_design(model: ConditionalSpectralModel, target: np.ndarray, s_m, norm: str = "max",
                    fixed: dict[int, float] | None = None, n_starts: int = 16, steps: int = 150, seed: int = 0,
                    n_train: int | None = None, n_mc: int = 16, X_obs: np.ndarray | None = None,
-                   y_obs: np.ndarray | None = None, n_warm: int = 5) -> dict:
+                   y_obs: np.ndarray | None = None, n_warm: int = 5, return_all: bool = False) -> dict:
     """Receita que minimiza o J ESPERADO (sobre a incerteza preditiva) por gradiente (Adam, multi-start). Com dados
     observados (X_obs, J observado y_obs), parte também das `n_warm` melhores receitas medidas e as mantém como
     candidatas: o resultado nunca é uma extrapolação pior, pelo modelo, que o melhor ponto já medido."""
@@ -252,7 +252,14 @@ def inverse_design(model: ConditionalSpectralModel, target: np.ndarray, s_m, nor
     pred = model.predict(x[None, :], n_samples=300)
     tg = np.asarray(target, float)
     Jdist = [float(np.mean(((_norm_np(sp, norm) - _norm_np(tg, norm)) / np.asarray(s_m)) ** 2)) for sp in pred["samples"][:, 0]]
-    return {"x": x, "J_expected": float(Js[k]), "J_mean_spectrum": J_mean_spec, "is_observed_recipe": from_observed,
+    extra = {}
+    if return_all:                                   # todos os pontos otimizados: candidatos para o GP decidir
+        with torch.no_grad():
+            allx = (lo + (hi - lo) * (u.clamp(0, 1) * mask + val)).numpy()
+        extra = {"candidates": allx, "candidates_J_expected": Js.numpy().astype(float),
+                 "candidates_from_observed": np.arange(len(allx)) >= len(allx) - (len(warm) if warm is not None else 0)}
+    return {**extra, "x": x, "J_expected": float(Js[k]), "J_mean_spectrum": J_mean_spec,
+            "is_observed_recipe": from_observed,
             "J_predictive_median": float(np.median(Jdist)),
             "J_predictive_90": [float(np.quantile(Jdist, 0.05)), float(np.quantile(Jdist, 0.95))],
             "predicted_mean": pred["mean"][0], "band90": (pred["q05"][0], pred["q95"][0])}
@@ -314,6 +321,25 @@ def from_lab(lab: str) -> dict:
             "columns": list(space) + [f"ctx_{c}" for c in z.columns], "context": z, "cfg": cfg}
 
 
+def rank_with_gp(lab: str, res: dict, space_cols: list[str], batch: str, lots: dict | None = None,
+                 representation: str = "go") -> pd.DataFrame:
+    """Candidatos do NP + a proposta do próprio Designer, ordenados pela aquisição do GP (mesmo critério)."""
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "aunp_designer"))
+    import designer
+    space = designer.DEFAULT_SPACE
+    camp = designer.load_campaign(lab, space, representation, designer.default_logs(), designer.default_eps(),
+                                  constraints=designer.default_constraints())
+    fixed = designer.fixed_context(lab, camp, batch, lots or {})
+    np_c = pd.DataFrame(res["candidates"][:, :len(space_cols)], columns=space_cols)
+    np_c = np_c.assign(source=np.where(res["candidates_from_observed"], "NP (partida em receita medida)", "NP"),
+                       J_expected_NP=res["candidates_J_expected"])
+    gp_c = designer.propose(camp, space, q=1, fixed=fixed, lab=lab)[list(space)].assign(source="Designer (GP)",
+                                                                                       J_expected_NP=np.nan)
+    allc = pd.concat([np_c, gp_c], ignore_index=True).drop_duplicates(subset=list(space))
+    allc["acquisition_GP"] = designer.acquisition_values(camp, space, allc, fixed)
+    return allc.sort_values("acquisition_GP", ascending=False).reset_index(drop=True)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -324,6 +350,10 @@ def main() -> None:
         p.add_argument("--out")
         if name == "design":
             p.add_argument("--batch", required=True)
+            p.add_argument("--rank-with-gp", action="store_true",
+                           help="ordena os candidatos do NP pela aquisição do AuNP Designer, ao lado da proposta do "
+                                "próprio Designer (o NP gera, o GP decide)")
+            p.add_argument("--lot", action="append", default=[], help="papel=lote (para o contexto de impurezas)")
     a = ap.parse_args()
     d = from_lab(a.lab)
     print(f"{len(d['spectra'])} espectros, {d['X'].shape[1]} entradas, lotes {sorted(set(d['batches']))}")
@@ -343,11 +373,16 @@ def main() -> None:
         norm = cfg["target_spectrum"].get("normalization", "max")
         sm = prereg.s_m(cfg)
         y_obs = [float(np.mean(((_norm_np(sp, norm) - _norm_np(tgt, norm)) / np.asarray(sm)) ** 2)) for sp in d["spectra"]]
-        res = inverse_design(cm, tgt, sm, norm, fixed, n_train=len(d["spectra"]), X_obs=d["X"], y_obs=y_obs)
+        res = inverse_design(cm, tgt, sm, norm, fixed, n_train=len(d["spectra"]), X_obs=d["X"], y_obs=y_obs,
+                             return_all=a.rank_with_gp)
         out = {"recipe": dict(zip(d["columns"][:n_space], map(float, res["x"][:n_space]))),
                "J_expected": res["J_expected"], "J_predictive_median": res["J_predictive_median"],
                "J_predictive_90": res["J_predictive_90"], "batch": a.batch}
         print(json.dumps(out, indent=1, ensure_ascii=False))
+        if a.rank_with_gp:
+            table = rank_with_gp(a.lab, res, d["columns"][:n_space], a.batch, dict(x.split("=", 1) for x in a.lot))
+            print(table.round(4).to_string(index=False))
+            out = {"inverse_design": out, "ranking": table.to_dict("records")}
     if a.out:
         with open(a.out, "w", encoding="utf-8") as fh:
             json.dump(out, fh, indent=1, default=float, ensure_ascii=False)

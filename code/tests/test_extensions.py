@@ -12,7 +12,7 @@ import pytest
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 for sub in ("code/campaign", "code/aunp_designer", "code/transfer_learning", "code/benchmarking", "code/spectral",
             "code/go_navigator", "code/qc", "code/characterization", "code/miso", "code/decision", "code/kinetics",
-            "code/sustainability", "code/go_navigator", "tools/data_sources"):
+            "code/sustainability", "code/go_navigator", "code/sdl", "tools/data_sources"):
     sys.path.insert(0, os.path.join(ROOT, sub))
 warnings.filterwarnings("ignore")
 
@@ -216,3 +216,118 @@ def test_sizing_scenarios_and_report(tmp_path):
             json.dump(s, fh, default=float)
     md = cs.report(str(tmp_path / "out"))
     assert "Fatorial 2×2" in md and "Mais lotes de GO" in md and "| 6 |" in md
+
+
+def test_calibration_recovers_simulator_knobs(tmp_path):
+    """Calibração pelo piloto: gera piloto + inicialização com ruído ×2 e sem efeito de lote, deriva J pela ingestão
+    e recupera os multiplicadores numa grade pequena; ruído do instrumento pelas duplicatas ≈ 1."""
+    import os
+    import calibrate
+    import designer
+    import ingest
+    import plan
+    import sim_lab
+    import simulator as sim
+    from campaign_sim import _lhs
+    lab = str(tmp_path / "lab")
+    space = designer.DEFAULT_SPACE
+    saved = dict(sim.CAL)
+    sim.CAL.update(noise=2.0, batch=0.0)
+    try:
+        sim_lab.init_lab(lab, ("L1", "L2", "L3"), seed=7)
+        rng = np.random.default_rng(7)
+        ref = pd.DataFrame([plan.reference_recipe(space)])
+        for b, n in zip(("L1", "L2", "L3"), (4, 2, 2)):
+            sim_lab.run_syntheses(lab, designer.proposals_to_syntheses(pd.concat([ref] * n, ignore_index=True), space,
+                                                                       b, f"PILOT-{b}", 0, seed=7).assign(status="done"), rng)
+        for b in ("L1", "L2", "L3"):
+            sim_lab.run_syntheses(lab, designer.proposals_to_syntheses(_lhs(space, 4, 7), space, b, f"INIT-{b}", 0,
+                                                                       seed=7).assign(status="done"), rng)
+    finally:
+        sim.CAL.clear()
+        sim.CAL.update(saved)
+    os.remove(os.path.join(lab, "outcomes.csv"))
+    ingest.write(lab, ingest.derive(lab))
+    c = calibrate.calibrate(lab, reps=10, k_noise=(0.5, 2.0), k_batch=(0.0, 3.0))
+    assert (c["noise"], c["batch"]) == (2.0, 0.0)
+    assert 0.8 < c["instrument"] < 1.25 and c["n_syntheses"] == 20
+    assert set(c["batches"]) == {"L1", "L2", "L3"} and sim.CAL == saved            # não vaza estado
+
+
+def test_closed_loop_simulated_and_manual(tmp_path):
+    """Laço fechado: o executor simulado devolve só brutos; a ingestão deriva os desfechos; o Designer treina com
+    todas as sínteses; o executor manual grava a fila neutra (volumes, passos, medidas) e a ficha."""
+    import json
+    import os
+    sys.path.insert(0, os.path.join(ROOT, "code", "sdl"))
+    import ingest
+    import loop
+    lab = str(tmp_path / "lab")
+    h = loop.demo(rounds=1, q=1, seed=3, lab=lab)
+    assert h.loc[0, "n_training"] == 20 and h.loc[0, "qc_fail"] == 0      # piloto + inicialização, metade sem TEM
+    out = pd.read_csv(os.path.join(lab, "outcomes.csv"))
+    assert out["model_version"].astype(str).str.startswith("ingest").all()   # nada veio pronto do simulador
+    assert ingest.compare(lab, ingest.derive(lab)["outcomes"]).empty
+    r = loop.step(lab, "L2", "go+impurities", 2, {"reductant": "RED-A"}, 2, "ADAPTIVE",
+                  loop.ManualExecutor(str(tmp_path / "fila")), seed=1, tem=True)
+    q = json.load(open(r["written"], encoding="utf-8"))
+    assert q["schema"] == loop.SCHEMA and len(q["jobs"]) == 2 and q["n_training"] == 21 and not r["executed"]
+    j = q["jobs"][0]
+    assert set(j["recipe"]) == set(q["variables"]) and j["volumes_uL"]["V_water_uL"] > 0 and "TEM" in j["measure"]
+    syn = pd.read_csv(os.path.join(lab, "aunp_syntheses.csv"))
+    assert (syn["status"] == "planned").sum() == 2
+    assert os.path.exists(r["written"].replace(".json", ".md"))
+
+
+def test_deposit_build_and_zenodo_upload_sequence(tmp_path):
+    """Depósito: monta a versão; o envio ao Zenodo (sem rede: API falsa) cria a nova versão, apaga os arquivos
+    herdados, envia .zip + MANIFEST, grava os metadados e só publica com publish=True."""
+    import os
+    import subprocess
+    import zenodo_upload as zu
+    out = tmp_path / "dep"
+    subprocess.run([sys.executable, os.path.join(ROOT, "tools/data_sources/build_deposit.py"), "--version", "0.0.1",
+                    "--out", str(out)], check=True, capture_output=True)
+    folder = str(out / "GO-AuNP-Autonomous-Design-v0.0.1")
+    meta = zu.load_metadata(folder)
+    assert meta["version"] == "0.0.1" and len(zu.files_to_send(folder)) == 2
+    assert os.path.exists(os.path.join(folder, "code", "campaign", "ingest.py"))
+    calls = []
+
+    def fake(method, url, token, body=None, data=None, ctype=None):
+        calls.append((method, url.split("/api/deposit/depositions")[-1] if "depositions" in url else url.split("/")[-1]))
+        if url.endswith("newversion"):
+            return {"links": {"latest_draft": "https://sandbox.zenodo.org/api/deposit/depositions/99"}}
+        if method == "GET":
+            return {"id": 99, "links": {"bucket": "https://b/bucket"}, "files": [{"id": "old"}]}
+        if url.endswith("publish"):
+            return {"doi": "10.5072/zenodo.99", "conceptdoi": "10.5072/zenodo.1"}
+        return {}
+    r = zu.upload(folder, "tok", sandbox=True, concept="1", publish=False, call=fake)
+    assert not r["published"] and ("DELETE", "/99/files/old") in calls
+    assert [c for c in calls if c[0] == "PUT"][-1] == ("PUT", "/99")                # metadados depois dos arquivos
+    calls.clear()
+    r = zu.upload(folder, "tok", sandbox=True, concept="1", publish=True, call=fake)
+    assert r["doi"] == "10.5072/zenodo.99" and calls[-1] == ("POST", "/99/actions/publish")
+
+
+def test_np_candidates_ranked_by_designer_acquisition(tmp_path):
+    """O NP gera, o GP decide: candidatos externos recebem a mesma aquisição do Designer; a proposta do próprio
+    Designer entra no ranking e um candidato no canto do espaço fica abaixo dela."""
+    import os
+    import designer
+    import neural_process as npmod
+    sys.path.insert(0, os.path.join(ROOT, "code", "sdl"))
+    import loop
+    lab = str(tmp_path / "lab")
+    loop.demo(rounds=1, q=1, seed=0, lab=lab)
+    space = designer.DEFAULT_SPACE
+    lo, hi = np.array([v[0] for v in space.values()]), np.array([v[1] for v in space.values()])
+    corner, center = lo.copy(), (lo + hi) / 2
+    res = {"candidates": np.vstack([corner, center]), "candidates_J_expected": np.array([1.0, 2.0]),
+           "candidates_from_observed": np.array([False, False])}
+    t = npmod.rank_with_gp(lab, res, list(space), "L2")
+    assert set(t["source"]) == {"NP", "Designer (GP)"} and t["acquisition_GP"].is_monotonic_decreasing
+    gp = t.loc[t["source"] == "Designer (GP)", "acquisition_GP"].iloc[0]
+    corner_row = t[(t["source"] == "NP") & np.isclose(t["HAuCl4_mM"], lo[0]) & np.isclose(t["pH"], lo[3])]
+    assert gp >= corner_row["acquisition_GP"].iloc[0]

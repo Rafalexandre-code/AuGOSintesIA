@@ -45,6 +45,15 @@ GO-AuNP-Autonomous-Design/
 1. **Zenodo** (principal): crie o registro uma vez (upload do `.zip` ou integração GitHub → Zenodo com
    `.zenodo.json`). Cada nova versão ("New version") recebe um DOI próprio; o *concept DOI* aponta sempre para a
    mais recente — cite o DOI da versão usada nos resultados. Preencha `CITATION.cff` com o concept DOI e o ORCID.
+   Pela API (numa máquina com acesso a zenodo.org; o token vai em `ZENODO_TOKEN`):
+   ```bash
+   python tools/data_sources/build_deposit.py --version 0.1.0
+   python tools/data_sources/zenodo_upload.py outputs/deposit/GO-AuNP-Autonomous-Design-v0.1.0             # ensaio
+   python tools/data_sources/zenodo_upload.py outputs/deposit/GO-AuNP-Autonomous-Design-v0.1.0 --sandbox --send
+   python tools/data_sources/zenodo_upload.py outputs/deposit/GO-AuNP-Autonomous-Design-v0.1.0 --send --publish
+   python tools/data_sources/zenodo_upload.py <pasta-v0.2.0> --send --publish --concept <id do registro>   # nova versão
+   ```
+   Publicar é irreversível: teste antes no sandbox.
 2. **Materials Data Facility**: publique a mesma versão para torná-la localizável em buscas de materiais
    (cliente Foundry em `external/data-access/foundry`); use o DOI do Zenodo como identificador relacionado.
 3. **NIST Materials Data Repository**: alternativa/espelho institucional para dados experimentais.

@@ -405,6 +405,9 @@ def summarize_batches(cv: pd.DataFrame, alpha: float = 0.05) -> dict:
 
 def _job(scenario: str, arm: str, seed: int, rounds: int, q: int, root: str, acq: str | None, resume: bool):
     path = os.path.join(root, "jobs", f"{arm.replace('+', '_')}_s{seed}.json")
+    if os.environ.get("SIM_CALIBRATION"):              # processos filhos (spawn) também usam a calibração
+        import simulator
+        simulator.apply_calibration(os.environ["SIM_CALIBRATION"])
     if resume and os.path.exists(path):
         if scenario == "prospective":
             return _augment_prospective(path, root)
@@ -758,6 +761,20 @@ def report(out: str) -> str:
         lines += ["", f"Critério: arrependimento simples ≤ {s['criterion_regret']} (objetivo −[ln(d/20)]²). "
                   "Recomendação pelo modelo = argmax da média a posteriori da TEM no conjunto de candidatos; "
                   "confirmada = o melhor (pela média a posteriori) entre os pontos já medidos por TEM.", ""]
+    cal = os.path.join(out, "calibrated")
+    if os.path.isdir(cal) and os.path.basename(os.path.normpath(out)) != "calibrated":
+        info = os.path.join(cal, "calibration.json")
+        c = json.load(open(info, encoding="utf-8")) if os.path.exists(info) else {}
+        sub = report(cal).split("\n")[6:]
+        lines += ["# Com o simulador CALIBRADO pelo piloto", "",
+                  "`python code/benchmarking/calibrate.py datasets/lab` e depois os comandos abaixo com "
+                  "`--calibration config/simulator_calibration.json` (saídas em `outputs/campaign_sim/calibrated/`).", ""]
+        if c:
+            pr = c.get("plausible_range", {})
+            lines += [f"Multiplicadores ajustados em {c.get('n_syntheses', '?')} sínteses: ruído entre preparações "
+                      f"{c.get('noise')} (faixa plausível {pr.get('noise')}), efeito de lote {c.get('batch')} "
+                      f"(faixa {pr.get('batch')}), ruído do instrumento {c.get('instrument', float('nan')):.2f}.", ""]
+        lines += [x.replace("## ", "### ", 1) if x.startswith("## ") else x for x in sub]
     return "\n".join(lines)
 
 
@@ -776,8 +793,18 @@ def main() -> None:
     ap.add_argument("--acq", choices=["qlognehvi", "qnehvi"], help="padrão: o do pré-registro")
     ap.add_argument("--workers", type=int, default=1, help="processos em paralelo (1 thread de torch cada)")
     ap.add_argument("--resume", action="store_true", help="reaproveita jobs/*.json já concluídos")
+    ap.add_argument("--calibration", help="JSON de calibrate.py (piloto): saídas vão para <out>/calibrated/")
     ap.add_argument("--out", default=os.path.join(ROOT, "outputs", "campaign_sim"))
     a = ap.parse_args()
+    if a.calibration:
+        import shutil
+        import simulator
+        a.calibration = os.path.abspath(a.calibration)
+        os.environ["SIM_CALIBRATION"] = a.calibration
+        simulator.apply_calibration(a.calibration)
+        a.out = os.path.join(a.out, "calibrated")              # não se mistura com o simulador sem calibração
+        os.makedirs(a.out, exist_ok=True)
+        shutil.copy(a.calibration, os.path.join(a.out, "calibration.json"))
     table = {"main": ARMS, "transfer": TRANSFER_ARMS, "prospective": PROSPECTIVE, "batches": BATCH_SIZING,
              "factorial": FACTORIAL_SIZING}[a.scenario]
     arms = a.arms or list(table)
@@ -792,7 +819,8 @@ def main() -> None:
          summarize_factorial(cv) if a.scenario == "factorial" else summarize_transfer(cv, rounds))
     if a.scenario == "main":
         s["pareto"] = pareto_metrics(os.path.join(a.out, "main"), arms, a.seeds)
-    s.update({"q": a.q, "acq": a.acq or designer.default_acq(), "prereg_sha256": _prereg_sha()})
+    s.update({"q": a.q, "acq": a.acq or designer.default_acq(), "prereg_sha256": _prereg_sha(),
+              "calibration": a.calibration or "nenhuma (simulador com os parâmetros padrão)"})
     root = os.path.join(a.out, a.scenario)
     if a.scenario == "main":
         cv[cv["round"] == rounds].to_csv(os.path.join(root, "final.csv"), index=False)

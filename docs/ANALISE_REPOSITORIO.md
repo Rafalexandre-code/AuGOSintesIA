@@ -1325,3 +1325,27 @@ Promovê-lo a teste confirmatório custa 16 sínteses (`premise_test` no pré-re
 estimativa (razão de RMSE com IC 95 %), e "não rejeitar" não é evidência de ausência. Os demais testes
 (por síntese, otimização na confirmação, rodadas adaptativas) não controlam o erro tipo I e ficam descritivos.
 
+## 19. Terceira auditoria: da bancada ao modelo (2026-10-03)
+
+A terceira auditoria seguiu o caminho de um dado medido até a decisão do Designer e achou um problema que o
+laboratório simulado escondia: **o Designer descartaria metade das sínteses reais**. O tamanho (objetivo) e o CV
+(restrição) vinham só da TEM, e a TEM cobre ~30 das 60 sínteses; como o Designer exige todos os objetivos, treinaria
+só nelas. No simulador isso não aparecia porque toda síntese simulada tem "TEM". Também não havia passo que levasse
+os arquivos brutos a `outcomes.csv`: J teria de ser digitado à mão.
+
+| Item | Solução | Onde |
+|---|---|---|
+| Medida → tabelas (ingestão) | J pelas regras do pré-registro, LSPR, A_LSPR e tamanho derivados dos brutos; `add` para saídas de `tem.py`/`dls.py`; `check` confere `outcomes.csv` com os brutos e a gravação recusa sobrescrever valor digitado divergente | `campaign/ingest.py`, SOP-DATA-01 |
+| Sínteses sem TEM | tamanho por ajuste do espectro inteiro por Mie (ensemble log-normal + fundo do GO) **calibrado na TEM** do laboratório (ridge, incerteza = erro LOO); no simulador, R² LOO 0,93, erro ~10 % em d, cobertura de 93 % (Haiss/LSPR davam R² ≈ 0). CV só da TEM: o GP de cada restrição usa só as sínteses medidas | `mie.py fit_size_distribution`, `ingest.py`, `designer.py` |
+| Simulador calibrado pelo piloto | momentos simulados (dp entre preparações, dp do efeito de lote, dp residual de ln J) → multiplicadores com faixa plausível; ruído do instrumento pelas duplicatas; C/O medido dos lotes. Recupera os valores verdadeiros em dados simulados (ruído 2,0/lote 0,5 e ruído 0,5/lote 2,0) | `benchmarking/calibrate.py`, `campaign_sim.py --calibration` |
+| CI | ruff, `check_repo --no-lfs` e pytest no `core` (torch de CPU) a cada PR; sem LFS (cota de 1 GB/mês) nem `--regen` | `.github/workflows/testes.yml` |
+| Lint | ruff limpo em `code/` e `tools/`; exceções justificadas em `ruff.toml` (I(q), I de Moran, força iônica) | `ruff.toml` |
+| SDL / cloud lab (§4.16) | laço fechado com fila de trabalhos em JSON neutro (receita, volumes, passos, medidas) e executores manual e simulado; o simulado devolve só brutos e a ingestão deriva o resto | `sdl/loop.py` |
+| Design inverso do NP (§4.6) | o NP gera candidatos e o GP decide: ranking pela aquisição do Designer, ao lado da proposta dele | `neural_process.py design --rank-with-gp`, `designer.acquisition_values` |
+| DOI | envio pela API do Zenodo (ensaio, sandbox, nova versão do concept DOI, publicação explícita) | `tools/data_sources/zenodo_upload.py` |
+
+Continuam fora do alcance do código: medir (piloto, lotes, sínteses) e então rodar `calibrate.py` e refazer as
+simulações antes do `freeze`; decidir com o orientador o `premise_test`; rodar o extrator LLM (Qwen3-14B LoRA,
+exige GPU e acesso ao Hugging Face); publicar o DOI (conta no Zenodo); habilitar o GitHub Actions no repositório,
+se estiver desligado.
+

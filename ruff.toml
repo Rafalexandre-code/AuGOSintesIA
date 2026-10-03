@@ -1,0 +1,11 @@
+# ruff (pyflakes + pycodestyle) para code/ e tools/ — o CI (.github/workflows/testes.yml) roda `ruff check code tools`.
+line-length = 120
+extend-exclude = ["external", "projects", "deposit"]
+
+[lint.per-file-ignores]
+# E741: "I" é o nome do domínio — intensidade de espalhamento I(q) (SAXS), índice I de Moran (mapa Raman), força
+# iônica I (zeta) e o apelido compacto do tipo int no esquema do modelo de dados. Renomear prejudicaria a leitura.
+"code/characterization/saxs.py" = ["E741"]
+"code/characterization/raman_map.py" = ["E741"]
+"code/characterization/zeta.py" = ["E741"]
+"tools/data_sources/lab_data_model.py" = ["E741"]

@@ -22,16 +22,19 @@ Cada pasta de primeiro nível tem um `README.md` com o seu índice.
   (.ge3: 5 frames 2048×2048 uint16, offset 8192). Gerados por `tools/data_sources/` (regeráveis): `reagents/`
   (dicionário PubChem; editar só `aliases.tsv`), `literature-seed/` (Cruse+NSP+AuNCs; `go_aunp_subset.csv`),
   `data-model/` (13 tabelas + validador, inclusive `resources` e `qc_results`), `optical-constants/` (n, k de Au/Ag para Mie). `lab/` = dados medidos (a preencher; validar com `lab_data_model.py validate`; SOPs em `lab/protocols/`).
-- `code/` — código do projeto (ambiente `core`; testes `python -m pytest code/tests`, 77): `campaign/` (`prereg.py` lê/sela
+- `code/` — código do projeto (ambiente `core`; testes `python -m pytest code/tests`, 83): `campaign/` (`prereg.py` lê/sela
   o pré-registro; `plan.py` gera o plano 8/12/24/16 — braços pareados por rodada, confirmação em pares com previsões
-  congeladas, TEM, controles, fichas; `analysis.py` = análise pré-registrada; `factorial.py` = fatorial 2×2), `spectral/`
-  (UV-Vis, perda J, Mie, Neural Process espectral), `characterization/` (Raman + mapa espacial, XPS + survey S/C, FTIR, XRD,
+  congeladas, TEM, controles, fichas; `ingest.py` = brutos → `outcomes.csv` (J, tamanho da TEM ou do UV-Vis/Mie calibrado
+  na TEM; `check`); `analysis.py` = análise pré-registrada; `factorial.py` = fatorial 2×2), `spectral/`
+  (UV-Vis, perda J, Mie + ajuste de tamanho, Neural Process espectral; `design --rank-with-gp`), `characterization/` (Raman + mapa espacial, XPS + survey S/C, FTIR, XRD,
   DLS, TEM + associação AuNP–GO, AFM, zeta, ICP, OCP, SERS, SAXS), `qc/` (critérios + cartas de controle; reprovadas saem
   do treino), `go_navigator/` (descritores; Batch Fingerprint + Active Subspace), `aunp_designer/` (`designer.py`: braços
   recipe/batch/go/go+impurities/hierarchical, `--arm`, qNEHVI padrão e qLogNEHVI pela regra `noise-check`, restrições,
   LBO, novelty, SHAP + interações, `demo`; `autopilot.py`), `transfer_learning/` (GP hierárquico, correção de hardware),
   `miso/` (MGP/ICM/PCM + KG exato por custo; `propose` com dados reais), `decision/` (EVPI/EVSI), `kinetics/`
-  (Finke–Watzky + identificabilidade), `benchmarking/` (laboratório SIMULADO, braços GP+EI/RF/DNN/EGBO/TPE/novelty/
+  (Finke–Watzky + identificabilidade), `sdl/loop.py` (laço fechado: ingestão → QC → proposta → fila de trabalhos
+  neutra; executores manual/simulado), `benchmarking/` (laboratório SIMULADO, `calibrate.py` = simulador calibrado
+  pelo piloto, braços GP+EI/RF/DNN/EGBO/TPE/novelty/
   autopilot, transferência, cenário prospectivo com placebo e nulo, nº de lotes, fatorial, poder, HV/IGD), `causal/` (DAG, DoWhy, E-value,
   IPW por entropia, mediação, causal-learn), `sustainability/` (E-factor, EcoScale, CPU, CAPEX/OPEX, ComplexGAPI),
   `atomistic/` (ambiente
@@ -54,11 +57,16 @@ Cada pasta de primeiro nível tem um `README.md` com o seu índice.
   jarvis/atomgpt/qwen-llm só no WSL2);
   `data-sources` = clientes de API; `jarvis` = JARVIS instalado de `external/jarvis/` (+ MACE-MP, CHGNet, SevenNet,
   LAMMPS); `atomgpt` = AtomGPT (inverso exige GPU; testado em CPU).
-- `deposit/GO-AuNP-Autonomous-Design/` — esqueleto do depósito Zenodo/MDF; montar com `tools/data_sources/build_deposit.py`.
+- `deposit/GO-AuNP-Autonomous-Design/` — esqueleto do depósito Zenodo/MDF; montar com `tools/data_sources/build_deposit.py`
+  e enviar (localmente, `ZENODO_TOKEN`) com `tools/data_sources/zenodo_upload.py` (ensaio por padrão; `--publish` gera o DOI).
 
 ## Verificar antes de commitar
-- `python tools/check_repo.py --regen` (estrutura + dados gerados reproduzíveis) e `tools/smoke_test.sh <ambiente>`
-  (roda cada subprojeto numa cópia temporária; `--install` cria o ambiente). Busca nos artigos: `tools/search_literature.py`.
+- `python tools/check_repo.py --regen` (estrutura + dados gerados reproduzíveis), `ruff check code tools` (config em
+  `ruff.toml`) e `tools/smoke_test.sh <ambiente>` (roda cada subprojeto numa cópia temporária; `--install` cria o
+  ambiente). CI: `.github/workflows/testes.yml` (ruff, `check_repo --no-lfs`, pytest no `core` com torch de CPU; sem
+  LFS nem `--regen`). Busca nos artigos: `tools/search_literature.py`.
+- Dados medidos: nunca digitar J/LSPR/tamanho — `code/campaign/ingest.py derive --write` deriva dos brutos e `check`
+  confere (SOP-DATA-01).
 
 ## Cuidados
 - 13 arquivos usam **Git LFS** (caminhos exatos em `.gitattributes`; ao mover um deles, atualize o

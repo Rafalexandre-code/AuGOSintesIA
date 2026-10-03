@@ -1,0 +1,52 @@
+# Verificação automática do código do projeto (ambiente core): estrutura do repositório, ruff e os testes de
+# code/tests. Sem Git LFS (a cota gratuita de banda é 1 GB/mês; os testes não usam esses arquivos) e sem --regen
+# (precisa dos datasets em LFS) — esses dois ficam para `python tools/check_repo.py --regen` local.
+name: testes
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: testes-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  estrutura:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: ruff (config em ruff.toml)
+        run: uvx ruff@0.15.8 check code tools
+      - name: check_repo (sem LFS)
+        run: |
+          uv venv -p 3.12 .venvs/ci
+          uv pip install --python .venvs/ci/bin/python pyyaml
+          .venvs/ci/bin/python tools/check_repo.py --no-lfs
+
+  core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: environments/core.lock.txt
+      - name: ambiente core (mesmas versões do lock; torch de CPU)
+        run: |
+          uv venv -p 3.12 .venvs/core
+          # o lock fixa o torch com CUDA (~7 GB); no CI basta o de CPU da mesma versão
+          grep -vE '^(nvidia-|triton|cuda-)' environments/core.lock.txt > "$RUNNER_TEMP/core-cpu.txt"
+          uv pip install --python .venvs/core/bin/python -r "$RUNNER_TEMP/core-cpu.txt" \
+            --extra-index-url https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match \
+          || uv pip install --python .venvs/core/bin/python -r environments/core.lock.txt
+      - name: testes (code/tests)
+        run: .venvs/core/bin/python -m pytest code/tests -q -p no:cacheprovider -W ignore
