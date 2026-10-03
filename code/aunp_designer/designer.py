@@ -251,15 +251,26 @@ def load_campaign(lab: str, space: dict, representation: str = "go", log_objecti
     missing_space = [c for c in space if c not in df]
     if missing_space:
         raise ValueError(f"aunp_syntheses.csv sem as variáveis do espaço {missing_space}")
+    n0 = len(df)
+    lacking = {n: int(df[n].isna().sum()) for n in names if df[n].isna().any()}
     df = df.dropna(subset=list(space) + names)
+    if len(df) < n0:
+        warnings.warn(f"{n0 - len(df)} síntese(s) excluídas por falta de objetivo {lacking or ''} — derive os valores "
+                      "com code/campaign/ingest.py (tamanho do UV-Vis calibrado na TEM)")
     if cons:
         cval = out[out["objective"].isin(list(cons))].pivot_table(index="synthesis_id", columns="objective",
                                                                   values="value")
         df = df.join(cval[list(cons)], how="left")
-        if df[list(cons)].isna().any().any():
-            n0 = len(df)
-            df = df.dropna(subset=list(cons))
-            warnings.warn(f"{n0 - len(df)} síntese(s) sem valor de restrição foram excluídas do ajuste")
+        # restrição sem valor numa síntese NÃO a exclui: o GP daquela restrição usa só as sínteses medidas (ex.: CV
+        # de tamanho só existe onde houve TEM); com menos de 4 valores, a restrição fica de fora nesta rodada
+        for name in list(cons):
+            n_ok = int(df[name].notna().sum())
+            if n_ok < 4:
+                warnings.warn(f"restrição {name!r} com só {n_ok} valor(es): ignorada nesta rodada")
+                cons.pop(name)
+                df = df.drop(columns=name)
+            elif n_ok < len(df):
+                warnings.warn(f"restrição {name!r}: modelada com {n_ok} de {len(df)} sínteses (as demais não a mediram)")
     feats = df[list(space)].astype(float).copy()
     task_col, task_map = None, {}
     if representation == "batch":
@@ -364,24 +375,27 @@ def build_model(camp: Campaign, space: dict, rows=None):
     bounds = _bounds(camp, space)
     d = tx.shape[1]
     cols = list(camp.X.columns)
-    outs = [(ty[:, i:i + 1], camp.Yvar[i]) for i in range(ty.shape[1])]
+    outs = [(ty[:, i:i + 1], camp.Yvar[i], tx) for i in range(ty.shape[1])]
     if camp.C is not None:
-        outs += [(torch.tensor(camp.C[idx, j:j + 1], dtype=torch.double), None) for j in range(camp.C.shape[1])]
+        for j in range(camp.C.shape[1]):
+            c = camp.C[idx, j]
+            ok = np.isfinite(c)                          # restrição medida só em parte das sínteses (ex.: CV pela TEM)
+            outs.append((torch.tensor(c[ok, None], dtype=torch.double), None, tx[torch.as_tensor(ok)]))
     models = []
-    for y, var in outs:
+    for y, var, tx_i in outs:
         yv = None if var is None else torch.tensor(var[idx], dtype=torch.double).unsqueeze(-1)
         if camp.level_cols:
             lv = [cols.index(c) for c in camp.level_cols]
-            m = hierarchical.build_hierarchical_gp(tx, y, [j for j in range(d) if j not in lv], lv, bounds, yv)
+            m = hierarchical.build_hierarchical_gp(tx_i, y, [j for j in range(d) if j not in lv], lv, bounds, yv)
         elif camp.task_col:
             t = list(camp.X.columns).index(camp.task_col)
             base = [j for j in range(d) if j != t]
-            m = MultiTaskGP(tx, y, task_feature=t, train_Yvar=yv,
+            m = MultiTaskGP(tx_i, y, task_feature=t, train_Yvar=yv,
                             covar_module=hierarchical.matern52(d - 1),
                             input_transform=Normalize(d, indices=base, bounds=bounds),
                             outcome_transform=Standardize(1), all_tasks=list(camp.task_map.values()))
         else:
-            m = SingleTaskGP(tx, y, train_Yvar=yv,
+            m = SingleTaskGP(tx_i, y, train_Yvar=yv,
                              covar_module=ScaleKernel(hierarchical.matern52(d)),     # Matérn-5/2 + ARD
                              input_transform=Normalize(d, bounds=bounds), outcome_transform=Standardize(1))
         _fit(m)

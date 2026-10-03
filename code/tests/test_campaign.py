@@ -282,3 +282,67 @@ def test_paired_confirmation_with_frozen_predictions(tmp_path):
     with pytest.raises(Exception):                          # lote reservado já no treino → recusa
         plan.confirm_paired(lab, [("recipe", "recipe"), ("go", "go")], ["L1"], 2, space, designer.default_logs(),
                             designer.default_eps(), None, "qnehvi", {}, seed=0)
+
+
+def test_ingest_derives_outcomes_from_raw_files(tmp_path):
+    """Ingestão: J/LSPR do arquivo bruto com as regras do pré-registro; tamanho da TEM ou do UV-Vis (Mie) calibrado
+    na TEM; CV só da TEM (o Designer usa todas as sínteses e modela a restrição só onde foi medida); conferência."""
+    import os
+    import designer
+    import ingest
+    import prereg
+    import sim_lab
+    import uvvis
+    from scipy.stats import qmc
+    lab = str(tmp_path / "lab")
+    sim_lab.init_lab(lab, ("L1", "L2"), seed=4)
+    space = designer.DEFAULT_SPACE
+    rng = np.random.default_rng(4)
+    for i, b in enumerate(("L1", "L2")):
+        rec = pd.DataFrame(qmc.scale(qmc.LatinHypercube(len(space), seed=i).random(9),
+                                     [v[0] for v in space.values()], [v[1] for v in space.values()]), columns=list(space))
+        sim_lab.run_syntheses(lab, designer.proposals_to_syntheses(rec, space, b, f"INIT-{b}", 0, seed=4)
+                              .assign(status="done"), rng)
+    ch = pd.read_csv(os.path.join(lab, "aunp_characterization.csv"))
+    sids = sorted(ch["synthesis_id"].unique())
+    tem_ids = set(sids[::2])                                         # TEM em metade, como no plano
+    ch[(ch["technique"] == "TEM") & ch["synthesis_id"].isin(tem_ids)].to_csv(
+        os.path.join(lab, "aunp_characterization.csv"), index=False)
+    os.remove(os.path.join(lab, "outcomes.csv"))
+    res = ingest.derive(lab)
+    o = res["outcomes"].set_index(["synthesis_id", "objective"])
+    sp = pd.read_csv(os.path.join(lab, "spectra.csv"))
+    first = sp[sp["synthesis_id"] == sids[0]]
+    J = [prereg.spectral_loss(*uvvis.read_spectrum(os.path.join(lab, f))) for f in first["file"]]
+    assert o.loc[(sids[0], "spectral_loss_J"), "value"] == pytest.approx(np.mean(J))       # média das leituras
+    assert res["calibration"]["size"]["n_pairs"] == len(tem_ids)
+    src = o.xs("size_mean_nm", level="objective")["notes"]
+    assert src[list(tem_ids)].eq("fonte: TEM").all() and src.drop(list(tem_ids)).str.contains("Mie").all()
+    assert set(o.xs("size_cv", level="objective").index) == tem_ids                       # CV só da TEM
+    ingest.write(lab, res)
+    assert ingest.compare(lab, ingest.derive(lab)["outcomes"]).empty
+    camp = designer.load_campaign(lab, space, "go", designer.default_logs(), designer.default_eps(),
+                                  constraints=designer.default_constraints())
+    assert len(camp.X) == len(sids) and np.isnan(camp.C).any()                            # ninguém descartado
+    model, *_ = designer.build_model(camp, space)
+    assert len(model.models) == camp.Y.shape[1] + camp.C.shape[1]
+    out = pd.read_csv(os.path.join(lab, "outcomes.csv"))
+    i = out.index[(out["objective"] == "spectral_loss_J")][0]
+    out.loc[i, ["value", "model_version"]] = [out.loc[i, "value"] * 2, ""]                # valor digitado errado
+    out.to_csv(os.path.join(lab, "outcomes.csv"), index=False)
+    assert (ingest.compare(lab, ingest.derive(lab)["outcomes"])["status"] == "diverge").sum() == 1
+    with pytest.raises(SystemExit):
+        ingest.write(lab, ingest.derive(lab))
+    ingest.write(lab, ingest.derive(lab), force=True)
+    assert ingest.compare(lab, ingest.derive(lab)["outcomes"]).empty
+
+
+def test_mie_fit_recovers_size():
+    import mie
+    w = np.arange(400.0, 801.0, 2.0)
+    rng = np.random.default_rng(0)
+    for d in (12.0, 25.0, 50.0):
+        A = 0.6 * mie.ensemble_extinction(w, d, 0.1) / mie.ensemble_extinction(w, d, 0.1).max() + 0.05 * (450 / w) ** 3
+        f = mie.fit_size_distribution(w, A + rng.normal(0, 0.003, w.size))
+        assert abs(np.log(f["d_post_mean_nm"] / d)) < 2.5 * max(f["d_post_sd_log"], 0.06)
+        assert f["background"] > 0.02

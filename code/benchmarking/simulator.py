@@ -12,6 +12,10 @@ Mecanismo (qualitativo, inspirado na literatura, com parâmetros arbitrários):
   * espectro: extinção de Mie (code/spectral/mie.py, Au de Johnson & Christy, população log-normal) × rendimento,
     somada a um fundo de GO ~λ⁻³ e a ruído de medida;
   * a perda espectral J é calculada pelo MESMO código usado nos dados reais (code/spectral/uvvis.py).
+
+Calibração (code/benchmarking/calibrate.py, a partir do piloto): CAL["noise"] multiplica a variação entre
+preparações, CAL["batch"] o efeito do lote (afasta o C/O de cada lote da referência CAL["co_ref"]),
+CAL["instrument"] o ruído de medida; apply_calibration() também troca o C/O dos lotes pelos medidos.
 """
 from __future__ import annotations
 
@@ -41,6 +45,23 @@ HARDWARE_OFFSET_C = {"hot_plate": 0.0, "water_bath": -4.0, "flow_reactor": 3.0}
 SPACE = {"HAuCl4_mM": [0.1, 1.0], "reductant_to_Au_ratio": [1.0, 10.0], "GO_mg_mL": [0.0, 0.5],
          "pH": [3.0, 11.0], "temperature_C": [20.0, 90.0], "time_min": [5.0, 120.0]}
 DEFAULT_TIME_MIN = 30.0
+CAL = {"noise": 1.0, "batch": 1.0, "instrument": 1.0, "co_ref": 1.9}   # 1.0 = simulador sem calibração
+
+
+def apply_calibration(cal: dict | str | None) -> dict:
+    """Aplica uma calibração (dict ou JSON de calibrate.py): multiplicadores e C/O/ID-IG medidos dos lotes."""
+    import json
+    if cal is None:
+        return CAL
+    if isinstance(cal, str):
+        with open(cal, encoding="utf-8") as fh:
+            cal = json.load(fh)
+    for k in ("noise", "batch", "instrument", "co_ref"):
+        if k in cal:
+            CAL[k] = float(cal[k])
+    for b, desc in (cal.get("batches") or {}).items():
+        BATCHES[b] = {**BATCHES.get(b, {}), **{k: float(v) for k, v in desc.items()}}
+    return CAL
 
 
 @functools.lru_cache(maxsize=4096)
@@ -63,7 +84,7 @@ def simulate(cond: dict, batch: str, reagent_lot: str = "RED-A", hardware: str =
     """noiseless=True devolve o valor ESPERADO (sem variação síntese a síntese nem ruído de medida): é a "verdade"
     usada para calcular arrependimento nos benchmarks."""
     rng = rng or np.random.default_rng()
-    co = BATCHES[batch]["C_O_ratio"]
+    co = CAL["co_ref"] + CAL["batch"] * (BATCHES[batch]["C_O_ratio"] - CAL["co_ref"])
     iod = REAGENT_LOTS[reagent_lot]["iodide_ppm"]
     T = cond["temperature_C"] + HARDWARE_OFFSET_C[hardware]
     sites = np.tanh(4 * cond["GO_mg_mL"]) * (2.6 - co)
@@ -71,18 +92,21 @@ def simulate(cond: dict, batch: str, reagent_lot: str = "RED-A", hardware: str =
         * (1 - 0.35 * sites) * (1 - 0.004 * (T - 20)) * (1 + 0.003 * iod)
     t = float(cond.get("time_min", DEFAULT_TIME_MIN))
     d *= 1 + 0.06 * np.log(max(t, 1.0) / DEFAULT_TIME_MIN)
-    d = float(np.clip(d * (1.0 if noiseless else rng.lognormal(0, 0.04)), 3, 150))
+    d = float(np.clip(d * (1.0 if noiseless else rng.lognormal(0, 0.04 * CAL["noise"])), 3, 150))
     ph_opt = 6.0 + 1.5 * (co - 1.6)
-    sigma = 0.07 + 0.05 * abs(cond["pH"] - ph_opt) / 4 + 0.001 * iod + 0.02 * (0.5 if noiseless else rng.random())
+    jitter = 0.5 if noiseless else 0.5 + CAL["noise"] * (rng.random() - 0.5)     # CAL 1,0: U(0, 1) como antes
+    sigma = 0.07 + 0.05 * abs(cond["pH"] - ph_opt) / 4 + 0.001 * iod + 0.02 * jitter
     yld = (1 - np.exp(-cond["reductant_to_Au_ratio"] / 2.5)) * np.exp(-((cond["pH"] - ph_opt) / 3.5) ** 2) \
         * (0.85 + 0.15 * sites) * (1 - np.exp(-t / 15.0))
     conc = cond["HAuCl4_mM"] / 0.5
     spec = 0.8 * conc * yld * unit_spectrum(d, sigma) + cond["GO_mg_mL"] * 0.15 * (450 / WL) ** 3
+    clean = spec
     if not noiseless:
-        spec = spec + rng.normal(0, NOISE_SD, WL.size)
+        spec = spec + rng.normal(0, NOISE_SD * CAL["instrument"], WL.size)
     desc = uvvis.lspr(WL, spec)
     J = uvvis.spectral_loss_J(WL, spec, WL, target_spectrum(), s=NOISE_SD * 5, grid=WL)
-    return {"spectrum": spec, "size_mean_nm": d, "size_sd_nm": d * sigma, "size_cv": sigma, "LSPR_nm": desc["LSPR_nm"],
+    return {"spectrum": spec, "spectrum_noiseless": clean,
+            "size_mean_nm": d, "size_sd_nm": d * sigma, "size_cv": sigma, "LSPR_nm": desc["LSPR_nm"],
             "A_LSPR": desc["A_LSPR"], "spectral_loss_J": J, "yield_pct": 100 * float(np.clip(yld, 0, 1))}
 
 
@@ -92,4 +116,4 @@ if __name__ == "__main__":
     for b in ("L1", "L3"):
         for lot in REAGENT_LOTS:
             r = simulate(base, b, lot, rng=rng)
-            print(b, lot, {k: round(v, 2) for k, v in r.items() if k != "spectrum"})
+            print(b, lot, {k: round(v, 2) for k, v in r.items() if not k.startswith("spectrum")})

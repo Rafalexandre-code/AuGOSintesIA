@@ -216,3 +216,39 @@ def test_sizing_scenarios_and_report(tmp_path):
             json.dump(s, fh, default=float)
     md = cs.report(str(tmp_path / "out"))
     assert "Fatorial 2×2" in md and "Mais lotes de GO" in md and "| 6 |" in md
+
+
+def test_calibration_recovers_simulator_knobs(tmp_path):
+    """Calibração pelo piloto: gera piloto + inicialização com ruído ×2 e sem efeito de lote, deriva J pela ingestão
+    e recupera os multiplicadores numa grade pequena; ruído do instrumento pelas duplicatas ≈ 1."""
+    import os
+    import calibrate
+    import designer
+    import ingest
+    import plan
+    import sim_lab
+    import simulator as sim
+    from campaign_sim import _lhs
+    lab = str(tmp_path / "lab")
+    space = designer.DEFAULT_SPACE
+    saved = dict(sim.CAL)
+    sim.CAL.update(noise=2.0, batch=0.0)
+    try:
+        sim_lab.init_lab(lab, ("L1", "L2", "L3"), seed=7)
+        rng = np.random.default_rng(7)
+        ref = pd.DataFrame([plan.reference_recipe(space)])
+        for b, n in zip(("L1", "L2", "L3"), (4, 2, 2)):
+            sim_lab.run_syntheses(lab, designer.proposals_to_syntheses(pd.concat([ref] * n, ignore_index=True), space,
+                                                                       b, f"PILOT-{b}", 0, seed=7).assign(status="done"), rng)
+        for b in ("L1", "L2", "L3"):
+            sim_lab.run_syntheses(lab, designer.proposals_to_syntheses(_lhs(space, 4, 7), space, b, f"INIT-{b}", 0,
+                                                                       seed=7).assign(status="done"), rng)
+    finally:
+        sim.CAL.clear()
+        sim.CAL.update(saved)
+    os.remove(os.path.join(lab, "outcomes.csv"))
+    ingest.write(lab, ingest.derive(lab))
+    c = calibrate.calibrate(lab, reps=10, k_noise=(0.5, 2.0), k_batch=(0.0, 3.0))
+    assert (c["noise"], c["batch"]) == (2.0, 0.0)
+    assert 0.8 < c["instrument"] < 1.25 and c["n_syntheses"] == 20
+    assert set(c["batches"]) == {"L1", "L2", "L3"} and sim.CAL == saved            # não vaza estado

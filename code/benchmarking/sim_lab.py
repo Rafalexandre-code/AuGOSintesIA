@@ -94,11 +94,12 @@ def run_syntheses(lab: str, syn: pd.DataFrame, rng: np.random.Generator) -> pd.D
                    header="wavelength_nm,absorbance", comments="")
         spectra.append({"spectrum_id": sp_id, "synthesis_id": s["synthesis_id"], "technique": "UV-Vis", "file": fname,
                         "dilution_factor": 1, "path_length_mm": 10, "time_after_prep_min": 30, "notes": "SIMULADO"})
-        # leitura em duplicata da mesma alíquota (SOP-UVVIS-01): só o ruído de medida muda
+        # leitura em duplicata da mesma alíquota (SOP-UVVIS-01): só o ruído de medida muda (novo e independente)
         n_sp += 1
         dup_id, dup_f = f"UV-{n_sp:04d}", f"raw_data/UV-{n_sp:04d}.csv"
-        np.savetxt(os.path.join(lab, dup_f), np.c_[sim.WL, r["spectrum"] + rng.normal(0, sim.NOISE_SD, sim.WL.size)],
-                   delimiter=",", header="wavelength_nm,absorbance", comments="")
+        dup = r["spectrum_noiseless"] + rng.normal(0, sim.NOISE_SD * sim.CAL["instrument"], sim.WL.size)
+        np.savetxt(os.path.join(lab, dup_f), np.c_[sim.WL, dup], delimiter=",", header="wavelength_nm,absorbance",
+                   comments="")
         spectra.append({"spectrum_id": dup_id, "synthesis_id": s["synthesis_id"], "technique": "UV-Vis", "file": dup_f,
                         "dilution_factor": 1, "path_length_mm": 10, "time_after_prep_min": 32,
                         "notes": "SIMULADO; leitura em duplicata"})
