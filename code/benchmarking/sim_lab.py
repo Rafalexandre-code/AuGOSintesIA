@@ -16,6 +16,10 @@ sys.path.insert(0, HERE)
 import simulator as sim  # noqa: E402
 
 TARGET_SIZE_NM = 20.0
+# custos e massas ILUSTRATIVOS do laboratório simulado (tabela resources; não são preços reais)
+SIM_COSTS = {"HAuCl4_g": 450.0, "citrate_g": 0.5, "GO_g": 80.0, "water_g": 0.01, "kWh": 0.9, "UV-Vis_h": 40.0,
+             "TEM_h": 300.0, "TEM_grid": 15.0}
+M_HAUCL4_3H2O, M_CITRATE_2H2O = 393.83, 294.10
 
 
 def _append(lab: str, table: str, rows: list[dict]) -> None:
@@ -79,9 +83,9 @@ def run_syntheses(lab: str, syn: pd.DataFrame, rng: np.random.Generator) -> pd.D
     missing = syn["reductant_lot_id"].astype(str).isin(["", "nan"])   # só preenche o que falta
     syn.loc[missing, "reductant_lot_id"] = [rng.choice(list(sim.REAGENT_LOTS)) for _ in range(int(missing.sum()))]
     n_sp = len(pd.read_csv(os.path.join(lab, "spectra.csv"))) if os.path.exists(os.path.join(lab, "spectra.csv")) else 0
-    spectra, char, outc, res = [], [], [], []
+    spectra, char, outc, res, resources = [], [], [], [], []
     for _, s in syn.iterrows():
-        cond = {k: float(s[k]) for k in sim.SPACE}
+        cond = {k: float(s[k]) for k in sim.SPACE if k in s and str(s[k]) not in ("", "nan")}
         r = sim.simulate(cond, s["go_batch_id"], s["reductant_lot_id"], s["hardware"], rng)
         n_sp += 1
         sp_id = f"UV-{n_sp:04d}"
@@ -90,6 +94,14 @@ def run_syntheses(lab: str, syn: pd.DataFrame, rng: np.random.Generator) -> pd.D
                    header="wavelength_nm,absorbance", comments="")
         spectra.append({"spectrum_id": sp_id, "synthesis_id": s["synthesis_id"], "technique": "UV-Vis", "file": fname,
                         "dilution_factor": 1, "path_length_mm": 10, "time_after_prep_min": 30, "notes": "SIMULADO"})
+        # leitura em duplicata da mesma alíquota (SOP-UVVIS-01): só o ruído de medida muda
+        n_sp += 1
+        dup_id, dup_f = f"UV-{n_sp:04d}", f"raw_data/UV-{n_sp:04d}.csv"
+        np.savetxt(os.path.join(lab, dup_f), np.c_[sim.WL, r["spectrum"] + rng.normal(0, sim.NOISE_SD, sim.WL.size)],
+                   delimiter=",", header="wavelength_nm,absorbance", comments="")
+        spectra.append({"spectrum_id": dup_id, "synthesis_id": s["synthesis_id"], "technique": "UV-Vis", "file": dup_f,
+                        "dilution_factor": 1, "path_length_mm": 10, "time_after_prep_min": 32,
+                        "notes": "SIMULADO; leitura em duplicata"})
         sid = s["synthesis_id"]
         for qty, unit, unc, tech in (("LSPR_nm", "nm", 0.5, "UV-Vis"), ("A_LSPR", "a.u.", sim.NOISE_SD, "UV-Vis"),
                                      ("spectral_loss_J", "a.u.", None, "UV-Vis"),
@@ -101,14 +113,46 @@ def run_syntheses(lab: str, syn: pd.DataFrame, rng: np.random.Generator) -> pd.D
                          "uncertainty_type": "sem" if tech == "TEM" and unc else ("instrument" if unc else ""),
                          "n_replicates": 100 if tech == "TEM" else 1, "unit": unit, "notes": "SIMULADO"})
         outc += [{"synthesis_id": sid, "objective": "spectral_loss_J", "value": round(r["spectral_loss_J"], 5),
-                  "direction": "minimize", "target_value": "", "notes": "SIMULADO"},
+                  "direction": "minimize", "target_value": "", "derived_from": f"M-{sid}-spectral_loss_J",
+                  "notes": "SIMULADO"},
                  {"synthesis_id": sid, "objective": "size_mean_nm", "value": round(r["size_mean_nm"], 4),
                   "uncertainty": round(r["size_sd_nm"] / 10, 4), "direction": "target", "target_value": TARGET_SIZE_NM,
-                  "notes": "SIMULADO"}]
+                  "derived_from": f"M-{sid}-size_mean_nm", "notes": "SIMULADO"},
+                 # restrições pré-registradas (config/preregistration.yaml): monodispersidade e produto mensurável
+                 {"synthesis_id": sid, "objective": "size_cv", "value": round(r["size_cv"], 5), "direction": "constraint",
+                  "target_value": 0.25, "derived_from": f"M-{sid}-size_mean_nm|M-{sid}-size_sd_nm", "notes": "SIMULADO"},
+                 {"synthesis_id": sid, "objective": "A_LSPR", "value": round(r["A_LSPR"], 5), "direction": "constraint",
+                  "target_value": 0.10, "derived_from": f"M-{sid}-A_LSPR", "notes": "SIMULADO"}]
+        resources += sim_resources(sid, cond, s["go_batch_id"])
         res.append({"synthesis_id": sid, "go_batch_id": s["go_batch_id"], **{k: r[k] for k in
                     ("spectral_loss_J", "size_mean_nm", "LSPR_nm", "yield_pct")}})
     _append(lab, "aunp_syntheses", syn.to_dict("records"))
     _append(lab, "spectra", spectra)
     _append(lab, "aunp_characterization", char)
     _append(lab, "outcomes", outc)
+    _append(lab, "resources", resources)
     return pd.DataFrame(res)
+
+
+def sim_resources(sid: str, cond: dict, batch: str, volume_mL: float = 10.0) -> list[dict]:
+    """Insumos, energia, tempo de instrumento e resíduo de uma síntese SIMULADA (fronteira: síntese + caracterização)."""
+    v_l = volume_mL / 1000.0
+    au_g = cond["HAuCl4_mM"] / 1000 * v_l * M_HAUCL4_3H2O
+    red_g = cond["reductant_to_Au_ratio"] * cond["HAuCl4_mM"] / 1000 * v_l * M_CITRATE_2H2O
+    go_g = cond.get("GO_mg_mL", 0.0) * v_l
+    hours = cond.get("time_min", sim.DEFAULT_TIME_MIN) / 60.0
+    kwh = 0.4 * hours * (1.0 if cond.get("temperature_C", 25) > 30 else 0.1)
+    items = [("synthesis", "", "reagent", "HAuCl4·3H2O", au_g, "g", au_g, au_g * SIM_COSTS["HAuCl4_g"]),
+             ("synthesis", "", "reagent", "citrato de sódio", red_g, "g", red_g, red_g * SIM_COSTS["citrate_g"]),
+             ("synthesis", "", "reagent", "GO", go_g, "g", go_g, go_g * SIM_COSTS["GO_g"]),
+             ("synthesis", "", "solvent", "água ultrapura", volume_mL, "mL", volume_mL, volume_mL * SIM_COSTS["water_g"]),
+             ("synthesis", "", "energy", "aquecimento/agitação", kwh, "kWh", None, kwh * SIM_COSTS["kWh"]),
+             ("synthesis", "", "waste", "resíduo aquoso com Au", volume_mL, "g", volume_mL, 0.0),
+             ("characterization", "UV-Vis", "instrument_time", "espectrofotômetro (2 leituras)", 0.1, "h", None,
+              0.1 * SIM_COSTS["UV-Vis_h"]),
+             ("characterization", "TEM", "instrument_time", "TEM (10 campos)", 0.5, "h", None, 0.5 * SIM_COSTS["TEM_h"]),
+             ("characterization", "TEM", "consumable", "grade de Cu/C", 1, "unidade", 0.05, SIM_COSTS["TEM_grid"])]
+    return [{"resource_id": f"RES-{sid}-{k:02d}", "synthesis_id": sid, "go_batch_id": batch, "flow": f, "technique": t,
+             "category": c, "item": it, "amount": round(am, 6), "unit": u, "mass_g": "" if m is None else round(m, 6),
+             "cost": round(cost, 4), "currency": "BRL", "notes": "SIMULADO"}
+            for k, (f, t, c, it, am, u, m, cost) in enumerate(items, 1)]

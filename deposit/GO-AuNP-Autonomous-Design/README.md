@@ -13,13 +13,13 @@ GO-AuNP-Autonomous-Design/
 │   ├── literature/          semente da literatura + dicionário de reagentes + busca OpenAlex
 │   ├── go_batches/          reagent_lots, go_batches, go_samples, go_descriptors (lote → incerteza)
 │   ├── synthesis/           aunp_syntheses, outcomes
-│   ├── characterization/    go_characterization (XPS/Raman/AFM…), aunp_characterization (UV-Vis/TEM…)
+│   ├── characterization/    go_characterization (XPS/Raman/FTIR/XRD…), aunp_characterization (UV-Vis/TEM/DLS…)
+│   ├── quality/             qc_results, qc_control_chart, resources (massas, custos, energia)
 │   └── raw_data/            arquivos brutos dos instrumentos
+├── plan/                    preregistration.yaml (+ selo .lock.json), s_m.csv, qc_criteria.yaml, DMP.md
 ├── code/
-│   ├── go_navigator/
-│   ├── aunp_designer/
-│   ├── transfer_learning/
-│   └── benchmarking/
+│   ├── campaign/  qc/  go_navigator/  aunp_designer/  transfer_learning/  miso/  decision/
+│   └── benchmarking/  spectral/  characterization/  causal/  sustainability/  atomistic/  tests/
 ├── models/
 ├── protocols/
 ├── metadata/                data_dictionary.csv, go_aunp.schema.json, sources.tsv, .zenodo.json, CITATION.cff
@@ -33,8 +33,11 @@ GO-AuNP-Autonomous-Design/
 |---|---|---|
 | `dataset/literature` | `datasets/literature-seed/` (`build_literature_seed.py`), `datasets/reagents/`, `outputs/literature_pipeline/works.csv` (`literature_pipeline.py`) | pronto (semente); busca OpenAlex a rodar com rede |
 | `dataset/go_batches`, `synthesis`, `characterization` | `datasets/lab/*.csv`, preenchidos a partir de `datasets/data-model/templates/` e validados por `lab_data_model.py validate` | a preencher com os experimentos |
-| `dataset/raw_data`, `protocols` | `datasets/lab/raw_data/`, `datasets/lab/protocols/` | a preencher |
-| `code/*`, `models` | pasta `code/` (passe outra com `--code`) — ponto de partida: `external/bayesian-optimization/{botorch,Ax,baybe}`, `projects/bayesian-optimization/RAMBOAU` (qNEHVI/MVaR), `projects/multi-fidelity/chem-MFBO` + `external/multi-fidelity/misoKG-NIPS2017` (MISO), `projects/bayesian-optimization/BOCoDe` e `datasets/{pressure-vessel,cofs-methane}` (benchmark) | a desenvolver |
+| `dataset/quality` | `datasets/lab/{qc_results,qc_control_chart,resources}.csv` (`code/qc/qc_check.py`, tabela `resources`) | a preencher com os experimentos |
+| `dataset/raw_data`, `protocols` | `datasets/lab/raw_data/`, `datasets/lab/protocols/` (SOPs v0.1) | SOPs em rascunho; dados a preencher |
+| `plan` | `config/` (pré-registro, critérios de QC), `docs/DMP.md` | rascunho até `prereg.py freeze` |
+| `code/*` | pasta `code/` (passe outra com `--code`) | pronto e testado (`python -m pytest code/tests`) |
+| `models` | GPs/redes treinados, com a versão do código e dos dados | a gerar na campanha |
 | `metadata`, `documentation` | `datasets/data-model/`, `tools/data_sources/sources.tsv`, este README, `docs/FONTES_DE_DADOS.md` | pronto |
 
 ## Publicação e DOI por versão

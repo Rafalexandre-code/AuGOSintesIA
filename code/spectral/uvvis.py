@@ -14,6 +14,8 @@ A_LSPR/A450 e diâmetro estimado pelas relações empíricas de Haiss et al. (An
 Uso:
     python code/spectral/uvvis.py amostra.csv [--blank branco.csv --dilution 2 --path-mm 10]
     python code/spectral/uvvis.py amostra.csv --target alvo.csv [--sd desvios.csv | --sd-const 0.01] [--normalize max]
+    python code/spectral/uvvis.py amostra.csv --blank branco.csv --prereg   # alvo, faixa, sₘ, normalização e ε do
+                                                                           # plano pré-registrado (config/)
 Arquivos: CSV/TXT com duas colunas (λ em nm, absorbância), cabeçalho opcional.
 """
 from __future__ import annotations
@@ -152,11 +154,21 @@ def main() -> None:
     ap.add_argument("--sd-const", type=float, default=None)
     ap.add_argument("--normalize", choices=["none", "max", "area"], default="none")
     ap.add_argument("--eps", type=float, default=1e-3)
+    ap.add_argument("--prereg", action="store_true", help="J com alvo/faixa/sₘ/normalização/ε do pré-registro")
     a = ap.parse_args()
     w, A = read_spectrum(a.spectrum)
     A = correct(w, A, read_spectrum(a.blank) if a.blank else None, a.dilution, a.path_mm)
     out = lspr(w, A)
-    if a.target:
+    if a.prereg:
+        import os
+        import sys
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "campaign"))
+        import prereg
+        cfg = prereg.load()
+        J = prereg.spectral_loss(w, A, cfg)
+        out.update({"spectral_loss_J": J, "log_J_eps": log_loss(J, prereg.epsilon(cfg)),
+                    "prereg_sha256": prereg.sha256(cfg)})
+    elif a.target:
         wt, At = read_spectrum(a.target)
         grid = np.arange(400.0, 801.0, 2.0)
         s = np.interp(grid, *read_spectrum(a.sd)) if a.sd else a.sd_const

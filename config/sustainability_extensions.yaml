@@ -1,0 +1,29 @@
+# Extensões CONDICIONAIS da análise de sustentabilidade (§4.14): só se os dados existirem.
+# Lido por: python code/sustainability/metrics.py capex-opex | complexgapi  (code/sustainability/metrics.py)
+# Valores RASCUNHO: substitua pelos do laboratório antes de usar.
+
+capex_opex:
+  discount_rate: 0.08            # taxa anual para anualizar o investimento (fator de recuperação de capital)
+  currency: BRL
+  instruments:                   # custo de aquisição, vida útil, manutenção anual, nº de análises por ano
+    UV-Vis: {capex: 60000, lifetime_years: 10, maintenance_per_year: 2000, analyses_per_year: 1500}
+    DLS:    {capex: 350000, lifetime_years: 10, maintenance_per_year: 15000, analyses_per_year: 800}
+    TEM:    {capex: 4000000, lifetime_years: 15, maintenance_per_year: 200000, analyses_per_year: 600}
+    XPS:    {capex: 3500000, lifetime_years: 15, maintenance_per_year: 150000, analyses_per_year: 500}
+  consumables_per_analysis: {UV-Vis: 5, DLS: 15, TEM: 120, XPS: 80}
+  labor_hours_per_analysis: {UV-Vis: 0.2, DLS: 0.5, TEM: 3.0, XPS: 2.0}
+  labor_rate_per_hour: 60
+
+complexgapi:
+  # Adaptação da parte de PRÉ-ANÁLISE/SÍNTESE do ComplexGAPI (Płotka-Wasylka et al., Green Chem. 2021, 23, 8657):
+  # cada critério vira verde/amarelo/vermelho por regra explícita. Os limiares abaixo são RASCUNHO — confira com a
+  # tabela do artigo antes de reportar; o código só aplica as regras configuradas.
+  criteria:
+    yield_pct:            {type: numeric, green_min: 89, yellow_min: 70}
+    temperature_C:        {type: numeric_max, green_max: 30, yellow_max: 90}
+    time_min:             {type: numeric_max, green_max: 60, yellow_max: 240}
+    E_factor:             {type: numeric_max, green_max: 5, yellow_max: 50}
+    reagent_hazard_nfpa:  {type: numeric_max, green_max: 1, yellow_max: 2}       # maior NFPA (saúde) entre os reagentes
+    solvent:              {type: categorical, green: [water, none], yellow: [ethanol, ethylene_glycol], red: [other]}
+    purification:         {type: categorical, green: [none], yellow: [centrifugation, filtration], red: [dialysis, chromatography]}
+    special_conditions:   {type: categorical, green: [none], yellow: [inert_atmosphere], red: [high_pressure, microwave_hazard]}

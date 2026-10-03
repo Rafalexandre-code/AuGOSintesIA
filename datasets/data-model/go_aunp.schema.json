@@ -69,6 +69,18 @@
       "items": {
         "$ref": "#/$defs/outcomes"
       }
+    },
+    "resources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/resources"
+      }
+    },
+    "qc_results": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/qc_results"
+      }
     }
   },
   "$defs": {
@@ -244,6 +256,7 @@
             "ci95",
             "range",
             "instrument",
+            "fit_se",
             "none"
           ]
         },
@@ -628,6 +641,7 @@
             "ci95",
             "range",
             "instrument",
+            "fit_se",
             "none"
           ]
         },
@@ -962,6 +976,8 @@
             "ICP-OES",
             "ICP-MS",
             "SERS",
+            "SAXS",
+            "OCP",
             "catalysis",
             "other"
           ]
@@ -992,6 +1008,7 @@
             "ci95",
             "range",
             "instrument",
+            "fit_se",
             "none"
           ]
         },
@@ -1104,6 +1121,145 @@
         "objective",
         "value",
         "direction"
+      ]
+    },
+    "resources": {
+      "type": "object",
+      "description": "Consumo e resíduos por síntese/caracterização (sustentabilidade, §4.14): reagentes, solventes, energia, tempo de instrumento, custo e massa de resíduo — base do E-factor e do custo por informação útil.",
+      "properties": {
+        "resource_id": {
+          "type": "string",
+          "description": "ex.: RES-0001"
+        },
+        "synthesis_id": {
+          "type": "string",
+          "description": "síntese associada (vazio = preparo de GO/geral)",
+          "x-foreign-key": "aunp_syntheses"
+        },
+        "go_batch_id": {
+          "type": "string",
+          "description": "lote de GO associado (caracterização do lote)",
+          "x-foreign-key": "go_batches"
+        },
+        "flow": {
+          "type": "string",
+          "description": "etapa dentro da fronteira do sistema",
+          "enum": [
+            "synthesis",
+            "characterization",
+            "go_preparation",
+            "other"
+          ]
+        },
+        "technique": {
+          "type": "string",
+          "description": "técnica de caracterização (UV-Vis, TEM, XPS…), se flow=characterization"
+        },
+        "category": {
+          "type": "string",
+          "description": "tipo de recurso",
+          "enum": [
+            "reagent",
+            "solvent",
+            "consumable",
+            "energy",
+            "instrument_time",
+            "labor",
+            "waste"
+          ]
+        },
+        "item": {
+          "type": "string",
+          "description": "o que foi consumido/gerado (ex.: HAuCl4, água ultrapura, grade de TEM, resíduo aquoso de Au)"
+        },
+        "lot_id": {
+          "type": "string",
+          "description": "lote do reagente consumido",
+          "x-foreign-key": "reagent_lots"
+        },
+        "amount": {
+          "type": "number",
+          "description": "quantidade na unidade abaixo"
+        },
+        "unit": {
+          "type": "string",
+          "description": "g, mL, kWh, h, unidade…"
+        },
+        "mass_g": {
+          "type": "number",
+          "description": "massa (insumo ou resíduo) para o E-factor; água pode ser excluída (sEF)",
+          "x-unit": "g"
+        },
+        "cost": {
+          "type": "number",
+          "description": "custo do item"
+        },
+        "currency": {
+          "type": "string",
+          "description": "ex.: BRL"
+        },
+        "date": {
+          "type": "string",
+          "description": "",
+          "format": "date"
+        },
+        "operator": {
+          "type": "string",
+          "description": ""
+        },
+        "notes": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "required": [
+        "resource_id",
+        "flow",
+        "category",
+        "item",
+        "amount",
+        "unit"
+      ]
+    },
+    "qc_results": {
+      "type": "object",
+      "description": "Resultado do controle de qualidade por síntese (gerado por code/qc/qc_check.py com config/qc_criteria.yaml); sínteses com fail não entram no otimizador.",
+      "properties": {
+        "synthesis_id": {
+          "type": "string",
+          "description": "",
+          "x-foreign-key": "aunp_syntheses"
+        },
+        "check": {
+          "type": "string",
+          "description": "verificação (uvvis_duplicate_reads, tem_particle_count, control_chart_day_*…)"
+        },
+        "status": {
+          "type": "string",
+          "description": "resultado",
+          "enum": [
+            "pass",
+            "warn",
+            "fail"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "description": "valor observado"
+        },
+        "limit": {
+          "type": "string",
+          "description": "critério aplicado"
+        },
+        "message": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "required": [
+        "synthesis_id",
+        "check",
+        "status"
       ]
     }
   }

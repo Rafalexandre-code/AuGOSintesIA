@@ -95,6 +95,24 @@ def nm_values(text: str) -> list[float]:
     return vals
 
 
+SIZE_RANGE_NM = (1.0, 500.0)   # fora disso: distância interplanar de franjas (0,2–0,4 nm) ou erro de unidade
+_PM = re.compile(r"±\s*\d+(?:\.\d+)?")
+_RANGE = re.compile(r"(\d+(?:\.\d+)?)\s*(?:-|–|to)\s*(\d+(?:\.\d+)?)")
+
+
+def size_values(text: str) -> list[float]:
+    """Tamanhos (nm) de um texto de tamanho do Cruse: descarta a incerteza de 'a ± b' (não é outro tamanho), usa o
+    ponto médio de faixas 'a–b' e descarta valores fora de SIZE_RANGE_NM (franjas de rede, erros)."""
+    t = _PM.sub(" ", text)
+    vals = [(float(a) + float(b)) / 2 for a, b in _RANGE.findall(t)]
+    t = _RANGE.sub(" ", t)
+    vals += [float(x) for x in _NUM.findall(t)]
+    return [v for v in vals if SIZE_RANGE_NM[0] <= v <= SIZE_RANGE_NM[1]]
+
+
+NM_UNITS = {"nm", "nanometers", "nanometer", "nanometres", "nanometre"}
+
+
 def median_str(vals) -> str:
     return f"{statistics.median(vals):g}" if vals else ""
 
@@ -139,8 +157,8 @@ def rows_cruse(n: Normalizer):
             morph_all += mi["morphologies"]
             if mi["sizes"]:
                 sizes_all.append(f"{', '.join(mi['sizes'])} [{', '.join(mi['units']) or '?'}]")
-                if mi["units"] == ["nm"]:
-                    nm_all += [float(x) for s in mi["sizes"] for x in _NUM.findall(s)]
+                if mi["units"] and {u.strip().lower() for u in mi["units"]} <= NM_UNITS:
+                    nm_all += [v for s in mi["sizes"] for v in size_values(s)]
         art_text = " ".join(p["text"] for p in paras)
         art_go = bool(n.find_in_text(art_text) & GO_ENTITIES)
         for p in paras:

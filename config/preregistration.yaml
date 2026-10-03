@@ -1,0 +1,175 @@
+# Plano de análise PRÉ-REGISTRADO da campanha GO–AuNP (proposta FAPESP, §III, §4.4, §4.5, §4.11, §4.14, §4.18).
+#
+# A proposta exige que alvo espectral, faixa, normalização, tolerâncias, ε e λ sejam definidos ANTES da comparação
+# entre estratégias. Este arquivo é a fonte única desses valores: Designer, gerador do plano, QC, benchmark e
+# sustentabilidade leem daqui. Fluxo:
+#   1. revisar com o orientador (status: draft);
+#   2. python code/campaign/prereg.py freeze     -> grava config/preregistration.lock.json (sha256, data, commit)
+#   3. depois de congelado, qualquer mudança precisa de uma entrada em `amendments` (data, o quê, por quê, antes
+#      de ver os resultados da comparação?); `prereg.py check` acusa mudanças não registradas.
+# Valores marcados "RASCUNHO" são propostas razoáveis da literatura, não decisões do grupo.
+
+version: 1
+status: draft            # draft | frozen  (frozen só via `prereg.py freeze`)
+title: "Valor da informação de matéria-prima multi-fonte na otimização de GO–AuNP"
+primary_hypothesis: >-
+  Uma política contextual (lote + descritores do GO, ± impurezas) reduz a melhor perda espectral acumulada
+  por rodada, média balanceada entre lotes, em relação à política só-receita, com o mesmo orçamento.
+
+# ---------------------------------------------------------------- espectro-alvo E*(λ) e perda J (Eq. 1)
+target_spectrum:
+  kind: mie              # mie | file
+  diameter_nm: 20.0      # RASCUNHO: AuNP esférica de 20 nm em água (LSPR ≈ 521 nm)
+  relative_dispersion: 0.08
+  medium_index: 1.333
+  file: null             # kind: file -> CSV (λ, absorbância), ex.: espectro de um padrão medido
+  range_nm: [400, 800]
+  step_nm: 2
+  normalization: max     # none | max | area — aplicada a E e a E* antes da comparação
+  amplitude: 0.8         # absorbância de referência do alvo (com normalization: none)
+loss:
+  s_m:                   # desvios sₘ por comprimento de onda (denominador da Eq. 1)
+    rule: "desvio-padrão entre >= 5 leituras repetidas da mesma preparação no piloto, por λ"
+    floor: 0.002         # piso (absorbância) para não dividir por ~0
+    file: config/s_m.csv # gerado por `prereg.py s-m <espectros repetidos>`; ausente -> s_m = floor
+  log_transform: true    # modelar log(J + ε)
+  epsilon:
+    value: 1.0e-3        # provisório até o piloto
+    rule: "1 % da mediana de J nas sínteses do piloto"   # `prereg.py epsilon datasets/lab`
+
+# ---------------------------------------------------------------- especificação (atendimento) e restrições
+specification:           # "atendimento às especificações" (§4.18)
+  spectral_loss_J_max: 1.0          # RASCUNHO
+  LSPR_nm: [515.0, 530.0]
+  size_mean_nm: [15.0, 25.0]
+objectives:               # comparação principal: qNEHVI para J e diâmetro (§4.5)
+  - {name: spectral_loss_J, direction: minimize, log: true}
+  - {name: size_mean_nm, direction: target, target: 20.0}
+constraints:              # otimização multiobjetivo SOB RESTRIÇÕES (Objetivo 3); feasible se lower <= y <= upper
+  - {name: size_cv, upper: 0.25}    # RASCUNHO: monodispersidade (TEM)
+  - {name: A_LSPR, lower: 0.10}     # RASCUNHO: produto mensurável (rendimento mínimo)
+
+# ---------------------------------------------------------------- AuNP Designer
+acquisition:
+  default: qnehvi                   # como na proposta (§4.5)
+  qlognehvi_only_if: heteroscedastic_noise   # `designer.py noise-check`: Levene/Brown–Forsythe entre preparações
+  heteroscedasticity_alpha: 0.05
+novelty:
+  weights: [0.0, 0.25, 0.5, 0.75, 1.0]      # sensibilidade de w investigada, não fixada (§4.5)
+representations: [recipe, batch, go, go+impurities, hierarchical]
+search_space:             # variáveis de decisão (Tabela 1); limites RASCUNHO
+  HAuCl4_mM: [0.1, 1.0]
+  reductant_to_Au_ratio: [1.0, 10.0]
+  GO_mg_mL: [0.0, 0.5]
+  pH: [3.0, 11.0]
+  temperature_C: [20.0, 90.0]
+  time_min: [5.0, 120.0]
+
+# ---------------------------------------------------------------- campanha (§4.11)
+batches:
+  development: [L1, L2, L3]
+  reserved: [L4, L5, L6]            # só confirmação; nunca entram no treino antes dela
+budget:                   # 60 sínteses independentes (controles não contam)
+  pilot: 8
+  initialization: 12               # 4 receitas de preenchimento × L1–L3
+  adaptive: 24
+  confirmation: 16
+  q_per_round: 2
+  syntheses_per_day: 6             # capacidade do bloco (dia/operador)
+factorial_2x2:            # §4.9 (condicional, FORA das 60): lote de GO (C/O alto × baixo) × impureza (limpo × contaminado)
+  impurity: CTAB                   # reagente cuja contaminação é testada (papel stabilizer); no simulador, iodeto no redutor
+  impurity_role: stabilizer
+  replicates: 4                    # blocos completos (cada dia: 1 réplica de cada célula). Com 3, o menor p exato
+                                   # (2/64) passa de 0,05 com Holm; com 4 (16 sínteses), poder simulado 82 % (impureza)
+                                   # e 100 % (GO) (docs/SIMULACOES.md)
+  recipe: reference                # receita fixa (centro do espaço) para isolar os dois fatores
+  analysis: exact_within_block_permutation   # code/campaign/factorial.py analyze (+ OLS com bloco, efeitos e IC)
+tem_subset:               # §4.12: TEM em ~30 sínteses, espalhadas por todas as etapas (plan.py marca a coluna tem)
+  pilot: 2
+  initialization: 6                # cobre as 4 receitas e os 3 lotes
+  adaptive_rounds: 6               # rodadas igualmente espaçadas, os DOIS braços do par (12 sínteses)
+  confirmation: 8                  # equilibrado entre os lotes reservados
+controls:                 # fora das 60 sínteses do orçamento (§4.17)
+  no_GO_every_n_days: 3            # RASCUNHO: 1 controle sem GO a cada 3 dias de bancada (deriva do dia a dia)
+  GO_blank_per_batch: 1            # branco de GO tratado (mesmo redutor, sem Au) por lote usado
+stock_solutions:          # para calcular volumes de pipetagem
+  HAuCl4_mM: 10.0
+  reductant_mM: 100.0
+  GO_mg_mL: 2.0
+  total_volume_mL: 10.0
+  min_pipette_uL: 10.0
+
+# ---------------------------------------------------------------- decisão e incerteza (§4.18)
+# Alocação e análise (§4.5, §4.18). Uma campanha real só comporta UMA trajetória por braço. A simulação do desenho
+# real (campaign_sim.py --scenario prospective; docs/SIMULACOES.md) mostrou que o teste por rodada na fase
+# adaptativa tem poder ≈ 0 e erro tipo I inflado (≈ 12 % no par nulo: a vantagem de uma trajetória se arrasta entre
+# rodadas). Por isso a inferência confirmatória fica na CONFIRMAÇÃO, onde os modelos estão congelados e as
+# observações são independentes. Escolha a revisar com o orientador ANTES do freeze.
+arms:
+  prospective: [recipe, go+impurities]   # não contextual × contextual multi-fonte (hipótese central, §4.18)
+  reference: recipe
+  allocation: paired_by_round            # adaptativas: 12 rodadas × 1 síntese de cada braço, mesmo lote e dia
+  training: own_trajectory               # designer.py propose --arm <braço>
+  confirmation: paired_by_reserved_batch # 16 = 8 pares: 1 receita de cada braço CONGELADO, mesmo lote reservado e dia
+  offline: [recipe, batch, go, go+impurities, hierarchical]   # designer.py validate (LBO) + campaign_sim.py
+primary_outcome:
+  metric: predictive_value_of_context    # erro de previsão de log J em lote NUNCA visto, contextual × só-receita
+  unit: go_batch                         # d_b = ln(RMSE_contexto/RMSE_receita) por lote; sínteses do mesmo lote
+                                         # compartilham o erro do lote (por síntese: 10 % sob placebo simulado)
+  held_out_batches: [development_leave_one_batch_out, reserved_frozen_predictions]   # 3 + 3 = 6 lotes
+  models: frozen_pooled                  # mesmos dados de desenvolvimento; só muda a representação (plan.py confirm)
+  predictions_recorded_before_synthesis: true   # confirmation_predictions.csv + sha256 no manifesto
+  test: randomization_sign_flip_one_sided       # exato sobre os lotes (6 → p mínimo 1/64)
+  estimate: [hodges_lehmann, rmse_ratio]
+  reporting: estimate_with_ci_first      # poder simulado ≈ 15 % (erro tipo I 0 % no placebo): "não rejeitar" não é
+                                         # evidência de ausência; relatar a razão de RMSE com IC 95 %
+premise_test:             # RECOMENDADO (decidir com o orientador antes do freeze): teste COM PODER da premissa
+  design: factorial_2x2   # "a matéria-prima muda o resultado" — fatorial abaixo, com receita fixa
+  effects: [GO_low_vs_high, impurity]    # randomização restrita exata (factorial.py), Holm entre os dois efeitos
+  power_simulated: {GO_low_vs_high: 1.00, impurity: 0.82}    # 4 réplicas; erro tipo I ≤ 3 % (docs/SIMULACOES.md)
+  status: proposed        # hoje o fatorial é condicional (fora das 60): promovê-lo custa 16 sínteses
+secondary_outcomes:
+  per_synthesis_predictive: squared_error_difference   # DESCRITIVO (anticonservador; ver unit acima)
+  confirmation_optimization: paired_log_J_by_reserved_batch   # 8 pares; DESCRITIVO (18 % sob placebo simulado)
+  adaptive_rounds: paired_round_log_loss  # EXPLORATÓRIO (teste anticonservador sob dependência)
+  descriptive: best_cumulative_loss_per_round   # desfecho original da proposta, por braço, média balanceada
+  aggregation: balanced_mean_over_batches
+relevance_threshold: 0.20          # redução relativa de referência (não é ganho esperado)
+power: {target: 0.80, alpha: 0.05, test: randomization_sign_flip_one_sided, unit: go_batch, min_simulation_seeds: 10,
+        scenario: prospective,     # campaign_sim.py --scenario prospective (orçamento real; placebo e nulo = erro tipo I)
+        sizing: batches,           # --scenario batches: poder × nº de lotes de GO com as mesmas 60 sínteses
+        factorial: factorial}      # --scenario factorial: poder do 2×2 por nº de réplicas (docs/SIMULACOES.md)
+confidence_interval: {method: paired_bootstrap, level: 0.95, resamples: 5000}
+
+# ---------------------------------------------------------------- sustentabilidade e valor da informação (§4.14)
+sustainability:
+  boundary: [synthesis, characterization]
+  flows: [without_extra_characterization, with_extra_characterization]
+  basic_characterization: [UV-Vis]  # fluxo "sem caracterização adicional"; o resto (TEM, XPS, DLS…) é a adicional
+  cpu_lambda: 1.0                  # RASCUNHO: λ de CPU = custo / (Δperda + λ·Δincerteza), mesma escala de log J
+  value_per_unit_information: 2000.0   # RASCUNHO (BRL): quanto vale 1 unidade de (Δlog J + λ·Δincerteza);
+                                       # caracterizar compensa se o CPU incremental ≤ este valor
+  currency: BRL
+miso:
+  sources:                # fontes de informação e custos relativos (RASCUNHO: ajustar ao laboratório)
+    - {name: UV-Vis, cost: 1.0, quantity: LSPR_nm, to_size: mie_lspr}   # tamanho pela inversão de Mie do LSPR
+    - {name: DLS, cost: 2.0, quantity: hydrodynamic_nm}
+    - {name: TEM, cost: 20.0, quantity: size_mean_nm}
+    - {name: SAXS, cost: 50.0, quantity: size_mean_nm, available: false}  # colaboração condicional (§4.12)
+  # XPS não mede tamanho de AuNP: entra no valor da informação da caracterização do GO (code/decision/voi.py).
+  target_source: TEM
+  recommendation: confirmed   # recomenda o melhor entre os pontos medidos pela fonte-alvo (simulação: 4× melhor)
+  models: [MGP, ICM, PCM]
+  objective: {quantity: size_mean_nm, transform: neg_squared_log_ratio, target: 20.0}   # y = −[ln(d/20)]²
+  budget: 160.0           # custo total por campanha simulada (unidades de custo acima)
+
+value_of_information:     # §4.14: caracterizar um lote NOVO de GO antes de sintetizar compensa? (code/decision/voi.py)
+  objective: spectral_loss_J        # utilidade = esse objetivo na escala do modelo (maximização, log se em log_transform)
+  representation: go
+  technique_costs: {XPS: 450.0, Raman: 60.0, FTIR: 40.0, XRD: 80.0, TGA: 70.0, AFM: 150.0, DLS: 30.0}  # RASCUNHO (BRL/lote)
+  default_noise_z: 0.3    # ruído de medida em unidades de desvio ENTRE lotes, se não houver réplicas
+  prior_samples: 2000
+  measurement_samples: 400
+
+random_seed: 20261001
+amendments: []            # [{date: AAAA-MM-DD, change: "...", reason: "...", before_unblinding: true}]

@@ -15,7 +15,7 @@ subprojeto continuam dentro dele (ex.: `projects/multi-fidelity/chem-MFBO/data/`
 | [`xrd-ceo2-calibration/`](xrd-ceo2-calibration) | Frames de detector de área GE (`.ge3`: 5 × 2048×2048, uint16, cabeçalho de 8 192 bytes) de CeO₂ (padrão de calibração) e de escuro; `dark_after_000413.ge3` é **LFS** | 201 MB | difração de raios X (APS); leitura com `fabio`/`pyFAI` |
 | [`reagents/`](reagents) | **dicionário de reagentes normalizado** (67 entidades; HAuCl4 e seus 244 sinônimos → CID 28133; validado contra os regex de Cruse: 99,1 %), fichas PubChem resumidas, normalização dos materiais de Cruse et al. | 130 KB | gerado por `tools/data_sources/reagents.py` a partir de `pubchem/` |
 | [`literature-seed/`](literature-seed) | **semente GO–AuNP**: 15 928 sínteses de Au (Cruse + NSP + AuNCs) com reagentes normalizados; `go_aunp_subset.csv` = 312 registros que citam GO/rGO | 10 MB | gerado por `tools/data_sources/build_literature_seed.py` |
-| [`data-model/`](data-model) | modelo de dados do laboratório (11 tabelas: + impurezas dos reagentes e espectros brutos; dicionário, JSON Schema) — NanoCommons/eNanoMapper | 100 KB | `tools/data_sources/lab_data_model.py` |
+| [`data-model/`](data-model) | modelo de dados do laboratório (13 tabelas: + impurezas dos reagentes, espectros brutos, recursos e QC; dicionário, JSON Schema) — NanoCommons/eNanoMapper | 100 KB | `tools/data_sources/lab_data_model.py` |
 | [`optical-constants/`](optical-constants) | constantes ópticas n, k de Au (Johnson & Christy 1972; McPeak 2015) e Ag, do refractiveindex.info (CC0) — usadas nos espectros de Mie | 20 KB | refractiveindex.info |
 | [`lab/`](lab) | dados experimentais do projeto (a preencher com os modelos de `data-model/`) | — | laboratório |
 

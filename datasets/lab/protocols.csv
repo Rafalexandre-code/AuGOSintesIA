@@ -1,0 +1,9 @@
+protocol_id,title,version,file,doi,description
+SOP-UVVIS-01,UV-Vis padronizado das sínteses GO–AuNP,0.1,protocols/SOP-UVVIS-01.md,,"faixa, branco de GO, janela de tempo, diluição, duplicata de leitura, sₘ do piloto"
+SOP-AUNP-SYN-01,Síntese de AuNP in situ sobre GO,0.1,protocols/SOP-AUNP-SYN-01.md,,"execução das vagas do plano, controles, registro de falhas"
+SOP-GO-DISP-01,Preparo da dispersão de GO,0.1,protocols/SOP-GO-DISP-01.md,,"sonicação, centrifugação, idade da dispersão"
+SOP-GO-CHAR-01,Caracterização dos lotes de GO,0.1,protocols/SOP-GO-CHAR-01.md,,"XPS, Raman, FTIR, XRD, DLS/zeta, AFM; réplicas e processamento"
+SOP-REAG-01,Recebimento e análise de lotes de reagentes,0.1,protocols/SOP-REAG-01.md,,"CoA, iodeto em CTAB, metais traço, água; fatorial 2×2; OCP"
+SOP-TEM-01,TEM para tamanho e associação ao GO,0.1,protocols/SOP-TEM-01.md,,"campos sistemáticos, >= 300 partículas, fração sobre o GO"
+SOP-DLS-01,DLS e potencial zeta,0.1,protocols/SOP-DLS-01.md,,"cumulantes (ISO 22412) a partir de g2(τ)"
+SOP-DATA-01,"Registro, validação e versionamento dos dados",0.1,protocols/SOP-DATA-01.md,,"validação, QC, Instance Map, congelamento do pré-registro"

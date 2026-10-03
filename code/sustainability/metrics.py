@@ -1,21 +1,36 @@
 #!/usr/bin/env python3
 """Sustentabilidade e custo-benefício (§4.14), fronteira do sistema = síntese + caracterização.
 
-* E-factor simplificado = massa de resíduos / massa de produto (Sheldon).
+* E-factor simplificado = massa de resíduos / massa de produto (Sheldon). Em `from-lab` saem as duas formas de
+  Sheldon (Green Chem. 2017, 19, 18): sEF (sem água: insumos não aquosos − produto) e cEF (com água: resíduos medidos).
 * EcoScale (Van Aken, Strekowski & Patiny, Beilstein J. Org. Chem. 2006, 2, 3): 100 − Σ penalidades. A penalidade
   de rendimento, (100 − rendimento%)/2, é calculada aqui; as demais (preço, segurança, montagem, temperatura/tempo,
   isolamento) devem ser atribuídas a partir da tabela do artigo e passadas em `penalties` — não são inventadas aqui.
 * Custo por informação útil: CPU = custo total / (Δperda acumulada + λ·Δincerteza), com λ definido a priori.
-* Comparação de dois fluxos (com e sem caracterização adicional) a partir das tabelas do laboratório.
+* Comparação de dois fluxos (com e sem caracterização adicional) a partir das tabelas do laboratório
+  (`from-lab`): a tabela `resources` dá custo, massa de insumos e de resíduos por fluxo; a massa de produto vem das
+  sínteses (Au reduzido + GO); Δperda e Δincerteza do fluxo com caracterização vêm do valor da informação
+  (`code/decision/voi.py`, EVSI) ou da comparação de braços da campanha. λ e o conjunto "caracterização básica" são
+  os do pré-registro — nada é escolhido depois de ver os resultados.
 
 Uso:
     python code/sustainability/metrics.py --waste-g 12.4 --product-g 0.018 --yield 82 --penalty safety=10 --penalty price=3
     python code/sustainability/metrics.py --cpu --cost 350 --dloss 0.8 --dunc 0.15 --lam 2
+    python code/sustainability/metrics.py from-lab datasets/lab [--voi outputs/voi/voi.json]
+    python code/sustainability/metrics.py capex-opex            # custo por análise (config/sustainability_extensions.yaml)
+    python code/sustainability/metrics.py complexgapi --answers sintese.yaml   # pictograma ComplexGAPI (adaptado)
+Extensões condicionais (§4.14): CAPEX/OPEX por análise (investimento anualizado pelo fator de recuperação de capital
++ manutenção + consumíveis + mão de obra) e ComplexGAPI (parte de síntese; regras e limiares configuráveis).
 """
 from __future__ import annotations
 
 import argparse
 import json
+import os
+import sys
+
+AU_G_MOL = 196.967
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 
 def e_factor(waste_mass_g: float, product_mass_g: float) -> float:
@@ -45,7 +60,130 @@ def compare_flows(flow_a: dict, flow_b: dict, lam: float) -> dict:
     return out
 
 
+def product_mass_g(syn, char=None):
+    """Massa de produto por síntese: Au(0) = [Au(III)]·V·M·rendimento (+ GO = c_GO·V). Rendimento de
+    aunp_characterization (yield_pct) quando medido; senão 100 % (limite superior, marcado na saída)."""
+    import pandas as pd
+    v_l = pd.to_numeric(syn.get("total_volume_mL"), errors="coerce").fillna(10.0) / 1000.0
+    au = pd.to_numeric(syn["HAuCl4_mM"], errors="coerce").fillna(0) / 1000.0 * v_l * AU_G_MOL
+    y = pd.Series(1.0, index=syn.index)
+    if char is not None and not char.empty:
+        yy = char[char["quantity"] == "yield_pct"].groupby("synthesis_id")["value"].mean() / 100.0
+        y = syn["synthesis_id"].map(yy).fillna(1.0).clip(0, 1)
+    go = pd.to_numeric(syn.get("GO_mg_mL"), errors="coerce").fillna(0) / 1000.0 * v_l * 1000.0
+    return pd.Series((au * y + go).to_numpy(), index=syn["synthesis_id"])
+
+
+def flows_from_lab(lab: str, basic_techniques=("UV-Vis",)) -> dict:
+    """Custo, insumos, resíduos e E-factor de dois fluxos: só caracterização básica × com a adicional."""
+    import pandas as pd
+    res = pd.read_csv(os.path.join(lab, "resources.csv"))
+    syn = pd.read_csv(os.path.join(lab, "aunp_syntheses.csv"))
+    if "status" in syn:
+        syn = syn[syn["status"].fillna("done").astype(str) != "planned"]
+    char_p = os.path.join(lab, "aunp_characterization.csv")
+    char = pd.read_csv(char_p) if os.path.exists(char_p) else None
+    prod = float(product_mass_g(syn, char).sum())
+    tech = res["technique"].fillna("").astype(str)
+    is_water = res["item"].fillna("").astype(str).str.lower().str.contains("água|agua|water|h2o")
+    in_basic = (res["flow"] != "characterization") | tech.isin(basic_techniques)
+    out = {}
+    for name, sel in (("sem_caracterizacao_adicional", in_basic), ("com_caracterizacao_adicional", res.index == res.index)):
+        r = res[sel]
+        waste = pd.to_numeric(r.loc[r["category"] == "waste", "mass_g"], errors="coerce").sum()
+        mass = pd.to_numeric(r["mass_g"], errors="coerce")
+        is_in = r["category"].isin(["reagent", "solvent", "consumable"])
+        inputs = mass[is_in].sum()
+        inputs_dry = mass[is_in & ~is_water[sel]].sum()
+        out[name] = {"cost": float(pd.to_numeric(r["cost"], errors="coerce").sum()), "waste_g": float(waste),
+                     "inputs_g": float(inputs), "product_g": prod,
+                     "sEF": e_factor(max(float(inputs_dry) - prod, 0.0), prod) if prod > 0 else float("nan"),
+                     "cEF": e_factor(float(waste), prod) if prod > 0 and waste > 0 else
+                     (e_factor(float(inputs) - prod, prod) if prod > 0 else float("nan")),
+                     "cEF_basis": "resíduos medidos" if waste > 0 else "insumos − produto (sem resíduo registrado)",
+                     "instrument_h": float(pd.to_numeric(r.loc[r["category"] == "instrument_time", "amount"],
+                                                         errors="coerce").sum()),
+                     "energy_kWh": float(pd.to_numeric(r.loc[r["category"] == "energy", "amount"], errors="coerce").sum())}
+    out["product_mass_note"] = "rendimento medido" if char is not None and (char["quantity"] == "yield_pct").any() \
+        else "rendimento 100 % assumido (limite superior)"
+    return out
+
+
+def decide_characterization(flows: dict, delta_loss: float, delta_uncertainty: float, lam: float,
+                            value_per_unit: float | None = None, base_delta_loss: float = 0.0,
+                            base_delta_uncertainty: float = 0.0) -> dict:
+    """Caracterização adicional compensa se o custo por unidade de informação útil INCREMENTAL (custo extra /
+    (Δperda + λ·Δincerteza) extras) não passa do valor pré-registrado por unidade de informação."""
+    a = flows["sem_caracterizacao_adicional"]
+    b = flows["com_caracterizacao_adicional"]
+    extra_cost = b["cost"] - a["cost"]
+    cpu_inc = cost_per_useful_information(extra_cost, delta_loss - base_delta_loss,
+                                          delta_uncertainty - base_delta_uncertainty, lam)
+    return {"custo_adicional": extra_cost, "ganho_util": (delta_loss - base_delta_loss)
+            + lam * (delta_uncertainty - base_delta_uncertainty), "CPU_incremental": cpu_inc,
+            "valor_por_unidade_preregistrado": value_per_unit,
+            "caracterizacao_compensa": None if value_per_unit is None else bool(cpu_inc <= value_per_unit),
+            "sEF_adicional": b["sEF"] - a["sEF"], "cEF_adicional": b["cEF"] - a["cEF"]}
+
+
+# ---------------------------------------------------------------------------------------------- extensões condicionais
+
+def capital_recovery_factor(rate: float, years: float) -> float:
+    return rate * (1 + rate) ** years / ((1 + rate) ** years - 1) if rate > 0 else 1 / years
+
+
+def capex_opex(cfg: dict) -> dict:
+    """Custo por análise = (investimento anualizado + manutenção)/análises por ano + consumíveis + mão de obra."""
+    r = float(cfg.get("discount_rate", 0.08))
+    out = {}
+    for tech, ins in cfg["instruments"].items():
+        annual = float(ins["capex"]) * capital_recovery_factor(r, float(ins["lifetime_years"]))
+        capex_pa = (annual + float(ins.get("maintenance_per_year", 0))) / float(ins["analyses_per_year"])
+        opex_pa = float(cfg.get("consumables_per_analysis", {}).get(tech, 0)) + \
+            float(cfg.get("labor_hours_per_analysis", {}).get(tech, 0)) * float(cfg.get("labor_rate_per_hour", 0))
+        out[tech] = {"capex_per_analysis": capex_pa, "opex_per_analysis": opex_pa,
+                     "total_per_analysis": capex_pa + opex_pa, "currency": cfg.get("currency", "")}
+    return out
+
+
+def complexgapi(answers: dict, criteria: dict) -> dict:
+    """Verde/amarelo/vermelho por critério segundo as regras configuradas; resumo e pictograma em texto."""
+    color = {}
+    for k, rule in criteria.items():
+        if k not in answers or answers[k] is None:
+            color[k] = "n/a"
+            continue
+        v, t = answers[k], rule["type"]
+        if t == "numeric":
+            color[k] = "green" if v >= rule["green_min"] else "yellow" if v >= rule["yellow_min"] else "red"
+        elif t == "numeric_max":
+            color[k] = "green" if v <= rule["green_max"] else "yellow" if v <= rule["yellow_max"] else "red"
+        else:
+            color[k] = next((c for c in ("green", "yellow") if v in rule.get(c, [])), "red")
+    n = {c: sum(1 for x in color.values() if x == c) for c in ("green", "yellow", "red")}
+    sym = {"green": "G", "yellow": "Y", "red": "R", "n/a": "-"}
+    return {"criteria": color, "counts": n, "pictogram": "".join(sym[color[k]] for k in criteria),
+            "score": (n["green"] + 0.5 * n["yellow"]) / max(sum(n.values()), 1)}
+
+
 def main() -> None:
+    if len(sys.argv) > 1 and sys.argv[1] == "from-lab":
+        return main_from_lab(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] in ("capex-opex", "complexgapi"):
+        import yaml
+        ap = argparse.ArgumentParser(prog=f"metrics.py {sys.argv[1]}")
+        ap.add_argument("--config", default=os.path.join(ROOT, "config", "sustainability_extensions.yaml"))
+        ap.add_argument("--answers", help="YAML/JSON com as respostas do ComplexGAPI (ex.: yield_pct: 85)")
+        a = ap.parse_args(sys.argv[2:])
+        cfg = yaml.safe_load(open(a.config, encoding="utf-8"))
+        if sys.argv[1] == "capex-opex":
+            res = capex_opex(cfg["capex_opex"])
+        else:
+            if not a.answers:
+                ap.error("complexgapi precisa de --answers")
+            res = complexgapi(yaml.safe_load(open(a.answers, encoding="utf-8")), cfg["complexgapi"]["criteria"])
+        print(json.dumps(res, indent=1, ensure_ascii=False))
+        return
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--waste-g", type=float)
     ap.add_argument("--product-g", type=float)
@@ -65,6 +203,30 @@ def main() -> None:
     if a.cpu:
         out["CPU"] = cost_per_useful_information(a.cost, a.dloss, a.dunc, a.lam)
     print(json.dumps(out, indent=1, ensure_ascii=False))
+
+
+def main_from_lab(argv) -> None:
+    ap = argparse.ArgumentParser(prog="metrics.py from-lab")
+    ap.add_argument("lab")
+    ap.add_argument("--voi", help="JSON do code/decision/voi.py (usa o EVSI como Δperda do fluxo com caracterização)")
+    ap.add_argument("--dloss", type=float, help="Δperda do fluxo com caracterização (alternativa ao --voi)")
+    ap.add_argument("--dunc", type=float, default=0.0)
+    a = ap.parse_args(argv)
+    sys.path.insert(0, os.path.join(ROOT, "code", "campaign"))
+    import prereg
+    cfg = prereg.load()
+    sus = cfg["sustainability"]
+    flows = flows_from_lab(a.lab, tuple(sus.get("basic_characterization", ["UV-Vis"])))
+    out = {"flows": flows, "lambda": float(sus["cpu_lambda"])}
+    dl, du = a.dloss, a.dunc
+    if a.voi:
+        v = json.load(open(a.voi, encoding="utf-8"))
+        dl = float(v["evsi_all_techniques"])
+        du = float(v.get("expected_sd_reduction_all", 0.0))
+    if dl is not None:
+        out["decision"] = decide_characterization(flows, dl, du, float(sus["cpu_lambda"]),
+                                                  sus.get("value_per_unit_information"))
+    print(json.dumps(out, indent=1, ensure_ascii=False, default=float))
 
 
 if __name__ == "__main__":

@@ -2,7 +2,8 @@
 """Modelo de dados do laboratório GO–AuNP (inspirado no NanoCommons KnowledgeBase / eNanoMapper / ACEnano).
 
 Cadeia: lote de reagente (+ análises de impurezas) → lote de GO → preparo da amostra → XPS/Raman/AFM… → descritores com incerteza por lote
-→ síntese de AuNP (condições + id do experimento do otimizador) → UV-Vis/TEM… → desfecho (objetivos/restrições).
+→ síntese de AuNP (condições + id do experimento do otimizador) → UV-Vis/TEM… → desfecho (objetivos/restrições);
+recursos consumidos/resíduos (sustentabilidade) e resultados de QC por síntese.
 Cada medida guarda valor, incerteza, tipo de incerteza, nº de réplicas, unidade, instrumento, protocolo e arquivo bruto
 — o equivalente ao "effect record" do eNanoMapper (substância → protocolo → resultado).
 
@@ -29,7 +30,7 @@ REAGENT_DICT = os.path.join(ROOT, "datasets", "reagents", "reagent_dictionary.cs
 # (coluna, tipo, obrigatória, unidade, descrição, vocabulário/FK)
 # tipo: id | fk:<tabela> | str | float | int | date | enum | list
 S, F, I, D, E, L = "str", "float", "int", "date", "enum", "list"
-UNC = ["sd", "sem", "ci95", "range", "instrument", "none"]
+UNC = ["sd", "sem", "ci95", "range", "instrument", "fit_se", "none"]
 MEAS_TAIL = [
     ("value", F, True, "", "valor medido/derivado", None),
     ("uncertainty", F, False, "", "incerteza do valor (mesma unidade)", None),
@@ -166,7 +167,7 @@ TABLES: dict[str, dict] = {
         ("measurement_id", "id", True, "", "ex.: M-AU-0001", None),
         ("synthesis_id", "fk:aunp_syntheses", True, "", "", None),
         ("technique", E, True, "", "técnica", ["UV-Vis", "TEM", "SEM", "DLS", "zeta", "XRD", "XPS", "ICP-OES",
-                                               "ICP-MS", "SERS", "catalysis", "other"]),
+                                               "ICP-MS", "SERS", "SAXS", "OCP", "catalysis", "other"]),
         ("quantity", S, True, "", "LSPR_nm, LSPR_FWHM_nm, A_LSPR, A400, size_mean_nm, size_sd_nm, n_particles, "
                                   "aspect_ratio, hydrodynamic_nm, PDI, zeta_mV, Au_loading_wt, yield_pct, k_app_s-1, spectral_loss_J, "
                                   "GO_associated_fraction …", None),
@@ -182,6 +183,30 @@ TABLES: dict[str, dict] = {
         ("derived_from", L, False, "", "measurement_id separados por |", None),
         ("model_version", S, False, "", "versão do modelo/otimizador que usou o dado", None),
         ("notes", S, False, "", "", None)]},
+    "resources": {"key": "resource_id", "doc": "Consumo e resíduos por síntese/caracterização (sustentabilidade, §4.14): reagentes, solventes, energia, tempo de instrumento, custo e massa de resíduo — base do E-factor e do custo por informação útil.", "cols": [
+        ("resource_id", "id", True, "", "ex.: RES-0001", None),
+        ("synthesis_id", "fk:aunp_syntheses", False, "", "síntese associada (vazio = preparo de GO/geral)", None),
+        ("go_batch_id", "fk:go_batches", False, "", "lote de GO associado (caracterização do lote)", None),
+        ("flow", E, True, "", "etapa dentro da fronteira do sistema", ["synthesis", "characterization",
+                                                                         "go_preparation", "other"]),
+        ("technique", S, False, "", "técnica de caracterização (UV-Vis, TEM, XPS…), se flow=characterization", None),
+        ("category", E, True, "", "tipo de recurso", ["reagent", "solvent", "consumable", "energy", "instrument_time",
+                                                       "labor", "waste"]),
+        ("item", S, True, "", "o que foi consumido/gerado (ex.: HAuCl4, água ultrapura, grade de TEM, resíduo aquoso de Au)", None),
+        ("lot_id", "fk:reagent_lots", False, "", "lote do reagente consumido", None),
+        ("amount", F, True, "", "quantidade na unidade abaixo", None),
+        ("unit", S, True, "", "g, mL, kWh, h, unidade…", None),
+        ("mass_g", F, False, "g", "massa (insumo ou resíduo) para o E-factor; água pode ser excluída (sEF)", None),
+        ("cost", F, False, "", "custo do item", None),
+        ("currency", S, False, "", "ex.: BRL", None),
+        ("date", D, False, "", "", None), ("operator", S, False, "", "", None),
+        ("notes", S, False, "", "", None)]},
+    "qc_results": {"key": ("synthesis_id", "check"), "doc": "Resultado do controle de qualidade por síntese (gerado por code/qc/qc_check.py com config/qc_criteria.yaml); sínteses com fail não entram no otimizador.", "cols": [
+        ("synthesis_id", "fk:aunp_syntheses", True, "", "", None),
+        ("check", S, True, "", "verificação (uvvis_duplicate_reads, tem_particle_count, control_chart_day_*…)", None),
+        ("status", E, True, "", "resultado", ["pass", "warn", "fail"]),
+        ("value", S, False, "", "valor observado", None), ("limit", S, False, "", "critério aplicado", None),
+        ("message", S, False, "", "", None)]},
 }
 ORDER = list(TABLES)
 

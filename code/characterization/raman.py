@@ -128,6 +128,9 @@ def main() -> None:
     ap.add_argument("--sample", default="SAMPLE")
     ap.add_argument("--out", help="CSV no formato go_characterization")
     ap.add_argument("--start", type=int, default=1, help="número inicial dos measurement_id (evita repetir IDs)")
+    ap.add_argument("--per-spectrum", help="CSV com o ajuste de CADA espectro (file, x, y, grandezas) para "
+                                           "raman_map.py; x, y de --positions ou do nome (…x12.5_y-3…)")
+    ap.add_argument("--positions", help="CSV file,x,y com a posição de cada espectro do mapa")
     a = ap.parse_args()
     fits = []
     for f in a.spectra:
@@ -135,6 +138,23 @@ def main() -> None:
         if a.baseline != "joint-linear":
             y = baseline_correct(x, y, a.baseline)
         fits.append(fit(x, y, a.model, joint_linear=a.baseline == "joint-linear"))
+    if a.per_spectrum:
+        import re
+        import pandas as pd
+        pos = pd.read_csv(a.positions).set_index("file") if a.positions else None
+        rows = []
+        for f, ft in zip(a.spectra, fits):
+            if pos is not None:
+                key = f if f in pos.index else os.path.basename(f)
+                x_, y_ = float(pos.loc[key, "x"]), float(pos.loc[key, "y"])
+            else:
+                m = re.search(r"x(-?\d+(?:\.\d+)?)[_-]?y(-?\d+(?:\.\d+)?)", os.path.basename(f))
+                if not m:
+                    ap.error(f"{f}: sem posição (use --positions)")
+                x_, y_ = float(m.group(1)), float(m.group(2))
+            rows.append({"file": f, "x": x_, "y": y_, **{k: ft[k][0] for k in KEEP if k in ft}})
+        pd.DataFrame(rows).to_csv(a.per_spectrum, index=False)
+        print(f"-> {a.per_spectrum} (use code/characterization/raman_map.py)")
     summ = summarize(fits)
     for k, (v, s, n, t) in summ.items():
         print(f"{k:14} {v:10.3f} ± {s if s is not None else float('nan'):.3f} ({t}, n={n})")

@@ -1,0 +1,35 @@
+# Critérios de controle de qualidade (QC) da campanha GO–AuNP (§4.4, §4.12, §4.17). Verificados por
+# code/qc/qc_check.py, que grava datasets/lab/qc_results.csv; o AuNP Designer não usa sínteses com status `fail`.
+# `warn` = registrar e discutir; `fail` = a medida não sustenta a decisão do otimizador (refazer a leitura/síntese).
+# Valores RASCUNHO: ajustar ao instrumento com os dados do piloto e registrar a mudança (data, motivo).
+
+version: 1
+uvvis:
+  time_after_prep_min: [15, 60]          # janela do SOP-UVVIS-01 (warn fora dela)
+  absorbance_max:
+    warn_below: 0.05                     # sinal fraco: J dominado por ruído
+    warn_above: 1.5                      # fora da faixa linear: diluir
+    fail_above: 2.5                      # saturação do detector
+  baseline_800_over_max:
+    warn_above: 0.25                     # espalhamento/agregação ou fundo de GO não subtraído
+  duplicate_reads:
+    required: 2                          # leituras da mesma alíquota (SOP-UVVIS-01, passo 5)
+    max_relative_rms: 0.05               # RMS(A1 − A2)/máx(A) acima disso: warn
+    fail_relative_rms: 0.15
+  require_blank_for_GO: true             # sínteses com GO precisam do branco de GO tratado
+  require_metadata: [dilution_factor, path_length_mm, time_after_prep_min]
+  lspr_nm: [500, 620]                    # fora disso: produto não plasmônico/agregado (warn)
+tem:
+  min_particles:
+    warn_below: 300
+    fail_below: 100
+go_dispersion:
+  max_age_days: 7
+synthesis:
+  unique_preparation: true               # alíquotas da mesma preparação não são sínteses novas (fail)
+control_chart:                           # cartas de controle nos controles sem GO / de referência
+  quantities: [LSPR_nm, A_LSPR]
+  baseline_points: 5                     # primeiros N controles definem média e desvio (fase I)
+  shewhart_k: 3.0
+  ewma_lambda: 0.2
+  ewma_L: 2.7

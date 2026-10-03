@@ -27,7 +27,7 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "spectral"))
 
 COMPONENTS = [("CC", 0.0), ("C-O", 2.0), ("C=O", 3.1), ("O-C=O", 4.2)]
-RSF_DEFAULT = {"C1s": 1.00, "O1s": 2.93}
+RSF_DEFAULT = {"C1s": 1.00, "O1s": 2.93, "N1s": 1.80, "S2p": 1.68}   # Scofield (C 1s = 1); ajuste ao instrumento
 
 
 def shirley(be: np.ndarray, y: np.ndarray, tol: float = 1e-6, max_iter: int = 100, n_end: int = 5) -> np.ndarray:
@@ -96,6 +96,21 @@ def c_over_o(area_c1s: float, area_o1s: float, rsf: dict | None = None) -> float
     return (area_c1s / rsf["C1s"]) / (area_o1s / rsf["O1s"])
 
 
+def survey_composition(areas: dict[str, float], rsf: dict | None = None) -> dict:
+    """Composição atômica pelo survey: at% de cada elemento e razões ao C (O/C, S/C — enxofre/organossulfatos do
+    método de Hummers, §4.2; N/C). Áreas por linha (ex.: {"C1s": …, "O1s": …, "S2p": …})."""
+    rsf = {**RSF_DEFAULT, **(rsf or {})}
+    n = {k: v / rsf[k] for k, v in areas.items()}
+    tot = sum(n.values())
+    out = {f"{k[:-2] if k[-1] in 'sp' else k}_at_pct": (100 * v / tot, None) for k, v in n.items()}
+    for k, v in n.items():
+        if k != "C1s" and "C1s" in n:
+            out[f"{k.rstrip('spd0123456789')}_C_ratio"] = (v / n["C1s"], None)
+    if "O1s" in n:
+        out["C_O_ratio"] = (n["C1s"] / n["O1s"], None)
+    return out
+
+
 def to_rows(results: dict, sample_id: str, files: str = "") -> list[dict]:
     rows = []
     for i, (q, (v, s)) in enumerate(results.items(), 1):
@@ -117,12 +132,16 @@ def main() -> None:
     ap.add_argument("--ref-cc", type=float, default=284.8)
     ap.add_argument("--survey-areas", nargs=2, type=float, metavar=("A_C1s", "A_O1s"))
     ap.add_argument("--rsf", nargs=2, type=float, metavar=("RSF_C", "RSF_O"))
+    ap.add_argument("--survey", nargs="+", metavar="LINHA=ÁREA", help="áreas do survey (ex.: C1s=… O1s=… S2p=…): "
+                                                                     "at%% e razões O/C, S/C, N/C")
     ap.add_argument("--sample", default="SAMPLE")
     ap.add_argument("--out")
     a = ap.parse_args()
     from uvvis import read_spectrum
     be, cts = read_spectrum(a.c1s)
     r = fit_c1s(be, cts, a.ref_cc)
+    if a.survey:
+        r.update(survey_composition({k: float(v) for k, v in (x.split("=", 1) for x in a.survey)}))
     if a.survey_areas:
         rsf = {"C1s": a.rsf[0], "O1s": a.rsf[1]} if a.rsf else None
         r["C_O_ratio"] = (c_over_o(*a.survey_areas, rsf), None)

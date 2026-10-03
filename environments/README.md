@@ -13,6 +13,23 @@ source .venvs/core/bin/activate
 O script usa [uv](https://docs.astral.sh/uv/) (instala até a versão de Python certa); sem uv, usa
 `python3.X -m venv` + pip. Os ambientes `conda` usam mamba/conda. `.venvs/` está no `.gitignore`.
 
+### Windows (PowerShell)
+
+```powershell
+git config --global core.longpaths true          # external/ tem caminhos longos
+powershell -ExecutionPolicy Bypass -File tools\setup_env.ps1 -List   # coluna "Windows ok" / "so WSL2"
+powershell -ExecutionPolicy Bypass -File tools\setup_env.ps1 core
+.\.venvs\core\Scripts\Activate.ps1
+python -m pytest code\tests -q
+```
+
+`tools/setup_env.ps1` instala `<nome>.windows.lock.txt`: as **mesmas versões** do lock de Linux, resolvidas para
+win_amd64 por `tools/lock_windows.sh` (rode-o depois de atualizar um lock; `tools/check_repo.py` acusa divergência).
+Há lock de Windows para 11 dos 14 ambientes uv; `jarvis` (LAMMPS com MPI), `atomgpt` e `qwen-llm` (CUDA/triton)
+não têm rodas para Windows — use o WSL2 (`wsl --install`) e, dentro dele, `tools/setup_env.sh <nome>`. Os scripts
+`.sh` restantes (`smoke_test.sh`, `fetch_external.sh`) rodam no Git Bash ou no WSL2; os de Python, em qualquer
+sistema. Se a ativação for bloqueada: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
+
 | Nome | Python | Para | Arquivos | Testado aqui |
 |---|---|---|---|---|
 | `core` | 3.12 | **projeto GO–AuNP** (`code/`): BoTorch, GPyTorch, Ax, BayBE, BoFire, Optuna, Bgolearn, SHAP, DoWhy, EconML, causal-learn, MAPIE, lmfit, pybaselines, scikit-image, RosettaSciIO, pyFAI, fabio, sasmodels, miepython, PyMieScatt, RamanSPy, pymoo, statsmodels, ASE, pytest | `core.in`, `core.lock.txt` | instalado e executado ✓ |
