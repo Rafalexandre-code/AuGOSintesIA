@@ -432,6 +432,21 @@ def _acq(model, tx, ty, name: str, camp: Campaign | None = None):
     return cls(model, ref_point=ref, X_baseline=tx, prune_baseline=True, **kw), ref
 
 
+def acquisition_values(camp: Campaign, space: dict, cands: pd.DataFrame, fixed: dict | None = None,
+                       acq: str | None = None, seed: int = 0) -> np.ndarray:
+    """Valor da MESMA aquisição do Designer (q = 1, com restrições) para candidatos externos — ex.: receitas do
+    design inverso do Neural Process (spectral/neural_process.py design --rank-with-gp). O GP decide; quem gera
+    candidatos pode ser outro modelo."""
+    import torch
+    torch.manual_seed(seed)
+    model, tx, ty, _ = build_model(camp, space)
+    af, _ = _acq(model, tx, ty, acq or default_acq(), camp)
+    X = pd.DataFrame({c: (cands[c].astype(float).to_numpy() if c in cands else float((fixed or {}).get(c, 0.0)))
+                      for c in camp.X.columns})
+    with torch.no_grad():
+        return af(torch.tensor(X.to_numpy(float), dtype=torch.double).unsqueeze(1)).numpy()
+
+
 def propose(camp: Campaign, space: dict, q: int = 4, fixed: dict | None = None, acq: str | None = None,
             novelty_w: float | None = None, seed: int = 0, lab: str | None = None) -> pd.DataFrame:
     import torch

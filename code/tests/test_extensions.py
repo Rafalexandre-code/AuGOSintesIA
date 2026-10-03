@@ -309,3 +309,25 @@ def test_deposit_build_and_zenodo_upload_sequence(tmp_path):
     calls.clear()
     r = zu.upload(folder, "tok", sandbox=True, concept="1", publish=True, call=fake)
     assert r["doi"] == "10.5072/zenodo.99" and calls[-1] == ("POST", "/99/actions/publish")
+
+
+def test_np_candidates_ranked_by_designer_acquisition(tmp_path):
+    """O NP gera, o GP decide: candidatos externos recebem a mesma aquisição do Designer; a proposta do próprio
+    Designer entra no ranking e um candidato no canto do espaço fica abaixo dela."""
+    import os
+    import designer
+    import neural_process as npmod
+    sys.path.insert(0, os.path.join(ROOT, "code", "sdl"))
+    import loop
+    lab = str(tmp_path / "lab")
+    loop.demo(rounds=1, q=1, seed=0, lab=lab)
+    space = designer.DEFAULT_SPACE
+    lo, hi = np.array([v[0] for v in space.values()]), np.array([v[1] for v in space.values()])
+    corner, center = lo.copy(), (lo + hi) / 2
+    res = {"candidates": np.vstack([corner, center]), "candidates_J_expected": np.array([1.0, 2.0]),
+           "candidates_from_observed": np.array([False, False])}
+    t = npmod.rank_with_gp(lab, res, list(space), "L2")
+    assert set(t["source"]) == {"NP", "Designer (GP)"} and t["acquisition_GP"].is_monotonic_decreasing
+    gp = t.loc[t["source"] == "Designer (GP)", "acquisition_GP"].iloc[0]
+    corner_row = t[(t["source"] == "NP") & np.isclose(t["HAuCl4_mM"], lo[0]) & np.isclose(t["pH"], lo[3])]
+    assert gp >= corner_row["acquisition_GP"].iloc[0]
