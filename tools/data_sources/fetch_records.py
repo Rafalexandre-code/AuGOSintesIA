@@ -29,7 +29,7 @@ UA = {"User-Agent": "AuGOSintesIA-fetch/1.0 (+https://github.com/Rafalexandre-co
 
 def load_registry() -> list[dict]:
     with open(REGISTRY, encoding="utf-8") as fh:
-        return list(csv.DictReader([l for l in fh if not l.startswith("#")], delimiter="\t"))
+        return list(csv.DictReader([line for line in fh if not line.startswith("#")], delimiter="\t"))
 
 
 def _get_json(url: str) -> dict | list:

@@ -96,7 +96,7 @@ def read_jsonl(path: str) -> list[dict]:
     if not os.path.exists(path):
         sys.exit(f"falta {path}: rode a etapa anterior")
     with open(path, encoding="utf-8") as fh:
-        return [json.loads(l) for l in fh if l.strip()]
+        return [json.loads(line) for line in fh if line.strip()]
 
 
 def write_jsonl(path: str, rows) -> None:
@@ -175,10 +175,10 @@ def stage_crossref(a) -> None:
         links = m.get("link") or []
         rel = m.get("relation") or {}
         w["publisher"] = m.get("publisher", "")
-        w["license"] = "|".join(sorted({l.get("URL", "") for l in m.get("license") or []}))
-        w["crossref_links"] = "|".join(f"{l.get('content-type', '')}={l.get('URL', '')}" for l in links)[:1000]
+        w["license"] = "|".join(sorted({lk.get("URL", "") for lk in m.get("license") or []}))
+        w["crossref_links"] = "|".join(f"{lk.get('content-type', '')}={lk.get('URL', '')}" for lk in links)[:1000]
         w["supplement_hint"] = int(any("supplement" in k or k == "has-part" for k in rel)
-                                   or any("suppl" in (l.get("URL") or "").lower() for l in links))
+                                   or any("suppl" in (lk.get("URL") or "").lower() for lk in links))
         w["is_retracted_or_updated"] = int(bool(m.get("update-to")) or bool(m.get("updated-by")))
         if not w.get("title") and m.get("title"):
             w["title"] = m["title"][0]

@@ -81,7 +81,8 @@ def py_syntax() -> list[str]:
             for i, c in enumerate(nb.get("cells", [])):
                 if c.get("cell_type") != "code":
                     continue
-                src = "\n".join(l for l in "".join(c["source"]).split("\n") if not l.lstrip().startswith(("%", "!")))
+                code = "".join(c["source"]).split("\n")
+                src = "\n".join(line for line in code if not line.lstrip().startswith(("%", "!")))
                 if re.fullmatch(r"\s*pip .*", src or ""):
                     continue
                 try:
@@ -133,8 +134,9 @@ def environments() -> list[str]:
 
 def external() -> list[str]:
     out = []
-    lock = [l.split("\t")[:2] for l in open(os.path.join(ROOT, "tools", "external_repos.lock.tsv"), encoding="utf-8")
-            if not l.startswith("#") and l.strip()]
+    lock_file = os.path.join(ROOT, "tools", "external_repos.lock.tsv")
+    lock = [line.split("\t")[:2] for line in open(lock_file, encoding="utf-8")
+            if not line.startswith("#") and line.strip()]
     want = {f"{c}/{n}" for c, n in lock}
     have = {os.path.relpath(p, os.path.join(ROOT, "external")) for p in glob.glob(os.path.join(ROOT, "external", "*", "*"))
             if os.path.isdir(p)}
@@ -151,10 +153,10 @@ def external() -> list[str]:
 
 def sources() -> list[str]:
     out = []
-    lines = [l for l in open(os.path.join(ROOT, "tools", "data_sources", "sources.tsv"), encoding="utf-8")
-             if not l.startswith("#")][1:]
-    for l in lines:
-        cols = l.rstrip("\n").split("\t")
+    lines = [line for line in open(os.path.join(ROOT, "tools", "data_sources", "sources.tsv"), encoding="utf-8")
+             if not line.startswith("#")][1:]
+    for line in lines:
+        cols = line.rstrip("\n").split("\t")
         for p in cols[5].split("|"):
             if p not in ("-", "") and not os.path.exists(os.path.join(ROOT, p)):
                 out.append(f"{cols[0]}: caminho local inexistente {p}")

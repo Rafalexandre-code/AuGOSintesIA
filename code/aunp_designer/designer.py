@@ -330,13 +330,15 @@ def _bounds(camp: Campaign, space: dict):
     lo, hi = [], []
     for c in camp.X.columns:
         if c in space:
-            lo.append(space[c][0]); hi.append(space[c][1])
+            a, b = space[c]
         elif c == camp.task_col:
-            lo.append(0.0); hi.append(float(max(camp.task_map.values(), default=0)))
+            a, b = 0.0, float(max(camp.task_map.values(), default=0))
         elif c in camp.level_cols:
-            lo.append(0.0); hi.append(float(max(camp.level_maps[c].values(), default=0)) + 1.0)
+            a, b = 0.0, float(max(camp.level_maps[c].values(), default=0)) + 1.0
         else:
-            lo.append(float(camp.X[c].min()) - 1.0); hi.append(float(camp.X[c].max()) + 1.0)
+            a, b = float(camp.X[c].min()) - 1.0, float(camp.X[c].max()) + 1.0
+        lo.append(a)
+        hi.append(b)
     return torch.tensor([lo, hi], dtype=torch.double)
 
 

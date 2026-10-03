@@ -32,7 +32,7 @@ def load_nk(material: str = "Au") -> tuple[np.ndarray, np.ndarray]:
     import yaml
     path = os.path.join(OPTICAL, DATASETS[material])
     d = yaml.safe_load(open(path, encoding="utf-8"))
-    rows = np.array([[float(x) for x in l.split()] for l in d["DATA"][0]["data"].strip().splitlines()])
+    rows = np.array([[float(x) for x in line.split()] for line in d["DATA"][0]["data"].strip().splitlines()])
     return rows[:, 0] * 1000.0, rows[:, 1] - 1j * rows[:, 2]
 
 

@@ -189,7 +189,7 @@ def _split(v: str) -> list[str]:
 
 def load_aliases(path: str = ALIASES) -> list[dict]:
     with open(path, encoding="utf-8") as fh:
-        rows = [l for l in fh if not l.startswith("#")]
+        rows = [line for line in fh if not line.startswith("#")]
     return list(csv.DictReader(rows, delimiter="\t"))
 
 

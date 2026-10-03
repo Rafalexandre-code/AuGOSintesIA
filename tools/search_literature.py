@@ -53,7 +53,7 @@ def main() -> None:
     ap.add_argument("--tipo", help="filtra o tipo do trecho (texto, misto, referência, figura…)")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args()
-    chunks = [json.loads(l) for l in open(CHUNKS, encoding="utf-8")]
+    chunks = [json.loads(line) for line in open(CHUNKS, encoding="utf-8")]
     if a.tipo:
         chunks = [c for c in chunks if c.get("tipo") == a.tipo]
     else:  # listas de referências poluem a busca

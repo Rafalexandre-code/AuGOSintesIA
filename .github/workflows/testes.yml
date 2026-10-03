@@ -1,4 +1,4 @@
-# Verificação automática do código do projeto (ambiente core): estrutura do repositório, pyflakes e os testes de
+# Verificação automática do código do projeto (ambiente core): estrutura do repositório, ruff e os testes de
 # code/tests. Sem Git LFS (a cota gratuita de banda é 1 GB/mês; os testes não usam esses arquivos) e sem --regen
 # (precisa dos datasets em LFS) — esses dois ficam para `python tools/check_repo.py --regen` local.
 name: testes
@@ -23,8 +23,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-      - name: pyflakes (erros, não estilo)
-        run: uvx ruff@0.15.8 check --select F,E9 code tools
+      - name: ruff (config em ruff.toml)
+        run: uvx ruff@0.15.8 check code tools
       - name: check_repo (sem LFS)
         run: |
           uv venv -p 3.12 .venvs/ci
