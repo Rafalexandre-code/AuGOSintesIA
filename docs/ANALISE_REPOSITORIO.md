@@ -48,6 +48,8 @@
 16. [Ecossistema JARVIS e design inverso atomístico GO–Au](#16-ecossistema-jarvis-e-design-inverso-atomístico-goau)
 17. [Fechamento do checklist do núcleo da proposta (2026-10-02)](#17-fechamento-do-checklist-do-núcleo-da-proposta-2026-10-02)
 18. [Segunda auditoria: desenho estatístico e itens restantes (2026-10-02)](#18-segunda-auditoria-desenho-estatístico-e-itens-restantes-2026-10-02)
+19. [Terceira auditoria: da bancada ao modelo (2026-10-03)](#19-terceira-auditoria-da-bancada-ao-modelo-2026-10-03)
+20. [A proposta com os dados experimentais disponíveis: o site (2026-10-04)](#20-a-proposta-com-os-dados-experimentais-disponíveis-o-site-2026-10-04)
 
 ---
 
@@ -1348,4 +1350,38 @@ Continuam fora do alcance do código: medir (piloto, lotes, sínteses) e então 
 simulações antes do `freeze`; decidir com o orientador o `premise_test`; rodar o extrator LLM (Qwen3-14B LoRA,
 exige GPU e acesso ao Hugging Face); publicar o DOI (conta no Zenodo); habilitar o GitHub Actions no repositório,
 se estiver desligado.
+
+---
+
+## 20. A proposta com os dados experimentais disponíveis: o site (2026-10-04)
+
+`datasets/lab/` ainda não tem medidas do projeto. Para executar a proposta desde já **sem o simulador**, os métodos
+foram aplicados às medidas reais e publicadas que o repositório já tem, e os resultados ficam num site interativo:
+**[`site/index.html`](../site/README.md)** (abre com duplo clique; 10 abas, gráficos 2D e 3D Plotly, temas claro e
+escuro, uso no celular). O código fica em `code/webapp/`: `expdata.py` carrega só dados experimentais,
+`analyses.py` faz as análises por seção, `build_site.py` gera `site/`, e `app.js` desenha os gráficos e roda no
+navegador o GP do Designer (mesma conta do GPyTorch) e o Mie + perda J (mesma conta de `uvvis.spectral_loss_J`).
+
+| Seção | Dados reais usados | Resultado |
+|---|---|---|
+| §4.1, §4.3 | 15 928 sínteses de Au de 5 132 DOIs (Cruse 2022, NSP 2026, AuNC 2025); 312 registros GO–AuNP de 120 artigos | filtros por base, redutor, morfologia, rota e GO; tamanho mediano 15 nm |
+| §4.4, §4.6, §4.10 | n, k do Au (Johnson & Christy) + 798 pares tamanho–pico relatados | Mie (σ = 10 %) prevê o LSPR com erro mediano de **4,0 nm** (53 % dentro de 5 nm); no alvo do pré-registro, J ≈ 0, como deve |
+| §4.5, §4.18 | campanha AgNP em microfluídica (Mekki-Berrada 2021): 3 295 medidas, 164 condições, perda espectral contra alvo | GP Matérn-5/2 + ARD em ln(perda): **R² 0,93** em 10 dobras, cobertura do IC 95 % de 92 %; 5 sugestões por EI |
+| §4.15, §4.16 | 5 campanhas experimentais (AgNP + 4 de Liang 2021), 20 repetições por estratégia | experimentos até o top 5 % (mediana): GP-EI ganha em AgNP (10 × 13,5 ao acaso), P3HT/CNT (7,5 × 9) e crossed barrel (9,5 × 20), e **perde** em perovskitas (15 × 13,5) e AutoAM (15 × 10) |
+| §4.13 | GP AgNP (SHAP exato), AuNC e literatura (TreeSHAP) | AgNP: AgNO₃ > sementes > citrato, interação H² até 0,13; literatura: NaBH₄, rota com sementes e CTAB movem o tamanho |
+| §4.7, §4.17 | réplicas AgNP; Turkevich (citrato, sem sementes, esfera) em 1 746 artigos; AuNC por artigo | ruído **heteroscedástico** (Brown–Forsythe p < 10⁻¹⁰⁰), ICC 0,95, CV mediano 4,9 %; a mesma rota dá 8,7–45,6 nm (10–90 %), fator ×1,94 por dp; prever emissão de AuNC para um **artigo novo** cai de R² 0,23 para −0,04 |
+| §4.9 | 5 933 sínteses NaBH₄ × citrato | IPW com 7 covariáveis (SMD < 0,1 após o ajuste): tamanho **×0,48** (IC 95 % 0,45–0,52), E-value 3,6 |
+| §4.2 | 5 quadros GE de CeO₂ + dark (2048²) | centro pelo contraste do perfil radial; **14 anéis** da fluorita indexados, r = D·tan 2θ: λ = 0,1956 Å (63,4 keV), D = 4 118 px, resíduo RMS 0,08 px |
+
+Como ler: os números de §4.15 são reamostragens das medidas reais (cada estratégia só escolhe entre condições
+medidas), não simulação; o resultado misto é a razão de o projeto comparar braços em vez de assumir que o GP ganha.
+A análise causal é observacional. Mineração de texto erra: os filtros físicos removem os erros grosseiros, e o tamanho
+de Cruse et al. é por artigo. O que exige as sínteses GO–AuNP do próprio projeto (lotes de GO e GO Navigator, braços
+contextuais e transferência entre lotes, MISO, campanha prospectiva e confirmação por TEM) aparece no site como
+"aguarda o laboratório", com o código já pronto em `code/`.
+
+```bash
+python code/webapp/build_site.py             # refaz as análises e o site (~5 min)
+python -m pytest code/tests/test_webapp.py   # GP do navegador = GPyTorch, J = pré-registro, nada simulado
+```
 
