@@ -1381,6 +1381,9 @@ de Cruse et al. é por artigo. O que exige as sínteses GO–AuNP do próprio pr
 contextuais e transferência entre lotes, MISO, campanha prospectiva e confirmação por TEM) aparece no site como
 "aguarda o laboratório", com o código já pronto em `code/`.
 
+Desenho: navegação lateral por etapa da proposta, ficha Dados · Método · Achado por aba, figuras numeradas, busca
+rápida (Ctrl K) e a cor real do ouro coloidal calculada por Mie + colorimetria CIE (faixa de cores por tamanho,
+superfície 3D colorida e cubeta interativa na aba Óptica).
 Recursos do painel: cada aba guarda o estado (filtros, controles) ao trocar o tema; controles redesenham uma vez por
 quadro; gráficos ampliáveis em tela cheia; clique num ponto da literatura para ver o artigo; exemplos prontos na aba
 Óptica; medidas próximas do corte em destaque no Designer; anéis ajustados sobre a imagem do detector; glossário.

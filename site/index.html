@@ -10,10 +10,11 @@
 <link rel="stylesheet" href="assets/app.css">
 </head>
 <body>
+<div class="boot" id="boot" aria-hidden="true"><div class="boot-in"><div class="boot-au"></div>carregando os dados experimentais</div></div>
 <a class="skip" href="#main">Pular para o conteúdo</a>
 <header class="top">
   <div class="top-inner">
-    <div class="brand">
+    <a class="brand" href="#visao" aria-label="AuGOSintesIA: visão geral">
       <svg class="mark" viewBox="0 0 40 40" aria-hidden="true">
         <defs><radialGradient id="au" cx="38%" cy="34%" r="70%"><stop offset="0" stop-color="#ffe3a3"/><stop offset=".55" stop-color="#d9a33a"/><stop offset="1" stop-color="#8c5a12"/></radialGradient></defs>
         <g fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.1">
@@ -22,64 +23,78 @@
         </g>
         <circle cx="20" cy="20" r="7.2" fill="url(#au)"/>
       </svg>
-      <div style="min-width:0">
-        <div class="brand-name">AuGO<b>Sintes</b>IA</div>
-        <div class="brand-sub">Aprendizado ativo para nanocompósitos GO–AuNP · IC FAPESP · UNESP-IQ Araraquara</div>
-      </div>
-    </div>
-    <div class="top-mid"><span class="prov"><i></i>Somente dados experimentais medidos e publicados</span></div>
+      <span style="min-width:0"><span class="brand-name">AuGO<b>Sintes</b>IA</span><br>
+        <span class="brand-sub">Aprendizado ativo para nanocompósitos GO–AuNP · IC FAPESP · UNESP-IQ</span></span>
+    </a>
+    <span class="top-gap"></span>
+    <button class="find-btn" id="findBtn" type="button" aria-haspopup="dialog">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M13.5 13.5L18 18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      <span>Buscar gráfico ou seção</span><kbd>Ctrl K</kbd></button>
+    <span class="prov"><i></i>Somente dados experimentais</span>
     <button class="theme-btn" id="themeBtn" type="button" aria-pressed="false">
       <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 3a7 7 0 0 1 0 14z" fill="currentColor"/></svg>
       <span id="themeLbl">Tema escuro</span></button>
   </div>
-  <nav class="tabs" role="tablist" aria-label="Seções do projeto" id="tabs"></nav>
 </header>
-
+<div class="shell">
+<nav class="rail" id="tabs" aria-label="Seções do projeto"></nav>
 <main id="main" tabindex="-1">
   <!-- ================================================================== visão geral -->
-  <section class="panel" id="p-visao" role="tabpanel" aria-labelledby="t-visao">
+  <section class="panel" id="p-visao" aria-labelledby="t-visao">
     <div class="hero">
-      <div class="hero-txt">
-        <span class="eyebrow">Plataforma de aprendizado ativo · proposta FAPESP</span>
-        <h1>O que os dados experimentais já dizem sobre sintetizar nanopartículas de ouro sob variabilidade de matéria-prima</h1>
-        <p>Cada número desta página vem de uma medida: sínteses relatadas em 5 132 artigos, uma campanha real de
-          nanopartículas em microfluídica com 3 295 medidas, outras quatro campanhas de laboratório autônomo, a emissão de 207
-          nanoaglomerados de ouro, quadros de difração de um padrão e as constantes ópticas medidas do ouro. Os métodos da
-          proposta (GP com melhoria esperada, SHAP, inferência causal, aprendizado ativo e teoria de Mie) foram aplicados a
-          esses dados. Nada aqui vem do simulador do projeto.</p>
-        <div class="legend-row">
-          <span class="chip exp"><span class="dot"></span>feito com dados experimentais</span>
-          <span class="chip par"><span class="dot"></span>parcial: parte depende do laboratório</span>
-          <span class="chip lab"><span class="dot"></span>aguarda as medidas do projeto</span>
+      <canvas class="fx" id="fx" aria-hidden="true"></canvas>
+      <div class="hero-grid">
+        <div>
+          <span class="eyebrow">Plataforma de aprendizado ativo · proposta FAPESP</span>
+          <h1>O que os dados experimentais já dizem sobre sintetizar <em>nanopartículas de ouro</em> sob variabilidade de matéria-prima</h1>
+          <p>Cada número desta página vem de uma medida: sínteses relatadas em 5 132 artigos, cinco campanhas de laboratório
+            autônomo, a emissão de 207 nanoaglomerados de ouro, quadros de difração de um padrão e as constantes ópticas
+            medidas do ouro. Os métodos da proposta (GP com melhoria esperada, SHAP, inferência causal, aprendizado ativo e
+            teoria de Mie) foram aplicados a esses dados. Nada aqui vem do simulador do projeto.</p>
+          <div class="cta">
+            <a class="primary" href="#designer"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12M4 10h12M4 14h12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="8" cy="6" r="2" fill="#f3c96b" stroke="currentColor" stroke-width="1.5"/><circle cx="13" cy="10" r="2" fill="#f3c96b" stroke="currentColor" stroke-width="1.5"/><circle cx="7" cy="14" r="2" fill="#f3c96b" stroke="currentColor" stroke-width="1.5"/></svg>Testar o AuNP Designer</a>
+            <a class="ghost" href="#achados" id="ctaFind">Ver os achados</a>
+            <a class="ghost" href="#optica">Mie e perda J</a>
+          </div>
+          <div class="counters" id="ov-count"></div>
         </div>
+        <div class="hero-vis"><span class="hero-cap">Extinção de AuNP por Mie · cor = cor real da dispersão</span><div class="plot" id="ov-hero"></div></div>
       </div>
-      <div class="card hero-vis"><div class="card-h"><div><h2 class="t3">Espectro de extinção de AuNP por teoria de Mie</h2>
-        <p>Constantes ópticas medidas do Au (Johnson &amp; Christy, 1972), 2–200 nm. Arraste para girar.</p></div></div>
-        <div class="card-b"><div class="plot" id="ov-hero"></div></div></div>
+      <div class="strip-wrap">
+        <div class="strip-head"><b>A cor do ouro coloidal, do aglomerado de 2 nm à partícula de 200 nm</b>
+          <span>Mie com n e k medidos, iluminante D65, observador CIE 1931; mesma massa de ouro em todos os tamanhos</span></div>
+        <div class="strip" id="ov-strip" tabindex="0" role="img" aria-label="Faixa de cores do ouro coloidal por tamanho: rubi até cerca de 60 nm, púrpura perto de 80 nm e azul-acinzentado acima de 100 nm"><span class="strip-tip" id="ov-strip-tip"></span></div>
+        <div class="strip-ticks" id="ov-ticks"></div>
+      </div>
     </div>
-    <div class="kpis" id="ov-kpis"></div>
-    <div class="card"><div class="card-h"><div><h2 class="t3">O que os dados mostram</h2>
-      <p>Os resultados principais de cada seção. Clique para abrir a análise completa.</p></div></div>
-      <div class="card-b pad"><div class="finds" id="ov-find"></div></div></div>
+    <div class="block-h" id="achados"><div><span class="eyebrow">Resultados</span><h2>O que os dados mostram</h2>
+      <p>Os resultados principais de cada seção. Clique para abrir a análise completa.</p></div>
+      <div class="legend-row">
+        <span class="chip exp"><span class="dot"></span>dados experimentais</span>
+        <span class="chip par"><span class="dot"></span>parcial</span>
+        <span class="chip lab"><span class="dot"></span>aguarda o laboratório</span>
+      </div></div>
+    <div class="finds" id="ov-find"></div>
     <div class="card"><div class="card-h"><div><h2 class="t3">As 18 seções da proposta e onde cada uma está</h2>
-      <p>Clique para ir à aba. "Aguarda o laboratório" marca o que só as sínteses de GO–AuNP do projeto podem responder.</p></div></div>
+      <p>"Aguarda o laboratório" marca o que só as sínteses de GO–AuNP do projeto podem responder. Clique para ir à aba.</p></div></div>
+      <div class="progress" id="ov-prog"></div>
       <div class="card-b pad"><div class="map" id="ov-map"></div></div></div>
     <div class="grid">
-      <div class="card c7"><div class="card-h"><div><h2 class="t3">Experimentos até achar uma condição do top 5 %</h2>
+      <div class="card c7"><div class="card-h"><div><h3>Experimentos até achar uma condição do top 5 %</h3>
         <p>Mediana de 20 campanhas reexecutadas com as medidas reais de cada base (menos é melhor; quem não chegou conta como orçamento + 1).</p></div></div>
         <div class="card-b"><div class="plot short" id="ov-bench"></div></div></div>
-      <div class="card c5"><div class="card-h"><div><h2 class="t3">Bases experimentais usadas</h2><p>Registros por base (escala log).</p></div></div>
+      <div class="card c5"><div class="card-h"><div><h3>Bases experimentais usadas</h3><p>Registros por base (escala log).</p></div></div>
         <div class="card-b"><div class="plot short" id="ov-sources"></div></div></div>
     </div>
   </section>
 
   <!-- ================================================================== literatura -->
-  <section class="panel" id="p-literatura" role="tabpanel" aria-labelledby="t-literatura" hidden>
+  <section class="panel" id="p-literatura" aria-labelledby="t-literatura" hidden>
     <div class="sec-head"><div><span class="eyebrow">§4.1 curadoria · §4.3 reagentes · §4.14 sustentabilidade</span>
       <h2>15 928 sínteses de ouro relatadas na literatura</h2>
       <p class="lede">Cruse et al. (2022), NSP (2026) e AuNCs (2025), com reagentes normalizados pelo dicionário PubChem.
-        Tamanho, pico de absorção e temperatura são os relatados nos artigos e extraídos por mineração de texto.</p></div>
-      <span class="chip exp"><span class="dot"></span>experimental (literatura)</span></div>
+        Tamanho, pico de absorção e temperatura são os relatados nos artigos e extraídos por mineração de texto.</p><span class="chip exp"><span class="dot"></span>experimental (literatura)</span></div>
+      <dl class="ficha" id="fi-literatura"></dl></div>
     <div class="card"><div class="controls">
       <div class="ctl"><label for="lit-src">Base</label><select id="lit-src"></select></div>
       <div class="ctl"><label for="lit-red">Redutor principal</label><select id="lit-red"></select></div>
@@ -108,19 +123,22 @@
   </section>
 
   <!-- ================================================================== óptica -->
-  <section class="panel" id="p-optica" role="tabpanel" aria-labelledby="t-optica" hidden>
+  <section class="panel" id="p-optica" aria-labelledby="t-optica" hidden>
     <div class="sec-head"><div><span class="eyebrow">§4.4 função objetivo · §4.6 forma espectral · §4.10 modelo físico</span>
       <h2>Do tamanho ao espectro, e do espectro à perda J</h2>
       <p class="lede">Mie com as constantes ópticas medidas do ouro e amortecimento de superfície, validado contra 798
         pares tamanho–pico medidos na literatura. A perda J é a Eq. 1 do pré-registro (alvo: AuNP de 20 nm, σ = 8 %,
-        normalização pelo máximo).</p></div>
-      <span class="chip exp"><span class="dot"></span>modelo físico validado com medidas</span></div>
+        normalização pelo máximo).</p><span class="chip exp"><span class="dot"></span>modelo físico validado com medidas</span></div>
+      <dl class="ficha" id="fi-optica"></dl></div>
     <div class="card"><div class="controls">
       <div class="ctl"><label for="op-d">Diâmetro médio <output id="op-d-o"></output></label><input type="range" id="op-d" min="0" max="1000" value="533"></div>
       <div class="ctl"><label for="op-s">Dispersão relativa σ <output id="op-s-o"></output></label><input type="range" id="op-s" min="0" max="40" value="8"></div>
       <div class="ctl ctl-auto"><span class="lbl" id="op-norm-l">Normalização</span><div class="seg" id="op-norm" role="group" aria-labelledby="op-norm-l"><button type="button" aria-pressed="true" data-v="max">pelo máximo</button><button type="button" aria-pressed="false" data-v="vol">por volume de Au</button></div></div>
     </div>
       <div class="presets" id="op-presets" role="group" aria-label="Exemplos"><span class="lbl">Exemplos:</span></div>
+      <div class="cuvette-row"><div class="cuvette" id="op-cuv" role="img" aria-label="Cor prevista da dispersão"></div>
+        <div class="cuvette-txt"><b>Cor prevista da dispersão</b><span id="op-cuv-t">Luz do dia (D65) atravessando 1 cm da dispersão.</span><br><span class="hex" id="op-cuv-h"></span></div>
+        <div class="ctl"><label for="op-a">Absorbância de referência <output id="op-a-o"></output></label><input type="range" id="op-a" min="20" max="300" value="150"></div></div>
       <div class="kpis inset" id="op-kpis"></div></div>
     <div class="grid">
       <div class="card c7"><div class="card-h"><div><h3>Espectro previsto × espectro-alvo</h3>
@@ -142,13 +160,13 @@
   </section>
 
   <!-- ================================================================== designer -->
-  <section class="panel" id="p-designer" role="tabpanel" aria-labelledby="t-designer" hidden>
+  <section class="panel" id="p-designer" aria-labelledby="t-designer" hidden>
     <div class="sec-head"><div><span class="eyebrow">§4.5 AuNP Designer · §4.18 incerteza</span>
       <h2>O Designer numa campanha real: 3 295 sínteses de nanopartículas</h2>
       <p class="lede">Mekki-Berrada et al. (npj Comput. Mater., 2021): nanopartículas de prata em microfluídica, com perda
         espectral medida contra um alvo, o mesmo papel de J no projeto. O GP do Designer (Matérn-5/2 + ARD, prior de
-        comprimento) foi ajustado às 164 condições; a previsão abaixo roda no seu navegador com os parâmetros ajustados.</p></div>
-      <span class="chip exp"><span class="dot"></span>experimental</span></div>
+        comprimento) foi ajustado às 164 condições; a previsão abaixo roda no seu navegador com os parâmetros ajustados.</p><span class="chip exp"><span class="dot"></span>experimental</span></div>
+      <dl class="ficha" id="fi-designer"></dl></div>
     <div class="card"><div class="controls" id="ds-sliders"></div>
       <div class="controls">
         <div class="ctl"><label for="ds-x">Eixo x da superfície</label><select id="ds-x"></select></div>
@@ -174,14 +192,14 @@
   </section>
 
   <!-- ================================================================== aprendizado ativo -->
-  <section class="panel" id="p-aprendizado" role="tabpanel" aria-labelledby="t-aprendizado" hidden>
+  <section class="panel" id="p-aprendizado" aria-labelledby="t-aprendizado" hidden>
     <div class="sec-head"><div><span class="eyebrow">§4.15 benchmarking · §4.16 laço fechado</span>
       <h2>Estratégias de aprendizado ativo em cinco campanhas experimentais</h2>
       <p class="lede">Cada campanha foi reexecutada 20 vezes: a estratégia escolhe a próxima condição e recebe a medida
         real dela (média das réplicas). Partida: 5 condições aleatórias, as mesmas para todas as estratégias numa dada
         repetição, o que permite comparar em pares. Bases: AgNP, P3HT/CNT, perovskitas, crossed barrel e AutoAM
-        (Liang et al., npj Comput. Mater., 2021).</p></div>
-      <span class="chip exp"><span class="dot"></span>experimental</span></div>
+        (Liang et al., npj Comput. Mater., 2021).</p><span class="chip exp"><span class="dot"></span>experimental</span></div>
+      <dl class="ficha" id="fi-aprendizado"></dl></div>
     <div class="card"><div class="controls"><div class="ctl"><label for="bo-ds">Campanha</label><select id="bo-ds"></select></div>
       <div class="ctl"><label for="bo-arm">Comparar com o aleatório</label><select id="bo-arm"></select></div></div>
       <div class="kpis inset" id="bo-kpis"></div></div>
@@ -210,12 +228,12 @@
   </section>
 
   <!-- ================================================================== interpretabilidade -->
-  <section class="panel" id="p-interpretabilidade" role="tabpanel" aria-labelledby="t-interpretabilidade" hidden>
+  <section class="panel" id="p-interpretabilidade" aria-labelledby="t-interpretabilidade" hidden>
     <div class="sec-head"><div><span class="eyebrow">§4.13 interpretabilidade</span>
       <h2>Quais variáveis movem o resultado, e em que direção</h2>
       <p class="lede">Valores de Shapley exatos para o GP da campanha AgNP; TreeSHAP para os modelos de emissão de AuNC e
-        de tamanho na literatura. Interações pela estatística H² de Friedman.</p></div>
-      <span class="chip exp"><span class="dot"></span>experimental</span></div>
+        de tamanho na literatura. Interações pela estatística H² de Friedman.</p><span class="chip exp"><span class="dot"></span>experimental</span></div>
+      <dl class="ficha" id="fi-interpretabilidade"></dl></div>
     <div class="card"><div class="controls">
       <div class="ctl"><label for="sh-m">Modelo</label><select id="sh-m">
         <option value="agnp">AgNP: perda espectral (GP)</option><option value="aunc">AuNC: λ de emissão (árvores)</option>
@@ -237,13 +255,13 @@
   </section>
 
   <!-- ================================================================== variabilidade -->
-  <section class="panel" id="p-variabilidade" role="tabpanel" aria-labelledby="t-variabilidade" hidden>
+  <section class="panel" id="p-variabilidade" aria-labelledby="t-variabilidade" hidden>
     <div class="sec-head"><div><span class="eyebrow">§4.7 transferência entre fontes · §4.17 reprodutibilidade</span>
       <h2>Ruído de réplica e variabilidade entre fontes</h2>
       <p class="lede">A premissa do projeto: a mesma receita não dá o mesmo produto quando a matéria-prima ou o
         laboratório mudam. Os dados abaixo medem essa variação em três escalas: réplicas da mesma condição, a mesma
-        rota em 1 746 artigos e a previsão para um artigo nunca visto.</p></div>
-      <span class="chip exp"><span class="dot"></span>experimental</span></div>
+        rota em 1 746 artigos e a previsão para um artigo nunca visto.</p><span class="chip exp"><span class="dot"></span>experimental</span></div>
+      <dl class="ficha" id="fi-variabilidade"></dl></div>
     <div class="kpis" id="va-kpis"></div>
     <div class="grid">
       <div class="card c6"><div class="card-h"><div><h3>Réplicas AgNP: desvio × média</h3>
@@ -262,13 +280,13 @@
   </section>
 
   <!-- ================================================================== causal -->
-  <section class="panel" id="p-causal" role="tabpanel" aria-labelledby="t-causal" hidden>
+  <section class="panel" id="p-causal" aria-labelledby="t-causal" hidden>
     <div class="sec-head"><div><span class="eyebrow">§4.9 análise causal</span>
       <h2>Quanto o redutor forte encolhe as partículas?</h2>
       <p class="lede">NaBH₄ × citrato de sódio nos registros da literatura, com ponderação pelo inverso do escore de
         propensão (IPW). Os ajustes cobrem rota com sementes, temperatura, ligante e base de origem. Intervalo por
-        bootstrap (300 reamostragens) e E-value para confundimento não medido.</p></div>
-      <span class="chip exp"><span class="dot"></span>experimental (observacional)</span></div>
+        bootstrap (300 reamostragens) e E-value para confundimento não medido.</p><span class="chip exp"><span class="dot"></span>experimental (observacional)</span></div>
+      <dl class="ficha" id="fi-causal"></dl></div>
     <div class="kpis" id="ca-kpis"></div>
     <div class="grid">
       <div class="card c5"><div class="card-h"><div><h3>Grafo causal assumido</h3><p>Seta vermelha = efeito estimado; as demais são os caminhos que o ajuste bloqueia.</p></div></div>
@@ -283,13 +301,13 @@
   </section>
 
   <!-- ================================================================== caracterização -->
-  <section class="panel" id="p-caracterizacao" role="tabpanel" aria-labelledby="t-caracterizacao" hidden>
+  <section class="panel" id="p-caracterizacao" aria-labelledby="t-caracterizacao" hidden>
     <div class="sec-head"><div><span class="eyebrow">§4.2 caracterização · instrumentação</span>
       <h2>Difração de um padrão de CeO₂ e emissão de nanoaglomerados de ouro</h2>
       <p class="lede">Quadros reais de um detector de área (GE, 2048 × 2048, 5 quadros, com dark subtraído). O padrão
         calibra a geometria: os anéis caem nas posições dos reflexos da fluorita (hkl todos pares ou todos ímpares), e o
-        ajuste r = D·tan 2θ dá o comprimento de onda e a distância. Em seguida, a emissão de 207 AuNC de 167 artigos.</p></div>
-      <span class="chip exp"><span class="dot"></span>experimental</span></div>
+        ajuste r = D·tan 2θ dá o comprimento de onda e a distância. Em seguida, a emissão de 207 AuNC de 167 artigos.</p><span class="chip exp"><span class="dot"></span>experimental</span></div>
+      <dl class="ficha" id="fi-caracterizacao"></dl></div>
     <div class="kpis" id="xr-kpis"></div>
     <div class="grid">
       <div class="card c5"><div class="card-h"><div><h3>Imagem do detector</h3><p>log₁₀ da intensidade; + = centro ajustado.</p></div>
@@ -311,9 +329,11 @@
   </section>
 
   <!-- ================================================================== sobre -->
-  <section class="panel" id="p-sobre" role="tabpanel" aria-labelledby="t-sobre" hidden>
+  <section class="panel" id="p-sobre" aria-labelledby="t-sobre" hidden>
     <div class="sec-head"><div><span class="eyebrow">dados · métodos · o que falta</span>
-      <h2>Fontes, métodos e o que só o laboratório responde</h2></div></div>
+      <h2>Fontes, métodos e o que só o laboratório responde</h2>
+      <p class="lede">De onde vem cada dado, o que é medida e o que é modelo, como reproduzir tudo e o que ainda depende das sínteses GO–AuNP do projeto.</p></div>
+      <dl class="ficha" id="fi-sobre"></dl></div>
     <div class="grid">
       <div class="card c12"><div class="card-h"><div><h3>Bases experimentais</h3></div></div>
         <div class="tbl-wrap" tabindex="0" role="region" aria-label="Bases experimentais"><table id="ab-src"></table></div></div>
@@ -335,9 +355,16 @@ python code/webapp/build_site.py          # refaz todas as análises e o site (s
 python -m pytest code/tests/test_webapp.py</pre></div></div>
     </div>
   </section>
+  <footer id="foot"></footer>
 </main>
+</div>
 <div class="backdrop" id="backdrop" hidden></div>
-<footer id="foot"></footer>
+<div class="palette" id="palette" role="dialog" aria-modal="true" aria-label="Buscar gráfico ou seção" hidden>
+  <input type="text" id="palQ" placeholder="Buscar: designer, Mie, SHAP, Turkevich, difração…" aria-label="Buscar" autocomplete="off">
+  <ul id="palL" role="listbox" aria-label="Resultados"></ul>
+  <div class="hint"><kbd>↑</kbd> <kbd>↓</kbd> para escolher · <kbd>Enter</kbd> para abrir · <kbd>Esc</kbd> para fechar</div>
+</div>
+<button class="to-top" id="toTop" type="button" aria-label="Voltar ao topo"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 15V5M5 10l5-5 5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
 <script src="vendor/plotly.min.js"></script>
 <script src="data/overview.js"></script>
 <script src="data/literature.js"></script>

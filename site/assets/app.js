@@ -115,30 +115,87 @@
     const O = A.optics, ri = O.d.map((_, i) => i).filter((i) => i % 2 === 0), cj = O.wl.map((_, j) => j).filter((j) => j % 2 === 0);
     return { ri, cj, wl: cj.map((j) => O.wl[j]), ld: ri.map((i) => Math.log10(O.d[i])), z: ri.map((i) => cj.map((j) => O.C_ext[i][j])) };
   }
+  /* ---- cor real do ouro coloidal: espectro de extinção (Mie) → transmitância → XYZ (CIE 1931, ajuste de Wyman et al.
+     2013) sob D65 → sRGB. A0 = absorbância no pico de uma dispersão de AuNP de 20 nm com a mesma massa de ouro. */
+  const D65 = [82.75, 91.49, 93.43, 86.68, 104.86, 117.01, 117.81, 114.86, 115.92, 108.81, 109.35, 107.80, 104.79, 107.69,
+    104.41, 104.05, 100.0, 96.33, 95.79, 88.69, 90.01, 89.60, 87.70, 83.29, 83.70, 80.03, 80.21, 82.28, 78.28, 69.72, 71.61];
+  const gpw = (x, m, s1, s2) => { const s = x < m ? s1 : s2; return Math.exp(-0.5 * ((x - m) / s) ** 2); };
+  const CIE = []; for (let l = 400; l <= 700; l += 5) {
+    const S = interp(l, D65.map((_, i) => 400 + 10 * i), D65);
+    CIE.push([l, S, 1.056 * gpw(l, 599.8, 37.9, 31.0) + 0.362 * gpw(l, 442.0, 16.0, 26.7) - 0.065 * gpw(l, 501.1, 20.4, 26.2),
+      0.821 * gpw(l, 568.8, 46.9, 40.5) + 0.286 * gpw(l, 530.9, 16.3, 31.1), 1.217 * gpw(l, 437.0, 11.8, 36.0) + 0.681 * gpw(l, 459.0, 26.0, 13.8)]);
+  }
+  const YW = CIE.reduce((a, c) => a + c[1] * c[3], 0);
+  function colloidRGB(wl, ePV, A0) {                       // ePV: extinção por volume de Au, já dividida pela referência
+    let X = 0, Y = 0, Z = 0;
+    for (const [l, S, xb, yb, zb] of CIE) { const T = Math.pow(10, -A0 * interp(l, wl, ePV)); X += S * T * xb; Y += S * T * yb; Z += S * T * zb; }
+    X /= YW; Y /= YW; Z /= YW;
+    const lin2 = [3.2406 * X - 1.5372 * Y - 0.4986 * Z, -0.9689 * X + 1.8758 * Y + 0.0415 * Z, 0.0557 * X - 0.2040 * Y + 1.0570 * Z];
+    return lin2.map((u) => { u = Math.max(0, u); const v = u <= 0.0031308 ? 12.92 * u : 1.055 * Math.pow(u, 1 / 2.4) - 0.055; return Math.round(255 * Math.min(1, v)); });
+  }
+  const rgbHex = (c) => "#" + c.map((v) => v.toString(16).padStart(2, "0")).join("");
+  let GOLD = null;                                           // cores por diâmetro da grade de Mie (cache)
+  function goldColors(A0 = 1.5) {
+    if (GOLD && GOLD.A0 === A0) return GOLD;
+    const O = A.optics, d = O.d, wl = O.wl;
+    const pv = O.C_ext.map((row, i) => { const v = Math.PI * d[i] ** 3 / 6; return row.map((x) => x * O.C_ext_max[i] / v); });
+    const i20 = d.reduce((b, x, i) => (Math.abs(x - 20) < Math.abs(d[b] - 20) ? i : b), 0), ref = Math.max(...pv[i20]);
+    const cols = pv.map((row) => rgbHex(colloidRGB(wl, row.map((x) => x / ref), A0)));
+    const lmin = Math.log10(d[0]), lmax = Math.log10(d[d.length - 1]);
+    GOLD = { A0, ref, cols, pos: d.map((x) => (Math.log10(x) - lmin) / (lmax - lmin)), lmin, lmax };
+    GOLD.scale = GOLD.pos.filter((_, i) => i % 3 === 0 || i === d.length - 1).map((p, k, arr) => [p, cols[GOLD.pos.indexOf(p)]]);
+    return GOLD;
+  }
+  window.AUGO_UTIL = { colloidRGB, goldColors };            // usado nos testes do navegador
   const hashJitter = (i, j) => { const x = Math.sin(i * 12.9898 + j * 78.233) * 43758.5453; return x - Math.floor(x) - 0.5; };  // estável
 
   /* ------------------------------------------------------------------ abas: montagem única + redesenho por tema */
-  const TABS = [["visao", "Visão geral", ""], ["literatura", "Literatura", "4.1"], ["optica", "Óptica e J", "4.4"],
-    ["designer", "AuNP Designer", "4.5"], ["aprendizado", "Aprendizado ativo", "4.15"],
-    ["interpretabilidade", "Interpretabilidade", "4.13"], ["variabilidade", "Variabilidade", "4.17"],
-    ["causal", "Causalidade", "4.9"], ["caracterizacao", "Caracterização", "4.2"], ["sobre", "Sobre e dados", ""]];
+  const IC = {   // ícones de traço (24 × 24)
+    visao: '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
+    literatura: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/><path d="M8 7h8M8 11h6"/>',
+    caracterizacao: '<circle cx="12" cy="12" r="2"/><circle cx="12" cy="12" r="5.5"/><circle cx="12" cy="12" r="9"/>',
+    optica: '<path d="M2 14c2.5 0 3-8 5.5-8S10 18 12.5 18 15 9 17 9s2.5 5 5 5"/>',
+    designer: '<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2" fill="currentColor"/><circle cx="15" cy="12" r="2" fill="currentColor"/><circle cx="7" cy="18" r="2" fill="currentColor"/>',
+    interpretabilidade: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+    aprendizado: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/><circle cx="12" cy="12" r="2" fill="currentColor"/>',
+    variabilidade: '<circle cx="6" cy="16" r="1.6"/><circle cx="10" cy="9" r="1.6"/><circle cx="14" cy="14" r="1.6"/><circle cx="18" cy="6" r="1.6"/><circle cx="17" cy="18" r="1.6"/><path d="M3 21h18"/>',
+    causal: '<circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="12" r="2.5"/><circle cx="12" cy="4.5" r="2.5"/><path d="M7.5 12h9M7 10.5l3.4-4M17 10.5l-3.4-4"/>',
+    sobre: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>',
+  };
+  const ico = (id, cls) => `<svg viewBox="0 0 24 24" aria-hidden="true"${cls ? ` class="${cls}"` : ""} fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${IC[id]}</svg>`;
+  const NAV = [["Panorama", [["visao", "Visão geral", ""]]],
+    ["Dados", [["literatura", "Literatura", "4.1"], ["caracterizacao", "Caracterização", "4.2"]]],
+    ["Modelos", [["optica", "Óptica e J", "4.4"], ["designer", "AuNP Designer", "4.5"], ["interpretabilidade", "Interpretabilidade", "4.13"]]],
+    ["Decisão", [["aprendizado", "Aprendizado ativo", "4.15"], ["variabilidade", "Variabilidade", "4.17"], ["causal", "Causalidade", "4.9"]]],
+    ["Projeto", [["sobre", "Sobre e dados", ""]]]];
+  const TABS = [].concat(...NAV.map((g) => g[1]));
   const INIT = {}, REDRAW = {}, built = {}, stale = {};
   let building = null, current = null;
   // registra uma função de desenho da aba em montagem e a executa; a troca de tema chama todas de novo
   function drawer(fn) { (REDRAW[building] = REDRAW[building] || []).push(fn); fn(); return fn; }
   function show(id) {
     if (!TABS.some((t) => t[0] === id)) id = "visao";
+    const changed = current !== id;
     current = id;
     for (const [t] of TABS) {
       const p = document.getElementById("p-" + t), b = document.getElementById("t-" + t);
-      p.hidden = t !== id; b.setAttribute("aria-selected", t === id ? "true" : "false"); b.tabIndex = t === id ? 0 : -1;
+      p.hidden = t !== id;
+      if (t === id) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     }
     const tb = document.getElementById("t-" + id), bar = $("#tabs");
-    if (bar.scrollWidth > bar.clientWidth) bar.scrollTo({ left: tb.offsetLeft - bar.clientWidth / 2 + tb.offsetWidth / 2, behavior: "smooth" });
+    if (bar.scrollWidth > bar.clientWidth + 4) bar.scrollTo({ left: tb.offsetLeft - bar.clientWidth / 2 + tb.offsetWidth / 2, behavior: "smooth" });
     if (!built[id]) { building = id; INIT[id](); building = null; built[id] = true; stale[id] = false; }
     else if (stale[id]) { (REDRAW[id] || []).forEach((f) => f()); stale[id] = false; }
     else document.querySelectorAll(`#p-${id} .js-plotly-plot`).forEach((el) => Plotly.Plots.resize(el));
     try { localStorage.setItem("augo-tab", id); } catch (e) { /* armazenamento indisponível */ }
+    return changed;
+  }
+  // #aba abre a aba; #algum-elemento abre a aba que o contém e rola até ele
+  function route(h) {
+    if (TABS.some((t) => t[0] === h)) { if (show(h)) window.scrollTo({ top: 0 }); return; }
+    const el = h && document.getElementById(h), panel = el && el.closest(".panel");
+    show(panel ? panel.id.slice(2) : "visao");
+    if (el) requestAnimationFrame(() => el.scrollIntoView({ block: "start", behavior: "smooth" }));
   }
   function themeChanged() {
     $("#themeLbl").textContent = isDark() ? "Tema claro" : "Tema escuro";
@@ -146,16 +203,29 @@
     for (const k of Object.keys(built)) stale[k] = true;
     if (current) show(current);
   }
+  function tabStatus(id) {
+    if (id === "visao") return "exp";
+    const st = A.overview.map.filter((m) => m.tab === id).map((m) => m.status);
+    if (!st.length || id === "sobre") return "lab";
+    return st.every((x) => x === "experimental") ? "exp" : st.every((x) => x === "laboratorio") ? "lab" : "par";
+  }
   function buildTabs() {
-    $("#tabs").innerHTML = TABS.map(([id, label, sec]) =>
-      `<a class="tab" role="tab" id="t-${id}" href="#${id}" aria-controls="p-${id}">${label}${sec ? ` <small>§${sec}</small>` : ""}</a>`).join("");
+    const M = A.overview.map, n = M.length, c = (k) => M.filter((m) => m.status === k).length, T = { exp: "dados experimentais", par: "parcial", lab: "aguarda o laboratório" };
+    $("#tabs").innerHTML = NAV.map(([g, items]) => `<div class="grp">${g}</div>` + items.map(([id, label, sec]) => {
+      const st = tabStatus(id);
+      return `<a class="nav" id="t-${id}" href="#${id}" aria-controls="p-${id}">${ico(id)}<span>${label}</span>` +
+        `<span class="sec">${sec ? "§" + sec : ""}<span class="dot ${st}" title="${T[st]}"></span></span></a>`; }).join("")).join("") +
+      `<div class="rail-foot"><b>${c("experimental")} de ${n}</b> seções da proposta já com dados experimentais` +
+      `<div class="bar" aria-hidden="true"><i style="flex:${c("experimental")};background:var(--ok)"></i><i style="flex:${c("parcial")};background:var(--warn)"></i><i style="flex:${c("laboratorio")};background:var(--line-strong)"></i></div>` +
+      `${c("parcial")} parciais · ${c("laboratorio")} aguardam o laboratório</div>`;
     $("#tabs").addEventListener("keydown", (e) => {
       const ids = TABS.map((t) => t[0]), cur = ids.indexOf(current);
-      const nxt = { ArrowRight: ids[(cur + 1) % ids.length], ArrowLeft: ids[(cur + ids.length - 1) % ids.length], Home: ids[0], End: ids[ids.length - 1] }[e.key];
+      const nxt = { ArrowDown: ids[(cur + 1) % ids.length], ArrowRight: ids[(cur + 1) % ids.length], ArrowUp: ids[(cur + ids.length - 1) % ids.length],
+        ArrowLeft: ids[(cur + ids.length - 1) % ids.length], Home: ids[0], End: ids[ids.length - 1] }[e.key];
       if (!nxt) return;
       e.preventDefault(); location.hash = nxt; document.getElementById("t-" + nxt).focus();
     });
-    window.addEventListener("hashchange", () => show(location.hash.slice(1)));
+    window.addEventListener("hashchange", () => route(location.hash.slice(1)));
   }
   // botão "ampliar" em todo cartão com gráfico
   function addExpanders() {
@@ -183,50 +253,122 @@
   INIT.visao = function () {
     const O = A.overview, op = A.optics, k = O.kpis, B = A.benchmark, V = A.variability, I = A.interpret;
     const bm = O.benchmark_measurements, campaignMeas = Object.values(bm).reduce((a, b) => a + b, 0);
-    kpis("#ov-kpis", [
-      { k: "Sínteses de ouro na literatura", v: ni(k.literature_records), s: `${ni(k.literature_dois)} DOIs · ${ni(k.go_records)} com GO/rGO` },
-      { k: "Medidas de laboratório autônomo", v: ni(campaignMeas), s: `${Object.keys(bm).length} campanhas, ${ni(k.agnp_measurements)} só em AgNP` },
-      { k: "Nanoaglomerados de Au (AuNC)", v: ni(k.aunc_entries), s: `emissão relatada em ${ni(A.aunc.n_doi)} artigos` },
-      { k: "Esferas para validar o Mie", v: ni(k.mie_validation_n), s: "tamanho e pico no mesmo registro" },
-      { k: "Quadros de difração (CeO₂)", v: ni(A.xrd.n_frames), s: `${A.xrd.shape[0]} × ${A.xrd.shape[1]} px, com dark` },
-    ]);
+    // contadores da abertura (sobem de zero na primeira vez)
+    const C = [[k.literature_records, "sínteses de ouro relatadas"], [campaignMeas, "medidas de laboratório autônomo"],
+      [k.literature_dois, "artigos com DOI"], [k.mie_validation_n, "esferas para validar o Mie"]];
+    $("#ov-count").innerHTML = C.map(([v, l]) => `<div><b data-v="${v}">${ni(v)}</b><span>${l}</span></div>`).join("");
+    if (!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) {
+      const els = [...document.querySelectorAll("#ov-count b")], t0 = performance.now();
+      const tick = (t) => { const f = Math.min(1, (t - t0) / 1100), e = 1 - Math.pow(1 - f, 3);
+        els.forEach((el) => { el.textContent = ni(+el.dataset.v * e); }); if (f < 1) requestAnimationFrame(tick); };
+      requestAnimationFrame(tick);
+    }
+    // faixa de cores do ouro coloidal por tamanho
+    const G = goldColors(), d = op.d, strip = $("#ov-strip");
+    strip.style.background = `linear-gradient(90deg, ${G.cols.map((c, i) => `${c} ${(100 * G.pos[i]).toFixed(1)}%`).join(", ")})`;
+    $("#ov-ticks").innerHTML = [2, 5, 10, 20, 50, 100, 200].map((x) => `<span style="left:${(100 * (Math.log10(x) - G.lmin) / (G.lmax - G.lmin)).toFixed(1)}%">${x} nm</span>`).join("");
+    const lam = (dd) => interp(Math.log(dd), op.lspr_curve.d.map(Math.log), op.lspr_curve.lambda);
+    strip.addEventListener("mousemove", (e) => {
+      const r = strip.getBoundingClientRect(), f = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), dd = Math.pow(10, G.lmin + f * (G.lmax - G.lmin));
+      const i = G.pos.reduce((b, p, j) => (Math.abs(p - f) < Math.abs(G.pos[b] - f) ? j : b), 0), tip = $("#ov-strip-tip");
+      tip.style.left = (100 * f) + "%"; tip.textContent = `${nf(dd, dd < 10 ? 1 : 0)} nm · LSPR ${nf(lam(dd), 0)} nm · ${G.cols[i]}`;
+    });
     // achados: números calculados dos dados
-    const wins = Object.values(B.datasets).filter((d) => d.paired["GP-EI"].p < 0.05 && d.paired["GP-EI"].wins > d.paired["GP-EI"].losses).length;
+    const wins = Object.values(B.datasets).filter((x) => x.paired["GP-EI"].p < 0.05 && x.paired["GP-EI"].wins > x.paired["GP-EI"].losses).length;
     const ag = I.agnp, imp = ag.features.map((_, j) => ag.values.reduce((a, r) => a + Math.abs(r[j] || 0), 0));
     const topF = ag.features[imp.indexOf(Math.max(...imp))];
     const F = [
       ["optica", nf(k.mie_median_abs_residual, 1) + " nm", `erro mediano do Mie, sem ajuste, ao prever o pico de absorção de ${ni(k.mie_validation_n)} esferas relatadas.`, "§4.4 · §4.10"],
       ["designer", "R² " + nf(k.designer_cv_r2, 2), `do GP do Designer em validação cruzada na campanha AgNP real; ${nf(100 * k.designer_coverage, 0)} % das medidas caem no IC 95 %.`, "§4.5 · §4.18"],
-      ["aprendizado", `${wins} de ${Object.keys(B.datasets).length}`, "campanhas em que o GP-EI chega ao top 5 % antes do acaso com significância (Wilcoxon pareado); nas demais, empate estatístico.", "§4.15"],
+      ["aprendizado", `${wins} de ${Object.keys(B.datasets).length}`, "campanhas em que o GP-EI chega ao top 5 % antes do acaso com significância (Wilcoxon pareado); nas demais, empate.", "§4.15"],
       ["variabilidade", `${nf(V.turkevich.q10_q90[0], 1)}–${nf(V.turkevich.q10_q90[1], 1)} nm`, `tamanho da mesma rota de Turkevich em ${ni(V.turkevich.n_papers)} artigos (10–90 %): a premissa da variabilidade multi-fonte.`, "§4.7 · §4.17"],
       ["variabilidade", `R² ${nf(V.aunc_generalization.r2_random, 2)} → ${nf(V.aunc_generalization.r2_new_paper, 2)}`, "ao prever a emissão de AuNC para um artigo nunca visto em vez de uma síntese nova: o contexto da fonte pesa.", "§4.7"],
       ["causal", "×" + nf(k.causal_ratio, 2), `no tamanho ao trocar citrato por NaBH₄ (IC 95 % ${nf(k.causal_ci[0], 2)}–${nf(k.causal_ci[1], 2)}), com covariáveis balanceadas por IPW.`, "§4.9"],
       ["interpretabilidade", topF, "é a variável que mais move a perda espectral na campanha AgNP (SHAP exato sobre o GP).", "§4.13"],
       ["caracterizacao", `${ni(A.xrd.geometry.n_rings)} anéis`, `do CeO₂ indexados com resíduo de ${nf(A.xrd.geometry.rms_residual_px, 2)} px: feixe de ${nf(A.xrd.geometry.energy_keV, 1)} keV.`, "§4.2"],
     ];
-    $("#ov-find").innerHTML = F.map(([tab, v, txt, sec]) => `<a href="#${tab}"><span class="fv">${esc(v)}</span><span class="ft">${esc(txt)}</span><span class="fs">${sec} · abrir →</span></a>`).join("");
+    $("#ov-find").innerHTML = F.map(([tab, v, txt, sec]) => `<a href="#${tab}"><span class="fi">${ico(tab)}</span><span class="fv">${esc(v)}</span><span class="ft">${esc(txt)}</span><span class="fs">${sec} · abrir →</span></a>`).join("");
+    // progresso das 18 seções + mapa
+    const M = O.map, cnt = (x) => M.filter((m) => m.status === x).length;
+    $("#ov-prog").innerHTML = `<div class="big">${cnt("experimental")}<span>de ${M.length} seções com dados experimentais</span></div>` +
+      `<div class="bar" role="img" aria-label="${cnt("experimental")} experimentais, ${cnt("parcial")} parciais, ${cnt("laboratorio")} aguardam o laboratório">` +
+      `<i style="flex:${cnt("experimental")};background:var(--ok)"></i><i style="flex:${cnt("parcial")};background:var(--warn)"></i><i style="flex:${cnt("laboratorio")};background:var(--line-strong)"></i></div>` +
+      `<div class="legend-row"><span><span class="dot exp" style="display:inline-block;width:8px;height:8px;border-radius:50%"></span> ${cnt("experimental")} com dados experimentais</span>` +
+      `<span><span class="dot par" style="display:inline-block;width:8px;height:8px;border-radius:50%"></span> ${cnt("parcial")} parciais</span>` +
+      `<span><span class="dot lab" style="display:inline-block;width:8px;height:8px;border-radius:50%"></span> ${cnt("laboratorio")} aguardam o laboratório</span></div>`;
     const st = { experimental: ["exp", "dados experimentais"], parcial: ["par", "parcial"], laboratorio: ["lab", "aguarda o laboratório"] };
-    $("#ov-map").innerHTML = O.map.map((m) => `<a href="#${m.tab}"><span class="n">§${m.sec}</span>` +
+    $("#ov-map").innerHTML = M.map((m) => `<a href="#${m.tab}"><span class="n">§${m.sec}</span>` +
       `<span class="t">${esc(m.title)}</span><span class="st ${st[m.status][0]}">● ${st[m.status][1]}${m.note ? ": " + esc(m.note) : ""}</span></a>`).join("");
+    heroFx();
     drawer(() => {
-      const t = T();
-      const mv = mieView();
-      plot("ov-hero", [{ type: "surface", x: mv.wl, y: mv.ld, z: mv.z, colorscale: t.seqScale, showscale: false,
-        contours: { z: { show: false } }, hovertemplate: "λ = %{x} nm<br>log₁₀ d = %{y:.2f}<br>extinção rel. %{z:.2f}<extra></extra>" }],
-      { margin: { l: 0, r: 0, t: 0, b: 0 }, scene: scene("λ (nm)", "log₁₀ d (nm)", "extinção normalizada", { camera: { eye: { x: -1.6, y: -1.35, z: 0.85 } } }) });
+      const t = T(), mv = mieView(), G2 = goldColors();
+      const sc = mv.ld.map((l) => mv.wl.map(() => l));          // cor da superfície = diâmetro → cor real da dispersão
+      const dk = { color: "rgba(245,242,244,.72)", size: 10 };
+      const ax = (title) => ({ title: { text: title, font: { color: "rgba(245,242,244,.82)", size: 12 } }, tickfont: dk, gridcolor: "rgba(255,255,255,.10)",
+        linecolor: "rgba(255,255,255,.25)", zerolinecolor: "rgba(255,255,255,.1)", showbackground: false });
+      Plotly.react("ov-hero", [{ type: "surface", x: mv.wl, y: mv.ld, z: mv.z, surfacecolor: sc, cmin: G2.lmin, cmax: G2.lmax,
+        colorscale: G2.scale, showscale: false, contours: { z: { show: false } },
+        lighting: { ambient: 0.62, diffuse: 0.75, specular: 0.35, roughness: 0.45, fresnel: 0.2 }, lightposition: { x: -1e4, y: -1e4, z: 2e4 },
+        customdata: sc.map((r) => r.map((l) => Math.pow(10, l))),
+        hovertemplate: "λ = %{x} nm<br>d = %{customdata:.1f} nm<br>extinção rel. %{z:.2f}<extra></extra>" }],
+      { paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", separators: "," + NB, margin: { l: 0, r: 0, t: 18, b: 0 },
+        font: { family: '"IBM Plex Sans", sans-serif', color: "#f5f2f4" }, uirevision: "hero",
+        hoverlabel: { bgcolor: "#1d1a22", bordercolor: "rgba(255,255,255,.2)", font: { color: "#fff" } },
+        scene: { xaxis: ax("λ (nm)"), yaxis: ax("log₁₀ d (nm)"), zaxis: ax("extinção"), bgcolor: "rgba(0,0,0,0)", aspectmode: "cube",
+          camera: { eye: { x: -1.55, y: -1.4, z: 0.8 } } } }, CFG);
+      $("#ov-hero").setAttribute("role", "figure"); $("#ov-hero").setAttribute("aria-label", "Gráfico 3D: extinção de nanopartículas de ouro por comprimento de onda e diâmetro, colorida pela cor real da dispersão");
       const names = Object.keys(B.datasets);
       plot("ov-bench", B.arms.map((arm, i) => ({ type: "scatter", mode: "markers", name: arm, y: names,
         x: names.map((n) => B.datasets[n].median_censored[arm]),
-        marker: { size: 11, color: t.cat[i], line: { width: 2, color: t.surface } },
+        marker: { size: 12, color: t.cat[i], line: { width: 2, color: t.surface } },
         hovertemplate: `${arm}<br>%{y}: %{x:.1f} experimentos<extra></extra>` })),
       { xaxis: { title: { text: "experimentos até o top 5 % (mediana)" }, rangemode: "tozero" }, margin: { l: 110 }, legend: { y: 1.18 } });
-      const src = Object.entries(A.literature.n_by_source).map(([s, n]) => [s, n]).concat([["AuNC (fluorescência)", k.aunc_entries]])
-        .filter((s) => s[0] !== "AuNCs 2025").concat(Object.entries(bm)).sort((a, b) => b[1] - a[1]);
-      plot("ov-sources", [{ type: "bar", orientation: "h", y: src.map((s) => s[0]), x: src.map((s) => s[1]),
+      const src = Object.entries(A.literature.n_by_source).filter((x) => x[0] !== "AuNCs 2025").concat([["AuNC (fluorescência)", k.aunc_entries]])
+        .concat(Object.entries(bm)).sort((a, b) => b[1] - a[1]);
+      plot("ov-sources", [{ type: "bar", orientation: "h", y: src.map((x) => x[0]), x: src.map((x) => x[1]),
         marker: { color: t.cat[0] }, hovertemplate: "%{y}: %{x:,} registros<extra></extra>" }],
       { xaxis: { type: "log", title: { text: "registros" }, dtick: 1 }, yaxis: { autorange: "reversed" }, margin: { l: 150 } });
     });
   };
+
+  // fundo animado da abertura: AuNP com a cor real de cada tamanho em movimento browniano sobre a rede hexagonal do GO
+  function heroFx() {
+    const cv = $("#fx"); if (!cv || !cv.getContext) return;
+    const ctx = cv.getContext("2d"), G = goldColors(), reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let W = 0, H = 0, P = [], lattice = null, raf = 0, visible = true;
+    function resize() {
+      const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+      W = r.width; H = r.height; if (!W || !H) return;
+      cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lattice = document.createElement("canvas"); lattice.width = W * dpr; lattice.height = H * dpr;
+      const lc = lattice.getContext("2d"); lc.setTransform(dpr, 0, 0, dpr, 0, 0); lc.strokeStyle = "rgba(255,255,255,.055)"; lc.lineWidth = 1;
+      const a = 18, h = a * Math.sqrt(3);
+      for (let y = -h, row = 0; y < H + h; y += h / 2, row++) for (let x = (row % 2) * 1.5 * a - a; x < W + 2 * a; x += 3 * a) {
+        lc.beginPath(); for (let k = 0; k <= 6; k++) { const an = Math.PI / 3 * k; lc.lineTo(x + a * Math.cos(an), y + a * Math.sin(an)); } lc.stroke(); }
+      const n = Math.round(Math.min(90, Math.max(28, W * H / 14000)));
+      P = Array.from({ length: n }, (_, i) => { const f = 0.25 + 0.6 * ((i * 0.618) % 1), j = Math.round(f * (G.cols.length - 1));
+        return { x: Math.random() * W, y: Math.random() * H, r: 2 + 7 * Math.pow((i * 0.37) % 1, 2), vx: (Math.random() - 0.5) * 0.25, vy: (Math.random() - 0.5) * 0.25, c: G.cols[j] }; });
+    }
+    function frame() {
+      if (!W) return;
+      ctx.clearRect(0, 0, W, H); if (lattice) ctx.drawImage(lattice, 0, 0, W, H);
+      for (const p of P) {
+        if (!reduce) { p.vx += (Math.random() - 0.5) * 0.05; p.vy += (Math.random() - 0.5) * 0.05; p.vx *= 0.985; p.vy *= 0.985; p.x += p.vx; p.y += p.vy;
+          if (p.x < -10) p.x = W + 10; if (p.x > W + 10) p.x = -10; if (p.y < -10) p.y = H + 10; if (p.y > H + 10) p.y = -10; }
+        const g = ctx.createRadialGradient(p.x - p.r * 0.35, p.y - p.r * 0.35, p.r * 0.1, p.x, p.y, p.r * 2.6);
+        g.addColorStop(0, "rgba(255,240,220,.95)"); g.addColorStop(0.28, p.c); g.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.globalAlpha = 0.55; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 2.6, 0, 2 * Math.PI); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      if (!reduce && visible && !document.hidden && current === "visao") raf = requestAnimationFrame(frame); else raf = 0;
+    }
+    const kick = () => { if (!raf) raf = requestAnimationFrame(frame); };
+    resize(); frame();
+    window.addEventListener("resize", () => { resize(); frame(); });
+    if ("IntersectionObserver" in window) new IntersectionObserver((es) => { visible = es[0].isIntersecting; if (visible) kick(); }).observe(cv);
+    document.addEventListener("visibilitychange", kick);
+    window.addEventListener("hashchange", () => setTimeout(() => { if (current === "visao") { resize(); kick(); } }, 30));
+  }
 
   /* ================================================================== literatura */
   INIT.literatura = function () {
@@ -363,14 +505,23 @@
     }
     const PRE = [["alvo do pré-registro", tg.diameter, 100 * tg.sigma], ["mais largo (σ = 20 %)", tg.diameter, 20],
       ["Turkevich típico", 15, 15], ["sementes grandes", 45, 10], ["agregado / grande", 90, 15], ["aglomerado pequeno", 4, 20]];
+    const G = goldColors(), A0 = () => +$("#op-a").value / 100;
+    const colorOf = (d, s, a0) => { const { E, V } = ensemble(d, s); return rgbHex(colloidRGB(wl, E.map((x) => x / V / G.ref), a0)); };
     $("#op-presets").insertAdjacentHTML("beforeend", PRE.map(([l, d, s], i) =>
-      `<button type="button" data-i="${i}" aria-pressed="${i === 0}">${esc(l)} <span class="muted">${nf(d, 0)} nm · ${nf(s, 0)} %</span></button>`).join(""));
+      `<button type="button" data-i="${i}" aria-pressed="${i === 0}"><i style="background:${colorOf(d, s / 100, 1.5)}"></i>${esc(l)} <span class="muted">${nf(d, 0)} nm · ${nf(s, 0)} %</span></button>`).join(""));
     $("#op-presets").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return;
       const [, d, s] = PRE[+b.dataset.i]; setD(d); $("#op-s").value = s; mark(b); dyn(); });
     const mark = (b) => $("#op-presets").querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
     function dyn() {                                           // só o que muda com os controles
       const t = T(), d = dOf(), s = sOf(), { E, V } = ensemble(d, s), j = J(E), mx = Math.max(...E);
       $("#op-d-o").textContent = nf(d, d < 10 ? 1 : 0) + " nm"; $("#op-s-o").textContent = nf(100 * s, 0) + " %";
+      const a0 = A0(), col = rgbHex(colloidRGB(wl, E.map((x) => x / V / G.ref), a0));
+      $("#op-a-o").textContent = nf(a0, 2); $("#op-cuv").style.setProperty("--col", col);
+      $("#op-cuv-h").textContent = `${col} · mesma massa de ouro que uma dispersão de 20 nm com A = ${nf(a0, 2)} no pico`;
+      $("#op-cuv-t").textContent = d < 3.5 ? "Aglomerados muito pequenos: sem plásmon definido, cor pálida e amarronzada."
+        : d < 55 ? "Vermelho-rubi típico do ouro coloidal: o plásmon absorve o verde (~520 nm)."
+          : d < 95 ? "Partículas maiores: o pico se desloca e alarga, a dispersão fica púrpura."
+            : "Partículas grandes: espalhamento forte e pico largo, a dispersão fica azul-acinzentada.";
       kpis("#op-kpis", [
         { k: "λ do LSPR previsto", v: nf(peakOf(wl, E), 0), u: "nm", s: "máximo acima de 480 nm" },
         { k: "Perda J (Eq. 1)", v: j < 0.01 ? "< 0,01" : nf(j, j < 10 ? 2 : j < 100 ? 1 : 0), s: `log₁₀ J = ${nf(Math.log10(j), 2)}`, key: true },
@@ -395,7 +546,8 @@
     }
     function full() {                                          // superfícies e validação: só na montagem e no tema
       const t = T(), d = dOf(), k = ld.reduce((b, l, i) => (Math.abs(l - Math.log(d)) < Math.abs(ld[b] - Math.log(d)) ? i : b), 0);
-      plot("op-surf", [{ type: "surface", x: MV.wl, y: MV.ld, z: MV.z, colorscale: t.seqScale, showscale: false, opacity: 0.96,
+      plot("op-surf", [{ type: "surface", x: MV.wl, y: MV.ld, z: MV.z, surfacecolor: MV.ld.map((l) => MV.wl.map(() => l)), cmin: G.lmin, cmax: G.lmax,
+        colorscale: G.scale, showscale: false, opacity: 0.97, lighting: { ambient: 0.65, diffuse: 0.7, specular: 0.3, roughness: 0.5 },
         hovertemplate: "λ = %{x} nm<br>log₁₀ d = %{y:.2f}<br>%{z:.2f}<extra></extra>" },
       { type: "scatter3d", mode: "lines", x: MV.wl, y: MV.cj.map(() => Math.log10(dg[k])), z: MV.cj.map((jj) => O.C_ext[k][jj] + 0.01), line: { color: t.ruby, width: 7 }, hoverinfo: "skip", showlegend: false }],
       { margin: { l: 0, r: 0, t: 0, b: 0 }, uirevision: "s", scene: scene("λ (nm)", "log₁₀ d (nm)", "extinção", { camera: { eye: { x: -1.5, y: -1.5, z: 0.9 } } }) });
@@ -420,6 +572,7 @@
     setD(tg.diameter); $("#op-s").value = Math.round(100 * tg.sigma);          // começa no alvo: J ≈ 0
     const dynF = perFrame(dyn);
     ["#op-d", "#op-s"].forEach((s) => $(s).addEventListener("input", () => { mark(null); dynF(); }));
+    $("#op-a").addEventListener("input", dynF);
     segmented("#op-norm", (v) => { mode = v; dyn(); });
     drawer(full);
     const V = O.lit_spheres;
@@ -806,12 +959,115 @@
     $("#ab-gloss").innerHTML = G.map(([a, b]) => `<div><dt>${esc(a)}</dt><dd>${esc(b)}</dd></div>`).join("");
   };
 
+  /* ------------------------------------------------------------------ fichas Dados · Método · Achado */
+  function fichas() {
+    const k = A.overview.kpis, L = A.literature, X = A.xrd.geometry, D = A.designer, B = A.benchmark, V = A.variability, C = A.causal, S = A.interpret;
+    const wins = Object.values(B.datasets).filter((x) => x.paired["GP-EI"].p < 0.05 && x.paired["GP-EI"].wins > x.paired["GP-EI"].losses).length;
+    const H = S.agnp.H2; let hi = [0, 1]; H.forEach((r, i) => r.forEach((v, j) => { if (i < j && v > H[hi[0]][hi[1]]) hi = [i, j]; }));
+    const ag = S.agnp, imp = ag.features.map((_, j) => ag.values.reduce((a, r) => a + Math.abs(r[j] || 0), 0)), topF = ag.features[imp.indexOf(Math.max(...imp))];
+    const M = A.overview.map, nexp = M.filter((m) => m.status === "experimental").length;
+    const sizes = finite(L.records.size);
+    const F = {
+      literatura: [`${ni(L.n)} sínteses de ${ni(L.n_doi)} DOIs (Cruse 2022, NSP 2026, AuNCs 2025); ${ni(L.n_go)} com GO/rGO`,
+        "mineração de texto, reagentes normalizados pelo dicionário PubChem, filtros físicos de plausibilidade",
+        `tamanho mediano <b>${nf(median(sizes), 1)} nm</b>; o citrato segue como o redutor mais usado ano a ano`],
+      caracterizacao: [`${ni(A.xrd.n_frames)} quadros GE 2048 × 2048 de CeO₂ + dark; ${ni(A.aunc.n)} AuNC de ${ni(A.aunc.n_doi)} artigos`,
+        "centro pelo contraste do perfil radial, indexação da fluorita, ajuste r = D·tan 2θ",
+        `<b>${ni(X.n_rings)} anéis</b> indexados, λ = ${nf(X.wavelength_A, 4)} Å (${nf(X.energy_keV, 1)} keV), RMS ${nf(X.rms_residual_px, 2)} px`],
+      optica: [`n e k medidos do Au (Johnson & Christy) e ${ni(k.mie_validation_n)} pares tamanho–pico relatados`,
+        "Mie com amortecimento de superfície, ensemble log-normal, perda J (Eq. 1) do pré-registro, cor por colorimetria CIE",
+        `erro mediano de <b>${nf(k.mie_median_abs_residual, 1)} nm</b> no LSPR, sem nenhum ajuste`],
+      designer: [`${ni(D.n_measurements)} medidas em ${ni(D.n_conditions)} condições (Mekki-Berrada 2021)`,
+        "GP Matérn-5/2 + ARD em ln(perda), validação cruzada em 10 dobras, melhoria esperada (EI)",
+        `R² <b>${nf(D.cv.r2, 2)}</b> e cobertura de ${nf(100 * D.cv.coverage95, 0)} % do IC 95 %`],
+      interpretabilidade: ["GP da campanha AgNP; árvores para AuNC e para o tamanho na literatura",
+        "valores de Shapley (exatos e TreeSHAP) e estatística H² de Friedman",
+        `<b>${esc(topF)}</b> é a mais influente; maior interação: ${esc(ag.features[hi[0]])} × ${esc(ag.features[hi[1]])} (H² ${nf(H[hi[0]][hi[1]], 2)})`],
+      aprendizado: [`${Object.keys(B.datasets).length} campanhas experimentais, ${B.seeds} repetições × ${B.arms.length} estratégias`,
+        "reexecução com as medidas reais como oráculo; Wilcoxon pareado pela partida comum",
+        `GP-EI melhor que o acaso em <b>${wins} de ${Object.keys(B.datasets).length}</b> campanhas; nas demais, empate estatístico`],
+      variabilidade: [`${ni(V.agnp.n_measurements)} réplicas AgNP, ${ni(V.turkevich.n_papers)} artigos de Turkevich, ${ni(V.aunc_generalization.n_papers)} artigos de AuNC`,
+        "Brown–Forsythe, ICC, um valor por artigo, validação agrupada por artigo",
+        `mesma rota: <b>${nf(V.turkevich.q10_q90[0], 1)}–${nf(V.turkevich.q10_q90[1], 1)} nm</b>; R² cai de ${nf(V.aunc_generalization.r2_random, 2)} para ${nf(V.aunc_generalization.r2_new_paper, 2)} em artigo novo`],
+      causal: [`${ni(C.n)} sínteses: ${ni(C.n_treated)} com NaBH₄, ${ni(C.n - C.n_treated)} com citrato`,
+        `IPW com ${C.covariates.length} covariáveis, bootstrap de 300 reamostragens, E-value`,
+        `tamanho <b>×${nf(C.ratio, 2)}</b> (IC 95 % ${nf(C.ratio_ci95[0], 2)}–${nf(C.ratio_ci95[1], 2)}); E-value ${nf(C.e_value, 1)}`],
+      sobre: ["7 bases experimentais públicas, com DOI e licença",
+        "tudo regenerável por code/webapp/build_site.py e conferido por testes automáticos",
+        `<b>${nexp} de ${M.length}</b> seções da proposta já com dados experimentais`],
+    };
+    for (const [id, [d, m, a]] of Object.entries(F)) {
+      const el = document.getElementById("fi-" + id);
+      if (el) el.innerHTML = `<div><dt>Dados</dt><dd>${d}</dd></div><div><dt>Método</dt><dd>${m}</dd></div><div><dt>Achado</dt><dd>${a}</dd></div>`;
+    }
+  }
+  // "Fig. 4.5a": figuras numeradas pela seção da proposta de cada aba
+  function numberFigures() {
+    for (const [id, , sec] of TABS) {
+      if (!sec) continue;
+      let k = 0;
+      document.querySelectorAll(`#p-${id} .card`).forEach((card) => {
+        const h = card.querySelector(".card-h h3"); if (!h || !card.querySelector(".plot, table")) return;
+        h.insertAdjacentHTML("afterbegin", `<span class="fig">Fig. ${sec}${String.fromCharCode(97 + k++)}</span>`);
+      });
+    }
+  }
+  // busca rápida (Ctrl K): abas e gráficos
+  function palette() {
+    const box = $("#palette"), q = $("#palQ"), ul = $("#palL"), norm = (x) => x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    let items = [], sel = 0, last = null;
+    function index() {
+      items = TABS.map(([id, label, sec]) => ({ id, label, where: "aba" + (sec ? ` · §${sec}` : ""), el: null }));
+      document.querySelectorAll(".panel").forEach((p) => {
+        const id = p.id.slice(2), tab = TABS.find((t) => t[0] === id);
+        p.querySelectorAll(".card").forEach((c) => { const h = c.querySelector("h3, h2"); if (!h) return;
+          const fig = h.querySelector(".fig"), txt = h.textContent.replace(fig ? fig.textContent : "", "").trim();
+          items.push({ id, label: txt, where: `${tab[1]}${fig ? " · " + fig.textContent : ""}`, el: c }); });
+      });
+    }
+    function render() {
+      const w = norm(q.value).split(/\s+/).filter(Boolean);
+      const hits = items.filter((it) => w.every((x) => norm(it.label + " " + it.where).includes(x))).slice(0, 40);
+      sel = Math.min(sel, Math.max(0, hits.length - 1));
+      ul.innerHTML = hits.map((it, i) => `<li role="option" id="pal-${i}" aria-selected="${i === sel}" data-i="${items.indexOf(it)}"><span>${esc(it.label)}</span><small>${esc(it.where)}</small></li>`).join("") ||
+        `<li aria-disabled="true"><span>Nada encontrado para "${esc(q.value)}"</span></li>`;
+      q.setAttribute("aria-activedescendant", hits.length ? "pal-" + sel : "");
+    }
+    function go(i) {
+      const it = items[i]; if (!it) return;
+      close(); location.hash = it.id; show(it.id);
+      if (it.el) requestAnimationFrame(() => { it.el.scrollIntoView({ block: "start", behavior: "smooth" }); it.el.classList.remove("flash"); void it.el.offsetWidth; it.el.classList.add("flash"); });
+    }
+    function open() { last = document.activeElement; index(); q.value = ""; sel = 0; render(); box.hidden = false; $("#backdrop").hidden = false; q.focus(); }
+    function close() { box.hidden = true; if (!$(".card.full")) $("#backdrop").hidden = true; if (last && last.focus) last.focus(); }
+    $("#findBtn").addEventListener("click", open);
+    q.addEventListener("input", () => { sel = 0; render(); });
+    q.addEventListener("keydown", (e) => {
+      const n = ul.querySelectorAll("li[data-i]").length;
+      if (e.key === "ArrowDown") { e.preventDefault(); sel = Math.min(n - 1, sel + 1); render(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); sel = Math.max(0, sel - 1); render(); }
+      else if (e.key === "Enter") { e.preventDefault(); const li = ul.querySelectorAll("li[data-i]")[sel]; if (li) go(+li.dataset.i); }
+      else if (e.key === "Escape") { e.preventDefault(); close(); }
+    });
+    ul.addEventListener("click", (e) => { const li = e.target.closest("li[data-i]"); if (li) go(+li.dataset.i); });
+    $("#backdrop").addEventListener("click", () => { if (!box.hidden) close(); });
+    document.addEventListener("keydown", (e) => {
+      const typing = /INPUT|SELECT|TEXTAREA/.test((document.activeElement || {}).tagName || "");
+      if ((e.key === "k" || e.key === "K") && (e.ctrlKey || e.metaKey)) { e.preventDefault(); box.hidden ? open() : close(); }
+      else if (e.key === "/" && !typing && box.hidden) { e.preventDefault(); open(); }
+    });
+  }
+
   /* ------------------------------------------------------------------ início */
   function start() {
     buildTabs();
     addExpanders();
-    $("#foot").innerHTML = `AuGOSintesIA · gerado em ${esc(A.overview.generated)} por <span class="mono">code/webapp/build_site.py</span> a partir dos dados experimentais do repositório. ` +
-      "Modelos e previsões são marcados como tal; nenhum dado simulado entra nesta página.";
+    fichas(); numberFigures(); palette();
+    $("#foot").innerHTML = `<div><b>AuGOSintesIA</b> · plataforma de aprendizado ativo para nanocompósitos GO–AuNP · IC FAPESP · UNESP-IQ Araraquara</div>` +
+      `<div>Gerado em ${esc(A.overview.generated)} por <span class="mono">code/webapp/build_site.py</span> · só dados experimentais; modelos e previsões marcados como tal</div>`;
+    const tt = $("#toTop");
+    window.addEventListener("scroll", perFrame(() => tt.classList.toggle("on", window.scrollY > 700)), { passive: true });
+    tt.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
     try { const th = localStorage.getItem("augo-theme"); if (th) document.documentElement.setAttribute("data-theme", th); } catch (e) { /* sem armazenamento */ }
     $("#themeBtn").addEventListener("click", () => {
       const next = isDark() ? "light" : "dark";
@@ -828,9 +1084,11 @@
     $("#themeBtn").setAttribute("aria-pressed", isDark() ? "true" : "false");
     let first = (location.hash || "").slice(1);
     if (!first) { try { first = localStorage.getItem("augo-tab") || "visao"; } catch (e) { first = "visao"; } }
-    show(first);
+    route(first);
+    requestAnimationFrame(() => setTimeout(() => $("#boot").classList.add("done"), 120));
   }
   if (!window.Plotly) {
+    document.getElementById("boot").classList.add("done");
     document.getElementById("main").insertAdjacentHTML("afterbegin",
       '<p class="note">A biblioteca de gráficos (Plotly) não carregou. Abra o arquivo site/index.html da pasta do repositório, com a pasta vendor/ ao lado.</p>');
     return;

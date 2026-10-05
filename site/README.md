@@ -38,6 +38,12 @@ Nada do simulador (`code/benchmarking/`, `miso.py`, `designer.py demo`) entra no
 `test_so_dados_experimentais` confere isso. As seções que dependem das sínteses GO–AuNP do projeto (lotes de GO,
 MISO, campanha prospectiva, TEM) aparecem como "aguarda o laboratório".
 
+Desenho: trilho lateral com as etapas da proposta (Panorama, Dados, Modelos, Decisão, Projeto) e o estado de cada
+seção; ficha Dados · Método · Achado no topo de cada aba; figuras numeradas pela seção (Fig. 4.5a…); busca rápida por
+qualquer gráfico (`Ctrl K` ou `/`). A abertura mostra a **cor real do ouro coloidal** por tamanho, calculada por Mie
+com n e k medidos e colorimetria CIE 1931 sob D65 (mesma massa de ouro em todos os tamanhos); a mesma conta colore a
+superfície de Mie em 3D e a cubeta da aba Óptica, que muda de cor ao mover diâmetro, dispersão e concentração.
+
 Uso: passe o mouse para ver valores; arraste para girar (3D) ou dar zoom (2D; duplo clique volta); **ampliar** abre o
 gráfico em tela cheia (`Esc` fecha); a legenda esconde/isola séries; cada aba tem endereço próprio (`#designer`…).
 Trocar o tema mantém filtros e controles.
