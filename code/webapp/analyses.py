@@ -55,11 +55,17 @@ def literature() -> dict:
                         "size": None if pd.isna(r["size_nm"]) else round(float(r["size_nm"]), 1),
                         "T": None if pd.isna(r["T"]) else round(float(r["T"]), 1),
                         "source": expdata.SOURCES.get(r["source"], txt(r["source"]))})
+    # registros do gráfico 3D (tamanho, pico e temperatura relatados): título ou DOI para o detalhe ao clicar
+    tri = L.dropna(subset=["size_nm", "peak_nm", "T_C"])
+    tri_ref = {"idx": [int(i) for i in np.flatnonzero(L.index.isin(tri.index))],
+               "title": [txt(t).replace(" _ ", " — ")[:160] for t in tri["title"]],
+               "doi": [txt(d) for d in tri["doi"]]}
     by_year = (L.dropna(subset=["year"]).assign(red=lambda x: x["reductant"])
                .groupby(["year", "red"]).size().unstack(fill_value=0))
     return {"records": rec, "n": int(len(L)), "n_doi": int(L.loc[L["doi"] != "", "doi"].nunique()),
             "sources": list(expdata.SOURCES.values()), "reductants": expdata.REDUCTANTS, "capping": expdata.CAPPING,
-            "morph": expdata.MORPH, "go_rows": go_rows, "n_go": int(len(g)),
+            "morph": expdata.MORPH, "go_rows": go_rows, "n_go": int(len(g)), "tri_ref": tri_ref,
+            "n_by_source": {expdata.SOURCES[k]: int(v) for k, v in L["source"].value_counts().items()},
             "n_go_doi": int(g["doi"].dropna().nunique()),
             "reductant_by_year": {"years": by_year.index.astype(int).tolist(),
                                   "series": {expdata.REDUCTANTS[c] if c >= 0 else "outro/não citado":
@@ -134,6 +140,7 @@ def optics() -> dict:
             "lspr_curve": {"d": _r(d, 3), "lambda": _r(lam, 1), "sigma": 0.10},
             "lit_spheres": {"size": _r(sph["size_nm"], 2), "peak": _r(sph["peak_nm"], 1),
                             "source": sph["source"].map(expdata.SOURCES).tolist(), "doi": sph["doi"].tolist(),
+                            "title": [str(t).replace(" _ ", " — ")[:160] if isinstance(t, str) else "" for t in sph["title"]],
                             "n": int(len(sph)), "median_abs_residual": float(np.median(np.abs(res))),
                             "within_5nm": float(np.mean(np.abs(res) <= 5)), "by_bin": by_bin},
             "target": {"wl": _r(tw, 0), "E": _r(te / te.max(), 4), "diameter": cfg["target_spectrum"]["diameter_nm"],
@@ -325,6 +332,23 @@ def benchmark(seeds: int = 20, budget: int = 60, workers: int = 4) -> dict:
         out["datasets"][name] = {"n_pool": int(len(X)), "features": feats, "objective": label, "minimize": minimize,
                                  "reference": ref, "budget": B, "curves": curves, "reach_top5": reach}
     return out
+
+
+def add_paired_stats(bench: dict) -> dict:
+    """Comparação PAREADA com o aleatório: a semente s sorteia as mesmas 5 condições iniciais em todos os braços.
+    Campanha que não chegou ao top 5 % conta como orçamento + 1 (censura à direita, conservadora para o braço)."""
+    from scipy.stats import wilcoxon
+    for ds in bench["datasets"].values():
+        cap = ds["budget"] + 1
+        h = {a: np.array([cap if v is None else v for v in ds["reach_top5"][a]["per_seed"]], float) for a in bench["arms"]}
+        ds["median_censored"] = {a: float(np.median(h[a])) for a in bench["arms"]}
+        ds["paired"] = {}
+        for a in bench["arms"][1:]:
+            d = h[a] - h["Aleatório"]
+            p = float(wilcoxon(d).pvalue) if np.any(d != 0) else 1.0
+            ds["paired"][a] = {"wins": int(np.sum(d < 0)), "ties": int(np.sum(d == 0)), "losses": int(np.sum(d > 0)),
+                               "median_diff": float(np.median(d)), "p": p}
+    return bench
 
 
 # ---------------------------------------------------------------------------------------------- §4.13 SHAP

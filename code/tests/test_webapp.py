@@ -120,3 +120,25 @@ def test_xrd_e_causal(site):
     C = site["causal"]
     assert C["ratio_ci95"][0] < C["ratio"] < C["ratio_ci95"][1] and C["e_value"] > 1
     assert max(abs(v) for v in C["smd_after"]) < 0.1
+
+
+def test_benchmark_pareado(site):
+    B = site["benchmark"]
+    for name, ds in B["datasets"].items():
+        for a in B["arms"][1:]:
+            pr = ds["paired"][a]
+            assert pr["wins"] + pr["ties"] + pr["losses"] == B["seeds"], (name, a)
+            assert 0 <= pr["p"] <= 1
+        assert all(1 <= m <= ds["budget"] + 1 for m in ds["median_censored"].values())
+    # recalcular a partir das sementes dá o mesmo resultado (idempotente)
+    again = analyses.add_paired_stats(json.loads(json.dumps(B)))
+    assert again["datasets"]["AgNP"]["paired"] == B["datasets"]["AgNP"]["paired"]
+
+
+def test_referencias_dos_pontos_3d(site):
+    L = site["literature"]
+    R, t = L["records"], L["tri_ref"]
+    assert len(t["idx"]) == len(t["title"]) == len(t["doi"]) > 100
+    for i in t["idx"]:
+        assert R["size"][i] is not None and R["peak"][i] is not None and R["T"][i] is not None
+    assert sum(L["n_by_source"].values()) == L["n"]

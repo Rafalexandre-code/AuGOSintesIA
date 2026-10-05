@@ -48,7 +48,7 @@ def _read(name: str) -> dict | None:
 def compute(reuse: bool = False, workers: int = 4) -> dict:
     out = {}
     steps = [("literature", analyses.literature), ("optics", analyses.optics),
-             ("designer", analyses.designer_agnp), ("benchmark", lambda: analyses.benchmark(workers=workers)),
+             ("designer", analyses.designer_agnp), ("benchmark", lambda: analyses.add_paired_stats(analyses.benchmark(workers=workers))),
              ("interpret", lambda: analyses.interpretability(out["designer"])),
              ("variability", analyses.variability), ("causal", analyses.causal), ("xrd", analyses.xrd),
              ("aunc", analyses.aunc_section)]
@@ -56,6 +56,8 @@ def compute(reuse: bool = False, workers: int = 4) -> dict:
         prev = _read(name) if reuse else None
         if prev is not None:
             out[name] = prev
+            if name == "benchmark":                         # estatística pareada é barata: sempre recalculada
+                _write(name, analyses.add_paired_stats(prev))
             print(f"  {name:12s} reaproveitado")
             continue
         t = time.time()

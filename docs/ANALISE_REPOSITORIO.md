@@ -1367,18 +1367,25 @@ navegador o GP do Designer (mesma conta do GPyTorch) e o Mie + perda J (mesma co
 | §4.1, §4.3 | 15 928 sínteses de Au de 5 132 DOIs (Cruse 2022, NSP 2026, AuNC 2025); 312 registros GO–AuNP de 120 artigos | filtros por base, redutor, morfologia, rota e GO; tamanho mediano 15 nm |
 | §4.4, §4.6, §4.10 | n, k do Au (Johnson & Christy) + 798 pares tamanho–pico relatados | Mie (σ = 10 %) prevê o LSPR com erro mediano de **4,0 nm** (53 % dentro de 5 nm); no alvo do pré-registro, J ≈ 0, como deve |
 | §4.5, §4.18 | campanha AgNP em microfluídica (Mekki-Berrada 2021): 3 295 medidas, 164 condições, perda espectral contra alvo | GP Matérn-5/2 + ARD em ln(perda): **R² 0,93** em 10 dobras, cobertura do IC 95 % de 92 %; 5 sugestões por EI |
-| §4.15, §4.16 | 5 campanhas experimentais (AgNP + 4 de Liang 2021), 20 repetições por estratégia | experimentos até o top 5 % (mediana): GP-EI ganha em AgNP (10 × 13,5 ao acaso), P3HT/CNT (7,5 × 9) e crossed barrel (9,5 × 20), e **perde** em perovskitas (15 × 13,5) e AutoAM (15 × 10) |
+| §4.15, §4.16 | 5 campanhas experimentais (AgNP + 4 de Liang 2021), 20 repetições por estratégia, mesma partida de 5 condições por repetição | experimentos até o top 5 % (mediana; quem não chega conta como orçamento + 1): GP-EI é **melhor que o acaso** em AgNP (10 × 13,5; Wilcoxon pareado p = 0,007) e crossed barrel (9,5 × 21; p = 0,016); em P3HT/CNT, perovskitas e AutoAM a diferença **não é distinguível** (p > 0,2) |
 | §4.13 | GP AgNP (SHAP exato), AuNC e literatura (TreeSHAP) | AgNP: AgNO₃ > sementes > citrato, interação H² até 0,13; literatura: NaBH₄, rota com sementes e CTAB movem o tamanho |
 | §4.7, §4.17 | réplicas AgNP; Turkevich (citrato, sem sementes, esfera) em 1 746 artigos; AuNC por artigo | ruído **heteroscedástico** (Brown–Forsythe p < 10⁻¹⁰⁰), ICC 0,95, CV mediano 4,9 %; a mesma rota dá 8,7–45,6 nm (10–90 %), fator ×1,94 por dp; prever emissão de AuNC para um **artigo novo** cai de R² 0,23 para −0,04 |
 | §4.9 | 5 933 sínteses NaBH₄ × citrato | IPW com 7 covariáveis (SMD < 0,1 após o ajuste): tamanho **×0,48** (IC 95 % 0,45–0,52), E-value 3,6 |
 | §4.2 | 5 quadros GE de CeO₂ + dark (2048²) | centro pelo contraste do perfil radial; **14 anéis** da fluorita indexados, r = D·tan 2θ: λ = 0,1956 Å (63,4 keV), D = 4 118 px, resíduo RMS 0,08 px |
 
 Como ler: os números de §4.15 são reamostragens das medidas reais (cada estratégia só escolhe entre condições
-medidas), não simulação; o resultado misto é a razão de o projeto comparar braços em vez de assumir que o GP ganha.
+medidas), não simulação; como a mesma semente sorteia a mesma partida em todos os braços, a comparação é pareada
+(Wilcoxon por repetição). O resultado misto é a razão de o projeto comparar braços em vez de assumir que o GP ganha.
 A análise causal é observacional. Mineração de texto erra: os filtros físicos removem os erros grosseiros, e o tamanho
 de Cruse et al. é por artigo. O que exige as sínteses GO–AuNP do próprio projeto (lotes de GO e GO Navigator, braços
 contextuais e transferência entre lotes, MISO, campanha prospectiva e confirmação por TEM) aparece no site como
 "aguarda o laboratório", com o código já pronto em `code/`.
+
+Recursos do painel: cada aba guarda o estado (filtros, controles) ao trocar o tema; controles redesenham uma vez por
+quadro; gráficos ampliáveis em tela cheia; clique num ponto da literatura para ver o artigo; exemplos prontos na aba
+Óptica; medidas próximas do corte em destaque no Designer; anéis ajustados sobre a imagem do detector; glossário.
+Acessibilidade conferida com axe-core (sem violações nas 10 abas), contraste ≥ 4,5:1, navegação por teclado nas abas
+(setas, Home, End) e nas tabelas roláveis.
 
 ```bash
 python code/webapp/build_site.py             # refaz as análises e o site (~5 min)
