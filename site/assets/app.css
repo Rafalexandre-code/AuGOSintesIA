@@ -384,3 +384,19 @@ footer b { color: var(--ink-2); font-weight: 600; }
   .cuvette-row { grid-template-columns: auto minmax(0, 1fr); } .cuvette-row .ctl { grid-column: 1 / -1; }
   .progress { grid-template-columns: 1fr; } .progress .legend-row { grid-column: 1; }
 }
+
+/* causalidade: grafo mecanístico e vereditos */
+.dag .node.latent rect { stroke-dasharray: 5 4; fill: transparent; }
+.dag .node.y rect { fill: var(--surface); }
+.dag text.elab { font: 500 11px var(--f-mono); fill: var(--muted); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; }
+.dag text.elab.eff { fill: var(--ruby-ink); font-weight: 600; }
+.verdict { padding: 10px 0 12px; border-bottom: 1px solid var(--line); }
+.verdict:last-child { border-bottom: 0; }
+.verdict .vh { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }
+.verdict .vh b { font: 650 .92rem var(--f-display); }
+.verdict .vn { font: 600 .9rem var(--f-mono); color: var(--ruby-ink); margin: 4px 0 2px; }
+.verdict .vn .muted { font: 400 .76rem var(--f-body); }
+.verdict p { margin: 4px 0 0; font-size: .82rem; color: var(--ink-2); line-height: 1.5; }
+.ok-ico { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font: 700 .8rem var(--f-body); }
+.ok-ico.y { background: color-mix(in oklab, var(--ok) 18%, transparent); color: var(--ok-ink); }
+.ok-ico.w { background: color-mix(in oklab, var(--warn) 25%, transparent); color: var(--ink); }

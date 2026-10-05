@@ -135,7 +135,34 @@ def optics() -> dict:
         for i, x in enumerate(dd):
             e = ens(x, sg)
             Jg[j, i] = uvvis.spectral_loss_J(wl, e, tw, te, s=sm, grid=grid, norm=None if norm == "none" else norm)
+    # conferência com a literatura: curva empírica de Haiss et al. (Anal. Chem. 2007, 79, 4215), λ = 512 + 6,53·e^(0,0216 d)
+    # para d > 25 nm; e teste de um índice efetivo do meio (camada de ligante), ajustado em metade dos ARTIGOS e
+    # avaliado na outra metade — adotado só se melhorar a validação
+    hd = np.arange(25.0, 101.0, 5.0)
+    haiss = 512 + 6.53 * np.exp(0.0216 * hd)
+    mie_h = np.interp(np.log(hd), np.log(d), lam)
+    clus = np.where(sph["doi"] != "", sph["doi"], sph["title"])
+    rng = np.random.default_rng(7)
+    uc = np.unique(clus)
+    cal = np.isin(clus, rng.choice(uc, len(uc) // 2, replace=False))
+    dsub = np.exp(np.linspace(np.log(3.0), np.log(160.0), 60))
+    neff = []
+    for nm in (1.333, 1.345, 1.36, 1.375, 1.39):
+        Cn = np.array([mie.extinction_cross_section(wl, x, "Au", nm) for x in dsub])
+
+        def en(dc, Cn=Cn):
+            sg = np.sqrt(np.log(1 + 0.01))
+            w = np.exp(-0.5 * ((np.log(dsub) - (np.log(dc) - sg ** 2 / 2)) / sg) ** 2)
+            return (w / w.sum()) @ Cn
+        ln_ = np.array([_peak(wl, en(x)) for x in dsub])
+        rs = sph["peak_nm"].to_numpy() - np.interp(np.log(sph["size_nm"]), np.log(dsub), ln_)
+        neff.append({"n": nm, "cal": float(np.median(np.abs(rs[cal]))), "val": float(np.median(np.abs(rs[~cal]))),
+                     "bias_val": float(np.median(rs[~cal])),
+                     "haiss_max": float(np.max(np.abs(np.interp(np.log(hd), np.log(dsub), ln_) - haiss)))})
     return {"wl": _r(wl, 0), "d": _r(d, 3), "C_ext": _r(C / C.max(axis=1, keepdims=True), 4),
+            "haiss": {"d": _r(hd, 1), "lambda": _r(haiss, 1), "mie": _r(mie_h, 1),
+                      "max_abs_diff": float(np.max(np.abs(mie_h - haiss))), "mie_20nm": float(np.interp(np.log(20), np.log(d), lam))},
+            "n_eff_test": neff,
             "C_ext_max": _r(C.max(axis=1), 2), "per_volume_max": _r(C.max(axis=1) / vol, 5),
             "lspr_curve": {"d": _r(d, 3), "lambda": _r(lam, 1), "sigma": 0.10},
             "lit_spheres": {"size": _r(sph["size_nm"], 2), "peak": _r(sph["peak_nm"], 1),
@@ -250,13 +277,87 @@ def designer_agnp() -> dict:
              "lo": float(np.exp(mu[i] - 1.96 * sd[i])), "hi": float(np.exp(mu[i] + 1.96 * sd[i])),
              "ei": float(ei[i])} for i in chosen]
     ib = int(np.argmin(u["mean"]))
-    return {"columns": cols, "labels": [expdata.AGNP_LABELS[c] for c in cols], "lo": lo.tolist(), "hi": hi.tolist(),
+    return {"model_comparison": _gp_model_comparison(Xn, y, u), "do_effects": _do_effects(m, Xn, lo, hi, cols),
+            "columns": cols, "labels": [expdata.AGNP_LABELS[c] for c in cols], "lo": lo.tolist(), "hi": hi.tolist(),
             "points": {"X": _r(X, 3), "mean": _r(u["mean"], 4), "sd": _r(u["std"], 4), "n": u["count"].tolist()},
             "n_measurements": int(len(raw)), "n_conditions": int(len(u)), "gp": gp,
             "cv": {"obs": _r(y, 4), "pred": _r(cv_mu, 4), "sd": _r(sd_tot, 4), "r2": float(r2),
                    "rmse": float(np.sqrt(np.mean(resid ** 2))), "coverage95": cover},
             "best_measured": {"x": _r(X[ib], 3), "loss": float(u["mean"].iloc[ib]), "sd": float(u["std"].iloc[ib])},
             "suggestions": sugg, "ei_note": "EI sobre ln(perda), 4096 candidatos Sobol, 5 escolhas a ≥ 0,15 entre si"}
+
+
+def _gp_model_comparison(Xn: np.ndarray, y: np.ndarray, u: pd.DataFrame) -> list[dict]:
+    """Escolha do modelo por validação cruzada (10 dobras, mesmas dobras para todos), critério fixado antes:
+    log-verossimilhança preditiva (NLPD, menor é melhor) com o ruído incluído. Candidatos: núcleos Matérn-1/2, 3/2,
+    5/2 (o da proposta) e RBF, todos com ARD e o mesmo prior de comprimento; e o 5/2 com o ruído MEDIDO de cada
+    condição (erro-padrão da média das réplicas, em ln) no lugar do ruído aprendido."""
+    import math
+    import torch
+    from botorch.fit import fit_gpytorch_mll
+    from botorch.models import SingleTaskGP
+    from botorch.models.transforms import Standardize
+    from gpytorch.kernels import MaternKernel, RBFKernel, ScaleKernel
+    from gpytorch.mlls import ExactMarginalLogLikelihood
+    from gpytorch.priors import LogNormalPrior
+    p_ = Xn.shape[1]
+    pr = lambda: LogNormalPrior(math.sqrt(2) + math.log(p_) / 2, math.sqrt(3))  # noqa: E731
+    yvar = np.maximum((u["std"].fillna(0).to_numpy() / u["mean"].to_numpy()) ** 2 / u["count"].to_numpy(), 1e-6)
+    cands = [("Matérn-5/2 (proposta)", lambda: MaternKernel(nu=2.5, ard_num_dims=p_, lengthscale_prior=pr()), False),
+             ("Matérn-3/2", lambda: MaternKernel(nu=1.5, ard_num_dims=p_, lengthscale_prior=pr()), False),
+             ("Matérn-1/2", lambda: MaternKernel(nu=0.5, ard_num_dims=p_, lengthscale_prior=pr()), False),
+             ("RBF", lambda: RBFKernel(ard_num_dims=p_, lengthscale_prior=pr()), False),
+             ("Matérn-5/2 com ruído medido das réplicas", lambda: MaternKernel(nu=2.5, ard_num_dims=p_, lengthscale_prior=pr()), True)]
+    idx = np.random.default_rng(20261004).permutation(len(y))
+    folds = np.array_split(idx, 10)
+    out = []
+    for name, kern, het in cands:
+        mu, var = np.empty(len(y)), np.empty(len(y))
+        for f in folds:
+            tr = np.setdiff1d(idx, f)
+            m = SingleTaskGP(torch.tensor(Xn[tr]), torch.tensor(y[tr][:, None]),
+                             train_Yvar=torch.tensor(yvar[tr][:, None]) if het else None,
+                             covar_module=ScaleKernel(kern()), outcome_transform=Standardize(1))
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                fit_gpytorch_mll(ExactMarginalLogLikelihood(m.likelihood, m))
+            with torch.no_grad():
+                pst = m.posterior(torch.tensor(Xn[f]), observation_noise=not het)
+            mu[f] = pst.mean.detach().numpy().ravel()
+            var[f] = pst.variance.detach().numpy().ravel() + (yvar[f] if het else 0)
+        r = y - mu
+        out.append({"model": name, "r2": float(1 - np.sum(r ** 2) / np.sum((y - y.mean()) ** 2)),
+                    "rmse": float(np.sqrt(np.mean(r ** 2))), "coverage95": float(np.mean(np.abs(r) <= 1.96 * np.sqrt(var))),
+                    "nlpd": float(np.mean(0.5 * np.log(2 * np.pi * var) + r ** 2 / (2 * var)))})
+    out[0]["replicate_se_median"] = float(np.median(np.sqrt(yvar)))
+    return out
+
+
+def _do_effects(m, Xn: np.ndarray, lo: np.ndarray, hi: np.ndarray, cols: list[str]) -> list[dict]:
+    """Efeito INTERVENCIONAL médio de aumentar cada vazão em 10 % da faixa, do(x_j + 0,1), sobre ln(perda), média nas
+    condições medidas em que o aumento cabe na faixa. Na campanha as vazões são fixadas pelo experimentador (não há
+    confundidor entre elas e o resultado), então o contraste do GP estima o efeito causal dentro do domínio medido.
+    Incerteza: covariância conjunta do posterior em (x, x + δ)."""
+    import torch
+    out = []
+    for j, c in enumerate(cols):
+        ok = Xn[:, j] <= 0.9
+        X0 = Xn[ok]
+        X1 = X0.copy()
+        X1[:, j] += 0.1
+        with torch.no_grad():
+            pst = m.posterior(torch.tensor(np.vstack([X0, X1])))
+            mu = pst.mean.detach().numpy().ravel()
+            S = pst.covariance_matrix.detach().numpy().reshape(2 * len(X0), 2 * len(X0))
+        n = len(X0)
+        dmu = mu[n:] - mu[:n]
+        a = np.concatenate([-np.ones(n), np.ones(n)]) / n
+        sd = float(np.sqrt(max(a @ S @ a, 0)))
+        ace = float(dmu.mean())
+        out.append({"var": expdata.AGNP_LABELS[c], "step": float(0.1 * (hi[j] - lo[j])), "ace_ln": ace, "sd": sd,
+                    "ratio": float(np.exp(ace)), "ratio_ci95": [float(np.exp(ace - 1.96 * sd)), float(np.exp(ace + 1.96 * sd))],
+                    "frac_improve": float(np.mean(dmu < 0)), "n": int(n)})
+    return out
 
 
 # ---------------------------------------------------------------------------------------------- §4.15 benchmark
@@ -306,7 +407,7 @@ def _bo_run(X, y, minimize, arm, seed, n_init=5, budget=60):
     return np.array(best)
 
 
-def benchmark(seeds: int = 20, budget: int = 60, workers: int = 4) -> dict:
+def benchmark(seeds: int = 40, budget: int = 60, workers: int = 4) -> dict:
     """§4.15: estratégias de aprendizado ativo reexecutadas em 5 campanhas EXPERIMENTAIS publicadas."""
     from joblib import Parallel, delayed
     arms = ["Aleatório", "GP-EI", "GP-UCB", "RF-EI"]
@@ -464,59 +565,197 @@ def variability() -> dict:
 
 # ---------------------------------------------------------------------------------------------- §4.9 causal
 
-def causal() -> dict:
-    """Efeito do redutor forte (NaBH4) × citrato sobre ln(tamanho), por IPW com escore de propensão, nos registros
-    da literatura; balanço (SMD), sobreposição, bootstrap e E-value."""
-    from sklearn.linear_model import LogisticRegression
-    L = expdata.literature()
-    d = L[L["reductant"].isin([0, 1]) & L["size_nm"].between(1, 300)].copy()
-    d["treat"] = (d["reductant"] == 1).astype(int)
-    d["y"] = np.log(d["size_nm"])
-    cov = pd.DataFrame({
-        "mediada por sementes": d["seed"].astype(float),
-        "aquecida (T > 40 °C)": (d["T_C"] > 40).astype(float),
-        "T não informada": d["T_C"].isna().astype(float),
-        "CTAB/CTAC": d["capping"].isin([0, 3]).astype(float),
-        "tiol (GSH/dodecanotiol/TOAB)": d["capping"].isin([4, 5, 8]).astype(float),
-        "polímero (PVP/PEG)": d["capping"].isin([1, 2]).astype(float),
-        "fonte NSP": (d["source"] == "nsp2026").astype(float),
-    })
-    Xc, t, y = cov.to_numpy(), d["treat"].to_numpy(), d["y"].to_numpy()
+def _has(series: pd.Series, *keys: str) -> np.ndarray:
+    return series.fillna("").str.split("|").apply(lambda xs: any(k in xs for k in keys)).to_numpy()
 
-    def ipw(idx):
-        lr = LogisticRegression(max_iter=1000).fit(Xc[idx], t[idx])
-        e = np.clip(lr.predict_proba(Xc[idx])[:, 1], 0.02, 0.98)
-        w = np.where(t[idx] == 1, 1 / e, 1 / (1 - e))
-        m1 = np.sum(w * t[idx] * y[idx]) / np.sum(w * t[idx])
-        m0 = np.sum(w * (1 - t[idx]) * y[idx]) / np.sum(w * (1 - t[idx]))
-        return m1 - m0, e, w
-    ate, e, w = ipw(np.arange(len(d)))
-    boots = [ipw(R.integers(0, len(d), len(d)))[0] for _ in range(300)]
-    lo_, hi_ = np.quantile(boots, [0.025, 0.975])
-    naive = y[t == 1].mean() - y[t == 0].mean()
 
-    def smd(weights):
+def _effect(d: pd.DataFrame, t: np.ndarray, y: np.ndarray, cov: pd.DataFrame, clus: np.ndarray, binary: bool,
+            B: int = 200) -> dict:
+    """ATE por IPW (Hájek) e AIPW (duplamente robusto); IC por bootstrap de ARTIGOS (registros do mesmo artigo não são
+    independentes); balanço (SMD), sobreposição e sensibilidade ao aparo do escore."""
+    from sklearn.linear_model import LinearRegression, LogisticRegression
+    Xc = cov.to_numpy(float)
+    mu_, sd_ = Xc.mean(0), Xc.std(0)
+    Z = (Xc - mu_) / np.where(sd_ > 0, sd_, 1)
+
+    def fit(ix, clip=0.02):
+        tt, yy, ZZ = t[ix], y[ix], Z[ix]
+        e = np.clip(LogisticRegression(max_iter=2000, C=10.0).fit(ZZ, tt).predict_proba(ZZ)[:, 1], clip, 1 - clip)
+        w = np.where(tt == 1, 1 / e, 1 / (1 - e))
+        m1h = np.sum(w * tt * yy) / np.sum(w * tt)
+        m0h = np.sum(w * (1 - tt) * yy) / np.sum(w * (1 - tt))
+        if binary:
+            def om(g):
+                mm = LogisticRegression(max_iter=2000, C=10.0).fit(ZZ[tt == g], yy[tt == g])
+                return mm.predict_proba(ZZ)[:, 1]
+        else:
+            def om(g):
+                return LinearRegression().fit(ZZ[tt == g], yy[tt == g]).predict(ZZ)
+        o1, o0 = om(1), om(0)
+        a1 = np.mean(o1 + tt * (yy - o1) / e)
+        a0 = np.mean(o0 + (1 - tt) * (yy - o0) / (1 - e))
+        return {"ipw": (m1h, m0h), "aipw": (a1, a0), "e": e, "w": w}
+    full = fit(np.arange(len(t)))
+
+    def ebal(ix):
+        """Balanceamento por entropia (Hainmueller 2012) para o ATE: pesos de cada grupo que reproduzem EXATAMENTE as
+        médias das covariáveis da amostra inteira; efeito = diferença das médias ponderadas do desfecho."""
+        from scipy.optimize import minimize
+        ZZ, tt, yy = Z[ix], t[ix], y[ix]
+        tgt = ZZ.mean(0)
+        out, wts = [], np.zeros(len(ix))
+        for g in (1, 0):
+            Xg = ZZ[tt == g] - tgt
+            obj = lambda lam: np.log(np.mean(np.exp(np.clip(Xg @ lam, -50, 50))))  # noqa: E731
+            lam = minimize(obj, np.zeros(Xg.shape[1]), method="BFGS").x
+            wg = np.exp(np.clip(Xg @ lam, -50, 50))
+            wg /= wg.sum()
+            wts[tt == g] = wg
+            out.append(float(np.sum(wg * yy[tt == g])))
+        return out[0], out[1], wts
+    eb1, eb0, ebw = ebal(np.arange(len(t)))
+    uc = np.unique(clus)
+    pos = {c: np.flatnonzero(clus == c) for c in uc}
+    boots = []
+    for _ in range(B):
+        ix = np.concatenate([pos[c] for c in R.choice(uc, len(uc))])
+        if len(np.unique(t[ix])) < 2:
+            continue
+        f = fit(ix)
+        boots.append([f["aipw"][0], f["aipw"][1], f["ipw"][0], f["ipw"][1]])
+    boots = np.array(boots)
+    trim = fit(np.arange(len(t)), clip=0.05)
+
+    def smd(wts):
         out = []
         for j in range(Xc.shape[1]):
             x = Xc[:, j]
-            m1 = np.average(x[t == 1], weights=weights[t == 1])
-            m0 = np.average(x[t == 0], weights=weights[t == 0])
+            m1 = np.average(x[t == 1], weights=wts[t == 1])
+            m0 = np.average(x[t == 0], weights=wts[t == 0])
             v = (x[t == 1].var() + x[t == 0].var()) / 2
             out.append(float((m1 - m0) / np.sqrt(v)) if v > 0 else 0.0)
         return out
-    rr = np.exp(abs(ate) * 1.0)                                  # razão de médias geométricas
-    evalue = float(rr + np.sqrt(rr * (rr - 1)))
-    return {"treatment": "NaBH4 (redutor forte)", "control": "citrato de sódio", "outcome": "ln(tamanho, nm)",
-            "n": int(len(d)), "n_treated": int(t.sum()), "naive": float(naive), "ate": float(ate),
-            "ci95": [float(lo_), float(hi_)], "ratio": float(np.exp(ate)),
-            "ratio_ci95": [float(np.exp(lo_)), float(np.exp(hi_))], "e_value": evalue,
-            "covariates": list(cov.columns), "smd_before": smd(np.ones(len(d))), "smd_after": smd(w),
-            "propensity": {"treated": _r(np.sort(e[t == 1])[::max(1, int(t.sum()) // 800)], 3),
-                           "control": _r(np.sort(e[t == 0])[::max(1, int((1 - t).sum()) // 800)], 3)},
-            "dag": {"nodes": ["redutor", "temperatura", "sementes", "ligante", "fonte (base)", "tamanho"],
-                    "edges": [["redutor", "tamanho"], ["temperatura", "tamanho"], ["sementes", "tamanho"],
-                              ["ligante", "tamanho"], ["temperatura", "redutor"], ["sementes", "redutor"],
-                              ["ligante", "redutor"], ["fonte (base)", "redutor"], ["fonte (base)", "tamanho"]]}}
+    e = full["e"]
+    res = {"n": int(len(t)), "n_treated": int(t.sum()), "n_articles": int(len(uc)), "covariates": list(cov.columns),
+           "smd_before": smd(np.ones(len(t))), "smd_after": smd(full["w"]), "smd_ebal": smd(ebw),
+           "propensity": {"treated": _r(np.sort(e[t == 1])[::max(1, int(t.sum()) // 600)], 3),
+                          "control": _r(np.sort(e[t == 0])[::max(1, int((1 - t).sum()) // 600)], 3)}}
+    if binary:                                   # diferença de risco e razão de riscos
+        a1, a0 = full["aipw"]
+        rd = boots[:, 0] - boots[:, 1]
+        rr = boots[:, 0] / np.maximum(boots[:, 1], 1e-9)
+        res.update({"scale": "risco", "p1": float(a1), "p0": float(a0), "rd": float(a1 - a0),
+                    "rd_ci95": _r(np.quantile(rd, [0.025, 0.975]), 4), "rr": float(a1 / a0),
+                    "rr_ci95": _r(np.quantile(rr, [0.025, 0.975]), 4),
+                    "naive_rd": float(y[t == 1].mean() - y[t == 0].mean()),
+                    "ipw_rd": float(full["ipw"][0] - full["ipw"][1]),
+                    "trim_rd": float(trim["aipw"][0] - trim["aipw"][1]), "ebal_rd": float(eb1 - eb0), "ebal_rr": float(eb1 / eb0)})
+        est, lo_, hi_ = res["rr"], res["rr_ci95"][0], res["rr_ci95"][1]
+    else:                                        # razão de médias geométricas (desfecho em ln)
+        ate = full["aipw"][0] - full["aipw"][1]
+        bd = boots[:, 0] - boots[:, 1]
+        lo_l, hi_l = np.quantile(bd, [0.025, 0.975])
+        res.update({"scale": "ln", "ate": float(ate), "ci95": [float(lo_l), float(hi_l)], "ratio": float(np.exp(ate)),
+                    "ratio_ci95": [float(np.exp(lo_l)), float(np.exp(hi_l))],
+                    "naive_ratio": float(np.exp(y[t == 1].mean() - y[t == 0].mean())),
+                    "ipw_ratio": float(np.exp(full["ipw"][0] - full["ipw"][1])),
+                    "trim_ratio": float(np.exp(trim["aipw"][0] - trim["aipw"][1])), "ebal_ratio": float(np.exp(eb1 - eb0)),
+                    "sd_y": float(y.std())})
+        # E-value para desfecho contínuo (VanderWeele & Ding 2017): RR ≈ exp(0,91·d), d = efeito / dp do desfecho
+        est, lo_, hi_ = (np.exp(0.91 * v / y.std()) for v in (ate, lo_l, hi_l))
+
+    def ev(rr_):
+        rr_ = rr_ if rr_ >= 1 else 1 / rr_
+        return float(rr_ + np.sqrt(rr_ * (rr_ - 1)))
+    near = lo_ if est >= 1 else hi_
+    res["e_value"] = ev(est)
+    res["e_value_ci"] = 1.0 if (lo_ <= 1 <= hi_) else ev(near)
+    return res
+
+
+def causal() -> dict:
+    """§4.9 — estrutura causal das variáveis de síntese, com base nos mecanismos estabelecidos (LaMer: nucleação e
+    crescimento; Turkevich/Frens; Brust; crescimento mediado por sementes), e quatro efeitos estimados nos registros da
+    literatura, cada um conferido contra a direção que a literatura prevê."""
+    # a base AuNC é selecionada pelo produto (só nanoaglomerados): incluí-la condicionaria no desfecho (viés de seleção)
+    # e violaria a positividade (quase todo AuNC usa tiol) — fica fora das estimativas causais
+    L = expdata.literature()
+    L = L[L["source"] != "aunc2025"]
+    L = L.assign(nabh4=_has(L["reductants_raw"], "NaBH4"), citr=_has(L["reductants_raw"], "trisodium_citrate"),
+                 ascorb=_has(L["reductants_raw"], "ascorbic_acid"), ctab=_has(L["capping_raw"], "CTAB", "CTAC"),
+                 thiol=_has(L["capping_raw"], "GSH", "dodecanethiol"), poly=_has(L["capping_raw"], "PVP", "PEG"),
+                 clus=np.where(L["doi"] != "", L["doi"], L["title"]))
+    spheroid = L["morph"].isin([expdata.MORPH.index(m) for m in ("sphere", "particle", "cluster")]) & L["size_nm"].between(1, 300)
+
+    def base_cov(d, *extra):
+        yr = d["year"].fillna(d["year"].median())
+        cols = {"base NSP": (d["source"] == "nsp2026"),
+                "ano de publicação": (yr - 2010) / 10, "ano não informado": d["year"].isna(),
+                "aquecida (T > 40 °C)": d["T_C"] > 40, "T não informada": d["T_C"].isna(), "menciona GO": d["go"] == 1}
+        lab = {"seed": "mediada por sementes", "nabh4": "NaBH₄", "citr": "citrato", "ascorb": "ácido ascórbico",
+               "ctab": "CTAB/CTAC", "thiol": "tiol (GSH/dodecanotiol)", "poly": "polímero (PVP/PEG)"}
+        for e_ in extra:
+            cols[lab[e_]] = d[e_] == 1 if e_ == "seed" else d[e_]
+        return pd.DataFrame({k: np.asarray(v, float) for k, v in cols.items()})
+
+    specs = []
+    # E1 redutor forte × citrato, só rota direta (na rota com sementes o NaBH4 forma as sementes e o tamanho é decidido
+    #    no crescimento), só partículas esferoidais (o "tamanho" de um bastão não é diâmetro)
+    d = L[spheroid & (L["seed"] == 0) & (L["nabh4"] ^ L["citr"])]
+    specs.append(("redutor", "NaBH₄ (redutor forte) × citrato", "rota direta, partículas esferoidais", "tamanho",
+                  d, d["nabh4"].to_numpy(int), np.log(d["size_nm"].to_numpy()), base_cov(d, "ascorb", "ctab", "thiol", "poly"), False,
+                  {"dir": "<1", "txt": "NaBH₄ nucleia muito mais rápido: muitos núcleos e partículas de 1–8 nm (Brust et al. 1994); "
+                   "o citrato reduz devagar e dá 10–20 nm (Turkevich et al. 1951; Frens 1973). Razão esperada ≈ 0,2–0,6.", "range": [0.2, 0.6], "ref": "Brust et al. 1994; Turkevich et al. 1951; Frens 1973"}))
+    # E2 rota mediada por sementes × direta (efeito total do protocolo)
+    d = L[spheroid]
+    specs.append(("sementes", "Rota mediada por sementes × direta", "partículas esferoidais", "tamanho",
+                  d, d["seed"].to_numpy(int), np.log(d["size_nm"].to_numpy()), base_cov(d), False,
+                  {"dir": ">1", "txt": "Separar nucleação (sementes) de crescimento faz o ouro novo se depositar sobre as sementes, "
+                   "aumentando o tamanho de forma controlada (Jana, Gearheart & Murphy 2001).", "range": [1.2, 3.0], "ref": "Jana, Gearheart & Murphy 2001"}))
+    # E3 CTAB/CTAC → forma não esférica
+    d = L[L["morph"] >= 0]
+    nonsph = (~d["morph"].isin([expdata.MORPH.index(m) for m in ("sphere", "particle", "cluster")])).to_numpy(int)
+    specs.append(("ctab", "CTAB/CTAC × sem CTAB", "registros com morfologia informada", "forma não esférica",
+                  d, d["ctab"].to_numpy(int), nonsph.astype(float), base_cov(d, "seed", "nabh4", "citr", "ascorb"), True,
+                  {"dir": ">1", "txt": "O surfactante catiônico adsorve preferencialmente em certas faces e direciona o crescimento "
+                   "anisotrópico (bastões, cubos, estrelas): Jana et al. 2001; Nikoobakht & El-Sayed 2003.", "range": [1.5, 5.0], "ref": "Jana et al. 2001; Nikoobakht & El-Sayed 2003"}))
+    # E4 tiol forte → tamanho menor
+    d = L[spheroid]
+    specs.append(("tiol", "Tiol (GSH/dodecanotiol) × sem tiol", "partículas esferoidais", "tamanho",
+                  d, d["thiol"].to_numpy(int), np.log(d["size_nm"].to_numpy()), base_cov(d, "seed", "nabh4", "citr", "ctab", "poly"), False,
+                  {"dir": "<1", "txt": "A ligação Au–S é forte e passiva a superfície durante o crescimento: partículas de 1–3 nm e "
+                   "aglomerados (Brust et al. 1994).", "range": [0.1, 0.5], "ref": "Brust et al. 1994"}))
+    effects = []
+    for key, name, pop, outcome, d, t, y, cov, binary, exp_ in specs:
+        r = _effect(d, t, y, cov, d["clus"].to_numpy(), binary)
+        est, ci = (r["rr"], r["rr_ci95"]) if binary else (r["ratio"], r["ratio_ci95"])
+        sig = ci[0] > 1 or ci[1] < 1
+        agree = (est < 1) == (exp_["dir"] == "<1")
+        # robustez: o balanceamento por entropia precisa equilibrar as médias (|SMD| < 0,1) e os estimadores
+        # (AIPW, IPW/entropia, aparo 5–95 %) precisam concordar em ±25 %; senão a magnitude é frágil (pouca sobreposição)
+        alts = [r["rr"], r["ebal_rr"]] if binary else [r["ratio"], r["ipw_ratio"], r["ebal_ratio"], r["trim_ratio"]]
+        robust = bool(max(abs(v) for v in r["smd_ebal"]) < 0.1 and max(alts) / min(alts) < 1.25)
+        r["estimators"] = ({"AIPW": r["rr"], "entropia": r["ebal_rr"]} if binary else
+                           {"AIPW": r["ratio"], "IPW": r["ipw_ratio"], "entropia": r["ebal_ratio"], "aparo 5–95 %": r["trim_ratio"], "sem ajuste": r["naive_ratio"]})
+        verdict = ("confirma" if robust else "confirma a direção; magnitude frágil") if (agree and sig) else \
+            ("mesma direção, sem significância" if agree else "diverge")
+        in_range = exp_["range"][0] <= est <= exp_["range"][1]
+        effects.append(dict(r, key=key, name=name, population=pop, outcome=outcome, binary=binary, expected=exp_,
+                            estimate=float(est), estimate_ci95=[float(ci[0]), float(ci[1])], verdict=verdict, in_range=bool(in_range),
+                            robust=robust))
+    prim = effects[0]
+    dag = {"nodes": [["base", "base e época"], ["temperatura", "temperatura"], ["sementes", "rota com sementes"],
+                     ["redutor", "força do redutor"], ["ligante", "ligante"], ["nucleacao", "nucleação (latente)"],
+                     ["tamanho", "tamanho"], ["forma", "forma"], ["lspr", "LSPR (UV-Vis)"]],
+           "edges": [["base", "redutor", ""], ["base", "ligante", ""], ["base", "sementes", ""], ["base", "temperatura", ""],
+                     ["temperatura", "nucleacao", "cinética"], ["redutor", "nucleacao", "supersaturação"],
+                     ["nucleacao", "tamanho", "nº de núcleos"], ["sementes", "tamanho", "crescimento"],
+                     ["ligante", "tamanho", "passivação"], ["ligante", "forma", "faces"], ["sementes", "forma", ""],
+                     ["tamanho", "lspr", "Mie"], ["forma", "lspr", "modos"]]}
+    return dict({k: prim[k] for k in ("n", "n_treated", "ate", "ci95", "ratio", "ratio_ci95", "e_value", "covariates",
+                                      "smd_before", "smd_after", "propensity")},
+                treatment="NaBH4 (redutor forte)", control="citrato de sódio", outcome="ln(tamanho, nm)",
+                naive=float(np.log(prim["naive_ratio"])), effects=effects, dag=dag)
 
 
 # ---------------------------------------------------------------------------------------------- caracterização real

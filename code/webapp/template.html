@@ -69,13 +69,16 @@
         <span class="chip lab"><span class="dot"></span>aguarda o laboratório</span>
       </div></div>
     <div class="finds" id="ov-find"></div>
+    <div class="card"><div class="card-h"><div><h2 class="t3">Os resultados conferem com a literatura?</h2>
+      <p>Cada verificação compara um resultado deste painel com um valor ou mecanismo estabelecido.</p></div></div>
+      <div class="tbl-wrap" tabindex="0" role="region" aria-label="Conferência com a literatura" style="max-height:none"><table id="ov-check"></table></div></div>
     <div class="card"><div class="card-h"><div><h2 class="t3">As 18 seções da proposta e onde cada uma está</h2>
       <p>"Aguarda o laboratório" marca o que só as sínteses de GO–AuNP do projeto podem responder. Clique para ir à aba.</p></div></div>
       <div class="progress" id="ov-prog"></div>
       <div class="card-b pad"><div class="map" id="ov-map"></div></div></div>
     <div class="grid">
       <div class="card c7"><div class="card-h"><div><h3>Experimentos até achar uma condição do top 5 %</h3>
-        <p>Mediana de 20 campanhas reexecutadas com as medidas reais de cada base (menos é melhor; quem não chegou conta como orçamento + 1).</p></div></div>
+        <p>Mediana de <span class="nseeds">40</span> campanhas reexecutadas com as medidas reais de cada base (menos é melhor; quem não chegou conta como orçamento + 1).</p></div></div>
         <div class="card-b"><div class="plot short" id="ov-bench"></div></div></div>
       <div class="card c5"><div class="card-h"><div><h3>Bases experimentais usadas</h3><p>Registros por base (escala log).</p></div></div>
         <div class="card-b"><div class="plot short" id="ov-sources"></div></div></div>
@@ -147,6 +150,13 @@
       <div class="card c5"><div class="card-h"><div><h3>log₁₀ J sobre (diâmetro, σ)</h3>
         <p>Onde a síntese precisa cair para atender ao alvo. Ponto = escolha atual.</p></div></div>
         <div class="card-b"><div class="plot" id="op-J"></div></div></div>
+      <div class="card c6"><div class="card-h"><div><h3>Conferência com a literatura: Mie × Haiss et al. (2007)</h3>
+        <p>Curva empírica λ = 512 + 6,53·e^(0,0216·d) (Anal. Chem. 79, 4215), válida acima de 25 nm, contra o Mie deste painel (água, σ = 10 %).</p></div></div>
+        <div class="card-b"><div class="plot short" id="op-haiss"></div></div></div>
+      <div class="card c6"><div class="card-h"><div><h3>Vale ajustar o índice do meio?</h3>
+        <p>Índice efetivo testado em metade dos artigos e avaliado na outra metade. Só se adota o ajuste se ele melhorar a validação sem se afastar da física.</p></div></div>
+        <div class="tbl-wrap" tabindex="0" role="region" aria-label="Teste do índice do meio"><table id="op-neff"></table></div>
+        <div class="card-b pad prose" id="op-neff-txt"></div></div>
       <div class="card c12"><div class="card-h"><div><h3>Resíduo (medido − Mie) por faixa de tamanho</h3>
         <p>Positivo: o pico relatado fica à direita do previsto (agregação, meio de maior índice ou tamanho subestimado).</p></div></div>
         <div class="tbl-wrap" tabindex="0" role="region" aria-label="Resíduos por faixa de tamanho"><table id="op-bins"></table></div></div>
@@ -179,6 +189,10 @@
       <div class="card c12"><div class="card-h"><div><h3>Efeito de cada variável no ponto escolhido</h3>
         <p>Perda prevista ao variar uma variável de cada vez; faixa = intervalo de 95 % do GP; ponto = valor atual.</p></div></div>
         <div class="card-b"><div class="plot short" id="ds-pd"></div></div></div>
+      <div class="card c12"><div class="card-h"><div><h3>Escolha do modelo por validação cruzada</h3>
+        <p>Mesmas 10 dobras para todos; critério fixado antes: log-verossimilhança preditiva negativa (NLPD, menor é melhor), que pune erro e incerteza mal calibrada.</p></div></div>
+        <div class="tbl-wrap" tabindex="0" role="region" aria-label="Comparação de modelos"><table id="ds-models"></table></div>
+        <div class="card-b pad prose" id="ds-models-txt"></div></div>
       <div class="card c12"><div class="card-h"><div><h3>Próximos experimentos sugeridos (EI)</h3>
         <p>Cinco condições de maior melhoria esperada, afastadas entre si. "Carregar" leva a condição aos controles.</p></div></div>
         <div class="tbl-wrap" tabindex="0" role="region" aria-label="Sugestões do Designer"><table id="ds-sugg"></table></div></div>
@@ -189,7 +203,7 @@
   <section class="panel" id="p-aprendizado" aria-labelledby="t-aprendizado" hidden>
     <div class="sec-head"><div><span class="eyebrow">§4.15 benchmarking · §4.16 laço fechado</span>
       <h2>Estratégias de aprendizado ativo em cinco campanhas experimentais</h2>
-      <p class="lede">Cada campanha foi reexecutada 20 vezes: a estratégia escolhe a próxima condição e recebe a medida
+      <p class="lede">Cada campanha foi reexecutada <span class="nseeds">40</span> vezes: a estratégia escolhe a próxima condição e recebe a medida
         real dela (média das réplicas). Partida: 5 condições aleatórias, as mesmas para todas as estratégias numa dada
         repetição, o que permite comparar em pares. Bases: AgNP, P3HT/CNT, perovskitas, crossed barrel e AutoAM
         (Liang et al., npj Comput. Mater., 2021).</p><span class="chip exp"><span class="dot"></span>experimental</span></div>
@@ -199,7 +213,7 @@
       <div class="kpis inset" id="bo-kpis"></div></div>
     <div class="grid">
       <div class="card c8"><div class="card-h"><div><h3>Melhor resultado encontrado × experimentos</h3>
-        <p>0 = pior condição da base, 1 = melhor. Linha = mediana; faixa = quartis das 20 campanhas. Clique na legenda para esconder uma estratégia.</p></div></div>
+        <p>0 = pior condição da base, 1 = melhor. Linha = mediana; faixa = quartis das <span class="nseeds">40</span> campanhas. Clique na legenda para esconder uma estratégia.</p></div></div>
         <div class="card-b"><div class="plot tall" id="bo-curves"></div></div></div>
       <div class="card c4"><div class="card-h"><div><h3>Experimentos até o top 5 %</h3>
         <p>Cada ponto é uma campanha; caixa = quartis, traço = mediana.</p></div></div>
@@ -214,9 +228,10 @@
           <p><b>GP-UCB</b>: o mesmo GP com limite superior de confiança (μ + 2σ), que explora mais.</p>
           <p><b>RF-EI</b>: floresta aleatória com a dispersão entre árvores como incerteza.</p>
           <p class="muted">Teste: Wilcoxon pareado por repetição; campanha que não chega ao top 5 % conta como orçamento + 1.</p>
+          <p id="bo-insight"></p>
         </div></div>
       <div class="card c12"><div class="card-h"><div><h3>Resumo: mediana de experimentos até o top 5 %</h3>
-        <p>Entre parênteses, vitórias–empates–derrotas contra o aleatório nas 20 repetições e o p do teste pareado.</p></div></div>
+        <p>Entre parênteses, vitórias–empates–derrotas contra o aleatório nas <span class="nseeds">40</span> repetições e o p do teste pareado.</p></div></div>
         <div class="tbl-wrap" tabindex="0" role="region" aria-label="Resumo das estratégias"><table id="bo-tbl"></table></div></div>
     </div>
   </section>
@@ -265,7 +280,7 @@
         <p>Onde a síntese é menos repetível (cor = CV das réplicas).</p></div></div>
         <div class="card-b"><div class="plot" id="va-3d"></div></div></div>
       <div class="card c6"><div class="card-h"><div><h3>A mesma rota em 1 746 artigos (Turkevich)</h3>
-        <p>Citrato, sem sementes, esfera: tamanho relatado em cada artigo (um valor por artigo). Linhas: mediana e faixa 10–90 %.</p></div></div>
+        <p>Citrato, sem sementes, esfera: tamanho relatado em cada artigo (um valor por artigo). Linhas: mediana e faixa 10–90 %. Parte da largura é desenho, não ruído: a razão citrato:Au ajusta o tamanho de 16 a 147 nm (Frens 1973).</p></div></div>
         <div class="card-b"><div class="plot" id="va-turk"></div></div></div>
       <div class="card c6"><div class="card-h"><div><h3>Prever um artigo novo × uma síntese nova</h3>
         <p>Emissão de AuNC: validação por artigo (GroupKFold) e aleatória, mesmo modelo.</p></div></div>
@@ -275,22 +290,39 @@
 
   <!-- ================================================================== causal -->
   <section class="panel" id="p-causal" aria-labelledby="t-causal" hidden>
-    <div class="sec-head"><div><span class="eyebrow">§4.9 análise causal</span>
-      <h2>Quanto o redutor forte encolhe as partículas?</h2>
-      <p class="lede">NaBH₄ × citrato de sódio nos registros da literatura, com ponderação pelo inverso do escore de
-        propensão (IPW). Os ajustes cobrem rota com sementes, temperatura, ligante e base de origem. Intervalo por
-        bootstrap (300 reamostragens) e E-value para confundimento não medido.</p><span class="chip exp"><span class="dot"></span>experimental (observacional)</span></div>
+    <div class="sec-head"><div><span class="eyebrow">§4.9 análise causal · conferência com a literatura</span>
+      <h2>A lógica causal da síntese: o que decide o tamanho e a forma</h2>
+      <p class="lede">O grafo abaixo traduz os mecanismos estabelecidos (nucleação e crescimento de LaMer, Turkevich–Frens,
+        Brust, crescimento mediado por sementes) em causas e efeitos. Quatro efeitos foram estimados nos registros da
+        literatura com ajuste de confundidores (AIPW duplamente robusto, conferido por IPW e balanceamento por entropia),
+        intervalos por bootstrap de artigos e E-value; cada um é comparado com a direção que a literatura prevê.</p>
+      <span class="chip exp"><span class="dot"></span>experimental (observacional + intervencional)</span></div>
       <dl class="ficha" id="fi-causal"></dl></div>
     <div class="kpis" id="ca-kpis"></div>
     <div class="grid">
-      <div class="card c5"><div class="card-h"><div><h3>Grafo causal assumido</h3><p>Seta vermelha = efeito estimado; as demais são os caminhos que o ajuste bloqueia.</p></div></div>
+      <div class="card c12"><div class="card-h"><div><h3>Grafo causal mecanístico</h3>
+        <p>Setas = relações causais da química de síntese; rótulo = mecanismo. Em vermelho, os caminhos cujos efeitos foram estimados (com o valor estimado). A nucleação é latente (não medida).</p></div></div>
         <div class="card-b pad dag" id="ca-dag"></div></div>
-      <div class="card c7"><div class="card-h"><div><h3>Balanço das covariáveis</h3>
-        <p>Diferença média padronizada antes e depois da ponderação. Faixa = |SMD| &lt; 0,1.</p></div></div>
+      <div class="card c7"><div class="card-h"><div><h3>Efeitos estimados × o que a literatura prevê</h3>
+        <p>Ponto = estimativa AIPW; barra = IC 95 % (bootstrap de artigos); faixa dourada = faixa indicativa da literatura. Tamanho: razão de médias geométricas; forma: razão de riscos.</p></div></div>
+        <div class="card-b"><div class="plot" id="ca-forest"></div></div></div>
+      <div class="card c5"><div class="card-h"><div><h3>Veredito de cada efeito</h3><p>Direção, magnitude e robustez frente à literatura.</p></div></div>
+        <div class="card-b pad" id="ca-verdicts"></div></div>
+    </div>
+    <div class="card"><div class="controls"><div class="ctl"><label for="ca-sel">Diagnóstico do efeito</label><select id="ca-sel"></select></div></div>
+      <div class="kpis inset" id="ca-sel-kpis"></div></div>
+    <div class="grid">
+      <div class="card c4"><div class="card-h"><div><h3>Estimadores</h3><p>A mesma pergunta respondida de vários jeitos; se concordam, a estimativa é robusta.</p></div></div>
+        <div class="card-b"><div class="plot" id="ca-est"></div></div></div>
+      <div class="card c8"><div class="card-h"><div><h3>Balanço das covariáveis</h3>
+        <p>Diferença média padronizada antes e depois do ajuste (IPW e entropia). Faixa = |SMD| &lt; 0,1.</p></div></div>
         <div class="card-b"><div class="plot" id="ca-smd"></div></div></div>
       <div class="card c12"><div class="card-h"><div><h3>Sobreposição dos escores de propensão</h3>
         <p>Sem sobreposição, não há comparação justa. Os pesos usam escores aparados em [0,02; 0,98].</p></div></div>
         <div class="card-b"><div class="plot short" id="ca-ps"></div></div></div>
+      <div class="card c12"><div class="card-h"><div><h3>Na campanha AgNP: efeitos intervencionais das vazões</h3>
+        <p>As vazões foram fixadas pelo experimentador, então o contraste do GP do(x + 10 % da faixa) − do(x), em média nas condições medidas, é um efeito causal dentro do domínio. Abaixo de 1: aproxima o espectro do alvo.</p></div></div>
+        <div class="card-b"><div class="plot short" id="ca-do"></div><div class="prose" id="ca-do-txt" style="padding:4px 10px 0"></div></div></div>
     </div>
   </section>
 

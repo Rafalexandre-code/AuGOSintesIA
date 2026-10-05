@@ -283,11 +283,24 @@
       ["aprendizado", `${wins} de ${Object.keys(B.datasets).length}`, "campanhas em que o GP-EI chega ao top 5 % antes do acaso com significância (Wilcoxon pareado); nas demais, empate.", "§4.15"],
       ["variabilidade", `${nf(V.turkevich.q10_q90[0], 1)}–${nf(V.turkevich.q10_q90[1], 1)} nm`, `tamanho da mesma rota de Turkevich em ${ni(V.turkevich.n_papers)} artigos (10–90 %): a premissa da variabilidade multi-fonte.`, "§4.7 · §4.17"],
       ["variabilidade", `R² ${nf(V.aunc_generalization.r2_random, 2)} → ${nf(V.aunc_generalization.r2_new_paper, 2)}`, "ao prever a emissão de AuNC para um artigo nunca visto em vez de uma síntese nova: o contexto da fonte pesa.", "§4.7"],
-      ["causal", "×" + nf(k.causal_ratio, 2), `no tamanho ao trocar citrato por NaBH₄ (IC 95 % ${nf(k.causal_ci[0], 2)}–${nf(k.causal_ci[1], 2)}), com covariáveis balanceadas por IPW.`, "§4.9"],
+      ["causal", `${A.causal.effects.filter((e) => e.verdict.startsWith("confirma")).length} de ${A.causal.effects.length}`, `efeitos causais estimados concordam com a literatura (NaBH₄ ×${nf(A.causal.effects[0].estimate, 2)}, sementes ×${nf(A.causal.effects[1].estimate, 2)}, CTAB → forma, tiol), por AIPW com bootstrap de artigos.`, "§4.9"],
       ["interpretabilidade", topF, "é a variável que mais move a perda espectral na campanha AgNP (SHAP exato sobre o GP).", "§4.13"],
       ["caracterizacao", `${ni(A.xrd.geometry.n_rings)} anéis`, `do CeO₂ indexados com resíduo de ${nf(A.xrd.geometry.rms_residual_px, 2)} px: feixe de ${nf(A.xrd.geometry.energy_keV, 1)} keV.`, "§4.2"],
     ];
     $("#ov-find").innerHTML = F.map(([tab, v, txt, sec]) => `<a href="#${tab}"><span class="fi">${ico(tab)}</span><span class="fv">${esc(v)}</span><span class="ft">${esc(txt)}</span><span class="fs">${sec} · abrir →</span></a>`).join("");
+    // conferência com a literatura
+    const CE = A.causal.effects, Hs = op.haiss, Tk = V.turkevich, XR = A.xrd.geometry;
+    const chk = (cond, warn) => (cond ? `<span class="ok-ico y" aria-label="confere">✓</span>` : warn ? `<span class="ok-ico w" aria-label="parcial">!</span>` : `<span class="ok-ico w" aria-label="não confere">✗</span>`);
+    const CK = [
+      ["optica", "LSPR de AuNP de 20 nm em água", `${nf(Hs.mie_20nm, 0)} nm (Mie)`, "≈ 520–522 nm (Link & El-Sayed 1999; Haiss et al. 2007)", Hs.mie_20nm > 517 && Hs.mie_20nm < 526],
+      ["optica", "Deslocamento do LSPR com o tamanho, 25–100 nm", `máx. ${nf(Hs.max_abs_diff, 1)} nm de diferença`, "curva empírica de Haiss et al. (2007)", Hs.max_abs_diff < 5],
+      ["optica", "Pico previsto × pico relatado (798 esferas)", `erro mediano ${nf(k.mie_median_abs_residual, 1)} nm`, "dentro da resolução típica dos relatos (pico lido no espectro, tamanho por TEM)", k.mie_median_abs_residual < 5],
+      ["variabilidade", "Tamanho na rota de Turkevich (mediana)", `${nf(Tk.median, 1)} nm`, "12–20 nm no protocolo padrão (Turkevich et al. 1951; Frens 1973: 16 nm)", Tk.median > 12 && Tk.median < 20],
+    ].concat(CE.map((e) => ["causal", e.name, `${e.binary ? "RR " : "×"}${nf(e.estimate, 2)} (${nf(e.estimate_ci95[0], 2)}–${nf(e.estimate_ci95[1], 2)})`,
+      `${e.expected.dir === "<1" ? "deve diminuir" : "deve aumentar"} (${e.expected.ref})`, e.verdict === "confirma", e.verdict.startsWith("confirma")]))
+      .concat([["caracterizacao", "Reflexos do padrão CeO₂", `${ni(XR.n_rings)} anéis, resíduo ${nf(XR.rms_residual_px, 2)} px`, "fluorita Fm-3m: só hkl todos pares ou todos ímpares; a = 5,4116 Å (NIST SRM 674b)", XR.n_rings >= 10 && XR.rms_residual_px < 0.5]]);
+    $("#ov-check").innerHTML = "<thead><tr><th><span class=\"sr\">Situação</span></th><th>Verificação</th><th>Resultado deste painel</th><th>Literatura</th></tr></thead><tbody>" +
+      CK.map(([tab, what, res, lit, good, warn]) => `<tr><td>${chk(good, warn)}</td><td><a href="#${tab}">${esc(what)}</a></td><td class="num" style="text-align:left">${esc(res)}</td><td>${esc(lit)}</td></tr>`).join("") + "</tbody>";
     // progresso das 18 seções + mapa
     const M = O.map, cnt = (x) => M.filter((m) => m.status === x).length;
     $("#ov-prog").innerHTML = `<div class="big">${cnt("experimental")}<span>de ${M.length} seções com dados experimentais</span></div>` +
@@ -564,7 +577,9 @@
           customdata: I.map((i) => (V.title && V.title[i]) || V.doi[i] || "—"), marker: { size: 6, color: t.cat[kk], opacity: 0.7, line: { width: 1, color: t.surface } },
           hovertemplate: "d = %{x:.1f} nm · pico %{y:.0f} nm<br>%{customdata}<extra></extra>" };
       }).concat([{ type: "scatter", mode: "lines", name: "Mie (Johnson & Christy, σ = 10 %)", x: O.lspr_curve.d, y: O.lspr_curve.lambda,
-        line: { color: t.ink, width: 2.2 }, hovertemplate: "Mie: d = %{x:.1f} nm → %{y:.0f} nm<extra></extra>" }]),
+        line: { color: t.ink, width: 2.2 }, hovertemplate: "Mie: d = %{x:.1f} nm → %{y:.0f} nm<extra></extra>" },
+      { type: "scatter", mode: "lines", name: "Haiss et al. 2007 (empírica)", x: O.haiss.d, y: O.haiss.lambda,
+        line: { color: t.cat[1], width: 2, dash: "dash" }, hovertemplate: "Haiss: d = %{x:.0f} nm → %{y:.0f} nm<extra></extra>" }]),
       { xaxis: { type: "log", title: { text: "tamanho relatado (nm)" }, range: [Math.log10(2.5), Math.log10(160)], tickvals: [3, 5, 10, 20, 50, 100, 150] },
         yaxis: { title: { text: "pico de absorção relatado (nm)" }, range: [495, 620] } });
       dyn();
@@ -575,6 +590,20 @@
     $("#op-a").addEventListener("input", dynF);
     segmented("#op-norm", (v) => { mode = v; dyn(); });
     drawer(full);
+    drawer(() => {
+      const t = T(), H = O.haiss;
+      plot("op-haiss", [
+        { type: "scatter", mode: "lines", name: "Mie (este painel)", x: H.d, y: H.mie, line: { color: t.cat[0], width: 2.4 }, hovertemplate: "Mie: %{x} nm → %{y:.1f} nm<extra></extra>" },
+        { type: "scatter", mode: "lines", name: "Haiss et al. 2007", x: H.d, y: H.lambda, line: { color: t.cat[1], width: 2, dash: "dash" }, hovertemplate: "Haiss: %{x} nm → %{y:.1f} nm<extra></extra>" }],
+      { xaxis: { title: { text: "diâmetro (nm)" } }, yaxis: { title: { text: "λ do LSPR (nm)" } },
+        annotations: [{ xref: "paper", yref: "paper", x: 0.02, y: 0.96, xanchor: "left", showarrow: false, font: { color: t.ink, size: 12 },
+          text: `diferença máxima ${nf(H.max_abs_diff, 1)} nm em 25–100 nm` }] });
+    });
+    const NE = O.n_eff_test, best = NE.reduce((b, x) => (x.val < b.val ? x : b), NE[0]), water = NE[0];
+    $("#op-neff").innerHTML = "<thead><tr><th class='num'>n do meio</th><th class='num'>erro (ajuste)</th><th class='num'>erro (validação)</th><th class='num'>viés (validação)</th><th class='num'>máx. |Mie − Haiss|</th></tr></thead><tbody>" +
+      NE.map((x) => `<tr><td class="num">${nf(x.n, 3)}${x.n === 1.333 ? " (água)" : ""}</td><td class="num">${nf(x.cal, 2)} nm</td><td class="num">${x === best ? "<b>" : ""}${nf(x.val, 2)} nm${x === best ? "</b>" : ""}</td><td class="num">${nf(x.bias_val, 2)} nm</td><td class="num">${nf(x.haiss_max, 1)} nm</td></tr>`).join("") + "</tbody>";
+    $("#op-neff-txt").innerHTML = `<p>O melhor índice na validação (n = ${nf(best.n, 3)}) ganha só ${nf(water.val - best.val, 2)} nm sobre a água e se afasta da curva de Haiss (${nf(best.haiss_max, 1)} contra ${nf(water.haiss_max, 1)} nm). ` +
+      "O ganho está dentro da incerteza dos relatos (pico lido no espectro, tamanho por TEM), então o painel mantém a água, sem ajuste: o modelo continua sendo física pura, validada.</p>";
     const V = O.lit_spheres;
     $("#op-bins").innerHTML = "<thead><tr><th>Faixa de tamanho</th><th class='num'>Registros</th><th class='num'>Resíduo mediano (nm)</th><th class='num'>Desvio absoluto mediano (nm)</th></tr></thead><tbody>" +
       V.by_bin.map((b) => `<tr><td>${b.range}</td><td class="num">${b.n}</td><td class="num">${nf(b.median_residual, 1)}</td><td class="num">${nf(b.mad, 1)}</td></tr>`).join("") +
@@ -670,6 +699,13 @@
       { showlegend: false, xaxis: { title: { text: "ln(perda) prevista" } }, yaxis: { title: { text: "ln(perda) medida" } },
         annotations: [{ x: 0.02, y: 0.98, xref: "paper", yref: "paper", xanchor: "left", text: `R² = ${nf(cv.r2, 2)} · IC 95 % cobre ${nf(100 * cv.coverage95, 0)} %`, showarrow: false, font: { color: t.ink, size: 12 } }] });
     });
+    const MC = D.model_comparison, bestM = MC.reduce((b, x) => (x.nlpd < b.nlpd ? x : b), MC[0]);
+    $("#ds-models").innerHTML = "<thead><tr><th>Modelo</th><th class='num'>R²</th><th class='num'>RMSE (ln)</th><th class='num'>cobertura IC 95 %</th><th class='num'>NLPD</th></tr></thead><tbody>" +
+      MC.map((x) => `<tr><td>${esc(x.model)}${x === bestM ? " <span class='chip exp'>melhor NLPD</span>" : ""}</td><td class="num">${nf(x.r2, 3)}</td><td class="num">${nf(x.rmse, 3)}</td><td class="num">${nf(100 * x.coverage95, 0)} %</td><td class="num">${nf(x.nlpd, 3)}</td></tr>`).join("") + "</tbody>";
+    const het = MC[MC.length - 1], prop = MC[0];
+    $("#ds-models-txt").innerHTML = `<p>Os quatro núcleos empatam (NLPD entre ${nf(Math.min(...MC.slice(0, 4).map((x) => x.nlpd)), 3)} e ${nf(Math.max(...MC.slice(0, 4).map((x) => x.nlpd)), 3)}; diferença menor que 0,05 nat), então o painel mantém o Matérn-5/2 pré-registrado na proposta: a conclusão não depende dessa escolha.</p>` +
+      `<p>Usar o ruído medido das réplicas piora muito (R² ${nf(het.r2, 2)}, NLPD ${nf(het.nlpd, 2)}): o erro-padrão da média das réplicas (mediana ${nf(prop.replicate_se_median, 3)} em ln) é cerca de ${ni(prop.rmse / prop.replicate_se_median)}× menor que o erro do modelo. ` +
+      "A variação que sobra não é ruído de pipetagem: é algo que as cinco vazões não descrevem (dia, lote, temperatura do chip). É exatamente a variabilidade não medida que o projeto quer capturar com o contexto do lote.</p>";
     $("#ds-sugg").innerHTML = "<thead><tr><th>#</th>" + D.labels.map((l) => `<th class="num">${esc(l)}</th>`).join("") +
       "<th class='num'>Perda prevista</th><th class='num'>IC 95 %</th><th class='num'>EI</th><th><span class='sr'>Ação</span></th></tr></thead><tbody>" +
       D.suggestions.map((s, i) => `<tr><td>${i + 1}</td>${s.x.map((v, j) => `<td class="num">${nf(v, dec(j))}</td>`).join("")}` +
@@ -721,6 +757,10 @@
         annotations: [{ xref: "paper", yref: "paper", x: 0, y: 1.02, xanchor: "left", yanchor: "bottom", showarrow: false, font: { color: t.ink2, size: 11 },
           text: `verde: ${esc(arm)} chegou antes · laranja: o aleatório chegou antes · ${pf(pr.p)}` }] });
     };
+    const wonBy = names.filter((n) => { const pr = B.datasets[n].paired["GP-EI"]; return pr.p < 0.05 && pr.wins > pr.losses; });
+    $("#bo-insight").innerHTML = `<b>Leitura.</b> O GP-EI chega antes do acaso com significância em ${wonBy.join(", ")} e empata nas demais. ` +
+      `O ganho cresce com o espaço de busca: com cerca de 100 condições (${names.filter((n) => B.datasets[n].n_pool <= 110).join(", ")}), o top 5 % tem só 5 condições e a partida aleatória já cobre boa parte dele. ` +
+      "É o mesmo quadro de Liang et al. (npj Comput. Mater. 2021), de onde vêm essas bases: GP com ARD e floresta aleatória superam o acaso, com vantagem maior nos espaços grandes.";
     $("#bo-ds").addEventListener("change", draw); $("#bo-arm").addEventListener("change", draw);
     drawer(draw);
     $("#bo-tbl").innerHTML = "<thead><tr><th>Campanha</th><th class='num'>Condições</th>" + B.arms.map((a) => `<th class="num">${a}</th>`).join("") + "</tr></thead><tbody>" +
@@ -826,42 +866,123 @@
 
   /* ================================================================== causal */
   INIT.causal = function () {
-    const C = A.causal;
+    const C = A.causal, E = C.effects, D = A.designer;
+    const fmtE = (e) => e.binary ? `RR ${nf(e.estimate, 2)}` : `×${nf(e.estimate, 2)}`;
+    const ciE = (e) => `${nf(e.estimate_ci95[0], 2)}–${nf(e.estimate_ci95[1], 2)}`;
+    const ok = E.filter((e) => e.verdict.startsWith("confirma")).length, rob = E.filter((e) => e.robust).length;
     kpis("#ca-kpis", [
-      { k: "Registros comparados", v: ni(C.n), s: `${ni(C.n_treated)} com NaBH₄, ${ni(C.n - C.n_treated)} com citrato` },
-      { k: "Diferença bruta (sem ajuste)", v: "×" + nf(Math.exp(C.naive), 3), s: "razão das médias geométricas do tamanho" },
-      { k: "Efeito ajustado (IPW)", v: "×" + nf(C.ratio, 3), s: `IC 95 % ${nf(C.ratio_ci95[0], 3)}–${nf(C.ratio_ci95[1], 3)}; o ajuste quase não muda a estimativa`, key: true },
-      { k: "E-value", v: nf(C.e_value, 2), s: "força mínima (razão de risco) de um confundidor oculto para anular o efeito" },
+      { k: "Efeitos estimados", v: ni(E.length), s: "tamanho e forma, nos registros da literatura" },
+      { k: "Concordam com a literatura", v: `${ok} de ${E.length}`, s: `direção prevista e IC 95 % sem o nulo; ${rob} robustos a todos os estimadores`, key: true },
+      { k: "NaBH₄ × citrato (rota direta)", v: fmtE(E[0]), s: `IC 95 % ${ciE(E[0])} · E-value ${nf(E[0].e_value, 1)}` },
+      { k: "Com sementes × direta", v: fmtE(E[1]), s: `IC 95 % ${ciE(E[1])} · E-value ${nf(E[1].e_value, 1)}` },
+      { k: "CTAB → forma não esférica", v: fmtE(E[2]), s: `${nf(100 * E[2].p0, 0)} % → ${nf(100 * E[2].p1, 0)} % · E-value ${nf(E[2].e_value, 1)}` },
     ]);
+    const byKey = Object.fromEntries(E.map((e) => [e.key, e]));
+    const estOn = { "redutor>nucleacao": "redutor", "sementes>tamanho": "sementes", "ligante>forma": "ctab", "ligante>tamanho": "tiol" };
+    const pathOn = new Set(["nucleacao>tamanho"]);
     drawer(() => {
       const t = T();
-      const pos = { "fonte (base)": [320, 36], "temperatura": [320, 100], "redutor": [90, 170], "tamanho": [550, 170],
-        "sementes": [320, 240], "ligante": [320, 304] };
-      const W = 640, H = 340, HW = 62, HH = 18;
+      const pos = { base: [90, 195], temperatura: [340, 46], redutor: [340, 142], sementes: [340, 248], ligante: [340, 344],
+        nucleacao: [610, 76], tamanho: [800, 176], forma: [800, 316], lspr: [950, 246] };
+      const W = 1030, H = 380, HW = 74, HH = 19;
       const clip = (dx, dy, pad) => { const k = Math.min(dx ? (HW + pad) / Math.abs(dx) : Infinity, dy ? (HH + pad) / Math.abs(dy) : Infinity); return [dx * k, dy * k]; };
-      const arrow = (a, b, main) => { const [x1, y1] = pos[a], [x2, y2] = pos[b]; const dx = x2 - x1, dy = y2 - y1;
-        const [ox, oy] = clip(dx, dy, 2), [ix, iy] = clip(dx, dy, 6);
-        return `<path class="edge${main ? " main" : ""}" d="M${x1 + ox},${y1 + oy} L${x2 - ix},${y2 - iy}" marker-end="url(#ah${main ? "m" : ""})"/>`; };
-      $("#ca-dag").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Grafo causal: temperatura, sementes, ligante e base de origem afetam o redutor e o tamanho; o efeito estimado é redutor para tamanho">
+      const edges = C.dag.edges.map(([a, b, lab]) => {
+        const [x1, y1] = pos[a], [x2, y2] = pos[b], dx = x2 - x1, dy = y2 - y1, [ox, oy] = clip(dx, dy, 2), [ix, iy] = clip(dx, dy, 6);
+        const k = a + ">" + b, eff = estOn[k] && byKey[estOn[k]], main = !!eff || pathOn.has(k);
+        const txt = [lab, eff ? fmtE(eff) : ""].filter(Boolean).join(" · ");
+        const sx = x1 + ox, sy = y1 + oy, ex = x2 - ix, ey = y2 - iy, L2 = Math.hypot(ex - sx, ey - sy) || 1;
+        const nx = (ey - sy) / L2, ny = -(ex - sx) / L2, side = ny > 0 ? -1 : 1;     // rótulo do lado de cima da seta
+        const f = 0.42, mx = sx + (ex - sx) * f + side * nx * 10, my = sy + (ey - sy) * f + side * ny * 10 + 4;
+        return `<path class="edge${main ? " main" : ""}" d="M${x1 + ox},${y1 + oy} L${x2 - ix},${y2 - iy}" marker-end="url(#ah${main ? "m" : ""})"/>` +
+          (txt ? `<text class="elab${eff ? " eff" : ""}" x="${mx}" y="${my}" text-anchor="middle">${esc(txt)}</text>` : "");
+      }).join("");
+      const nodes = C.dag.nodes.map(([id, lab]) => { const [x, y] = pos[id];
+        const cls = id === "nucleacao" ? " latent" : ["tamanho", "forma", "lspr"].includes(id) ? " y" : ["redutor", "sementes", "ligante"].includes(id) ? " t" : "";
+        return `<g class="node${cls}"><rect x="${x - HW}" y="${y - HH}" width="${2 * HW}" height="${2 * HH}" rx="10"/><text x="${x}" y="${y + 4}" text-anchor="middle">${esc(lab)}</text></g>`; }).join("");
+      $("#ca-dag").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Grafo causal: base e época influenciam temperatura, redutor, sementes e ligante; temperatura e redutor controlam a nucleação, que define o número de núcleos e o tamanho; sementes e ligante agem no crescimento e na forma; tamanho e forma determinam o LSPR.">
         <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${t.muted}"/></marker>
         <marker id="ahm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${t.ruby}"/></marker></defs>
-        ${C.dag.edges.map(([a, b]) => arrow(a, b, a === "redutor" && b === "tamanho")).join("")}
-        ${C.dag.nodes.map((n) => { const [x, y] = pos[n]; const cls = n === "redutor" ? " t" : n === "tamanho" ? " y" : "";
-          return `<g class="node${cls}"><rect x="${x - HW}" y="${y - HH}" width="${2 * HW}" height="${2 * HH}" rx="10"/><text x="${x}" y="${y + 4}" text-anchor="middle">${esc(n)}</text></g>`; }).join("")}
-        <text class="eff" x="${(pos.redutor[0] + pos.tamanho[0]) / 2}" y="${pos.redutor[1] - 10}" text-anchor="middle">×${nf(C.ratio, 2)} no tamanho</text>
-        </svg>`;
-      const covs = C.covariates;
-      plot("ca-smd", [
-        { type: "scatter", mode: "markers", name: "antes", y: covs, x: C.smd_before, marker: { size: 10, color: t.cat[1], line: { width: 2, color: t.surface } }, hovertemplate: "%{y}: %{x:.2f}<extra>antes</extra>" },
-        { type: "scatter", mode: "markers", name: "depois (IPW)", y: covs, x: C.smd_after, marker: { size: 10, color: t.cat[0], symbol: "diamond", line: { width: 2, color: t.surface } }, hovertemplate: "%{y}: %{x:.2f}<extra>depois</extra>" }],
-      { margin: { l: 190 }, xaxis: { title: { text: "diferença média padronizada" }, zeroline: true, zerolinecolor: t.lineStrong },
-        shapes: [{ type: "rect", x0: -0.1, x1: 0.1, y0: 0, y1: 1, yref: "paper", fillcolor: hexA(t.cat[0], 0.08), line: { width: 0 } }].concat(
-          covs.map((c, i) => ({ type: "line", x0: C.smd_before[i], x1: C.smd_after[i], y0: c, y1: c, line: { color: t.lineStrong, width: 1 } }))) });
-      plot("ca-ps", [
-        { type: "histogram", name: "citrato", x: C.propensity.control, opacity: 0.65, marker: { color: t.cat[1] }, xbins: { start: 0, end: 1, size: 0.025 }, histnorm: "probability density", hovertemplate: "e = %{x}: %{y:.2f}<extra>citrato</extra>" },
-        { type: "histogram", name: "NaBH₄", x: C.propensity.treated, opacity: 0.65, marker: { color: t.cat[0] }, xbins: { start: 0, end: 1, size: 0.025 }, histnorm: "probability density", hovertemplate: "e = %{x}: %{y:.2f}<extra>NaBH₄</extra>" }],
-      { barmode: "overlay", xaxis: { title: { text: "escore de propensão (probabilidade de usar NaBH₄)" }, range: [0, 1] }, yaxis: { title: { text: "densidade" } } });
+        ${edges}${nodes}</svg>`;
+      // forest
+      const rows = E.map((e) => e.name), lo = E.map((e) => e.estimate - e.estimate_ci95[0]), hi = E.map((e) => e.estimate_ci95[1] - e.estimate);
+      plot("ca-forest", [{ type: "scatter", mode: "markers", x: E.map((e) => e.estimate), y: rows,
+        error_x: { type: "data", symmetric: false, array: hi, arrayminus: lo, color: t.ink2, thickness: 1.6, width: 6 },
+        marker: { size: 12, color: E.map((e) => (e.robust ? t.ruby : t.surface)), line: { width: 2, color: t.ruby } },
+        customdata: E.map((e) => [e.outcome, e.verdict, e.n, e.n_articles]),
+        hovertemplate: "%{y}<br>%{x:.2f} (%{customdata[0]})<br>%{customdata[1]}<br>%{customdata[2]} registros, %{customdata[3]} artigos<extra></extra>" }],
+      { xaxis: { type: "log", title: { text: "efeito (razão; 1 = nenhum efeito)" }, tickvals: [0.1, 0.2, 0.5, 1, 2, 5], range: [Math.log10(0.08), Math.log10(6)] },
+        yaxis: { autorange: "reversed", automargin: true }, margin: { l: 220, t: 34 }, showlegend: false,
+        shapes: [{ type: "line", x0: 1, x1: 1, y0: -0.5, y1: E.length - 0.5, line: { color: t.ink, width: 1, dash: "dot" } }].concat(
+          E.map((e, i) => ({ type: "rect", x0: e.expected.range[0], x1: e.expected.range[1], y0: i - 0.32, y1: i + 0.32, fillcolor: hexA(t.dark ? "#e0b45c" : "#b8862a", 0.22), line: { width: 0 }, layer: "below" }))),
+        annotations: [{ xref: "paper", yref: "paper", x: 0, y: 1.06, xanchor: "left", showarrow: false, font: { size: 11, color: t.ink2 }, text: "cheio = robusto a todos os estimadores · vazado = magnitude frágil" }] });
+      // efeitos intervencionais AgNP
+      const DE = D.do_effects;
+      plot("ca-do", [{ type: "scatter", mode: "markers", y: DE.map((e) => e.var), x: DE.map((e) => e.ratio),
+        error_x: { type: "data", symmetric: false, array: DE.map((e) => e.ratio_ci95[1] - e.ratio), arrayminus: DE.map((e) => e.ratio - e.ratio_ci95[0]), color: t.ink2, thickness: 1.6, width: 6 },
+        marker: { size: 11, color: t.cat[0], line: { width: 2, color: t.surface } }, customdata: DE.map((e) => [e.step, e.frac_improve * 100]),
+        hovertemplate: "%{y}: +%{customdata[0]:.1f} → perda ×%{x:.3f}<br>melhora em %{customdata[1]:.0f} % das condições<extra></extra>" }],
+      { xaxis: { title: { text: "efeito na perda espectral (×; < 1 aproxima do alvo)" } }, yaxis: { autorange: "reversed" }, margin: { l: 130 }, showlegend: false,
+        shapes: [{ type: "line", x0: 1, x1: 1, y0: -0.5, y1: DE.length - 0.5, line: { color: t.ink, width: 1, dash: "dot" } }] });
     });
+    // o modelo preditivo (árvores + SHAP) aponta a mesma direção? (associação condicional, não efeito causal)
+    const SL = A.interpret.literature, fmap = { redutor: "NaBH4", sementes: "mediada por sementes", tiol: "tiol (GSH/dodecanotiol)" };
+    function shapLine(e) {
+      const f = SL.features.indexOf(fmap[e.key]); if (f < 0) return "";
+      const on = [], off = []; SL.X.forEach((r, i) => { const v = SL.values[i][f]; if (v == null) return; (r[f] ? on : off).push(v); });
+      if (!on.length || !off.length) return "";
+      const dlt = Math.exp(on.reduce((a, b) => a + b, 0) / on.length - off.reduce((a, b) => a + b, 0) / off.length);
+      const same = (dlt < 1) === (e.estimate < 1);
+      return `<p class="muted">Modelo preditivo (SHAP): ×${nf(dlt, 2)}, ${same ? "mesma direção do efeito causal estimado" : "direção oposta à do efeito causal: a associação condicional engana aqui"}.</p>`;
+    }
+    // vereditos
+    $("#ca-verdicts").innerHTML = E.map((e) => {
+      const cls = e.verdict === "confirma" ? "exp" : e.verdict.startsWith("confirma") ? "par" : "lab";
+      return `<div class="verdict"><div class="vh"><b>${esc(e.name)}</b><span class="chip ${cls}"><span class="dot"></span>${esc(e.verdict)}</span></div>` +
+        `<div class="vn">${fmtE(e)} <span class="muted">(IC 95 % ${ciE(e)}) · ${esc(e.outcome)} · ${esc(e.population)}</span></div>` +
+        `<p>${esc(e.expected.txt)}</p>${shapLine(e)}</div>`; }).join("");
+    // diagnóstico por efeito
+    $("#ca-sel").innerHTML = E.map((e, i) => `<option value="${i}">${esc(e.name)}</option>`).join("");
+    const diag = () => {
+      const t = T(), e = E[+$("#ca-sel").value];
+      kpis("#ca-sel-kpis", [
+        { k: "Registros (artigos)", v: ni(e.n), s: `${ni(e.n_articles)} artigos · ${ni(e.n_treated)} tratados` },
+        { k: "Estimativa AIPW", v: fmtE(e), s: `IC 95 % ${ciE(e)} (bootstrap de artigos)`, key: true },
+        { k: "Sem ajuste", v: e.binary ? `RD ${nf(100 * e.naive_rd, 1)} pp` : `×${nf(e.naive_ratio, 2)}`, s: e.binary ? `ajustado: ${nf(100 * e.rd, 1)} pp` : "razão bruta das médias geométricas" },
+        { k: "E-value (ponto / IC)", v: `${nf(e.e_value, 2)} / ${nf(e.e_value_ci, 2)}`, s: "força de um confundidor oculto para anular o efeito / o limite do IC" },
+        { k: "Robustez", v: e.robust ? "robusto" : "frágil", s: e.robust ? "estimadores concordam (±25 %) e balanço exato" : "pouca sobreposição: estimadores discordam" },
+      ]);
+      const est = Object.entries(e.estimators);
+      plot("ca-est", [{ type: "scatter", mode: "markers", y: est.map((x) => x[0]), x: est.map((x) => x[1]),
+        marker: { size: 12, color: est.map((x) => (x[0] === "AIPW" ? t.ruby : x[0] === "sem ajuste" ? t.other : t.cat[0])), line: { width: 2, color: t.surface } },
+        hovertemplate: "%{y}: %{x:.3f}<extra></extra>" }],
+      { xaxis: { type: "log", title: { text: e.binary ? "razão de riscos" : "razão de médias geométricas" } }, yaxis: { autorange: "reversed" }, margin: { l: 100 }, showlegend: false,
+        shapes: [{ type: "rect", x0: e.estimate_ci95[0], x1: e.estimate_ci95[1], y0: 0, y1: 1, yref: "paper", fillcolor: hexA(t.cat[0], 0.1), line: { width: 0 } },
+          { type: "line", x0: 1, x1: 1, y0: 0, y1: 1, yref: "paper", line: { color: t.ink, width: 1, dash: "dot" } }] });
+      const covs = e.covariates;
+      plot("ca-smd", [
+        { type: "scatter", mode: "markers", name: "antes", y: covs, x: e.smd_before, marker: { size: 10, color: t.cat[1], line: { width: 2, color: t.surface } }, hovertemplate: "%{y}: %{x:.2f}<extra>antes</extra>" },
+        { type: "scatter", mode: "markers", name: "IPW", y: covs, x: e.smd_after, marker: { size: 10, color: t.cat[0], symbol: "diamond", line: { width: 2, color: t.surface } }, hovertemplate: "%{y}: %{x:.2f}<extra>IPW</extra>" },
+        { type: "scatter", mode: "markers", name: "entropia", y: covs, x: e.smd_ebal, marker: { size: 9, color: t.cat[2], symbol: "square", line: { width: 2, color: t.surface } }, hovertemplate: "%{y}: %{x:.2f}<extra>entropia</extra>" }],
+      { margin: { l: 190 }, xaxis: { title: { text: "diferença média padronizada" }, zeroline: true, zerolinecolor: t.lineStrong },
+        shapes: [{ type: "rect", x0: -0.1, x1: 0.1, y0: 0, y1: 1, yref: "paper", fillcolor: hexA(t.cat[0], 0.08), line: { width: 0 } }] });
+      plot("ca-ps", [
+        { type: "histogram", name: "controle", x: e.propensity.control, opacity: 0.65, marker: { color: t.cat[1] }, xbins: { start: 0, end: 1, size: 0.025 }, histnorm: "probability density", hovertemplate: "e = %{x}: %{y:.2f}<extra>controle</extra>" },
+        { type: "histogram", name: "tratado", x: e.propensity.treated, opacity: 0.65, marker: { color: t.cat[0] }, xbins: { start: 0, end: 1, size: 0.025 }, histnorm: "probability density", hovertemplate: "e = %{x}: %{y:.2f}<extra>tratado</extra>" }],
+      { barmode: "overlay", xaxis: { title: { text: "escore de propensão (probabilidade do tratamento dadas as covariáveis)" }, range: [0, 1] }, yaxis: { title: { text: "densidade" } } });
+    };
+    $("#ca-sel").addEventListener("change", diag);
+    drawer(diag);
+    // interpretação química dos efeitos intervencionais
+    const sig = (e) => e.ratio_ci95[1] < 1 ? "reduz" : e.ratio_ci95[0] > 1 ? "aumenta" : "nulo";
+    const why = {
+      "Q AgNO₃ (%)": "mais prata disponível por semente: as sementes crescem mais (crescimento mediado por sementes), o que desloca o plásmon",
+      "Q citrato (%)": "o citrato estabiliza a prata e direciona a forma (adsorve nas faces {111}, favorecendo prismas); além do ótimo, afasta o espectro do alvo",
+      "Q sementes (%)": "mais sementes dividem a mesma prata entre mais partículas (menores); o efeito é não monotônico (Fig. 4.5c) e a média quase se anula",
+      "Q PVA (%)": "o PVA é estabilizante estérico: segura a dispersão, mas pouco muda o espectro",
+      "Q total (µL/min)": "a vazão total muda o tempo de residência; na faixa medida o efeito é pequeno",
+    };
+    $("#ca-do-txt").innerHTML = D.do_effects.map((e) => `<p><b>${esc(e.var)}</b> (+${nf(e.step, 1)}): perda ×${nf(e.ratio, 3)} (IC 95 % ${nf(e.ratio_ci95[0], 3)}–${nf(e.ratio_ci95[1], 3)}), ` +
+      `${sig(e) === "nulo" ? "efeito médio indistinguível de zero" : sig(e) === "reduz" ? "aproxima do alvo" : "afasta do alvo"}. ${esc(why[e.var] || "")}.</p>`).join("");
   };
 
   /* ================================================================== caracterização */
@@ -989,9 +1110,9 @@
       variabilidade: [`${ni(V.agnp.n_measurements)} réplicas AgNP, ${ni(V.turkevich.n_papers)} artigos de Turkevich, ${ni(V.aunc_generalization.n_papers)} artigos de AuNC`,
         "Brown–Forsythe, ICC, um valor por artigo, validação agrupada por artigo",
         `mesma rota: <b>${nf(V.turkevich.q10_q90[0], 1)}–${nf(V.turkevich.q10_q90[1], 1)} nm</b>; R² cai de ${nf(V.aunc_generalization.r2_random, 2)} para ${nf(V.aunc_generalization.r2_new_paper, 2)} em artigo novo`],
-      causal: [`${ni(C.n)} sínteses: ${ni(C.n_treated)} com NaBH₄, ${ni(C.n - C.n_treated)} com citrato`,
-        `IPW com ${C.covariates.length} covariáveis, bootstrap de 300 reamostragens, E-value`,
-        `tamanho <b>×${nf(C.ratio, 2)}</b> (IC 95 % ${nf(C.ratio_ci95[0], 2)}–${nf(C.ratio_ci95[1], 2)}); E-value ${nf(C.e_value, 1)}`],
+      causal: [`${ni(Math.max(...C.effects.map((e) => e.n)))} sínteses de Cruse 2022 e NSP 2026 (a base de AuNC, selecionada pelo produto, fica fora)`,
+        "grafo mecanístico; AIPW duplamente robusto, conferido por IPW, entropia e aparo; bootstrap de artigos; E-value",
+        `<b>${C.effects.filter((e) => e.verdict.startsWith("confirma")).length} de ${C.effects.length}</b> efeitos na direção da literatura; ${C.effects.filter((e) => e.robust).length} robustos`],
       sobre: ["7 bases experimentais públicas, com DOI e licença",
         "tudo regenerável por code/webapp/build_site.py e conferido por testes automáticos",
         `<b>${nexp} de ${M.length}</b> seções da proposta já com dados experimentais`],
@@ -1062,6 +1183,7 @@
   function start() {
     buildTabs();
     addExpanders();
+    document.querySelectorAll(".nseeds").forEach((el) => { el.textContent = ni(A.benchmark.seeds); });
     fichas(); numberFigures(); palette();
     $("#foot").innerHTML = `<div><b>AuGOSintesIA</b> · plataforma de aprendizado ativo para nanocompósitos GO–AuNP · IC FAPESP · UNESP-IQ Araraquara</div>` +
       `<div>Gerado em ${esc(A.overview.generated)} por <span class="mono">code/webapp/build_site.py</span> · só dados experimentais; modelos e previsões marcados como tal</div>`;

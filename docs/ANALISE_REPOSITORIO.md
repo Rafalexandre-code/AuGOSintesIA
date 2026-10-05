@@ -1367,10 +1367,10 @@ navegador o GP do Designer (mesma conta do GPyTorch) e o Mie + perda J (mesma co
 | §4.1, §4.3 | 15 928 sínteses de Au de 5 132 DOIs (Cruse 2022, NSP 2026, AuNC 2025); 312 registros GO–AuNP de 120 artigos | filtros por base, redutor, morfologia, rota e GO; tamanho mediano 15 nm |
 | §4.4, §4.6, §4.10 | n, k do Au (Johnson & Christy) + 798 pares tamanho–pico relatados | Mie (σ = 10 %) prevê o LSPR com erro mediano de **4,0 nm** (53 % dentro de 5 nm); no alvo do pré-registro, J ≈ 0, como deve |
 | §4.5, §4.18 | campanha AgNP em microfluídica (Mekki-Berrada 2021): 3 295 medidas, 164 condições, perda espectral contra alvo | GP Matérn-5/2 + ARD em ln(perda): **R² 0,93** em 10 dobras, cobertura do IC 95 % de 92 %; 5 sugestões por EI |
-| §4.15, §4.16 | 5 campanhas experimentais (AgNP + 4 de Liang 2021), 20 repetições por estratégia, mesma partida de 5 condições por repetição | experimentos até o top 5 % (mediana; quem não chega conta como orçamento + 1): GP-EI é **melhor que o acaso** em AgNP (10 × 13,5; Wilcoxon pareado p = 0,007) e crossed barrel (9,5 × 21; p = 0,016); em P3HT/CNT, perovskitas e AutoAM a diferença **não é distinguível** (p > 0,2) |
+| §4.15, §4.16 | 5 campanhas experimentais (AgNP + 4 de Liang 2021), 40 repetições por estratégia, mesma partida de 5 condições por repetição | experimentos até o top 5 % (mediana; quem não chega conta como orçamento + 1): GP-EI é **melhor que o acaso** em AgNP (9 × 13; Wilcoxon pareado p < 0,001), crossed barrel (9 × 14; p = 0,005) e P3HT/CNT (7 × 11,5; p = 0,026); empata em perovskitas e AutoAM (~100 condições, onde a partida aleatória já cobre o top 5 %), como em Liang et al. 2021 |
 | §4.13 | GP AgNP (SHAP exato), AuNC e literatura (TreeSHAP) | AgNP: AgNO₃ > sementes > citrato, interação H² até 0,13; literatura: NaBH₄, rota com sementes e CTAB movem o tamanho |
 | §4.7, §4.17 | réplicas AgNP; Turkevich (citrato, sem sementes, esfera) em 1 746 artigos; AuNC por artigo | ruído **heteroscedástico** (Brown–Forsythe p < 10⁻¹⁰⁰), ICC 0,95, CV mediano 4,9 %; a mesma rota dá 8,7–45,6 nm (10–90 %), fator ×1,94 por dp; prever emissão de AuNC para um **artigo novo** cai de R² 0,23 para −0,04 |
-| §4.9 | 5 933 sínteses NaBH₄ × citrato | IPW com 7 covariáveis (SMD < 0,1 após o ajuste): tamanho **×0,48** (IC 95 % 0,45–0,52), E-value 3,6 |
+| §4.9 | Cruse 2022 + NSP 2026 (a base de AuNC, selecionada pelo produto, fica fora) | grafo mecanístico e quatro efeitos por AIPW (conferidos por IPW, entropia e aparo; bootstrap de artigos; E-value): NaBH₄ × citrato na rota direta **×0,38** (0,34–0,43); sementes × direta **×1,63** (1,48–1,80); CTAB/CTAC → forma não esférica **RR 2,2** (1,9–2,6); tiol **×0,62** (0,46–0,82, magnitude frágil). Os quatro na direção prevista pela literatura |
 | §4.2 | 5 quadros GE de CeO₂ + dark (2048²) | centro pelo contraste do perfil radial; **14 anéis** da fluorita indexados, r = D·tan 2θ: λ = 0,1956 Å (63,4 keV), D = 4 118 px, resíduo RMS 0,08 px |
 
 Como ler: os números de §4.15 são reamostragens das medidas reais (cada estratégia só escolhe entre condições
@@ -1394,4 +1394,25 @@ Acessibilidade conferida com axe-core (sem violações nas 10 abas), contraste �
 python code/webapp/build_site.py             # refaz as análises e o site (~5 min)
 python -m pytest code/tests/test_webapp.py   # GP do navegador = GPyTorch, J = pré-registro, nada simulado
 ```
+
+### 20.1 Revisão dos resultados contra a literatura (2026-10-05)
+
+Cada resultado foi revisado em três frentes: física e estatística, possibilidade de melhoria legítima (critério de
+escolha fixado antes, avaliado em validação) e concordância com valores e mecanismos estabelecidos.
+
+| Resultado | O que foi testado | Decisão | Literatura |
+|---|---|---|---|
+| Mie × LSPR | índice efetivo do meio (1,333–1,39) ajustado em metade dos artigos e validado na outra | mantém a **água sem ajuste**: o melhor índice ganha 0,2 nm na validação e se afasta de Haiss | Mie difere de Haiss et al. (2007) em ≤ 3,1 nm entre 25 e 100 nm; 20 nm → 522 nm (≈ 520 nm) |
+| GP do Designer | núcleos Matérn-1/2, 3/2, 5/2, RBF e ruído medido das réplicas, mesmas 10 dobras, critério NLPD | mantém o **Matérn-5/2** da proposta: os núcleos empatam (Δ < 0,05 nat) | o erro-padrão das réplicas é ~10× menor que o erro do modelo: a variação que sobra é não medida (dia, lote), a premissa do projeto |
+| Efeitos das vazões (AgNP) | contraste intervencional do GP, do(x + 10 % da faixa), com covariância conjunta | AgNO₃ ×0,90 (aproxima do alvo), citrato ×1,05 (afasta), demais nulos | crescimento mediado por sementes (mais Ag por semente); citrato como agente de forma da prata |
+| Benchmark | 40 repetições (antes 20), Wilcoxon pareado pela partida comum | GP-EI melhor que o acaso em 3 de 5 campanhas (antes 2 de 5 com 20 repetições); empate nas duas menores | Liang et al. 2021: ganho maior em espaços grandes |
+| Causalidade | tratamentos por presença/ausência (não "primeiro redutor citado"), só rota direta e partículas esferoidais para o tamanho, base AuNC fora (seleção pelo produto), bootstrap por artigo, E-value para desfecho contínuo (VanderWeele & Ding 2017) | quatro efeitos confirmam a direção; três robustos a todos os estimadores | Brust 1994; Turkevich 1951; Frens 1973; Jana 2001; Nikoobakht & El-Sayed 2003 |
+| Turkevich | mediana 15,1 nm | confere (12–20 nm; Frens: 16 nm); parte da largura 8,7–45,6 nm é desenho (a razão citrato:Au ajusta 16–147 nm) | Turkevich 1951; Frens 1973 |
+
+**A lógica causal adotada** (aba Causalidade): base e época influenciam as escolhas (temperatura, redutor, rota,
+ligante); temperatura e força do redutor controlam a supersaturação e a **nucleação** (latente), que fixa o número de
+núcleos e, com a massa de ouro, o tamanho; sementes separam nucleação de crescimento; o ligante passiva a superfície
+(tamanho) e seleciona faces (forma); tamanho e forma determinam o LSPR pela física de Mie. Nas campanhas de laboratório
+autônomo as variáveis são intervenções, então os contrastes do GP são efeitos do tipo do(x); na literatura, as
+estimativas são observacionais e trazem E-value.
 

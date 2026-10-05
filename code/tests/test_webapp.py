@@ -142,3 +142,31 @@ def test_referencias_dos_pontos_3d(site):
     for i in t["idx"]:
         assert R["size"][i] is not None and R["peak"][i] is not None and R["T"][i] is not None
     assert sum(L["n_by_source"].values()) == L["n"]
+
+
+def test_mie_confere_com_haiss(site):
+    H = site["optics"]["haiss"]
+    assert H["max_abs_diff"] < 5 and 517 < H["mie_20nm"] < 526          # Haiss et al. 2007; LSPR de 20 nm ≈ 520 nm
+    water = site["optics"]["n_eff_test"][0]
+    assert water["n"] == 1.333 and water["haiss_max"] < 5
+
+
+def test_escolha_do_modelo_e_efeitos_intervencionais(site):
+    D = site["designer"]
+    mc = {m["model"]: m for m in D["model_comparison"]}
+    prop = mc["Matérn-5/2 (proposta)"]
+    assert abs(prop["r2"] - D["cv"]["r2"]) < 1e-3                          # mesmas dobras da validação principal (reajuste)
+    assert min(m["nlpd"] for m in D["model_comparison"][:4]) > prop["nlpd"] - 0.05   # núcleos empatam: escolha robusta
+    for e in D["do_effects"]:
+        assert e["ratio_ci95"][0] <= e["ratio"] <= e["ratio_ci95"][1] and e["n"] > 100
+
+
+def test_efeitos_causais_conferem_com_a_literatura(site):
+    E = {e["key"]: e for e in site["causal"]["effects"]}
+    assert set(E) == {"redutor", "sementes", "ctab", "tiol"}
+    assert E["redutor"]["estimate"] < 1 and E["sementes"]["estimate"] > 1 and E["ctab"]["estimate"] > 1 and E["tiol"]["estimate"] < 1
+    for e in E.values():
+        assert e["verdict"].startswith("confirma"), e["key"]
+        if e["robust"]:
+            assert max(abs(v) for v in e["smd_ebal"]) < 0.1               # balanceamento exato nas médias
+            assert e["e_value_ci"] > 1.5
