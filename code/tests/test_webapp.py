@@ -170,3 +170,15 @@ def test_efeitos_causais_conferem_com_a_literatura(site):
         if e["robust"]:
             assert max(abs(v) for v in e["smd_ebal"]) < 0.1               # balanceamento exato nas médias
             assert e["e_value_ci"] > 1.5
+
+
+def test_cadeia_redutor_tamanho_lspr(site):
+    K = site["causal"]["chain"]
+    assert K["size_ratio_ci95"][1] < 1 and K["consistent"]                 # Mie a partir do tamanho cabe no IC do pico
+    assert K["mie_shift_ci95"][0] <= K["mie_shift"] <= K["mie_shift_ci95"][1] < 0
+
+
+def test_modelos_validados_por_artigo(site):
+    lit, ge = site["interpret"]["literature"], site["variability"]["aunc_generalization"]
+    assert lit["n_articles"] < lit["n"] and lit["cv_r2_by_paper"] > 0.2 and len(lit["features"]) <= lit["n_features"]
+    assert ge["r2_new_paper"] > ge["direct"]["r2_new_paper"] and ge["r2_random"] > ge["direct"]["r2_random"]

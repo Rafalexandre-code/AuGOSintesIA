@@ -240,12 +240,12 @@
   <section class="panel" id="p-interpretabilidade" aria-labelledby="t-interpretabilidade" hidden>
     <div class="sec-head"><div><span class="eyebrow">§4.13 interpretabilidade</span>
       <h2>Quais variáveis movem o resultado, e em que direção</h2>
-      <p class="lede">Valores de Shapley exatos para o GP da campanha AgNP; TreeSHAP para os modelos de emissão de AuNC e
-        de tamanho na literatura. Interações pela estatística H² de Friedman.</p><span class="chip exp"><span class="dot"></span>experimental</span></div>
+      <p class="lede">Valores de Shapley exatos para o GP da campanha AgNP; TreeSHAP para o deslocamento de Stokes de AuNC e
+        para o tamanho na literatura (28 variáveis; validação por artigo). Interações pela estatística H² de Friedman.</p><span class="chip exp"><span class="dot"></span>experimental</span></div>
       <dl class="ficha" id="fi-interpretabilidade"></dl></div>
     <div class="card"><div class="controls">
       <div class="ctl"><label for="sh-m">Modelo</label><select id="sh-m">
-        <option value="agnp">AgNP: perda espectral (GP)</option><option value="aunc">AuNC: λ de emissão (árvores)</option>
+        <option value="agnp">AgNP: perda espectral (GP)</option><option value="aunc">AuNC: deslocamento de Stokes (árvores)</option>
         <option value="literature">Literatura: tamanho de AuNP (árvores)</option></select></div>
       <div class="ctl"><label for="sh-f">Variável da dependência</label><select id="sh-f"></select></div></div>
       <div class="kpis inset" id="sh-kpis"></div></div>
@@ -283,7 +283,7 @@
         <p>Citrato, sem sementes, esfera: tamanho relatado em cada artigo (um valor por artigo). Linhas: mediana e faixa 10–90 %. Parte da largura é desenho, não ruído: a razão citrato:Au ajusta o tamanho de 16 a 147 nm (Frens 1973).</p></div></div>
         <div class="card-b"><div class="plot" id="va-turk"></div></div></div>
       <div class="card c6"><div class="card-h"><div><h3>Prever um artigo novo × uma síntese nova</h3>
-        <p>Emissão de AuNC: validação por artigo (GroupKFold) e aleatória, mesmo modelo.</p></div></div>
+        <p>Emissão de AuNC, validada por artigo (GroupKFold) e aleatoriamente, com o mesmo modelo. O modelo prevê o deslocamento de Stokes (emissão − excitação), que generaliza melhor que prever a emissão direto, e a emissão volta somando a excitação. Mesmo assim, o artigo novo quase não é previsto: a casca Au(I)–tiolato e a agregação (AIE), que não são registradas, decidem a emissão.</p></div></div>
         <div class="card-b"><div class="plot" id="va-gen"></div></div></div>
     </div>
   </section>
@@ -320,6 +320,12 @@
       <div class="card c12"><div class="card-h"><div><h3>Sobreposição dos escores de propensão</h3>
         <p>Sem sobreposição, não há comparação justa. Os pesos usam escores aparados em [0,02; 0,98].</p></div></div>
         <div class="card-b"><div class="plot short" id="ca-ps"></div></div></div>
+      <div class="card c6"><div class="card-h"><div><h3>A cadeia fecha? NaBH₄ → tamanho → pico LSPR</h3>
+        <p>Nos registros da rota direta com tamanho e pico relatados, o efeito do NaBH₄ no pico (AIPW, bootstrap de artigos) comparado com o deslocamento que Mie prevê a partir do efeito no tamanho.</p></div></div>
+        <div class="card-b"><div class="plot short" id="ca-chain"></div><div class="prose" id="ca-chain-txt" style="padding:4px 10px 0"></div></div></div>
+      <div class="card c6"><div class="card-h"><div><h3>Por que o pico quase não muda: λ<sub>LSPR</sub> de Mie × diâmetro</h3>
+        <p>Constantes medidas do Au em água. Setas: tamanho mediano com citrato e o mesmo tamanho × efeito do NaBH₄.</p></div></div>
+        <div class="card-b"><div class="plot short" id="ca-mie"></div></div></div>
       <div class="card c12"><div class="card-h"><div><h3>Na campanha AgNP: efeitos intervencionais das vazões</h3>
         <p>As vazões foram fixadas pelo experimentador, então o contraste do GP do(x + 10 % da faixa) − do(x), em média nas condições medidas, é um efeito causal dentro do domínio. Abaixo de 1: aproxima o espectro do alvo.</p></div></div>
         <div class="card-b"><div class="plot short" id="ca-do"></div><div class="prose" id="ca-do-txt" style="padding:4px 10px 0"></div></div></div>
@@ -385,6 +391,12 @@ python -m pytest code/tests/test_webapp.py</pre></div></div>
 </main>
 </div>
 <div class="backdrop" id="backdrop" hidden></div>
+<div class="palette datadlg" id="dataDlg" role="dialog" aria-modal="true" aria-labelledby="dataT" hidden>
+  <div class="dd-h"><b id="dataT">dados</b><button type="button" class="icon-btn" id="dataClose" aria-label="Fechar os dados">fechar</button></div>
+  <div class="tbl-wrap" id="dataTbl" tabindex="0" role="region" aria-label="Dados do gráfico"></div>
+  <div class="dd-f"><span id="dataN" class="muted"></span><span id="dataMsg" class="muted" role="status"></span>
+    <button type="button" class="icon-btn" id="dataCopy">copiar CSV</button><button type="button" class="icon-btn" id="dataSave">baixar .csv</button></div>
+</div>
 <div class="palette" id="palette" role="dialog" aria-modal="true" aria-label="Buscar gráfico ou seção" hidden>
   <input type="text" id="palQ" placeholder="Buscar: designer, Mie, SHAP, Turkevich, difração…" aria-label="Buscar" autocomplete="off">
   <ul id="palL" role="listbox" aria-label="Resultados"></ul>

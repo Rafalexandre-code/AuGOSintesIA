@@ -484,38 +484,51 @@ def interpretability(designer: dict) -> dict:
             H[i, j] = H[j, i] = float(np.sum((a - b - c) ** 2) / max(np.sum(a ** 2), 1e-12))
     out = {"agnp": {"features": designer["labels"], "values": _r(sv, 4), "X": _r(lo + Xn * (hi - lo), 3),
                     "H2": _r(H, 3), "target": "ln(perda espectral) prevista pelo GP"}}
-    # AuNC: λ de emissão
+    # AuNC: deslocamento de Stokes (emissão − excitação); ver variability() para a comparação com o alvo direto
+    from sklearn.model_selection import GroupKFold, KFold, cross_val_predict
     c = expdata.aunc()
+    c = c[c["exc_nm"].notna()].copy()
     feats = ["size_nm", "exc_nm", "T_C", "time_h", "pH"]
     c = c.assign(GSH=(c["ligand"].str.upper() == "GSH").astype(float),
                  water=(c["solvent"] == "water").astype(float))
     F = feats + ["GSH", "water"]
-    m = HistGradientBoostingRegressor(max_iter=300, max_depth=3, learning_rate=0.05, min_samples_leaf=5, random_state=0).fit(c[F], c["em_nm"])
-    from sklearn.model_selection import GroupKFold, KFold, cross_val_predict
-    pred_cv = cross_val_predict(HistGradientBoostingRegressor(max_iter=300, max_depth=3, learning_rate=0.05, min_samples_leaf=5, random_state=0), c[F], c["em_nm"],
-                                cv=KFold(5, shuffle=True, random_state=0))
+    ys = (c["em_nm"] - c["exc_nm"]).to_numpy(float)
+    hgb = lambda: HistGradientBoostingRegressor(max_iter=300, max_depth=3, learning_rate=0.05, min_samples_leaf=5, random_state=0)  # noqa: E731
+    m = hgb().fit(c[F], ys)
+    pred_cv = cross_val_predict(hgb(), c[F], ys, cv=KFold(5, shuffle=True, random_state=0)) + c["exc_nm"].to_numpy()
     tsv = shap.TreeExplainer(m).shap_values(c[F])
+    em = c["em_nm"].to_numpy(float)
     out["aunc"] = {"features": ["tamanho (nm)", "λ exc (nm)", "T síntese (°C)", "tempo (h)", "pH", "ligante GSH",
                                 "solvente água"], "values": _r(tsv, 3), "X": _r(c[F].to_numpy(float), 2),
-                   "target": "λ de emissão (nm)", "cv_r2": float(1 - np.sum((c["em_nm"] - pred_cv) ** 2)
-                                                               / np.sum((c["em_nm"] - c["em_nm"].mean()) ** 2))}
-    # literatura: ln(tamanho) de esferas/partículas
+                   "target": "deslocamento de Stokes (nm)",
+                   "cv_r2": float(1 - np.sum((em - pred_cv) ** 2) / np.sum((em - em.mean()) ** 2))}
+    # literatura: ln(tamanho) com TODOS os reagentes citados (presença/ausência), morfologia, rota, base e época;
+    # validação por ARTIGO (DOI ou, no NSP, título): registros do mesmo artigo nunca ficam em treino e teste juntos
     L = expdata.literature()
-    L = L[L["size_nm"].between(1, 300) & L["reductant"].ge(0)].copy()
-    Fl = {"citrato": L["reductant"].eq(0), "NaBH4": L["reductant"].eq(1), "ácido ascórbico": L["reductant"].eq(2),
-          "mediada por sementes": L["seed"].eq(1), "CTAB": L["capping"].eq(0), "PVP": L["capping"].eq(1),
-          "tiol (GSH/dodecanotiol)": L["capping"].isin([4, 8]), "temperatura (°C)": L["T_C"],
-          "forma não esférica": ~L["morph"].isin([0, 2, 14, -1])}
+    L = L[L["size_nm"].between(1, 300)].copy()
+    has = lambda col, *ks: L[col].fillna("").str.split("|").apply(lambda xs: any(k in xs for k in ks))  # noqa: E731
+    rl = {"trisodium_citrate": "citrato", "NaBH4": "NaBH₄", "ascorbic_acid": "ácido ascórbico", "tannic_acid": "ácido tânico",
+          "H2O2": "H₂O₂", "hydroxylamine_HCl": "hidroxilamina", "hydroquinone": "hidroquinona", "hydrazine": "hidrazina",
+          "THPC": "THPC", "glucose": "glicose"}
+    cl = {"CTAB": ("CTAB",), "CTAC": ("CTAC",), "PVP": ("PVP",), "PEG": ("PEG",), "tiol (GSH/dodecanotiol)": ("GSH", "dodecanethiol"),
+          "TOAB": ("TOAB",), "BSA": ("BSA",), "oleilamina": ("oleylamine",), "ácido oleico": ("oleic_acid",)}
+    Fl = {lab: has("reductants_raw", k) for k, lab in rl.items()}
+    Fl.update({lab: has("capping_raw", *ks) for lab, ks in cl.items()})
+    Fl.update({"mediada por sementes": L["seed"].eq(1), "temperatura (°C)": L["T_C"], "ano": L["year"],
+               "forma não esférica": ~L["morph"].isin([0, 2, 14, -1]), "bastão": L["morph"].eq(expdata.MORPH.index("rod")),
+               "aglomerado": L["morph"].eq(expdata.MORPH.index("cluster")), "menciona GO": L["go"].eq(1),
+               "base NSP": L["source"].eq("nsp2026"), "base AuNC": L["source"].eq("aunc2025")})
     Xl = pd.DataFrame({k: v.astype(float) for k, v in Fl.items()})
     yl = np.log(L["size_nm"].to_numpy(float))
-    gl = HistGradientBoostingRegressor(max_iter=300, max_depth=3, learning_rate=0.05, min_samples_leaf=5, random_state=0)
-    groups = L["doi"].where(L["doi"] != "", L.index.astype(str)).to_numpy()
-    pcv = cross_val_predict(gl, Xl, yl, cv=GroupKFold(5), groups=groups)
-    gl.fit(Xl, yl)
+    groups = np.where(L["doi"] != "", L["doi"], L["title"])
+    pcv = cross_val_predict(hgb(), Xl, yl, cv=GroupKFold(5), groups=groups)
+    gl = hgb().fit(Xl, yl)
     samp = R.choice(len(Xl), min(1500, len(Xl)), replace=False)
     lsv = shap.TreeExplainer(gl).shap_values(Xl.iloc[samp])
-    out["literature"] = {"features": list(Fl), "values": _r(lsv, 3), "X": _r(Xl.iloc[samp].to_numpy(float), 1),
-                         "target": "ln(tamanho, nm)", "n": int(len(Xl)),
+    top = np.argsort(-np.abs(lsv).mean(0))[:14]                      # as 14 mais influentes (a figura fica legível)
+    out["literature"] = {"features": [Xl.columns[j] for j in top], "values": _r(lsv[:, top], 3),
+                         "X": _r(Xl.iloc[samp].to_numpy(float)[:, top], 1), "target": "ln(tamanho, nm)", "n": int(len(Xl)),
+                         "n_features": int(Xl.shape[1]), "n_articles": int(len(np.unique(groups))),
                          "cv_r2_by_paper": float(1 - np.sum((yl - pcv) ** 2) / np.sum((yl - yl.mean()) ** 2))}
     return out
 
@@ -540,14 +553,21 @@ def variability() -> dict:
     # AuNC: generalização para artigo novo (GroupKFold por DOI) × divisão aleatória
     from sklearn.ensemble import HistGradientBoostingRegressor
     from sklearn.model_selection import GroupKFold, KFold, cross_val_predict
+    # alvo: deslocamento de Stokes (emissão − excitação), devolvido em λ de emissão; comparado com prever a emissão
+    # direto, nas MESMAS sínteses (as 5 sem λ de excitação ficam fora das duas)
     c = expdata.aunc()
+    c = c[c["exc_nm"].notna()].copy()
     c = c.assign(GSH=(c["ligand"].str.upper() == "GSH").astype(float), water=(c["solvent"] == "water").astype(float))
     F = ["size_nm", "exc_nm", "T_C", "time_h", "pH", "GSH", "water"]
     g = HistGradientBoostingRegressor(max_iter=300, max_depth=3, learning_rate=0.05, min_samples_leaf=5, random_state=0)
-    rnd = cross_val_predict(g, c[F], c["em_nm"], cv=KFold(5, shuffle=True, random_state=0))
-    loso = cross_val_predict(g, c[F], c["em_nm"], cv=GroupKFold(5), groups=c["doi"])
-    rm = lambda p: float(np.sqrt(np.mean((c["em_nm"] - p) ** 2)))                # noqa: E731
-    r2 = lambda p: float(1 - np.sum((c["em_nm"] - p) ** 2) / np.sum((c["em_nm"] - c["em_nm"].mean()) ** 2))  # noqa: E731
+    em, exc = c["em_nm"].to_numpy(float), c["exc_nm"].to_numpy(float)
+    kf, gk = KFold(5, shuffle=True, random_state=0), GroupKFold(5)
+    rnd = cross_val_predict(g, c[F], em - exc, cv=kf) + exc
+    loso = cross_val_predict(g, c[F], em - exc, cv=gk, groups=c["doi"]) + exc
+    rnd_d = cross_val_predict(g, c[F], em, cv=kf)
+    loso_d = cross_val_predict(g, c[F], em, cv=gk, groups=c["doi"])
+    rm = lambda p: float(np.sqrt(np.mean((em - p) ** 2)))                # noqa: E731
+    r2 = lambda p: float(1 - np.sum((em - p) ** 2) / np.sum((em - em.mean()) ** 2))  # noqa: E731
     return {"agnp": {"mean": _r(u["mean"], 4), "sd": _r(u["std"], 4), "n": u["count"].tolist(),
                      "levene_W": float(lev.statistic), "levene_p": float(lev.pvalue), "loglog_slope": float(slope),
                      "icc": float(between / (between + within)), "median_cv": float(np.median(u["std"] / u["mean"])),
@@ -558,7 +578,9 @@ def variability() -> dict:
                           "sd_log": float(np.std(ly, ddof=1)), "fold_1sd": float(np.exp(np.std(ly, ddof=1))),
                           "frac_10_20nm": float(np.mean(per_paper.between(10, 20)))},
             "aunc_generalization": {"rmse_random": rm(rnd), "rmse_new_paper": rm(loso), "r2_random": r2(rnd),
-                                    "r2_new_paper": r2(loso), "sd_em": float(c["em_nm"].std()), "obs": _r(c["em_nm"], 0),
+                                    "r2_new_paper": r2(loso), "target": "deslocamento de Stokes",
+                                    "direct": {"r2_random": r2(rnd_d), "r2_new_paper": r2(loso_d)},
+                                    "sd_em": float(c["em_nm"].std()), "obs": _r(c["em_nm"], 0),
                                     "pred_random": _r(rnd, 1), "pred_new_paper": _r(loso, 1),
                                     "n_papers": int(c["doi"].nunique())}}
 
@@ -743,6 +765,7 @@ def causal() -> dict:
         effects.append(dict(r, key=key, name=name, population=pop, outcome=outcome, binary=binary, expected=exp_,
                             estimate=float(est), estimate_ci95=[float(ci[0]), float(ci[1])], verdict=verdict, in_range=bool(in_range),
                             robust=robust))
+    chain = _chain_lspr(L, spheroid, base_cov)
     prim = effects[0]
     dag = {"nodes": [["base", "base e época"], ["temperatura", "temperatura"], ["sementes", "rota com sementes"],
                      ["redutor", "força do redutor"], ["ligante", "ligante"], ["nucleacao", "nucleação (latente)"],
@@ -755,7 +778,39 @@ def causal() -> dict:
     return dict({k: prim[k] for k in ("n", "n_treated", "ate", "ci95", "ratio", "ratio_ci95", "e_value", "covariates",
                                       "smd_before", "smd_after", "propensity")},
                 treatment="NaBH4 (redutor forte)", control="citrato de sódio", outcome="ln(tamanho, nm)",
-                naive=float(np.log(prim["naive_ratio"])), effects=effects, dag=dag)
+                naive=float(np.log(prim["naive_ratio"])), effects=effects, dag=dag, chain=chain)
+
+
+def _chain_lspr(L: pd.DataFrame, spheroid: pd.Series, base_cov) -> dict:
+    """Coerência da cadeia redutor → tamanho → LSPR: nos registros da rota direta com tamanho E pico relatados, o
+    efeito do NaBH₄ no pico (nm) deve ser o que Mie prevê a partir do efeito no tamanho (mesmo ajuste, mesmos artigos)."""
+    import mie
+    d = L[spheroid & (L["seed"] == 0) & (L["nabh4"] ^ L["citr"]) & L["peak_nm"].between(490, 620)]
+    cov = base_cov(d, "ascorb", "ctab", "thiol", "poly")
+    cov = cov.loc[:, cov.std() > 0]
+    t, cl = d["nabh4"].to_numpy(int), d["clus"].to_numpy()
+    rs = _effect(d, t, np.log(d["size_nm"].to_numpy()), cov, cl, False)
+    rp = _effect(d, t, d["peak_nm"].to_numpy(float), cov, cl, False)          # desfecho em nm: "ate" = diferença em nm
+    # λ_LSPR de Mie (constantes medidas do Au, água, ensemble σ = 0,1) na grade de diâmetros
+    wl, dg = np.arange(400.0, 901.0, 2.0), np.exp(np.linspace(np.log(1.5), np.log(320.0), 90))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        C = np.array([mie.extinction_cross_section(wl, x) for x in dg])
+    s_ = np.sqrt(np.log(1.01))
+    lam = np.array([_peak(wl, (lambda w: (w / w.sum()) @ C)(np.exp(-0.5 * ((np.log(dg) - np.log(x) + s_ * s_ / 2) / s_) ** 2)))
+                    for x in dg])
+    f = lambda x: np.interp(np.log(x), np.log(dg), lam)                           # noqa: E731
+    d0 = d["size_nm"].to_numpy()[t == 0]                                          # tamanhos do grupo citrato
+    shift = lambda r: float(np.mean(f(d0 * r) - f(d0)))                           # noqa: E731
+    pred = shift(rs["ratio"])
+    sh = [shift(r) for r in np.linspace(*rs["ratio_ci95"], 21)] + [pred]          # a curva não é monótona abaixo de 5 nm
+    ci = [min(sh), max(sh)]
+    return {"n": rs["n"], "n_treated": rs["n_treated"], "n_articles": rs["n_articles"],
+            "size_ratio": rs["ratio"], "size_ratio_ci95": rs["ratio_ci95"],
+            "peak_shift": rp["ate"], "peak_shift_ci95": rp["ci95"], "peak_shift_naive": float(np.log(rp["naive_ratio"])),
+            "mie_shift": pred, "mie_shift_ci95": ci, "median_size_citrate": float(np.median(d0)),
+            "mie_curve": {"d": _r(dg[(dg >= 2) & (dg <= 120)], 2), "lambda": _r(lam[(dg >= 2) & (dg <= 120)], 2)},
+            "consistent": bool(rp["ci95"][0] <= pred <= rp["ci95"][1])}
 
 
 # ---------------------------------------------------------------------------------------------- caracterização real

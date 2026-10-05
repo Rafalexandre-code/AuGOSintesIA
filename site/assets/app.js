@@ -195,7 +195,8 @@
     if (TABS.some((t) => t[0] === h)) { if (show(h)) window.scrollTo({ top: 0 }); return; }
     const el = h && document.getElementById(h), panel = el && el.closest(".panel");
     show(panel ? panel.id.slice(2) : "visao");
-    if (el) requestAnimationFrame(() => el.scrollIntoView({ block: "start", behavior: "smooth" }));
+    if (el) requestAnimationFrame(() => { el.scrollIntoView({ block: "start", behavior: "smooth" });
+      if (el.classList.contains("card")) { el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); } });
   }
   function themeChanged() {
     $("#themeLbl").textContent = isDark() ? "Tema claro" : "Tema escuro";
@@ -228,18 +229,91 @@
     window.addEventListener("hashchange", () => route(location.hash.slice(1)));
   }
   // botão "ampliar" em todo cartão com gráfico
+  // download no visualizador de Artifacts (capacidade "downloads"); fora dele, link comum
+  const DL = window.claude && typeof window.claude.use === "function" ? window.claude.use("downloads").catch(() => null) : null;
+  // dados de cada gráfico: tabela + CSV (separador ";" e vírgula decimal, como os CSV do repositório)
+  function plotRows(card) {
+    const head = ["série", "x", "y", "z"], rows = [];
+    let xt = "x", yt = "y", zt = "z";
+    card.querySelectorAll(".js-plotly-plot").forEach((el) => {
+      const L = el.layout || {}, sc = L.scene, tt = (ax) => (!ax || !ax.title ? "" : typeof ax.title === "string" ? ax.title : ax.title.text || "").replace(/<[^>]+>/g, "");
+      xt = tt(sc ? sc.xaxis : L.xaxis) || xt; yt = tt(sc ? sc.yaxis : L.yaxis) || yt; zt = tt(sc && sc.zaxis) || zt;
+      (el.data || []).forEach((tr, i) => {
+        if (tr.hoverinfo === "skip" && !tr.name) return;                       // linhas de referência
+        const nm = String(tr.name || (el.data.length > 1 ? `série ${i + 1}` : "")).replace(/<[^>]+>/g, "");
+        const A_ = (v) => (v == null ? null : Array.from(v)), x = A_(tr.x || tr.labels), y = A_(tr.y || tr.values), z = A_(tr.z);
+        if (z && Array.isArray(z[0])) {                                          // matriz (superfície, mapa de calor)
+          z.forEach((row, r) => Array.from(row).forEach((v, c) => rows.push([nm, x ? (Array.isArray(x[0]) ? x[r][c] : x[c]) : c, y ? (Array.isArray(y[0]) ? y[r][c] : y[r]) : r, v])));
+        } else {
+          const n = Math.max((x || []).length, (y || []).length, (z || []).length);
+          for (let k = 0; k < n; k++) rows.push([nm, x ? x[k] : k, y ? y[k] : "", z ? z[k] : ""]);
+        }
+      });
+    });
+    head[1] = xt; head[2] = yt; head[3] = zt;
+    [1, 2].forEach((j) => { if (head[j] === "xy"[j - 1] && rows.some((r) => typeof r[j] === "string")) head[j] = "categoria"; });
+    const useZ = rows.some((r) => r[3] !== "" && r[3] != null), useS = rows.some((r) => r[0]);
+    const keep = [useS, true, true, useZ];
+    return { head: head.filter((_, j) => keep[j]), rows: rows.map((r) => r.filter((_, j) => keep[j])) };
+  }
+  function dataView(card, opener) {
+    const dlg = $("#dataDlg"), { head, rows } = plotRows(card), h = card.querySelector("h3, h2");
+    const title = h ? h.textContent.trim() : "dados";
+    const cell = (v) => (v == null ? "" : typeof v === "number" ? String(+v.toPrecision(7)).replace(".", ",") : String(v));
+    const csv = [head, ...rows].map((r) => r.map((v) => { const c = cell(v); return /[;"\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c; }).join(";")).join("\n");
+    $("#dataT").textContent = title;
+    $("#dataN").textContent = `${ni(rows.length)} linhas${rows.length > 300 ? " (a tabela mostra as 300 primeiras; o CSV leva todas)" : ""}`;
+    $("#dataTbl").innerHTML = `<table><thead><tr>${head.map((c) => `<th scope="col">${esc(c)}</th>`).join("")}</tr></thead><tbody>` +
+      rows.slice(0, 300).map((r) => "<tr>" + r.map((v) => `<td${typeof v === "number" ? ' class="num"' : ""}>${esc(typeof v === "number" ? nf(v, Math.abs(v) >= 100 ? 1 : 3) : cell(v))}</td>`).join("") + "</tr>").join("") + "</tbody></table>";
+    const msg = $("#dataMsg"); msg.textContent = "";
+    $("#dataCopy").onclick = async () => {
+      try { await navigator.clipboard.writeText(csv); msg.textContent = "copiado"; }
+      catch (e) { const ta = document.createElement("textarea"); ta.value = csv; document.body.appendChild(ta); ta.select();
+        let ok = false; try { ok = document.execCommand("copy"); } catch (e2) { /* sem área de transferência */ } ta.remove();
+        msg.textContent = ok ? "copiado" : "o navegador bloqueou a cópia; use baixar"; }
+    };
+    const sv = $("#dataSave"); sv.hidden = false;
+    if (DL) DL.then((d) => { if (!d) sv.hidden = true; });           // visualizador sem permissão de download: só copiar
+    sv.onclick = async () => {
+      const fn = (card.id || "grafico") + ".csv";
+      if (DL) {                                                       // dentro do visualizador: o download passa pela plataforma
+        const d = await DL; if (!d) { sv.hidden = true; return; }
+        try { await d.save({ filename: fn, data: "\ufeff" + csv }); msg.textContent = "arquivo salvo"; }
+        catch (e) { const c = e && e.code;
+          if (c === "declined") msg.textContent = "download cancelado";
+          else if (c === "rate_limited") msg.textContent = "aguarde e tente de novo";
+          else { msg.textContent = "download indisponível aqui; use copiar"; sv.hidden = true; } }
+        return;
+      }
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" })); a.download = fn;
+      document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    };
+    const close = () => { dlg.hidden = true; if (!$(".card.full")) $("#backdrop").hidden = true; document.removeEventListener("keydown", esc_, true); opener.focus(); };
+    const esc_ = (e) => { if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); close(); } };
+    $("#dataClose").onclick = close;
+    document.addEventListener("keydown", esc_, true);
+    dlg.hidden = false; $("#backdrop").hidden = false; $("#dataCopy").focus();
+  }
   function addExpanders() {
+    const icoT = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v10H2zM2 7h12M6 3v10" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>';
     const ico = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
     document.querySelectorAll(".card").forEach((card) => {
       if (!card.querySelector(".plot") || card.classList.contains("hero-vis")) return;
       const head = card.querySelector(".card-h"); if (!head) return;
+      const dB = document.createElement("button");
+      dB.type = "button"; dB.className = "icon-btn"; dB.innerHTML = icoT + "<span>dados</span>"; dB.setAttribute("aria-label", "Ver e copiar os dados do gráfico");
+      dB.addEventListener("click", () => dataView(card, dB));
       const b = document.createElement("button");
       b.type = "button"; b.className = "icon-btn"; b.innerHTML = ico + "<span>ampliar</span>"; b.setAttribute("aria-label", "Ampliar o gráfico");
       b.addEventListener("click", () => toggleFull(card, b));
-      head.appendChild(b);
+      const g = document.createElement("div"); g.className = "btns"; g.append(dB, b);
+      head.appendChild(g);
     });
-    document.addEventListener("keydown", (e) => { if (e.key === "Escape") { const f = $(".card.full"); if (f) toggleFull(f, f.querySelector(".icon-btn")); } });
-    $("#backdrop").addEventListener("click", () => { const f = $(".card.full"); if (f) toggleFull(f, f.querySelector(".icon-btn")); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $("#dataDlg").hidden) { const f = $(".card.full"); if (f) toggleFull(f, f.querySelector(".btns .icon-btn:last-child")); } });
+    $("#backdrop").addEventListener("click", () => {
+      if (!$("#dataDlg").hidden) { $("#dataClose").click(); return; }
+      const f = $(".card.full"); if (f) toggleFull(f, f.querySelector(".btns .icon-btn:last-child")); });
   }
   function toggleFull(card, btn) {
     const on = !card.classList.contains("full");
@@ -784,7 +858,7 @@
       const top = ord[ord.length - 1];
       const extra = m.cv_r2 != null ? `R² (validação) ${nf(m.cv_r2, 2)}` : m.cv_r2_by_paper != null ? `R² por artigo ${nf(m.cv_r2_by_paper, 2)}` : `R² do GP em CV ${nf(A.designer.cv.r2, 2)}`;
       kpis("#sh-kpis", [{ k: "Modelo e alvo", v: key === "agnp" ? "GP · SHAP exato" : "árvores · TreeSHAP", s: `${esc(m.target)} · ${extra}` },
-        { k: "Sínteses explicadas", v: ni(V.length), s: m.n ? `amostra de ${ni(m.n)} registros` : "todas as condições medidas" },
+        { k: "Sínteses explicadas", v: ni(V.length), s: m.n ? `amostra de ${ni(m.n)} registros de ${ni(m.n_articles)} artigos; as ${ni(m.features.length)} mais influentes de ${ni(m.n_features)} variáveis` : "todas as condições medidas" },
         { k: "Variável mais influente", v: esc(m.features[top]), s: `|SHAP| médio ${nf(imp[top], 3)}`, key: true }]);
       const xs = [], ys = [], cs = [], cd = [];
       ord.forEach((j, row) => {
@@ -831,7 +905,7 @@
       { k: "Fração da variância entre condições", v: nf(ag.icc, 2), s: "ICC: o resto é ruído de réplica" },
       { k: "Ruído heteroscedástico?", v: ag.levene_p < 0.05 ? "sim" : "não", s: `Brown–Forsythe W = ${nf(ag.levene_W, 1)}, ${pf(ag.levene_p)}: justifica o GP com ruído por condição`, key: true },
       { k: `Turkevich em ${ni(tk.n_papers)} artigos`, v: nf(tk.median, 1), u: "nm", s: `10–90 %: ${nf(tk.q10_q90[0], 1)}–${nf(tk.q10_q90[1], 1)} nm · fator ×${nf(tk.fold_1sd, 2)}` },
-      { k: "AuNC: R² para artigo novo", v: nf(ge.r2_new_paper, 2), s: `síntese nova: ${nf(ge.r2_random, 2)} · ${ni(ge.n_papers)} artigos` },
+      { k: "AuNC: R² para artigo novo", v: nf(ge.r2_new_paper, 2), s: `síntese nova: ${nf(ge.r2_random, 2)} · ${ni(ge.n_papers)} artigos · prevendo a emissão direto: ${nf(ge.direct.r2_random, 2)} → ${nf(ge.direct.r2_new_paper, 2)}` },
     ]);
     drawer(() => {
       const t = T();
@@ -915,6 +989,23 @@
         shapes: [{ type: "line", x0: 1, x1: 1, y0: -0.5, y1: E.length - 0.5, line: { color: t.ink, width: 1, dash: "dot" } }].concat(
           E.map((e, i) => ({ type: "rect", x0: e.expected.range[0], x1: e.expected.range[1], y0: i - 0.32, y1: i + 0.32, fillcolor: hexA(t.dark ? "#e0b45c" : "#b8862a", 0.22), line: { width: 0 }, layer: "below" }))),
         annotations: [{ xref: "paper", yref: "paper", x: 0, y: 1.06, xanchor: "left", showarrow: false, font: { size: 11, color: t.ink2 }, text: "cheio = robusto a todos os estimadores · vazado = magnitude frágil" }] });
+      // cadeia redutor → tamanho → LSPR
+      const K = C.chain;
+      plot("ca-chain", [{ type: "scatter", mode: "markers", y: ["observado (AIPW)", "previsto por Mie"], x: [K.peak_shift, K.mie_shift],
+        error_x: { type: "data", symmetric: false, array: [K.peak_shift_ci95[1] - K.peak_shift, K.mie_shift_ci95[1] - K.mie_shift],
+          arrayminus: [K.peak_shift - K.peak_shift_ci95[0], K.mie_shift - K.mie_shift_ci95[0]], color: t.ink2, thickness: 1.6, width: 6 },
+        marker: { size: 12, color: [t.ruby, t.cat[0]], line: { width: 2, color: t.surface } },
+        hovertemplate: "%{y}: %{x:.1f} nm<extra></extra>" }],
+      { xaxis: { title: { text: "efeito no pico LSPR (nm; < 0 = para o azul)" }, zeroline: false }, yaxis: { autorange: "reversed", automargin: true },
+        margin: { l: 130 }, showlegend: false,
+        shapes: [{ type: "line", x0: 0, x1: 0, y0: -0.5, y1: 1.5, line: { color: t.ink, width: 1, dash: "dot" } }] });
+      const mc = K.mie_curve, d0 = K.median_size_citrate, d1 = d0 * K.size_ratio, lamAt = (x) => interp(Math.log(x), mc.d.map(Math.log), mc.lambda);
+      plot("ca-mie", [{ type: "scatter", mode: "lines", name: "Mie (σ = 10 %)", x: mc.d, y: mc.lambda, line: { color: t.cat[0], width: 2 }, hovertemplate: "%{x:.1f} nm → %{y:.1f} nm<extra>Mie</extra>" },
+        { type: "scatter", mode: "markers+text", name: "tamanhos", x: [d1, d0], y: [lamAt(d1), lamAt(d0)], text: ["NaBH₄", "citrato"], textposition: ["top center", "top center"],
+          textfont: { color: t.ink2, size: 11 }, marker: { size: 10, color: [t.ruby, t.ink2], line: { width: 2, color: t.surface } }, hovertemplate: "%{text}: %{x:.1f} nm → λ %{y:.1f} nm<extra></extra>" }],
+      { xaxis: { type: "log", title: { text: "diâmetro (nm)" }, tickvals: [2, 5, 10, 20, 50, 100] }, yaxis: { title: { text: "λ LSPR (nm)" } }, showlegend: false,
+        shapes: [{ type: "rect", xref: "x", yref: "paper", x0: 2, x1: 25, y0: 0, y1: 1, fillcolor: hexA(t.dark ? "#e0b45c" : "#b8862a", 0.12), line: { width: 0 }, layer: "below" }],
+        annotations: [{ x: Math.log10(7), y: 0.95, yref: "paper", text: "faixa plana (< 25 nm)", showarrow: false, font: { size: 10, color: t.muted } }] });
       // efeitos intervencionais AgNP
       const DE = D.do_effects;
       plot("ca-do", [{ type: "scatter", mode: "markers", y: DE.map((e) => e.var), x: DE.map((e) => e.ratio),
@@ -925,7 +1016,7 @@
         shapes: [{ type: "line", x0: 1, x1: 1, y0: -0.5, y1: DE.length - 0.5, line: { color: t.ink, width: 1, dash: "dot" } }] });
     });
     // o modelo preditivo (árvores + SHAP) aponta a mesma direção? (associação condicional, não efeito causal)
-    const SL = A.interpret.literature, fmap = { redutor: "NaBH4", sementes: "mediada por sementes", tiol: "tiol (GSH/dodecanotiol)" };
+    const SL = A.interpret.literature, fmap = { redutor: "NaBH₄", sementes: "mediada por sementes", tiol: "tiol (GSH/dodecanotiol)" };
     function shapLine(e) {
       const f = SL.features.indexOf(fmap[e.key]); if (f < 0) return "";
       const on = [], off = []; SL.X.forEach((r, i) => { const v = SL.values[i][f]; if (v == null) return; (r[f] ? on : off).push(v); });
@@ -981,6 +1072,14 @@
       "Q PVA (%)": "o PVA é estabilizante estérico: segura a dispersão, mas pouco muda o espectro",
       "Q total (µL/min)": "a vazão total muda o tempo de residência; na faixa medida o efeito é pequeno",
     };
+    {
+      const K = C.chain, inside = K.consistent, fl = K.mie_curve.lambda.filter((_, i) => K.mie_curve.d[i] <= 25);
+      const flat = `${nf(Math.min(...fl), 0)}–${nf(Math.max(...fl), 0)} nm por Mie`;
+      $("#ca-chain-txt").innerHTML = `<p>Em ${ni(K.n)} registros (${ni(K.n_treated)} com NaBH₄, ${ni(K.n_articles)} artigos), o NaBH₄ reduz o tamanho ×${nf(K.size_ratio, 2)} ` +
+        `(IC 95 % ${nf(K.size_ratio_ci95[0], 2)}–${nf(K.size_ratio_ci95[1], 2)}). Por Mie, isso desloca o pico em ${nf(K.mie_shift, 1)} nm; o observado é ` +
+        `${nf(K.peak_shift, 1)} nm (IC 95 % ${nf(K.peak_shift_ci95[0], 1)} a ${nf(K.peak_shift_ci95[1], 1)}). <b>${inside ? "A previsão cai dentro do intervalo: a cadeia é coerente." : "A previsão cai fora do intervalo: há um caminho além do tamanho."}</b></p>` +
+        `<p class="muted">Abaixo de ~25 nm o λ<sub>LSPR</sub> do ouro é quase plano (${flat}), então nem um efeito grande no tamanho aparece no pico. Por isso Haiss et al. (2007) usam a razão A<sub>LSPR</sub>/A<sub>450</sub> para partículas pequenas, e o projeto usa o espectro inteiro (perda J) e a TEM em vez do pico sozinho.</p>`;
+    }
     $("#ca-do-txt").innerHTML = D.do_effects.map((e) => `<p><b>${esc(e.var)}</b> (+${nf(e.step, 1)}): perda ×${nf(e.ratio, 3)} (IC 95 % ${nf(e.ratio_ci95[0], 3)}–${nf(e.ratio_ci95[1], 3)}), ` +
       `${sig(e) === "nulo" ? "efeito médio indistinguível de zero" : sig(e) === "reduz" ? "aproxima do alvo" : "afasta do alvo"}. ${esc(why[e.var] || "")}.</p>`).join("");
   };
@@ -1129,7 +1228,9 @@
       let k = 0;
       document.querySelectorAll(`#p-${id} .card`).forEach((card) => {
         const h = card.querySelector(".card-h h3"); if (!h || !card.querySelector(".plot, table")) return;
-        h.insertAdjacentHTML("afterbegin", `<span class="fig">Fig. ${sec}${String.fromCharCode(97 + k++)}</span>`);
+        const n = `${sec}${String.fromCharCode(97 + k++)}`;
+        if (!card.id) card.id = "fig-" + n;
+        h.insertAdjacentHTML("afterbegin", `<a class="fig" href="#${card.id}" title="Endereço desta figura">Fig. ${n}</a>`);
       });
     }
   }
