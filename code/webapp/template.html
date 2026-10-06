@@ -150,6 +150,12 @@
       <div class="card c5"><div class="card-h"><div><h3>log₁₀ J sobre (diâmetro, σ)</h3>
         <p>Onde a síntese precisa cair para atender ao alvo. Ponto = escolha atual.</p></div></div>
         <div class="card-b"><div class="plot" id="op-J"></div></div></div>
+      <div class="card c12"><div class="card-h"><div><h3>Do pico ao tamanho: inversão bayesiana do UV-Vis</h3>
+        <p>Dado o pico de absorção medido, a distribuição posterior do diâmetro. A priori = tamanhos de esferas relatados; verossimilhança = Mie + o erro real dos relatos por faixa de tamanho (t de Student, caudas pesadas). Faixa = intervalo de credibilidade de 90 %.</p></div></div>
+        <div class="controls" style="padding-top:0"><div class="ctl"><label for="op-pk">Pico medido <output id="op-pk-o"></output></label><input type="range" id="op-pk" min="505" max="600" step="0.5" value="520"></div>
+          <div class="ctl ctl-auto"><span class="lbl" id="op-pri-l">A priori</span><div class="seg" id="op-pri" role="group" aria-labelledby="op-pri-l"><button type="button" aria-pressed="true" data-v="lit">tamanhos relatados</button><button type="button" aria-pressed="false" data-v="uni">uniforme em log d</button></div></div></div>
+        <div class="kpis inset" id="op-inv-kpis"></div>
+        <div class="card-b"><div class="plot" id="op-inv"></div><div class="prose" id="op-inv-txt" style="padding:4px 10px 0"></div></div></div>
       <div class="card c6"><div class="card-h"><div><h3>Conferência com a literatura: Mie × Haiss et al. (2007)</h3>
         <p>Curva empírica λ = 512 + 6,53·e^(0,0216·d) (Anal. Chem. 79, 4215), válida acima de 25 nm, contra o Mie deste painel (água, σ = 10 %).</p></div></div>
         <div class="card-b"><div class="plot short" id="op-haiss"></div></div></div>
@@ -246,7 +252,7 @@
         <p>RMST de cada estratégia, diferença pareada contra o aleatório, probabilidade posterior de ser melhor e teste log-rank (este ignora o pareamento; é conservador).</p></div></div>
         <div class="tbl-wrap" tabindex="0" role="region" aria-label="Sobrevivência por campanha"><table id="bo-surv"></table></div></div>
       <div class="card c12"><div class="card-h"><div><h3>Resumo: mediana de experimentos até o top 5 %</h3>
-        <p>Entre parênteses, vitórias–empates–derrotas contra o aleatório nas <span class="nseeds">40</span> repetições e o p do teste pareado.</p></div></div>
+        <p>Entre parênteses, vitórias–empates–derrotas contra o aleatório nas <span class="nseeds">40</span> repetições, o p do teste pareado e o p ajustado por Holm para as 15 comparações; negrito = significativo após Holm.</p></div></div>
         <div class="tbl-wrap" tabindex="0" role="region" aria-label="Resumo das estratégias"><table id="bo-tbl"></table></div></div>
     </div>
   </section>
@@ -275,6 +281,9 @@
       <div class="card c5"><div class="card-h"><div><h3>Interações H² (AgNP)</h3>
         <p>Fração da variação conjunta que não se explica pelos efeitos separados.</p></div></div>
         <div class="card-b"><div class="plot" id="sh-h2"></div></div></div>
+      <div class="card c12"><div class="card-h"><div><h3>Sensibilidade global (índices de Sobol) do GP AgNP</h3>
+        <p>Fração da variância de ln(perda) prevista explicada por cada vazão sozinha (S1) e com todas as interações (ST), com as entradas varrendo a faixa medida. Barras = IC 95 % (bootstrap). ST − S1 = efeito que só existe em combinação com outra vazão.</p></div></div>
+        <div class="card-b"><div class="plot short" id="sh-sobol"></div><div class="prose" id="sh-sobol-txt" style="padding:4px 10px 0"></div></div></div>
     </div>
   </section>
 
@@ -317,6 +326,9 @@
       <div class="card c6"><div class="card-h"><div><h3>Tamanho previsto × temperatura</h3>
         <p>A mesma receita em outras temperaturas: mediana e faixas de 50 % e 90 %. Ponto = temperatura escolhida.</p></div></div>
         <div class="card-b"><div class="plot" id="pr-temp"></div></div></div>
+      <div class="card c12"><div class="card-h"><div><h3>Design inverso: receitas publicadas com mais chance de acertar o alvo</h3>
+        <p>As receitas com pelo menos 5 sínteses relatadas, em 25, 60 e 100 °C, ordenadas pela probabilidade prevista de cair no alvo ± 20 % (mesmos ano, base e GO do formulário). Ficar dentro do que já foi feito evita extrapolar o modelo. "Carregar" leva a receita ao formulário.</p></div></div>
+        <div class="tbl-wrap" tabindex="0" role="region" aria-label="Design inverso"><table id="pr-inv"></table></div></div>
       <div class="card c12"><div class="card-h"><div><h3>Receitas publicadas mais parecidas</h3>
         <p>Mesma combinação de reagentes, rota e forma ou a mais próxima (Jaccard nos reagentes; rota e forma diferentes pesam). Exemplos com link para o artigo.</p></div></div>
         <div class="tbl-wrap" tabindex="0" role="region" aria-label="Receitas parecidas"><table id="pr-tbl"></table></div></div>

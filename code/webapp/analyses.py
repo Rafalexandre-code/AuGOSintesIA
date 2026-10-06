@@ -159,7 +159,8 @@ def optics() -> dict:
         neff.append({"n": nm, "cal": float(np.median(np.abs(rs[cal]))), "val": float(np.median(np.abs(rs[~cal]))),
                      "bias_val": float(np.median(rs[~cal])),
                      "haiss_max": float(np.max(np.abs(np.interp(np.log(hd), np.log(dsub), ln_) - haiss)))})
-    return {"wl": _r(wl, 0), "d": _r(d, 3), "C_ext": _r(C / C.max(axis=1, keepdims=True), 4),
+    inversion = _peak_inversion(sph, d, lam)
+    return {"inversion": inversion, "wl": _r(wl, 0), "d": _r(d, 3), "C_ext": _r(C / C.max(axis=1, keepdims=True), 4),
             "haiss": {"d": _r(hd, 1), "lambda": _r(haiss, 1), "mie": _r(mie_h, 1),
                       "max_abs_diff": float(np.max(np.abs(mie_h - haiss))), "mie_20nm": float(np.interp(np.log(20), np.log(d), lam))},
             "n_eff_test": neff,
@@ -174,6 +175,67 @@ def optics() -> dict:
                        "sigma": cfg["target_spectrum"]["relative_dispersion"], "normalization": norm, "s_m": sm,
                        "grid": [float(grid[0]), float(grid[-1]), float(grid[1] - grid[0])]},
             "J_surface": {"d": _r(dd, 2), "sigma": _r(ss, 3), "log10J": _r(np.log10(Jg), 3)}}
+
+
+def _inv_model(size: np.ndarray, peak: np.ndarray, gd: np.ndarray, lam_g: np.ndarray) -> dict:
+    """Peças da inversão ajustadas num conjunto de registros: a priori (KDE em ln d) e o resíduo pico − Mie por faixa
+    de tamanho (viés = mediana, dispersão = 1,4826·MAD, mínimo 2 nm), interpolados na grade."""
+    ls = np.log(size)
+    bw = 1.06 * np.std(ls) * len(ls) ** -0.2
+    prior = np.exp(-0.5 * ((np.log(gd)[:, None] - ls[None]) / bw) ** 2).sum(1)
+    prior /= prior.sum()
+    res = peak - np.interp(ls, np.log(gd), lam_g)
+    edges = np.array([2, 10, 20, 40, 80, 200.0])
+    cen, bias, sd = [], [], []
+    for lo, hi in zip(edges[:-1], edges[1:]):
+        m = (size >= lo) & (size < hi)
+        if m.sum() >= 8:
+            r = res[m]
+            cen.append(np.sqrt(lo * hi))
+            bias.append(float(np.median(r)))
+            sd.append(max(2.0, 1.4826 * float(np.median(np.abs(r - np.median(r))))))
+    lc = np.log(cen)
+    return {"prior": prior, "bias": np.interp(np.log(gd), lc, bias), "sd": np.interp(np.log(gd), lc, sd)}
+
+
+def _posterior(M: dict, lam_g: np.ndarray, pk: float, uniform: bool = False, nu: float = 0) -> np.ndarray:
+    z = (pk - lam_g - M["bias"]) / M["sd"]
+    # nu = 0: gaussiana; nu > 0: t de Student (caudas pesadas dos relatos: pico lido no olho, tamanho por outra técnica)
+    lik = (np.exp(-0.5 * z ** 2) if nu <= 0 else (1 + z ** 2 / nu) ** (-(nu + 1) / 2)) / M["sd"]
+    post = lik * (1.0 if uniform else M["prior"])
+    return post / post.sum()
+
+
+def _peak_inversion(sph: pd.DataFrame, d: np.ndarray, lam: np.ndarray) -> dict:
+    """Do pico de absorção (UV-Vis) ao tamanho, por Bayes: a priori = tamanhos de esferas relatados (KDE em ln d),
+    verossimilhança = Mie + resíduo empírico por faixa (o que o relato real erra, não só a física). Intervalos de
+    credibilidade de 90 % conferidos em 5 dobras por ARTIGO (a priori e o resíduo vêm só das outras dobras)."""
+    from sklearn.model_selection import GroupKFold
+    gd = np.exp(np.linspace(np.log(2.0), np.log(200.0), 240))
+    lam_g = np.interp(np.log(gd), np.log(d), lam)
+    size, peak = sph["size_nm"].to_numpy(float), sph["peak_nm"].to_numpy(float)
+    groups = np.where(sph["doi"] != "", sph["doi"], sph["title"])
+    # escolha da verossimilhança por critério fixado antes: cobertura do IC de 90 % mais perto de 90 % nos artigos
+    # de teste (gaussiana × t de Student com ν = 10, 5, 3, 2)
+    folds = list(GroupKFold(5).split(size, peak, groups))
+    Ms = [(_inv_model(size[tr], peak[tr], gd, lam_g), te) for tr, te in folds]
+
+    def check(nu, uniform=False):
+        hit, width = [], []
+        for M, te in Ms:
+            for i in te:
+                c = np.cumsum(_posterior(M, lam_g, peak[i], uniform, nu))
+                lo, hi = gd[np.searchsorted(c, 0.05)], gd[min(np.searchsorted(c, 0.95), len(gd) - 1)]
+                hit.append(lo <= size[i] <= hi)
+                width.append(hi / lo)
+        return float(np.mean(hit)), float(np.median(width))
+    scan = [{"nu": nu, "coverage90": cv, "median_width": wd} for nu in (0, 10, 5, 3, 2) for cv, wd in [check(nu)]]
+    best = min(scan, key=lambda r: abs(r["coverage90"] - 0.9))
+    cov_u, _ = check(best["nu"], True)
+    M = _inv_model(size, peak, gd, lam_g)
+    return {"d": _r(gd, 3), "lam": _r(lam_g, 2), "prior": _r(M["prior"], 6), "bias": _r(M["bias"], 2), "sd": _r(M["sd"], 2),
+            "nu": best["nu"], "scan": scan, "coverage90": best["coverage90"], "coverage90_uniform": cov_u,
+            "median_width": best["median_width"], "n": int(len(size)), "n_articles": int(len(np.unique(groups)))}
 
 
 # ---------------------------------------------------------------------------------------------- §4.5 Designer (AgNP)
@@ -476,6 +538,14 @@ def add_paired_stats(bench: dict) -> dict:
             ds["paired"][a] = {"wins": int(np.sum(d < 0)), "ties": int(np.sum(d == 0)), "losses": int(np.sum(d > 0)),
                                "median_diff": float(np.median(d)), "p": p}
         ds["survival"] = _survival(ds["reach_top5"], bench["arms"], ds["budget"])
+    # Holm (1979) na família inteira (campanhas × estratégias): controla a chance de QUALQUER falso positivo
+    fam = [(ds, a) for ds in bench["datasets"].values() for a in bench["arms"][1:]]
+    order = np.argsort([ds["paired"][a]["p"] for ds, a in fam])
+    m, run = len(fam), 0.0
+    for rank, k in enumerate(order):
+        ds, a = fam[k]
+        run = max(run, min(1.0, (m - rank) * ds["paired"][a]["p"]))
+        ds["paired"][a]["p_holm"] = float(run)
     return bench
 
 
@@ -562,6 +632,36 @@ def _lit_features() -> tuple[pd.DataFrame, pd.DataFrame]:
                "base NSP": L["source"].eq("nsp2026"), "base AuNC": L["source"].eq("aunc2025")})
     return L, pd.DataFrame({k: np.asarray(v, float) for k, v in Fl.items()}, index=L.index)
 
+def _sobol(gp: dict, p: int, N: int = 4096, B: int = 400, seed: int = 3) -> dict:
+    """Índices de Sobol da média do GP sobre a caixa medida (entradas uniformes e independentes em [0, 1]^p):
+    primeira ordem S1 (estimador de Saltelli 2010) e total ST (Jansen 1999) com amostras de Sobol (quase Monte
+    Carlo) e IC 95 % por bootstrap das linhas. ST − S1 = parte do efeito que só aparece em interação."""
+    from scipy.stats import qmc
+    rng = np.random.default_rng(seed)
+    AB = qmc.Sobol(2 * p, scramble=True, seed=seed).random(N)
+    A_, B_ = AB[:, :p], AB[:, p:]
+    f = lambda Z: gp_predict(gp, Z)[0]                                         # noqa: E731
+    fA, fB = f(A_), f(B_)
+    fAB = []
+    for i in range(p):
+        Z = A_.copy()
+        Z[:, i] = B_[:, i]
+        fAB.append(f(Z))
+    fAB = np.array(fAB)
+
+    def est(ix):
+        V = np.var(np.concatenate([fA[ix], fB[ix]]))
+        s1 = np.mean(fB[ix] * (fAB[:, ix] - fA[ix]), 1) / V
+        st = 0.5 * np.mean((fA[ix] - fAB[:, ix]) ** 2, 1) / V
+        return s1, st
+    s1, st = est(np.arange(N))
+    bs = [est(rng.integers(0, N, N)) for _ in range(B)]
+    q = lambda k: np.quantile(np.array([b[k] for b in bs]), [0.025, 0.975], axis=0)  # noqa: E731
+    l1, lt = q(0), q(1)
+    return {"S1": _r(s1, 4), "ST": _r(st, 4), "S1_ci": _r(l1.T, 4), "ST_ci": _r(lt.T, 4), "N": N,
+            "sum_S1": float(np.sum(s1)), "var_explained_by_main": float(np.sum(s1))}
+
+
 def interpretability(designer: dict) -> dict:
     """SHAP (valores de Shapley exatos) do GP da campanha AgNP; árvores (TreeSHAP) para AuNC e literatura;
     interações pela estatística H² de Friedman no GP."""
@@ -591,7 +691,7 @@ def interpretability(designer: dict) -> dict:
             a, b, c = pij - pij.mean(), pi - pi.mean(), pj - pj.mean()
             H[i, j] = H[j, i] = float(np.sum((a - b - c) ** 2) / max(np.sum(a ** 2), 1e-12))
     out = {"agnp": {"features": designer["labels"], "values": _r(sv, 4), "X": _r(lo + Xn * (hi - lo), 3),
-                    "H2": _r(H, 3), "target": "ln(perda espectral) prevista pelo GP"}}
+                    "H2": _r(H, 3), "target": "ln(perda espectral) prevista pelo GP", "sobol": _sobol(gp, p)}}
     # AuNC: deslocamento de Stokes (emissão − excitação); ver variability() para a comparação com o alvo direto
     from sklearn.model_selection import GroupKFold, KFold, cross_val_predict
     c = expdata.aunc()

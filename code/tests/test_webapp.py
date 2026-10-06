@@ -226,3 +226,16 @@ def test_replicacao_entre_bases(site):
         R = e["replication"]
         assert len(R["bases"]) == 2 and R["same_direction"], e["key"]          # mesma direção em Cruse e NSP
         assert R["pooled_ci95"][0] <= R["pooled"] <= R["pooled_ci95"][1] and 0 <= R["I2"] <= 1
+
+
+def test_holm_sobol_e_inversao(site):
+    for ds in site["benchmark"]["datasets"].values():
+        for pr in ds["paired"].values():
+            assert pr["p"] <= pr["p_holm"] <= 1                              # Holm nunca reduz o p
+    sb = site["interpret"]["agnp"]["sobol"]
+    for s1, st, c1, ct in zip(sb["S1"], sb["ST"], sb["S1_ci"], sb["ST_ci"]):
+        assert -0.05 <= s1 <= st + 0.05 and st <= 1.05 and ct[0] <= st <= ct[1]  # S1 ≤ ST
+    assert 0.5 < sb["sum_S1"] <= 1.05
+    inv = site["optics"]["inversion"]
+    assert abs(inv["coverage90"] - 0.9) <= min(abs(r["coverage90"] - 0.9) for r in inv["scan"]) + 1e-12
+    assert 0.85 < inv["coverage90"] < 0.95 and abs(sum(inv["prior"]) - 1) < 1e-3
