@@ -16,6 +16,7 @@ python -m pytest code/tests/test_webapp.py    # GP do navegador = GPyTorch, J = 
 |---|---|
 | `index.html` | página (abas = seções da proposta) |
 | `assets/app.js`, `assets/app.css` | cópias de `code/webapp/app.js` e `app.css` (gráficos, GP e Mie no navegador, temas claro/escuro) |
+| `assets/guide.js` | textos da aba **Guia completo** (cópia de `code/webapp/guide.js`): cada aba, figura, controle e conceito |
 | `data/<seção>.js` | resultados das análises (`window.AUGO.<seção>`), gerados por `code/webapp/analyses.py` |
 | `vendor/plotly.min.js` | Plotly (do pacote `plotly` do ambiente `core`, licença MIT) |
 
@@ -33,6 +34,7 @@ python -m pytest code/tests/test_webapp.py    # GP do navegador = GPyTorch, J = 
 | Variabilidade | §4.7, §4.17 | réplicas AgNP, Turkevich (citrato como único redutor) em 1 521 artigos, AuNC por artigo (IC por bootstrap de artigos) | desvio × média, CV em 3D, histograma por artigo, artigo novo × síntese nova |
 | Causalidade | §4.9 | 13 633 sínteses de Cruse 2022 e NSP 2026; campanha AgNP | DAG mecanístico, 4 efeitos × literatura (AIPW, IPW, entropia, bootstrap de artigos, E-value), estimadores, balanço (SMD), propensão, cadeia NaBH₄ → tamanho → LSPR × Mie, replicação em Cruse × NSP (efeitos aleatórios, I²), efeitos do(x) das vazões |
 | Caracterização | §4.2 | quadros GE de CeO₂ (5 + dark), 207 AuNC | imagem do detector, relevo 3D, perfil radial com 14 anéis indexados, AuNC em 3D |
+| Guia completo | — | os mesmos dados do site (cada número citado é lido dos dados) | documentação para leigos: como navegar e ler gráficos (esquemas), 14 conceitos de química e estatística com 12 demonstrações interativas usando dados reais, cada aba e cada uma das 69 figuras e tabelas (o que mostra, como ler, exemplo com os números atuais, cuidados), roteiros "Experimente", como foi feito, registro de decisões, limites, glossário (47 termos) e referências; botão **como ler** em cada gráfico do site leva à explicação |
 | Sobre e dados | — | fontes, licenças, limites, o que aguarda o laboratório, glossário, como usar | — |
 
 Nada do simulador (`code/benchmarking/`, `miso.py`, `designer.py demo`) entra no site; o teste

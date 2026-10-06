@@ -1357,7 +1357,7 @@ se estiver desligado.
 
 `datasets/lab/` ainda não tem medidas do projeto. Para executar a proposta desde já **sem o simulador**, os métodos
 foram aplicados às medidas reais e publicadas que o repositório já tem, e os resultados ficam num site interativo:
-**[`site/index.html`](../site/README.md)** (abre com duplo clique; 11 abas, gráficos 2D e 3D Plotly, temas claro e
+**[`site/index.html`](../site/README.md)** (abre com duplo clique; 12 abas, incluindo um **Guia completo** para leigos, gráficos 2D e 3D Plotly, temas claro e
 escuro, uso no celular). O código fica em `code/webapp/`: `expdata.py` carrega só dados experimentais,
 `analyses.py` faz as análises por seção, `build_site.py` gera `site/`, e `app.js` desenha os gráficos e roda no
 navegador o GP do Designer (mesma conta do GPyTorch) e o Mie + perda J (mesma conta de `uvvis.spectral_loss_J`).
@@ -1387,7 +1387,7 @@ superfície 3D colorida e cubeta interativa na aba Óptica).
 Recursos do painel: cada aba guarda o estado (filtros, controles) ao trocar o tema; controles redesenham uma vez por
 quadro; gráficos ampliáveis em tela cheia, com tabela de dados, CSV e figura PNG em 2× (botão "dados"), endereço próprio por figura (`#fig-4.9e`) e impressão em PDF (Ctrl P) só da aba aberta; clique num ponto da literatura para ver o artigo; exemplos prontos na aba
 Óptica; medidas próximas do corte em destaque no Designer; anéis ajustados sobre a imagem do detector; glossário.
-Acessibilidade conferida com axe-core (sem violações nas 11 abas), contraste ≥ 4,5:1, navegação por teclado nas abas
+Acessibilidade conferida com axe-core (sem violações nas 12 abas), contraste ≥ 4,5:1, navegação por teclado nas abas
 (setas, Home, End) e nas tabelas roláveis.
 
 ```bash
@@ -1433,3 +1433,15 @@ estimativas são observacionais e trazem E-value.
 | Sensibilidade global | aba Interpretabilidade | índices de Sobol da média do GP (Saltelli 2010 / Jansen 1999, amostras de Sobol, N = 4 096, IC por bootstrap) | AgNO₃ S1 0,36 / ST 0,54; sementes 0,28 / 0,42; citrato 0,11 / 0,28 (age quase todo em interação); PVA e vazão total ≈ 0 (podem ser fixadas). 24 % da variância vem de interações |
 | Do pico ao tamanho | aba Óptica | inversão bayesiana: a priori = KDE dos tamanhos de esferas relatados; verossimilhança = Mie + resíduo pico − Mie por faixa; escolha da verossimilhança pela cobertura do IC 90 % em 5 dobras por artigo (gaussiana 80 %, t ν = 10: 83 %, ν = 5: 85 %, ν = 3: 88 %, **ν = 2: 89 %**) | com o pico em 518–522 nm o IC 90 % vai de ~4 a ~31 nm: o UV-Vis sozinho não identifica o tamanho na faixa do alvo; a TEM confirma (e o MISO decide quando vale) |
 | Design inverso | aba Preditor | receitas publicadas com ≥ 5 sínteses × {25, 60, 100 °C}, ordenadas por P(alvo ± 20 %) | para 3 nm aparecem NaBH₄ + TOAB/tiol (rota de Brust), como a química prevê. Testado e **rejeitado**: efeito aleatório por receita (encolhimento do resíduo da receita), ganho de 0,4 % na perda quantílica por artigo, menor que o ruído |
+
+### 20.3 Guia completo (aba do site)
+
+A aba **Guia completo** documenta o site inteiro para quem nunca viu a área (~15 mil palavras): como navegar e ler
+qualquer gráfico (esquemas anotados), 14 conceitos de química e estatística (nanopartícula e escala, tamanho → espectro →
+cor, nucleação e crescimento, variabilidade, mediana e escala log, incerteza e bootstrap, p-valor e Holm, correlação ×
+causa, validação, GP e EI, aprendizado ativo e sobrevivência, SHAP, conformal, Bayes), 12 com demonstração interativa que
+usa os dados reais do site; depois, aba por aba, o propósito, a origem dos dados, cada controle, um roteiro
+"Experimente" e as 69 figuras e tabelas (o que mostra, como ler, exemplo com os números atuais, cuidados); por fim, como
+foi feito, o registro de decisões (adotado × rejeitado), os limites, o glossário e as referências. Os textos ficam em
+`code/webapp/guide.js` e os números vêm dos dados, então acompanham as análises; cada gráfico do site tem um botão
+**como ler** que leva à sua explicação, e o teste `test_guia_cobre_todas_as_figuras` falha se uma figura nova ficar sem texto.

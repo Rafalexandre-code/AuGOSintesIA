@@ -130,11 +130,12 @@ def _page(inline: bool) -> str:
     tpl = open(os.path.join(HERE, "template.html"), encoding="utf-8").read()
     css = open(os.path.join(HERE, "app.css"), encoding="utf-8").read()
     js = open(os.path.join(HERE, "app.js"), encoding="utf-8").read()
+    guide = open(os.path.join(HERE, "guide.js"), encoding="utf-8").read()
     if not inline:
         body = tpl.replace("{{STYLE}}", '<link rel="stylesheet" href="assets/app.css">')
         data = "\n".join(f'<script src="data/{s}.js"></script>' for s in ["overview"] + SECTIONS)
         body = body.replace("{{SCRIPTS}}", '<script src="vendor/plotly.min.js"></script>\n' + data
-                            + '\n<script src="assets/app.js"></script>')
+                            + '\n<script src="assets/guide.js"></script>\n<script src="assets/app.js"></script>')
         return "<!doctype html>\n<html lang=\"pt-BR\">\n<head>\n<meta charset=\"utf-8\">\n" \
                "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\">\n" \
                + body.replace("<!--BODY-->", "</head>\n<body>") + "\n</body>\n</html>\n"
@@ -144,7 +145,7 @@ def _page(inline: bool) -> str:
                     for s in ["overview"] + SECTIONS)
     body = tpl.replace("{{STYLE}}", f"<style>\n{css}\n</style>").replace("<!--BODY-->", "")
     return body.replace("{{SCRIPTS}}", f"<script>{plotly}</script>\n<script>window.AUGO_EMBED=true;{datas}</script>\n"
-                                       f"<script>{js}</script>")
+                                       f"<script>{guide}</script>\n<script>{js}</script>")
 
 
 def build(reuse: bool = False, artifact: str | None = None, workers: int = 4) -> None:
@@ -155,6 +156,7 @@ def build(reuse: bool = False, artifact: str | None = None, workers: int = 4) ->
     os.makedirs(os.path.join(SITE, "vendor"), exist_ok=True)
     shutil.copy(os.path.join(HERE, "app.css"), os.path.join(SITE, "assets", "app.css"))
     shutil.copy(os.path.join(HERE, "app.js"), os.path.join(SITE, "assets", "app.js"))
+    shutil.copy(os.path.join(HERE, "guide.js"), os.path.join(SITE, "assets", "guide.js"))
     import plotly
     src = os.path.join(os.path.dirname(plotly.__file__), "package_data", "plotly.min.js")
     shutil.copy(src, os.path.join(SITE, "vendor", "plotly.min.js"))

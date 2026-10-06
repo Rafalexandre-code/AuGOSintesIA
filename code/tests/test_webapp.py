@@ -239,3 +239,20 @@ def test_holm_sobol_e_inversao(site):
     inv = site["optics"]["inversion"]
     assert abs(inv["coverage90"] - 0.9) <= min(abs(r["coverage90"] - 0.9) for r in inv["scan"]) + 1e-12
     assert 0.85 < inv["coverage90"] < 0.95 and abs(sum(inv["prior"]) - 1) < 1e-3
+
+
+def test_guia_cobre_todas_as_figuras():
+    """Cada gráfico e cada tabela de cada aba tem a sua explicação na aba Guia (code/webapp/guide.js)."""
+    tpl = open(os.path.join(ROOT, "code", "webapp", "template.html"), encoding="utf-8").read()
+    guide = open(os.path.join(ROOT, "code", "webapp", "guide.js"), encoding="utf-8").read()
+    ids = []
+    for tab, body in re.findall(r'<section class="panel" id="p-([a-z]+)"(.*?)</section>', tpl, re.S):
+        if tab == "guia":
+            continue
+        ids += re.findall(r'class="plot[^"]*" id="([^"]+)"', body) + re.findall(r'<table id="([^"]+)"', body)
+    assert len(ids) > 60
+    missing = [i for i in ids if f'"{i}":' not in guide]
+    assert not missing, missing
+    for tab in re.findall(r'<section class="panel" id="p-([a-z]+)"', tpl):
+        if tab != "guia":
+            assert re.search(rf"\n    {tab}: \{{", guide), tab                     # texto de cada aba

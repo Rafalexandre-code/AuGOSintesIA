@@ -428,9 +428,78 @@ label.tick { display: inline-flex; align-items: center; gap: 6px; font-size: .78
 .pr-cuv { display: flex; gap: 16px; align-items: center; margin-bottom: 12px; }
 .pr-cuv .cuvette-txt b { font-size: 1.4rem; }
 
+/* guia completo */
+.guide { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 24px; align-items: start; }
+.gtoc { position: sticky; top: calc(var(--top-h) + 16px); max-height: calc(100vh - var(--top-h) - 32px); overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 12px; font-size: .82rem; }
+.gtoc b { display: block; font: 600 .7rem var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 6px 8px; }
+.gtoc ol { list-style: none; margin: 0; padding: 0; }
+.gtoc li a { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 8px; color: var(--ink-2); text-decoration: none; }
+.gtoc li a:hover { background: var(--ruby-soft); color: var(--ruby-ink); }
+.gtoc li.l1 a { font-weight: 600; color: var(--ink); margin-top: 6px; }
+.gtoc li.l2 a { padding-left: 18px; }
+.gt-ico { width: 15px; height: 15px; flex: none; vertical-align: -2px; }
+.gmain { min-width: 0; display: grid; gap: 22px; }
+.gsec { display: grid; gap: 18px; scroll-margin-top: calc(var(--top-h) + 12px); }
+.gh { font: 700 1.5rem/1.2 var(--f-display); margin: 18px 0 0; padding-bottom: 8px; border-bottom: 2px solid var(--ruby); }
+.gsub { font: 600 .74rem var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ruby-ink); margin: 8px 0 -6px; }
+.gintro { font-size: .98rem; color: var(--ink-2); max-width: 80ch; margin: 0; }
+.gcard { scroll-margin-top: calc(var(--top-h) + 12px); }
+.gcard .prose p, .gcard .prose li { font-size: .93rem; line-height: 1.65; max-width: 82ch; }
+.gcard h5, .gfig h5, .gcard h4.gk { font: 600 .7rem var(--f-mono); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
+.gcols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 6px 26px; }
+.gcols p { margin: 0; }
+.gtry { margin: 12px 0 4px; padding: 12px 14px; border-radius: 12px; border: 1px dashed var(--ruby); font-size: .9rem; }
+.gtry ol { margin: 6px 0 10px; padding-left: 20px; } .gtry li { margin: 4px 0; }
+.gkey { margin: 16px 0 6px; padding: 12px 14px; border-radius: 12px; background: var(--ruby-soft); color: var(--ink); font-size: .92rem; line-height: 1.55; }
+.gfig { margin-top: 18px; padding: 16px 18px; border: 1px solid var(--line); border-left: 4px solid var(--ruby); border-radius: 12px; background: var(--surface-2);
+  scroll-margin-top: calc(var(--top-h) + 12px); }
+.gfig header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+.gfig header h4 { margin: 0; font: 650 1.02rem var(--f-display); flex: 1 1 260px; }
+.gfig header .go { font-size: .78rem; color: var(--ruby-ink); white-space: nowrap; }
+.gfig ul { margin: 0; padding-left: 18px; } .gfig li { margin: 3px 0; }
+.gex, .gwarn { margin-top: 12px; padding: 10px 12px; border-radius: 10px; font-size: .88rem; line-height: 1.55; }
+.gex { background: var(--surface); border: 1px solid var(--line); }
+.gwarn { background: color-mix(in oklab, var(--warn) 14%, var(--surface)); border: 1px solid color-mix(in oklab, var(--warn) 45%, var(--line)); }
+.gtbl { width: 100%; border-collapse: collapse; overflow-wrap: anywhere; font-size: .86rem; margin: 6px 0; }
+.gtbl th, .gtbl td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); line-height: 1.5; }
+.gtbl tbody th { position: static; background: none; font: 600 .86rem var(--f-body); width: 26%; color: var(--ink); }
+.gtbl thead th { font: 600 .7rem var(--f-mono); letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.gsteps { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.gstep { display: flex; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.gstep .n { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--ruby); color: #fff; font: 600 .8rem var(--f-mono); }
+.gstep p { margin: 4px 0 0; font-size: .86rem !important; color: var(--ink-2); }
+.glist { padding-left: 20px; } .glist li { margin: 5px 0; }
+.gfind input { width: min(360px, 100%); margin: 0 0 12px; }
+.gglos { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; margin: 0; }
+.gglos div { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
+.gglos dt { font-weight: 650; color: var(--ruby-ink); } .gglos dd { margin: 3px 0 0; font-size: .86rem; color: var(--ink-2); line-height: 1.5; }
+.gdemo { overflow-x: auto; margin-top: 14px; padding: 12px; border: 1px dashed var(--line-strong); border-radius: 12px; background: var(--surface-2); }
+.gdemo .controls.gctl { padding: 0 0 8px; align-items: center; }
+.gdemo .cuvette { width: 46px; height: 68px; }
+.gdtxt p { margin: 8px 4px 0; font-size: .9rem !important; }
+.gdiag { overflow-x: auto; }
+.gdiag svg, .gdemo svg { width: 100%; min-width: 560px; height: auto; display: block; }
+.gb { fill: var(--surface-2); stroke: var(--line-strong); stroke-width: 1.4; } .gb.gbk { fill: var(--ruby-soft); stroke: var(--ruby); }
+.gt1 { font: 650 15px var(--f-display); fill: var(--ink); text-anchor: middle; }
+.gt2 { font: 500 12px var(--f-body); fill: var(--muted); text-anchor: middle; }
+.ga { stroke: var(--muted); stroke-width: 1.8; fill: none; } .gah { fill: var(--muted); }
+.gax path, .gax2 { stroke: var(--ink-2); stroke-width: 1.4; fill: none; }
+.gband { fill: color-mix(in oklab, var(--gold) 18%, transparent); stroke: none; }
+.gref { stroke: var(--ink); stroke-width: 1.2; stroke-dasharray: 4 4; fill: none; }
+.gerr { stroke: var(--ink-2); stroke-width: 1.6; fill: none; }
+.gpt { fill: #2a78d6; stroke: var(--surface); stroke-width: 2; } .gpt2 { fill: var(--ruby); stroke: var(--surface); stroke-width: 2; }
+.gcall circle { fill: var(--ruby); } .gcall text { font: 600 12px var(--f-mono); fill: #fff; text-anchor: middle; }
+.gcall text.gl { fill: var(--ink); text-anchor: start; font: 500 12.5px var(--f-body); }
+.gl2 { font: 500 12.5px var(--f-body); fill: var(--ink); text-anchor: middle; }
+.gtick { stroke: var(--line-strong); stroke-width: 1; }
+.gcurve { stroke: var(--ruby); stroke-width: 3; fill: none; }
+@media (max-width: 1100px) { .guide { grid-template-columns: 1fr; } .gtoc { position: static; max-height: 260px; } }
+
 /* impressão: só a aba aberta, sem navegação nem botões; um cartão por largura, sem quebra no meio */
 @media print {
-  .top, .rail, .skip, .to-top, .backdrop, .palette, .boot, .card-h .btns, .hero .fx, .pick, #foot .mono { display: none !important; }
+  .top, .rail, .skip, .to-top, .backdrop, .palette, .boot, .card-h .btns, .hero .fx, .pick, #foot .mono, .gtoc { display: none !important; }
+  .guide { display: block; }
   body { background: var(--surface) !important; }
   .shell { display: block; max-width: none; }
   main { padding: 0 !important; }
