@@ -170,6 +170,7 @@
     optica: '<path d="M2 14c2.5 0 3-8 5.5-8S10 18 12.5 18 15 9 17 9s2.5 5 5 5"/>',
     designer: '<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2" fill="currentColor"/><circle cx="15" cy="12" r="2" fill="currentColor"/><circle cx="7" cy="18" r="2" fill="currentColor"/>',
     interpretabilidade: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+    preditor: '<path d="M4 20h16"/><path d="M6 20V9M10 20V5M14 20v-8M18 20v-5"/><path d="M5 9l5-4 4 7 4-2" stroke-dasharray="2 2"/>',
     aprendizado: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/><circle cx="12" cy="12" r="2" fill="currentColor"/>',
     variabilidade: '<circle cx="6" cy="16" r="1.6"/><circle cx="10" cy="9" r="1.6"/><circle cx="14" cy="14" r="1.6"/><circle cx="18" cy="6" r="1.6"/><circle cx="17" cy="18" r="1.6"/><path d="M3 21h18"/>',
     causal: '<circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="12" r="2.5"/><circle cx="12" cy="4.5" r="2.5"/><path d="M7.5 12h9M7 10.5l3.4-4M17 10.5l-3.4-4"/>',
@@ -179,7 +180,7 @@
   const NAV = [["Panorama", [["visao", "Visão geral", ""]]],
     ["Dados", [["literatura", "Literatura", "4.1"], ["caracterizacao", "Caracterização", "4.2"]]],
     ["Modelos", [["optica", "Óptica e J", "4.4"], ["designer", "AuNP Designer", "4.5"], ["interpretabilidade", "Interpretabilidade", "4.13"]]],
-    ["Decisão", [["aprendizado", "Aprendizado ativo", "4.15"], ["variabilidade", "Variabilidade", "4.17"], ["causal", "Causalidade", "4.9"]]],
+    ["Decisão", [["preditor", "Preditor", "4.18"], ["aprendizado", "Aprendizado ativo", "4.15"], ["variabilidade", "Variabilidade", "4.17"], ["causal", "Causalidade", "4.9"]]],
     ["Projeto", [["sobre", "Sobre e dados", ""]]]];
   const TABS = [].concat(...NAV.map((g) => g[1]));
   const INIT = {}, REDRAW = {}, built = {}, stale = {};
@@ -377,9 +378,9 @@
     const F = [
       ["optica", nf(k.mie_median_abs_residual, 1) + " nm", `erro mediano do Mie, sem ajuste, ao prever o pico de absorção de ${ni(k.mie_validation_n)} esferas relatadas.`, "§4.4 · §4.10"],
       ["designer", "R² " + nf(k.designer_cv_r2, 2), `do GP do Designer em validação cruzada na campanha AgNP real; ${nf(100 * k.designer_coverage, 0)} % das medidas caem no IC 95 %.`, "§4.5 · §4.18"],
-      ["aprendizado", `${wins} de ${Object.keys(B.datasets).length}`, "campanhas em que o GP-EI chega ao top 5 % antes do acaso com significância (Wilcoxon pareado); nas demais, empate.", "§4.15"],
+      ["aprendizado", `−${nf(-B.datasets.AgNP.survival.vs_random["GP-EI"].rmst_diff, 1)} exp.`, `que o GP-EI economiza até o top 5 % na campanha AgNP (RMST pareado, IC 95 % ${nf(-B.datasets.AgNP.survival.vs_random["GP-EI"].ci95[1], 1)}–${nf(-B.datasets.AgNP.survival.vs_random["GP-EI"].ci95[0], 1)}); vence o acaso em ${wins} de ${Object.keys(B.datasets).length} campanhas.`, "§4.15"],
       ["variabilidade", `${nf(V.turkevich.q10_q90[0], 1)}–${nf(V.turkevich.q10_q90[1], 1)} nm`, `tamanho da mesma rota de Turkevich em ${ni(V.turkevich.n_papers)} artigos (10–90 %): a premissa da variabilidade multi-fonte.`, "§4.7 · §4.17"],
-      ["variabilidade", `R² ${nf(V.aunc_generalization.r2_random, 2)} → ${nf(V.aunc_generalization.r2_new_paper, 2)}`, "ao prever a emissão de AuNC para um artigo nunca visto em vez de uma síntese nova: o contexto da fonte pesa.", "§4.7"],
+      ["preditor", `×${nf(A.predictor.bands["90"].median_fold_width, 0)}`, `é a largura típica do intervalo de 90 % do tamanho só pela receita (cobertura de ${nf(100 * A.predictor.bands["90"].coverage_articles, 0)} % em artigos novos): a fonte importa.`, "§4.18 · §4.7"],
       ["causal", `${A.causal.effects.filter((e) => e.verdict.startsWith("confirma")).length} de ${A.causal.effects.length}`, `efeitos causais estimados concordam com a literatura (NaBH₄ ×${nf(A.causal.effects[0].estimate, 2)}, sementes ×${nf(A.causal.effects[1].estimate, 2)}, CTAB → forma, tiol), por AIPW com bootstrap de artigos.`, "§4.9"],
       ["interpretabilidade", topF, "é a variável que mais move a perda espectral na campanha AgNP (SHAP exato sobre o GP).", "§4.13"],
       ["caracterizacao", `${ni(A.xrd.geometry.n_rings)} anéis`, `do CeO₂ indexados com resíduo de ${nf(A.xrd.geometry.rms_residual_px, 2)} px: feixe de ${nf(A.xrd.geometry.energy_keV, 1)} keV.`, "§4.2"],
@@ -809,6 +810,26 @@
       { showlegend: false, xaxis: { title: { text: "ln(perda) prevista" } }, yaxis: { title: { text: "ln(perda) medida" } },
         annotations: [{ x: 0.02, y: 0.98, xref: "paper", yref: "paper", xanchor: "left", text: `R² = ${nf(cv.r2, 2)} · IC 95 % cobre ${nf(100 * cv.coverage95, 0)} %`, showarrow: false, font: { color: t.ink, size: 12 } }] });
     });
+    const CB = D.calibration;
+    drawer(() => {
+      const t = T(), L = CB.levels;
+      plot("ds-rel", [
+        { type: "scatter", mode: "lines", x: [0, 1], y: [0, 1], line: { color: t.muted, width: 1, dash: "dot" }, hoverinfo: "skip", showlegend: false },
+        { type: "scatter", mode: "lines+markers", name: "GP (σ por condição)", x: L, y: CB.coverage, line: { color: t.cat[0], width: 2.4 }, marker: { size: 8, line: { width: 2, color: t.surface } },
+          hovertemplate: "nominal %{x:.0%} → observado %{y:.1%}<extra>GP</extra>" },
+        { type: "scatter", mode: "lines+markers", name: "σ constante (RMSE)", x: L, y: CB.coverage_const, line: { color: t.cat[1], width: 1.8, dash: "dash" }, marker: { size: 6 },
+          hovertemplate: "nominal %{x:.0%} → observado %{y:.1%}<extra>σ constante</extra>" }],
+      { xaxis: { title: { text: "nível nominal do intervalo" }, tickformat: ".0%", range: [0, 1] }, yaxis: { title: { text: "cobertura observada" }, tickformat: ".0%", range: [0, 1] } });
+      const n = CB.pit_hist.reduce((a, b) => a + b, 0);
+      plot("ds-pit", [{ type: "bar", x: CB.pit_hist.map((_, i) => (i + 0.5) / 10), y: CB.pit_hist, width: 0.092, marker: { color: t.cat[0] },
+        hovertemplate: "PIT %{x:.2f}: %{y} previsões<extra></extra>" }],
+      { xaxis: { title: { text: "PIT" }, range: [0, 1] }, yaxis: { title: { text: "previsões" }, rangemode: "tozero" }, showlegend: false,
+        shapes: [{ type: "line", xref: "paper", x0: 0, x1: 1, y0: n / 10, y1: n / 10, line: { color: t.ink, width: 1, dash: "dot" } }] });
+    });
+    $("#ds-cal-txt").innerHTML = `<p>O GP está calibrado no conjunto (desvio dos resíduos padronizados ${nf(CB.z_sd, 2)}, ideal 1; PIT contra uniforme: Kolmogorov–Smirnov ${pf(CB.pit_ks_p)}), ` +
+      `com intervalos um pouco largos no centro e caudas um pouco curtas (99 % nominal cobre ${nf(100 * CB.coverage[CB.coverage.length - 1], 0)} %). ` +
+      `O CRPS do GP (${nf(CB.crps, 4)}) não supera o de um σ constante (${nf(CB.crps_const, 4)}): a incerteza por condição não ordena bem quais medidas erram mais, ` +
+      "o mesmo recado da tabela de modelos abaixo — o erro vem de algo que as vazões não descrevem.</p>";
     const MC = D.model_comparison, bestM = MC.reduce((b, x) => (x.nlpd < b.nlpd ? x : b), MC[0]);
     $("#ds-models").innerHTML = "<thead><tr><th>Modelo</th><th class='num'>R²</th><th class='num'>RMSE (ln)</th><th class='num'>cobertura IC 95 %</th><th class='num'>NLPD</th></tr></thead><tbody>" +
       MC.map((x) => `<tr><td>${esc(x.model)}${x === bestM ? " <span class='chip exp'>melhor NLPD</span>" : ""}</td><td class="num">${nf(x.r2, 3)}</td><td class="num">${nf(x.rmse, 3)}</td><td class="num">${nf(100 * x.coverage95, 0)} %</td><td class="num">${nf(x.nlpd, 3)}</td></tr>`).join("") + "</tbody>";
@@ -867,6 +888,34 @@
         annotations: [{ xref: "paper", yref: "paper", x: 0, y: 1.02, xanchor: "left", yanchor: "bottom", showarrow: false, font: { color: t.ink2, size: 11 },
           text: `verde: ${esc(arm)} chegou antes · laranja: o aleatório chegou antes · ${pf(pr.p)}` }] });
     };
+    const drawSurv = () => {
+      const t = T(), ds = B.datasets[$("#bo-ds").value], arm = $("#bo-arm").value, Sv = ds.survival, tt = Sv.t, tr = [];
+      B.arms.forEach((a, k) => {
+        const km = Sv.km[a], col = t.cat[k], main = a === arm || a === "Aleatório";
+        if (main) {
+          tr.push({ type: "scatter", mode: "lines", x: tt, y: km.hi, line: { width: 0, shape: "hv" }, hoverinfo: "skip", showlegend: false, legendgroup: a });
+          tr.push({ type: "scatter", mode: "lines", x: tt, y: km.lo, fill: "tonexty", fillcolor: hexA(col, t.dark ? 0.18 : 0.13), line: { width: 0, shape: "hv" }, hoverinfo: "skip", showlegend: false, legendgroup: a });
+        }
+        tr.push({ type: "scatter", mode: "lines", name: `${a} (RMST ${nf(Sv.rmst[a], 1)})`, x: tt, y: km.S, legendgroup: a,
+          line: { color: col, width: main ? 2.6 : 1.3, shape: "hv", dash: main ? "solid" : "dot" },
+          hovertemplate: `${a}: após %{x} experimentos, %{y:.0%} ainda sem chegar<extra></extra>` });
+      });
+      plot("bo-km", tr, { xaxis: { title: { text: "experimentos" }, range: [0, ds.budget] }, yaxis: { title: { text: "fração que ainda não chegou ao top 5 %" }, tickformat: ".0%", range: [0, 1.02] } });
+      const rows = names.map((n) => B.datasets[n].survival.vs_random[arm]);
+      plot("bo-rmst", [{ type: "scatter", mode: "markers+text", y: names, x: rows.map((r) => -r.rmst_diff),
+        error_x: { type: "data", symmetric: false, array: rows.map((r) => -r.ci95[0] + r.rmst_diff), arrayminus: rows.map((r) => r.ci95[1] - r.rmst_diff), color: t.ink2, thickness: 1.6, width: 6 },
+        marker: { size: 11, color: rows.map((r) => (r.ci95[1] < 0 ? t.cat[2] : r.ci95[0] > 0 ? t.cat[1] : t.other)), line: { width: 2, color: t.surface } },
+        text: rows.map((r) => `P = ${nf(r.p_better, 2)}`), textposition: "top center", textfont: { size: 10, color: t.ink2 },
+        customdata: rows.map((r) => [r.ci95[0], r.ci95[1], r.p_better, r.logrank_p]),
+        hovertemplate: `%{y}: ${esc(arm)} economiza %{x:.1f} experimentos<br>P(melhor) = %{customdata[2]:.3f} · log-rank p = %{customdata[3]:.3g}<extra></extra>` }],
+      { xaxis: { title: { text: `experimentos economizados (> 0: ${arm} melhor)` }, zeroline: true, zerolinecolor: t.ink }, yaxis: { autorange: "reversed", automargin: true }, margin: { l: 110 }, showlegend: false });
+    };
+    $("#bo-surv").innerHTML = "<thead><tr><th>Campanha</th><th class='num'>RMST aleatório</th>" + others.map((a) => `<th class="num">${a}: economia (IC 95 %) · P(melhor) · log-rank</th>`).join("") + "</tr></thead><tbody>" +
+      names.map((n) => { const Sv = B.datasets[n].survival; return `<tr><td>${esc(n)}</td><td class="num">${nf(Sv.rmst["Aleatório"], 1)}</td>` +
+        others.map((a) => { const r = Sv.vs_random[a], sig = r.ci95[1] < 0;
+          return `<td class="num">${sig ? "<b>" : ""}${nf(-r.rmst_diff, 1)}${sig ? "</b>" : ""} <span class="muted">(${nf(-r.ci95[1], 1)} a ${nf(-r.ci95[0], 1)}) · ${nf(r.p_better, 2)} · ${pf(r.logrank_p)}</span></td>`; }).join("") + "</tr>"; }).join("") + "</tbody>";
+    $("#bo-ds").addEventListener("change", drawSurv); $("#bo-arm").addEventListener("change", drawSurv);
+    drawer(drawSurv);
     const wonBy = names.filter((n) => { const pr = B.datasets[n].paired["GP-EI"]; return pr.p < 0.05 && pr.wins > pr.losses; });
     $("#bo-insight").innerHTML = `<b>Leitura.</b> O GP-EI chega antes do acaso com significância em ${wonBy.join(", ")} e empata nas demais. ` +
       `O ganho cresce com o espaço de busca: com cerca de 100 condições (${names.filter((n) => B.datasets[n].n_pool <= 110).join(", ")}), o top 5 % tem só 5 condições e a partida aleatória já cobre boa parte dele. ` +
@@ -931,6 +980,173 @@
     fillFeatures();
     $("#sh-m").addEventListener("change", () => { fillFeatures(); draw(); }); $("#sh-f").addEventListener("change", draw);
     drawer(draw);
+  };
+
+  /* ================================================================== preditor de síntese */
+  function hgbPred(M, x) {                                   // soma das folhas das árvores exportadas (igual a analyses.hgb_predict)
+    let s = M.base;
+    for (const r of M.roots) {
+      let k = r;
+      while (M.f[k] >= 0) { const v = x[M.f[k]]; k = v == null || Number.isNaN(v) ? (M.m[k] ? M.l[k] : M.r[k]) : (v <= M.t[k] ? M.l[k] : M.r[k]); }
+      s += M.v[k];
+    }
+    return s;
+  }
+  INIT.preditor = function () {
+    const P = A.predictor, F = P.features, fi = (n) => F.indexOf(n), Bd = P.bands;
+    const RED = F.slice(0, 10), CAP = F.slice(10, 19), CAT = P.categorical;
+    const freq = (name) => { const j = CAT.indexOf(name); return P.recipes.reduce((a, r) => a + (r.sig[j] === "1" ? r.n : 0), 0); };
+    const chips = (names) => names.map((n) => `<label><input type="checkbox" value="${esc(n)}">${esc(n)} <small>${ni(freq(n))}</small></label>`).join("");
+    $("#pr-red").innerHTML = chips(RED); $("#pr-cap").innerHTML = chips(CAP);
+    const tgD0 = A.optics.target.diameter, toV = (d) => Math.round(Math.log(d) / Math.log(300) * 1000), fromV = (v) => Math.pow(300, v / 1000);
+    $("#pr-target").value = toV(tgD0);
+    let seed = 0;
+    const PRE = [["Turkevich (citrato, 100 °C)", ["citrato"], [], 0, "sph", 100],
+      ["Brust (NaBH₄ + tiol + TOAB)", ["NaBH₄"], ["tiol (GSH/dodecanotiol)", "TOAB"], 0, "sph", 25],
+      ["Sementes + CTAB (bastões)", ["NaBH₄", "ácido ascórbico"], ["CTAB"], 1, "rod", 30],
+      ["Redução verde (ácido tânico + citrato)", ["ácido tânico", "citrato"], [], 0, "sph", 70],
+      ["Aglomerados com GSH", ["NaBH₄"], ["tiol (GSH/dodecanotiol)"], 0, "clu", 25],
+      ["Sementes de citrato + ascórbico", ["citrato", "ácido ascórbico"], [], 1, "sph", 25]];
+    $("#pr-presets").insertAdjacentHTML("beforeend", PRE.map(([l], i) => `<button type="button" data-i="${i}">${esc(l)}</button>`).join(""));
+    const setSeed = (v) => { seed = +v; $("#pr-seed").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.v === String(seed) ? "true" : "false")); };
+    function load(i) {
+      const [, r, c, sd, mo, T] = PRE[i];
+      $("#pr-red").querySelectorAll("input").forEach((x) => { x.checked = r.includes(x.value); });
+      $("#pr-cap").querySelectorAll("input").forEach((x) => { x.checked = c.includes(x.value); });
+      setSeed(sd); $("#pr-morph").value = mo; $("#pr-T").value = T; $("#pr-Tna").checked = false;
+      $("#pr-presets").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.i === String(i) ? "true" : "false"));
+    }
+    // estado da interface → vetor de variáveis do modelo
+    function state() {
+      return { red: [...$("#pr-red").querySelectorAll("input:checked")].map((x) => x.value), cap: [...$("#pr-cap").querySelectorAll("input:checked")].map((x) => x.value),
+        seed, morph: $("#pr-morph").value, T: $("#pr-Tna").checked ? null : +$("#pr-T").value, year: +$("#pr-year").value,
+        go: $("#pr-go").checked, src: $("#pr-src").value };
+    }
+    function vec(st) {
+      const x = new Array(F.length).fill(0);
+      st.red.concat(st.cap).forEach((n) => { x[fi(n)] = 1; });
+      x[fi("mediada por sementes")] = st.seed; x[fi("temperatura (°C)")] = st.T == null ? NaN : st.T; x[fi("ano")] = st.year;
+      x[fi("forma não esférica")] = st.morph === "rod" || st.morph === "oth" ? 1 : 0; x[fi("bastão")] = st.morph === "rod" ? 1 : 0;
+      x[fi("aglomerado")] = st.morph === "clu" ? 1 : 0; x[fi("menciona GO")] = st.go ? 1 : 0;
+      x[fi("base NSP")] = st.src === "nsp" ? 1 : 0; x[fi("base AuNC")] = st.src === "aunc" ? 1 : 0;
+      return x;
+    }
+    const sigOf = (x) => CAT.map((n) => (x[fi(n)] ? "1" : "0")).join("");
+    // quantis conformalizados em ln d → nós da distribuição preditiva (CDF linear por partes)
+    function dist(x) {
+      const q = {}; ["0.05", "0.25", "0.5", "0.75", "0.95"].forEach((k) => { q[k] = hgbPred(P.models[k], x); });
+      const v = [q["0.05"] - Bd["90"].Q, q["0.25"] - Bd["50"].Q, q["0.5"], q["0.75"] + Bd["50"].Q, q["0.95"] + Bd["90"].Q].sort((a, b) => a - b);
+      return { v, p: [0.05, 0.25, 0.5, 0.75, 0.95] };
+    }
+    function cdf(D, lx) {
+      const { v, p } = D;
+      if (lx <= v[0]) { const sl = (p[1] - p[0]) / Math.max(v[1] - v[0], 1e-6); return Math.max(0, p[0] - (v[0] - lx) * sl); }
+      if (lx >= v[4]) { const sl = (p[4] - p[3]) / Math.max(v[4] - v[3], 1e-6); return Math.min(1, p[4] + (lx - v[4]) * sl); }
+      let i = 0; while (lx > v[i + 1]) i++;
+      return p[i] + (p[i + 1] - p[i]) * (lx - v[i]) / Math.max(v[i + 1] - v[i], 1e-9);
+    }
+    const pTarget = (D, t) => cdf(D, Math.log(1.2 * t)) - cdf(D, Math.log(0.8 * t));
+    const recs = P.recipes.map((r) => ({ ...r, bits: r.sig }));
+    function similar(sg) {
+      const rb = sg.slice(0, 19);
+      return recs.filter((r) => r.sig !== sg && r.n >= 2).map((r) => {
+        let inter = 0, uni = 0;
+        for (let j = 0; j < 19; j++) { const a = rb[j] === "1", b = r.sig[j] === "1"; if (a && b) inter++; if (a || b) uni++; }
+        const jac = uni ? inter / uni : 1;
+        return { r, score: jac - 0.35 * (r.sig[19] !== sg[19]) - 0.35 * (r.sig.slice(20) !== sg.slice(20)) };
+      }).sort((a, b) => b.score - a.score || b.r.n - a.r.n).slice(0, 6);
+    }
+    function describe(r, sg) {                                 // diferença da receita r para a atual, em palavras
+      const out = [];
+      for (let j = 0; j < 19; j++) if (r.sig[j] !== sg[j]) out.push((r.sig[j] === "1" ? "+ " : "− ") + CAT[j]);
+      if (r.sig[19] !== sg[19]) out.push(r.sig[19] === "1" ? "com sementes" : "rota direta");
+      if (r.sig.slice(20) !== sg.slice(20)) out.push("forma: " + (r.sig[21] === "1" ? "bastão" : r.sig[22] === "1" ? "aglomerado" : r.sig[20] === "1" ? "outra" : "esfera"));
+      return out.length ? out.join(", ") : "idêntica";
+    }
+    const MORPH_TXT = { sph: "esfera ou partícula", rod: "bastão", clu: "aglomerado", oth: "outra não esférica" };
+    function alternatives(st) {                               // trocas de um único item da receita
+      const alts = [];
+      RED.concat(CAP).forEach((n) => { const isR = RED.includes(n), on = (isR ? st.red : st.cap).includes(n);
+        const s2 = { ...st, red: st.red.slice(), cap: st.cap.slice() }, arr = isR ? s2.red : s2.cap;
+        if (on) arr.splice(arr.indexOf(n), 1); else arr.push(n);
+        alts.push([(on ? "− " : "+ ") + n, s2]); });
+      alts.push([st.seed ? "rota direta" : "rota com sementes", { ...st, seed: 1 - st.seed }]);
+      Object.keys(MORPH_TXT).filter((m) => m !== st.morph).forEach((m) => alts.push(["forma: " + MORPH_TXT[m], { ...st, morph: m }]));
+      [25, 100].filter((T) => st.T !== T).forEach((T) => alts.push([`T = ${T} °C`, { ...st, T }]));
+      return alts;
+    }
+    const link = (e) => (/^10\./.test(e) ? `<a href="https://doi.org/${esc(e)}" target="_blank" rel="noopener">${esc(e)}</a>` : esc(e));
+    function draw() {
+      const t = T(), st = state(), x = vec(st), D = dist(x), sg = sigOf(x), tg = fromV(+$("#pr-target").value);
+      $("#pr-T-o").textContent = st.T == null ? "—" : `${st.T} °C`; $("#pr-year-o").textContent = st.year; $("#pr-target-o").textContent = `${nf(tg, tg < 10 ? 1 : 0)} nm`;
+      const ex = (k) => Math.exp(D.v[k]), med = ex(2), pt = pTarget(D, tg);
+      const same = recs.find((r) => r.sig === sg), sim = similar(sg);
+      kpis("#pr-kpis", [
+        { k: "Tamanho mediano previsto", v: nf(med, med < 10 ? 1 : 0), u: "nm", s: `50 %: ${nf(ex(1), 1)}–${nf(ex(3), 1)} nm`, key: true },
+        { k: "Intervalo de 90 % (conformal)", v: `${nf(ex(0), ex(0) < 10 ? 1 : 0)}–${nf(ex(4), 0)}`, u: "nm", s: `cobre ${nf(100 * Bd["90"].coverage_articles, 0)} % dos artigos novos na validação` },
+        { k: `P(alvo ${nf(tg, 0)} nm ± 20 %)`, v: nf(100 * pt, 0), u: "%", s: "da distribuição preditiva (CDF por partes entre os quantis)" },
+        { k: "Receita idêntica na literatura", v: same ? ni(same.n) : "nenhuma", u: same ? "sínteses" : "", s: same ? `${ni(same.n_art)} artigos · mediana ${nf(same.median, 1)} nm (10–90 %: ${nf(same.q10, 1)}–${nf(same.q90, 1)})` : "o modelo extrapola: veja as parecidas" },
+      ]);
+      // floresta: previsão + receitas
+      const rows = [{ lab: "previsão (este protocolo)", m: med, lo: ex(0), hi: ex(4), lo50: ex(1), hi50: ex(3), n: null, pred: true }];
+      if (same) rows.push({ lab: `receita idêntica (${ni(same.n)})`, m: same.median, lo: same.q10, hi: same.q90, n: same.n });
+      sim.forEach(({ r }) => rows.push({ lab: `${describe(r, sg)} (${ni(r.n)})`, m: r.median, lo: r.q10, hi: r.q90, n: r.n }));
+      const ys = rows.map((r) => (r.lab.length > 46 ? r.lab.slice(0, 44) + "…" : r.lab));
+      const tr = [
+        { type: "scatter", mode: "lines", x: [rows[0].lo, rows[0].hi], y: [ys[0], ys[0]], line: { color: t.ruby, width: 2 }, hoverinfo: "skip", showlegend: false },
+        { type: "scatter", mode: "lines", x: [rows[0].lo50, rows[0].hi50], y: [ys[0], ys[0]], line: { color: t.ruby, width: 9 }, hoverinfo: "skip", showlegend: false },
+        { type: "scatter", mode: "markers", x: [med], y: [ys[0]], marker: { size: 13, color: t.surface, line: { width: 3, color: t.ruby } },
+          hovertemplate: `previsto: mediana %{x:.1f} nm<br>50 %: ${nf(ex(1), 1)}–${nf(ex(3), 1)} · 90 %: ${nf(ex(0), 1)}–${nf(ex(4), 1)} nm<extra></extra>`, showlegend: false }];
+      const lit = rows.slice(1);
+      if (lit.length) tr.push({ type: "scatter", mode: "markers", x: lit.map((r) => r.m), y: ys.slice(1),
+        error_x: { type: "data", symmetric: false, array: lit.map((r) => r.hi - r.m), arrayminus: lit.map((r) => r.m - r.lo), color: t.ink2, thickness: 1.4, width: 4 },
+        marker: { size: lit.map((r) => 6 + 3 * Math.log10(r.n)), color: t.cat[0], line: { width: 1.5, color: t.surface } },
+        customdata: lit.map((r) => [r.lo, r.hi, r.n]), hovertemplate: "%{y}<br>mediana %{x:.1f} nm · 10–90 %: %{customdata[0]:.1f}–%{customdata[1]:.1f}<extra></extra>", showlegend: false });
+      plot("pr-forest", tr, { xaxis: { type: "log", title: { text: "tamanho relatado (nm)" }, tickvals: [1, 2, 5, 10, 20, 50, 100, 200], range: [0, Math.log10(300)] },
+        yaxis: { autorange: "reversed", automargin: true }, margin: { l: 250 },
+        shapes: [{ type: "rect", xref: "x", yref: "paper", x0: 0.8 * tg, x1: 1.2 * tg, y0: 0, y1: 1, fillcolor: hexA(t.dark ? "#e0b45c" : "#b8862a", 0.2), line: { width: 0 }, layer: "below" }] });
+      // cor e LSPR
+      const O = A.optics, lc = O.lspr_curve, lam = interp(Math.log(med), lc.d.map(Math.log), lc.lambda), G = goldColors();
+      const gi = O.d.reduce((b, d, i) => (Math.abs(Math.log(d / med)) < Math.abs(Math.log(O.d[b] / med)) ? i : b), 0), col = G.cols[gi];
+      $("#pr-cuv").style.setProperty("--col", col);
+      $("#pr-cuv-t").innerHTML = `<b>${nf(lam, 0)} nm</b><span>LSPR esperado (Mie) para ${nf(med, med < 10 ? 1 : 0)} nm</span><br><span class="hex">${col}</span>`;
+      const lamLo = interp(Math.log(ex(1)), lc.d.map(Math.log), lc.lambda), lamHi = interp(Math.log(ex(3)), lc.d.map(Math.log), lc.lambda);
+      $("#pr-read").innerHTML = `<p>Na faixa de 50 % o pico fica entre ${nf(Math.min(lamLo, lamHi), 0)} e ${nf(Math.max(lamLo, lamHi), 0)} nm. ` +
+        (st.morph === "rod" ? "Para bastões, o Mie de esferas não vale: o modo longitudinal aparece no vermelho/IV próximo. " : st.morph === "clu" || med < 3 ? "Abaixo de ~2 nm não há plásmon: a cor vem de transições moleculares (aglomerados). " : "") +
+        (same && same.n >= 10 && Math.abs(Math.log(same.median / med)) > Math.log(2) ? `<b>Atenção:</b> as ${ni(same.n)} sínteses com esta mesma receita têm mediana ${nf(same.median, 1)} nm, longe da previsão; o modelo suaviza combinações raras de reagentes, então para esta receita confie mais no relato direto. ` : "") +
+        `O intervalo de 90 % cobre um fator ×${nf(ex(4) / ex(0), 0)}: a receita, sozinha, não fixa o tamanho — razões molares, pH e ordem de adição, que as bases não registram, decidem o resto.</p>`;
+      // e se? trocas de um item
+      const al = alternatives(st).map(([lab, s2]) => [lab, pTarget(dist(vec(s2)), tg) - pt]).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 10).reverse();
+      plot("pr-whatif", [{ type: "bar", orientation: "h", y: al.map((a) => a[0]), x: al.map((a) => 100 * a[1]),
+        marker: { color: al.map((a) => (a[1] > 0 ? t.cat[2] : t.cat[1])) }, hovertemplate: "%{y}: %{x:+.1f} pontos percentuais<extra></extra>" }],
+      { xaxis: { title: { text: `variação em P(alvo ± 20 %) (pontos percentuais; hoje ${nf(100 * pt, 0)} %)` }, zeroline: true, zerolinecolor: t.ink },
+        yaxis: { automargin: true }, margin: { l: 200 }, showlegend: false });
+      // temperatura
+      const Ts = lin(0, 300, 31), DT = Ts.map((T) => dist(vec({ ...st, T })));
+      const band = (i, j, op, name) => [
+        { type: "scatter", mode: "lines", x: Ts, y: DT.map((d) => Math.exp(d.v[j])), line: { width: 0 }, hoverinfo: "skip", showlegend: false },
+        { type: "scatter", mode: "lines", name, x: Ts, y: DT.map((d) => Math.exp(d.v[i])), fill: "tonexty", fillcolor: hexA(t.cat[0], op), line: { width: 0 }, hoverinfo: "skip" }];
+      plot("pr-temp", [...band(0, 4, t.dark ? 0.14 : 0.1, "90 %"), ...band(1, 3, t.dark ? 0.28 : 0.22, "50 %"),
+        { type: "scatter", mode: "lines", name: "mediana", x: Ts, y: DT.map((d) => Math.exp(d.v[2])), line: { color: t.cat[0], width: 2.4 }, hovertemplate: "%{x} °C: mediana %{y:.1f} nm<extra></extra>" },
+        ...(st.T == null ? [] : [{ type: "scatter", mode: "markers", x: [st.T], y: [med], marker: { size: 11, color: t.ruby, line: { width: 2, color: t.surface } }, hoverinfo: "skip", showlegend: false }])],
+      { xaxis: { title: { text: "temperatura de síntese (°C)" } }, yaxis: { type: "log", title: { text: "tamanho (nm)" }, tickvals: [1, 2, 5, 10, 20, 50, 100, 200] } });
+      // tabela
+      const tbl = (same ? [{ r: same, score: 1 }] : []).concat(sim);
+      $("#pr-tbl").innerHTML = "<thead><tr><th>Receita (diferença para a sua)</th><th class='num'>Sínteses</th><th class='num'>Artigos</th><th class='num'>Mediana (nm)</th><th class='num'>10–90 % (nm)</th><th>Exemplos</th></tr></thead><tbody>" +
+        tbl.map(({ r }) => `<tr><td>${esc(describe(r, sg))}</td><td class="num">${ni(r.n)}</td><td class="num">${ni(r.n_art)}</td><td class="num">${nf(r.median, 1)}</td><td class="num">${nf(r.q10, 1)}–${nf(r.q90, 1)}</td><td class="refs">${r.ex.map(link).join("<br>")}</td></tr>`).join("") + "</tbody>";
+    }
+    const drawF = perFrame(draw);
+    $("#pr-presets").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { load(+b.dataset.i); draw(); } });
+    $("#pr-seed").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { setSeed(b.dataset.v); draw(); } });
+    ["#pr-red", "#pr-cap", "#pr-morph", "#pr-Tna", "#pr-src", "#pr-go"].forEach((id) => $(id).addEventListener("change", draw));
+    ["#pr-T", "#pr-year", "#pr-target"].forEach((id) => $(id).addEventListener("input", drawF));
+    load(0);
+    drawer(draw);
+    $("#pr-val").innerHTML = "<thead><tr><th>Intervalo</th><th class='num'>Nominal</th><th class='num'>Sem conformal</th><th class='num'>Conformal: registros</th><th class='num'>Conformal: artigos novos</th><th class='num'>Ajuste Q (ln d)</th><th class='num'>Largura típica</th></tr></thead><tbody>" +
+      ["50", "90"].map((k) => { const b = Bd[k]; return `<tr><td>${k} % (q ${nf(b.q_lo, 2)}–${nf(b.q_hi, 2)})</td><td class="num">${nf(100 * b.level, 0)} %</td><td class="num">${nf(100 * b.coverage_uncorrected, 1)} %</td><td class="num">${nf(100 * b.coverage_records, 1)} %</td><td class="num"><b>${nf(100 * b.coverage_articles, 1)} %</b></td><td class="num">${nf(b.Q, 3)}</td><td class="num">fator ×${nf(b.median_fold_width, 1)}</td></tr>`; }).join("") + "</tbody>";
+    $("#pr-val-txt").innerHTML = `<p>Treinado em ${ni(P.n)} sínteses de ${ni(P.n_articles)} artigos. A cobertura por artigo novo bate com a nominal, então os intervalos são honestos. ` +
+      `A largura também é um resultado: o intervalo de 90 % cobre um fator ×${nf(Bd["90"].median_fold_width, 0)} no tamanho. Com só o que os artigos registram (reagentes, rota, forma, temperatura), o tamanho é pouco determinado; ` +
+      "é a variabilidade entre fontes que o projeto propõe medir e modelar com o contexto do lote.</p>";
   };
 
   /* ================================================================== variabilidade */
@@ -1029,6 +1245,19 @@
         shapes: [{ type: "line", x0: 1, x1: 1, y0: -0.5, y1: E.length - 0.5, line: { color: t.ink, width: 1, dash: "dot" } }].concat(
           E.map((e, i) => ({ type: "rect", x0: e.expected.range[0], x1: e.expected.range[1], y0: i - 0.32, y1: i + 0.32, fillcolor: hexA(t.dark ? "#e0b45c" : "#b8862a", 0.22), line: { width: 0 }, layer: "below" }))),
         annotations: [{ xref: "paper", yref: "paper", x: 0, y: 1.06, xanchor: "left", showarrow: false, font: { size: 11, color: t.ink2 }, text: "cheio = robusto a todos os estimadores · vazado = magnitude frágil" }] });
+      // replicação por base
+      const yR = [], xR = [], rlo = [], rhi = [], cR = [], sz = [], cd = [];
+      E.forEach((e) => { const R = e.replication; if (!R || !R.bases.length) return;
+        R.bases.forEach((b) => { yR.push(`${e.name} · ${b.base}`); xR.push(b.estimate); rlo.push(b.estimate - b.ci95[0]); rhi.push(b.ci95[1] - b.estimate);
+          cR.push(b.base.startsWith("Cruse") ? t.cat[0] : t.cat[3] || t.cat[2]); sz.push(9); cd.push(`${ni(b.n)} registros, ${ni(b.n_articles)} artigos`); });
+        if (R.pooled) { yR.push(`${e.name} · combinado`); xR.push(R.pooled); rlo.push(R.pooled - R.pooled_ci95[0]); rhi.push(R.pooled_ci95[1] - R.pooled);
+          cR.push(t.ruby); sz.push(13); cd.push(`efeitos aleatórios · I² = ${nf(100 * R.I2, 0)} % · Q ${pf(R.Q_p)}`); } });
+      plot("ca-rep", [{ type: "scatter", mode: "markers", x: xR, y: yR, customdata: cd,
+        error_x: { type: "data", symmetric: false, array: rhi, arrayminus: rlo, color: t.ink2, thickness: 1.4, width: 5 },
+        marker: { size: sz, color: cR, symbol: sz.map((v) => (v > 10 ? "diamond" : "circle")), line: { width: 1.5, color: t.surface } },
+        hovertemplate: "%{y}: %{x:.2f}<br>%{customdata}<extra></extra>" }],
+      { xaxis: { type: "log", title: { text: "efeito (razão; 1 = nenhum efeito)" }, tickvals: [0.1, 0.2, 0.5, 1, 2, 5] }, yaxis: { autorange: "reversed", automargin: true },
+        margin: { l: 300 }, showlegend: false, shapes: [{ type: "line", x0: 1, x1: 1, yref: "paper", y0: 0, y1: 1, line: { color: t.ink, width: 1, dash: "dot" } }] });
       // cadeia redutor → tamanho → LSPR
       const K = C.chain;
       plot("ca-chain", [{ type: "scatter", mode: "markers", y: ["observado (AIPW)", "previsto por Mie"], x: [K.peak_shift, K.mie_shift],
@@ -1112,6 +1341,14 @@
       "Q PVA (%)": "o PVA é estabilizante estérico: segura a dispersão, mas pouco muda o espectro",
       "Q total (µL/min)": "a vazão total muda o tempo de residência; na faixa medida o efeito é pequeno",
     };
+    {
+      const reps = E.filter((e) => e.replication && e.replication.pooled), sameDir = reps.filter((e) => e.replication.same_direction).length,
+        bothSig = reps.filter((e) => e.replication.both_significant).length, nspBigger = reps.filter((e) => Math.abs(Math.log(e.replication.bases[1].estimate)) > Math.abs(Math.log(e.replication.bases[0].estimate))).length;
+      $("#ca-rep-txt").innerHTML = `<p><b>${sameDir} de ${reps.length}</b> efeitos têm a mesma direção nas duas bases e <b>${bothSig}</b> são significativos em ambas. ` +
+        `As magnitudes diferem (I² de ${nf(100 * Math.min(...reps.map((e) => e.replication.I2)), 0)} a ${nf(100 * Math.max(...reps.map((e) => e.replication.I2)), 0)} %), e o NSP dá o efeito mais forte em ${nspBigger} de ${reps.length}. ` +
+        "É o esperado por diluição: no Cruse o tamanho é um só por artigo e se repete nos parágrafos, então parte dos registros recebe o tamanho de outra síntese do mesmo artigo, o que puxa o contraste para 1 (erro de medida no desfecho). " +
+        "A direção, que é o que a literatura prevê, é robusta; a magnitude depende da fonte, e por isso o combinado usa efeitos aleatórios e tem IC mais largo.</p>";
+    }
     {
       const K = C.chain, inside = K.consistent, fl = K.mie_curve.lambda.filter((_, i) => K.mie_curve.d[i] <= 25);
       const flat = `${nf(Math.min(...fl), 0)}–${nf(Math.max(...fl), 0)} nm por Mie`;
@@ -1252,6 +1489,9 @@
       causal: [`${ni(Math.max(...C.effects.map((e) => e.n)))} sínteses de Cruse 2022 e NSP 2026 (a base de AuNC, selecionada pelo produto, fica fora)`,
         "grafo mecanístico; AIPW duplamente robusto, conferido por IPW, entropia e aparo; bootstrap de artigos; E-value",
         `<b>${C.effects.filter((e) => e.verdict.startsWith("confirma")).length} de ${C.effects.length}</b> efeitos na direção da literatura; ${C.effects.filter((e) => e.robust).length} robustos`],
+      preditor: [`${ni(A.predictor.n)} sínteses de ${ni(A.predictor.n_articles)} artigos, ${ni(A.predictor.recipes.length)} receitas distintas`,
+        "regressão quantílica com árvores, conformalizada por artigo (CQR), avaliada no próprio navegador",
+        `intervalo de 90 % cobre <b>${nf(100 * A.predictor.bands["90"].coverage_articles, 0)} %</b> dos artigos novos; largura típica ×${nf(A.predictor.bands["90"].median_fold_width, 0)}`],
       sobre: ["7 bases experimentais públicas, com DOI e licença",
         "tudo regenerável por code/webapp/build_site.py e conferido por testes automáticos",
         `<b>${nexp} de ${M.length}</b> seções da proposta já com dados experimentais`],

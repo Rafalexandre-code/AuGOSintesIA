@@ -193,6 +193,12 @@
         <p>Mesmas 10 dobras para todos; critério fixado antes: log-verossimilhança preditiva negativa (NLPD, menor é melhor), que pune erro e incerteza mal calibrada.</p></div></div>
         <div class="tbl-wrap" tabindex="0" role="region" aria-label="Comparação de modelos"><table id="ds-models"></table></div>
         <div class="card-b pad prose" id="ds-models-txt"></div></div>
+      <div class="card c6"><div class="card-h"><div><h3>Calibração probabilística: os intervalos dizem a verdade?</h3>
+        <p>Curva de confiabilidade: para cada nível nominal, a fração das medidas fora da dobra que caiu no intervalo central do GP. Na diagonal = calibrado. Tracejado: referência com σ constante (o RMSE).</p></div></div>
+        <div class="card-b"><div class="plot" id="ds-rel"></div></div></div>
+      <div class="card c6"><div class="card-h"><div><h3>Histograma do PIT</h3>
+        <p>PIT = Φ((y − μ)/σ) de cada previsão fora da dobra. Plano = calibrado; corcova no meio = intervalos largos demais no centro; picos nas pontas = caudas curtas.</p></div></div>
+        <div class="card-b"><div class="plot" id="ds-pit"></div><div class="prose" id="ds-cal-txt" style="padding:4px 10px 0"></div></div></div>
       <div class="card c12"><div class="card-h"><div><h3>Próximos experimentos sugeridos (EI)</h3>
         <p>Cinco condições de maior melhoria esperada, afastadas entre si. "Carregar" leva a condição aos controles.</p></div></div>
         <div class="tbl-wrap" tabindex="0" role="region" aria-label="Sugestões do Designer"><table id="ds-sugg"></table></div></div>
@@ -230,6 +236,15 @@
           <p class="muted">Teste: Wilcoxon pareado por repetição; campanha que não chega ao top 5 % conta como orçamento + 1.</p>
           <p id="bo-insight"></p>
         </div></div>
+      <div class="card c7"><div class="card-h"><div><h3>Análise de sobrevivência: quem ainda não chegou ao top 5 %</h3>
+        <p>Kaplan–Meier por estratégia (faixa = IC 95 % de Greenwood em log(−log)). Campanha que não chegou é censurada no orçamento, não tratada como fracasso com valor inventado. Quanto mais rápido a curva cai, melhor.</p></div></div>
+        <div class="card-b"><div class="plot" id="bo-km"></div></div></div>
+      <div class="card c5"><div class="card-h"><div><h3>Experimentos economizados em relação ao acaso</h3>
+        <p>Diferença pareada do tempo médio restrito (RMST = E[min(T, orçamento)], a área sob a curva) em cada campanha. Barra = IC 95 % por bootstrap das repetições; rótulo = P(estratégia melhor) por bootstrap bayesiano.</p></div></div>
+        <div class="card-b"><div class="plot" id="bo-rmst"></div></div></div>
+      <div class="card c12"><div class="card-h"><div><h3>Sobrevivência em todas as campanhas</h3>
+        <p>RMST de cada estratégia, diferença pareada contra o aleatório, probabilidade posterior de ser melhor e teste log-rank (este ignora o pareamento; é conservador).</p></div></div>
+        <div class="tbl-wrap" tabindex="0" role="region" aria-label="Sobrevivência por campanha"><table id="bo-surv"></table></div></div>
       <div class="card c12"><div class="card-h"><div><h3>Resumo: mediana de experimentos até o top 5 %</h3>
         <p>Entre parênteses, vitórias–empates–derrotas contra o aleatório nas <span class="nseeds">40</span> repetições e o p do teste pareado.</p></div></div>
         <div class="tbl-wrap" tabindex="0" role="region" aria-label="Resumo das estratégias"><table id="bo-tbl"></table></div></div>
@@ -260,6 +275,55 @@
       <div class="card c5"><div class="card-h"><div><h3>Interações H² (AgNP)</h3>
         <p>Fração da variação conjunta que não se explica pelos efeitos separados.</p></div></div>
         <div class="card-b"><div class="plot" id="sh-h2"></div></div></div>
+    </div>
+  </section>
+
+  <!-- ================================================================== preditor -->
+  <section class="panel" id="p-preditor" aria-labelledby="t-preditor" hidden>
+    <div class="sec-head"><div><span class="eyebrow">§4.18 decisão sob incerteza · preditor de síntese</span>
+      <h2>Antes da bancada: que tamanho esperar desta receita?</h2>
+      <p class="lede">Monte o protocolo e veja a distribuição do tamanho que a literatura relata para ele, com intervalos
+        <b>conformais</b> calibrados para um artigo novo, a probabilidade de acertar o alvo, a cor e o LSPR esperados por Mie,
+        o que mudar para chegar lá e as receitas publicadas mais parecidas.</p><span class="chip par"><span class="dot"></span>modelo treinado em dados publicados</span></div>
+      <dl class="ficha" id="fi-preditor"></dl></div>
+    <div class="card">
+      <div class="presets" id="pr-presets" role="group" aria-label="Receitas prontas" style="padding-top:14px"><span class="lbl">Receitas prontas:</span></div>
+      <div class="pr-form">
+        <fieldset><legend>Redutores</legend><div class="chipset" id="pr-red"></div></fieldset>
+        <fieldset><legend>Ligantes e estabilizantes</legend><div class="chipset" id="pr-cap"></div></fieldset>
+        <fieldset class="pr-row">
+          <div class="ctl ctl-auto"><span class="lbl" id="pr-seed-l">Rota</span><div class="seg" id="pr-seed" role="group" aria-labelledby="pr-seed-l"><button type="button" aria-pressed="true" data-v="0">direta</button><button type="button" aria-pressed="false" data-v="1">mediada por sementes</button></div></div>
+          <div class="ctl"><label for="pr-morph">Forma relatada</label><select id="pr-morph">
+            <option value="sph">esfera ou partícula</option><option value="rod">bastão</option><option value="clu">aglomerado</option><option value="oth">outra não esférica (cubo, estrela, placa…)</option></select></div>
+          <div class="ctl"><label for="pr-T">Temperatura <output id="pr-T-o"></output></label><input type="range" id="pr-T" min="0" max="300" step="5" value="100">
+            <label class="tick"><input type="checkbox" id="pr-Tna"> não informada</label></div>
+          <div class="ctl"><label for="pr-year">Ano do relato <output id="pr-year-o"></output></label><input type="range" id="pr-year" min="1995" max="2025" step="1" value="2020"></div>
+          <div class="ctl"><label for="pr-src">Base de referência</label><select id="pr-src"><option value="cruse">Cruse et al. 2022</option><option value="nsp">NSP 2026</option><option value="aunc">AuNCs 2025</option></select>
+            <label class="tick"><input type="checkbox" id="pr-go"> menciona GO</label></div>
+          <div class="ctl"><label for="pr-target">Alvo <output id="pr-target-o"></output></label><input type="range" id="pr-target" min="0" max="1000" step="1" value="500"></div>
+        </fieldset>
+      </div>
+      <div class="kpis inset" id="pr-kpis"></div></div>
+    <div class="grid">
+      <div class="card c8"><div class="card-h"><div><h3>Distribuição prevista × o que a literatura relata</h3>
+        <p>Linha grossa = intervalo de 50 %, fina = 90 % (conformais por artigo), ponto = mediana. Abaixo, as receitas publicadas: idêntica e as mais parecidas (barra = 10–90 % dos relatos; tamanho do ponto = nº de sínteses). Faixa dourada = alvo ± 20 %.</p></div></div>
+        <div class="card-b"><div class="plot tall" id="pr-forest"></div></div></div>
+      <div class="card c4"><div class="card-h"><div><h3>Cor e LSPR esperados</h3><p>Mie (Johnson &amp; Christy, σ = 10 %) no tamanho mediano previsto; cubeta de 1 cm, luz D65.</p></div></div>
+        <div class="card-b pad"><div class="pr-cuv"><div class="cuvette" id="pr-cuv" role="img" aria-label="Cor prevista da dispersão"></div>
+          <div class="cuvette-txt" id="pr-cuv-t"></div></div><div class="prose" id="pr-read"></div></div></div>
+      <div class="card c6"><div class="card-h"><div><h3>O que mudar para chegar ao alvo</h3>
+        <p>Efeito de trocar um único item da receita sobre a probabilidade de cair no alvo ± 20 % (associação condicional na literatura, não efeito causal; os causais estão na aba Causalidade).</p></div></div>
+        <div class="card-b"><div class="plot" id="pr-whatif"></div></div></div>
+      <div class="card c6"><div class="card-h"><div><h3>Tamanho previsto × temperatura</h3>
+        <p>A mesma receita em outras temperaturas: mediana e faixas de 50 % e 90 %. Ponto = temperatura escolhida.</p></div></div>
+        <div class="card-b"><div class="plot" id="pr-temp"></div></div></div>
+      <div class="card c12"><div class="card-h"><div><h3>Receitas publicadas mais parecidas</h3>
+        <p>Mesma combinação de reagentes, rota e forma ou a mais próxima (Jaccard nos reagentes; rota e forma diferentes pesam). Exemplos com link para o artigo.</p></div></div>
+        <div class="tbl-wrap" tabindex="0" role="region" aria-label="Receitas parecidas"><table id="pr-tbl"></table></div></div>
+      <div class="card c12"><div class="card-h"><div><h3>Validação do intervalo</h3>
+        <p>Regressão quantílica com árvores (5, 25, 50, 75 e 95 % de ln d) conformalizada (CQR, Romano et al. 2019) com escores fora da dobra por artigo, cada artigo com o mesmo peso. Cobertura conferida em validação cruzada aninhada: a dobra avaliada não participa do ajuste conformal.</p></div></div>
+        <div class="tbl-wrap" tabindex="0" role="region" aria-label="Validação do intervalo"><table id="pr-val"></table></div>
+        <div class="card-b pad prose" id="pr-val-txt"></div></div>
     </div>
   </section>
 
@@ -308,6 +372,11 @@
         <div class="card-b"><div class="plot" id="ca-forest"></div></div></div>
       <div class="card c5"><div class="card-h"><div><h3>Veredito de cada efeito</h3><p>Direção, magnitude e robustez frente à literatura.</p></div></div>
         <div class="card-b pad" id="ca-verdicts"></div></div>
+    </div>
+    <div class="grid" style="margin-bottom:20px">
+      <div class="card c12"><div class="card-h"><div><h3>Replicação em bases independentes</h3>
+        <p>O mesmo AIPW em cada base (extrações e artigos diferentes) e o combinado por efeitos aleatórios (DerSimonian–Laird). Efeito que só aparecesse numa base seria suspeito de artefato de extração. I² = fração da variação entre bases que não é acaso.</p></div></div>
+        <div class="card-b"><div class="plot tall" id="ca-rep"></div><div class="prose" id="ca-rep-txt" style="padding:4px 10px 0"></div></div></div>
     </div>
     <div class="card"><div class="controls"><div class="ctl"><label for="ca-sel">Diagnóstico do efeito</label><select id="ca-sel"></select></div></div>
       <div class="kpis inset" id="ca-sel-kpis"></div></div>

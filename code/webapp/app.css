@@ -410,6 +410,24 @@ footer b { color: var(--ink-2); font-weight: 600; }
 .ok-ico.y { background: color-mix(in oklab, var(--ok) 18%, transparent); color: var(--ok-ink); }
 .ok-ico.w { background: color-mix(in oklab, var(--warn) 25%, transparent); color: var(--ink); }
 
+/* preditor de síntese */
+.pr-form { display: grid; gap: 10px; padding: 0 16px 6px; }
+.pr-form fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.pr-form legend { font: 600 .72rem var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 0 0 6px; }
+.pr-row { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: flex-end; }
+.pr-row .ctl { min-width: 170px; flex: 1 1 170px; }
+.pr-row .ctl-auto { flex: 0 0 auto; }
+.chipset { display: flex; flex-wrap: wrap; gap: 6px; }
+.chipset label { display: inline-flex; align-items: center; gap: 6px; font: 500 .8rem var(--f-body); color: var(--ink-2); background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; cursor: pointer; user-select: none; }
+.chipset input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.chipset label:has(input:checked) { background: var(--ruby-soft); border-color: var(--ruby); color: var(--ruby-ink); }
+.chipset label:has(input:focus-visible) { outline: 2px solid var(--ruby); outline-offset: 2px; }
+.chipset label small { font: 500 .68rem var(--f-mono); color: var(--muted); }
+label.tick { display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; color: var(--ink-2); margin-top: 6px; cursor: pointer; }
+.pr-cuv { display: flex; gap: 16px; align-items: center; margin-bottom: 12px; }
+.pr-cuv .cuvette-txt b { font-size: 1.4rem; }
+
 /* impressão: só a aba aberta, sem navegação nem botões; um cartão por largura, sem quebra no meio */
 @media print {
   .top, .rail, .skip, .to-top, .backdrop, .palette, .boot, .card-h .btns, .hero .fx, .pick, #foot .mono { display: none !important; }

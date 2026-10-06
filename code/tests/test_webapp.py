@@ -193,3 +193,36 @@ def test_modelos_validados_por_artigo(site):
 def test_turkevich_confere_com_frens(site):
     tk = site["variability"]["turkevich"]
     assert 14 <= tk["median"] <= 18 and tk["n_papers"] > 1000             # Frens 1973: 16 nm no protocolo padrão
+
+
+def test_sobrevivencia_e_calibracao(site):
+    for name, ds in site["benchmark"]["datasets"].items():
+        Sv = ds["survival"]
+        for a, km in Sv["km"].items():
+            S = np.array(km["S"])
+            assert S[0] == 1 and np.all(np.diff(S) <= 1e-12), (name, a)               # Kaplan–Meier não cresce
+            assert np.all(np.array(km["lo"]) <= S + 1e-9) and np.all(S <= np.array(km["hi"]) + 1e-9)
+            assert 1 <= Sv["rmst"][a] <= ds["budget"]
+        for a, r in Sv["vs_random"].items():
+            assert r["ci95"][0] <= r["rmst_diff"] <= r["ci95"][1] and 0 <= r["p_better"] <= 1
+    assert site["benchmark"]["datasets"]["AgNP"]["survival"]["vs_random"]["GP-EI"]["ci95"][1] < 0   # GP-EI economiza
+    cal = site["designer"]["calibration"]
+    assert np.all(np.diff(cal["coverage"]) >= 0) and 0.85 < cal["z_sd"] < 1.2 and sum(cal["pit_hist"]) == len(site["designer"]["cv"]["obs"])
+
+
+def test_preditor_conformal_e_arvores(site):
+    P = site["predictor"]
+    for b in P["bands"].values():                                              # cobertura por artigo novo ≈ nominal
+        assert abs(b["coverage_articles"] - b["level"]) < 0.03
+    L, X = analyses._lit_features()
+    Xs = X.to_numpy(float)[:200]
+    q = {k: analyses.hgb_predict(m, Xs) for k, m in P["models"].items()}
+    assert np.mean(q["0.05"] <= q["0.95"]) > 0.99 and np.all(np.isfinite(q["0.5"]))
+    assert sum(r["n"] for r in P["recipes"]) == P["n"] and all(len(r["sig"]) == len(P["categorical"]) for r in P["recipes"])
+
+
+def test_replicacao_entre_bases(site):
+    for e in site["causal"]["effects"]:
+        R = e["replication"]
+        assert len(R["bases"]) == 2 and R["same_direction"], e["key"]          # mesma direção em Cruse e NSP
+        assert R["pooled_ci95"][0] <= R["pooled"] <= R["pooled_ci95"][1] and 0 <= R["I2"] <= 1

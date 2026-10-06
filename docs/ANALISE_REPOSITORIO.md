@@ -1357,7 +1357,7 @@ se estiver desligado.
 
 `datasets/lab/` ainda não tem medidas do projeto. Para executar a proposta desde já **sem o simulador**, os métodos
 foram aplicados às medidas reais e publicadas que o repositório já tem, e os resultados ficam num site interativo:
-**[`site/index.html`](../site/README.md)** (abre com duplo clique; 10 abas, gráficos 2D e 3D Plotly, temas claro e
+**[`site/index.html`](../site/README.md)** (abre com duplo clique; 11 abas, gráficos 2D e 3D Plotly, temas claro e
 escuro, uso no celular). O código fica em `code/webapp/`: `expdata.py` carrega só dados experimentais,
 `analyses.py` faz as análises por seção, `build_site.py` gera `site/`, e `app.js` desenha os gráficos e roda no
 navegador o GP do Designer (mesma conta do GPyTorch) e o Mie + perda J (mesma conta de `uvvis.spectral_loss_J`).
@@ -1387,7 +1387,7 @@ superfície 3D colorida e cubeta interativa na aba Óptica).
 Recursos do painel: cada aba guarda o estado (filtros, controles) ao trocar o tema; controles redesenham uma vez por
 quadro; gráficos ampliáveis em tela cheia, com tabela de dados, CSV e figura PNG em 2× (botão "dados"), endereço próprio por figura (`#fig-4.9e`) e impressão em PDF (Ctrl P) só da aba aberta; clique num ponto da literatura para ver o artigo; exemplos prontos na aba
 Óptica; medidas próximas do corte em destaque no Designer; anéis ajustados sobre a imagem do detector; glossário.
-Acessibilidade conferida com axe-core (sem violações nas 10 abas), contraste ≥ 4,5:1, navegação por teclado nas abas
+Acessibilidade conferida com axe-core (sem violações nas 11 abas), contraste ≥ 4,5:1, navegação por teclado nas abas
 (setas, Home, End) e nas tabelas roláveis.
 
 ```bash
@@ -1419,3 +1419,13 @@ núcleos e, com a massa de ouro, o tamanho; sementes separam nucleação de cres
 autônomo as variáveis são intervenções, então os contrastes do GP são efeitos do tipo do(x); na literatura, as
 estimativas são observacionais e trazem E-value.
 
+
+### 20.2 Estatística e probabilidade (2026-10-06)
+
+| Análise | Onde | Método | Resultado |
+|---|---|---|---|
+| Preditor de síntese | aba **Preditor** (nova) | regressão quantílica com árvores (q = 5, 25, 50, 75, 95 % de ln d; 28 variáveis) **conformalizada por artigo** (CQR, Romano et al. 2019): escores fora da dobra (GroupKFold por artigo) com peso 1/nº de registros do artigo; cobertura conferida em validação cruzada aninhada; árvores exportadas e avaliadas no navegador (teste de equivalência com o Python) | 90 % nominal → **90,0 %** dos artigos novos; 50 % → 50,0 %. O intervalo de 90 % cobre um fator ×24 no tamanho: a receita sozinha determina pouco (a premissa da variabilidade entre fontes). Profundidade 5 ou 6 não melhorou a perda quantílica por artigo (0,2177 → 0,2171): mantida a 3 |
+| Sobrevivência das campanhas | aba Aprendizado | experimentos até o top 5 % como tempo até o evento, **censurado** no orçamento: Kaplan–Meier (IC de Greenwood em log(−log)), log-rank, RMST = E[min(T, orçamento)] e a diferença pareada por semente com IC por bootstrap e P(melhor) por bootstrap bayesiano (Rubin 1981) | GP-EI economiza **6,7 experimentos** no AgNP (IC 3,9–9,9; P ≈ 1; log-rank p < 10⁻⁴), 7,3 no crossed barrel, 5,5 no P3HT/CNT; empata em perovskitas e AutoAM |
+| Calibração do GP | aba Designer | curva de confiabilidade em 11 níveis, PIT, Kolmogorov–Smirnov e CRPS contra um σ constante | calibrado no conjunto (dp dos resíduos padronizados 1,04; KS p = 0,20); o CRPS não supera o σ constante: a incerteza por condição não ordena quais medidas erram mais |
+| Replicação causal | aba Causalidade | o mesmo AIPW em Cruse 2022 e NSP 2026 (corpora e extrações independentes); combinado por efeitos aleatórios (DerSimonian–Laird), Q de Cochran, I² | os 4 efeitos têm a **mesma direção** nas duas bases e 3 são significativos em ambas; magnitudes maiores no NSP em todos (I² 92–99 %), o esperado por diluição no Cruse, onde o tamanho é um só por artigo |
+| Incerteza das melhorias | Interpretabilidade, Variabilidade | bootstrap de artigos do R² e da diferença pareada | literatura: +0,07 (IC 0,06–0,08) com 28 variáveis; AuNC pelo deslocamento de Stokes: ganho dentro do ruído (IC inclui 0) |

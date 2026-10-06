@@ -27,7 +27,7 @@ sys.path.insert(0, HERE)
 import analyses  # noqa: E402
 import expdata  # noqa: E402
 
-SECTIONS = ["literature", "optics", "designer", "benchmark", "interpret", "variability", "causal", "xrd", "aunc"]
+SECTIONS = ["literature", "optics", "designer", "benchmark", "interpret", "variability", "causal", "xrd", "aunc", "predictor"]
 
 
 def _write(name: str, obj: dict) -> None:
@@ -48,16 +48,18 @@ def _read(name: str) -> dict | None:
 def compute(reuse: bool = False, workers: int = 4) -> dict:
     out = {}
     steps = [("literature", analyses.literature), ("optics", analyses.optics),
-             ("designer", analyses.designer_agnp), ("benchmark", lambda: analyses.add_paired_stats(analyses.benchmark(workers=workers))),
+             ("designer", lambda: analyses.add_calibration(analyses.designer_agnp())), ("benchmark", lambda: analyses.add_paired_stats(analyses.benchmark(workers=workers))),
              ("interpret", lambda: analyses.interpretability(out["designer"])),
              ("variability", analyses.variability), ("causal", analyses.causal), ("xrd", analyses.xrd),
-             ("aunc", analyses.aunc_section)]
+             ("aunc", analyses.aunc_section), ("predictor", analyses.predictor)]
     for name, fn in steps:
         prev = _read(name) if reuse else None
         if prev is not None:
             out[name] = prev
             if name == "benchmark":                         # estatística pareada é barata: sempre recalculada
                 _write(name, analyses.add_paired_stats(prev))
+            elif name == "designer":                        # idem para a calibração (só usa a validação cruzada)
+                _write(name, analyses.add_calibration(prev))
             print(f"  {name:12s} reaproveitado")
             continue
         t = time.time()
@@ -118,7 +120,8 @@ def overview(d: dict) -> dict:
              "note": "campanhas reais reexecutadas em laço fechado; integração com robô é condicional"},
             {"sec": "4.17", "title": "QC, rastreabilidade, reprodutibilidade", "tab": "variabilidade",
              "status": "experimental"},
-            {"sec": "4.18", "title": "Decisão e incerteza", "tab": "designer", "status": "experimental"},
+            {"sec": "4.18", "title": "Decisão e incerteza", "tab": "preditor", "status": "experimental",
+             "note": "preditor com intervalos conformais por artigo; EI e calibração do GP no Designer"},
         ]}
 
 

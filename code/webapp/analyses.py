@@ -360,6 +360,32 @@ def _do_effects(m, Xn: np.ndarray, lo: np.ndarray, hi: np.ndarray, cols: list[st
     return out
 
 
+def add_calibration(designer: dict) -> dict:
+    """Calibração probabilística do GP nas previsões fora da dobra: cobertura de cada intervalo central (curva de
+    confiabilidade), histograma do PIT = Φ((y − μ)/σ) (uniforme se calibrado), CRPS gaussiano (Gneiting & Raftery
+    2007) e a mesma conta para um modelo de referência com σ constante (o RMSE), para saber se a incerteza por
+    condição acrescenta informação."""
+    from scipy.stats import norm
+    cv = designer["cv"]
+    y, mu, sd = (np.asarray(cv[k], float) for k in ("obs", "pred", "sd"))
+    z = (y - mu) / sd
+    lv = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99])
+
+    def crps(z_, s_):
+        return float(np.mean(s_ * (z_ * (2 * norm.cdf(z_) - 1) + 2 * norm.pdf(z_) - 1 / np.sqrt(np.pi))))
+    s0 = float(np.sqrt(np.mean((y - mu) ** 2)))
+    pit = norm.cdf(z)
+    hist = np.histogram(pit, bins=10, range=(0, 1))[0]
+    from scipy.stats import kstest
+    designer["calibration"] = {
+        "levels": lv.tolist(), "coverage": _r([np.mean(np.abs(z) <= norm.ppf(0.5 + q / 2)) for q in lv], 4),
+        "coverage_const": _r([np.mean(np.abs(y - mu) / s0 <= norm.ppf(0.5 + q / 2)) for q in lv], 4),
+        "pit_hist": hist.tolist(), "pit_ks_p": float(kstest(pit, "uniform").pvalue),
+        "crps": crps(z, sd), "crps_const": crps((y - mu) / s0, np.full_like(sd, s0)),
+        "mean_width95": float(np.mean(2 * 1.96 * sd)), "z_sd": float(np.std(z, ddof=1))}
+    return designer
+
+
 # ---------------------------------------------------------------------------------------------- §4.15 benchmark
 
 def _bo_run(X, y, minimize, arm, seed, n_init=5, budget=60):
@@ -449,10 +475,92 @@ def add_paired_stats(bench: dict) -> dict:
             p = float(wilcoxon(d).pvalue) if np.any(d != 0) else 1.0
             ds["paired"][a] = {"wins": int(np.sum(d < 0)), "ties": int(np.sum(d == 0)), "losses": int(np.sum(d > 0)),
                                "median_diff": float(np.median(d)), "p": p}
+        ds["survival"] = _survival(ds["reach_top5"], bench["arms"], ds["budget"])
     return bench
 
 
+def _km(times: np.ndarray, event: np.ndarray, horizon: int) -> dict:
+    """Kaplan–Meier de "ainda não chegou ao top 5 %" após t experimentos (t = 0…horizonte), com IC 95 % de Greenwood
+    na escala log(−log) (Kalbfleisch & Prentice)."""
+    S, lo, hi, s, gw = [1.0], [1.0], [1.0], 1.0, 0.0
+    for t in range(1, horizon + 1):
+        n = int(np.sum(times >= t))                                   # em risco no início do passo t
+        d = int(np.sum((times == t) & event))
+        if n > 0 and d > 0:
+            s *= 1 - d / n
+            gw += d / (n * (n - d)) if n > d else 0.0
+        if 0 < s < 1 and gw > 0:
+            c = 1.96 * np.sqrt(gw) / abs(np.log(s))
+            lo.append(float(s ** np.exp(c)))
+            hi.append(float(s ** np.exp(-c)))
+        else:
+            lo.append(float(s))
+            hi.append(float(s))
+        S.append(float(s))
+    return {"S": _r(S, 4), "lo": _r(lo, 4), "hi": _r(hi, 4)}
+
+
+def _logrank(t1, e1, t0, e0) -> float:
+    """Teste log-rank (Mantel–Haenszel) entre dois braços; p bilateral (qui-quadrado, 1 gl)."""
+    from scipy.stats import chi2
+    O_E, V = 0.0, 0.0
+    for t in np.unique(np.concatenate([t1[e1], t0[e0]])):
+        n1, n0 = np.sum(t1 >= t), np.sum(t0 >= t)
+        d1, d0 = np.sum((t1 == t) & e1), np.sum((t0 == t) & e0)
+        n, d = n1 + n0, d1 + d0
+        if n < 2:
+            continue
+        O_E += d1 - d * n1 / n
+        V += d * (n1 / n) * (1 - n1 / n) * (n - d) / (n - 1)
+    return float(chi2.sf(O_E ** 2 / V, 1)) if V > 0 else 1.0
+
+
+def _survival(reach: dict, arms: list, budget: int, seed: int = 5) -> dict:
+    """Experimentos até o top 5 % como tempo até o evento: campanha que não chegou é CENSURADA no orçamento (não é
+    "orçamento + 1"). Curvas de Kaplan–Meier, log-rank contra o aleatório e o tempo médio restrito (RMST =
+    E[min(T, orçamento)] = área sob S) com a diferença PAREADA por semente: IC por bootstrap e P(braço < aleatório) por
+    bootstrap bayesiano (pesos de Dirichlet nas sementes; Rubin 1981)."""
+    rng = np.random.default_rng(seed)
+    T = {a: np.array([budget if v is None else v for v in reach[a]["per_seed"]], float) for a in arms}
+    E = {a: np.array([v is not None for v in reach[a]["per_seed"]]) for a in arms}
+    out = {"t": list(range(budget + 1)), "km": {}, "rmst": {}, "vs_random": {}}
+    for a in arms:
+        out["km"][a] = _km(T[a], E[a], budget)
+        out["rmst"][a] = float(np.sum(out["km"][a]["S"][:budget]))      # Σ_{t<orçamento} S(t) = E[min(T, orçamento)]
+    n = len(T[arms[0]])
+    W = rng.dirichlet(np.ones(n), 4000)
+    idx = rng.integers(0, n, (4000, n))
+    for a in arms[1:]:
+        d = np.minimum(T[a], budget) - np.minimum(T[arms[0]], budget)      # mesma semente = mesma partida
+        boot = d[idx].mean(1)
+        post = W @ d
+        out["vs_random"][a] = {"rmst_diff": float(d.mean()), "ci95": _r(np.quantile(boot, [0.025, 0.975]), 2),
+                               "p_better": float(np.mean(post < 0)), "logrank_p": _logrank(T[a], E[a], T[arms[0]], E[arms[0]])}
+    return out
+
+
 # ---------------------------------------------------------------------------------------------- §4.13 SHAP
+
+LIT_RED = {"trisodium_citrate": "citrato", "NaBH4": "NaBH₄", "ascorbic_acid": "ácido ascórbico", "tannic_acid": "ácido tânico",
+           "H2O2": "H₂O₂", "hydroxylamine_HCl": "hidroxilamina", "hydroquinone": "hidroquinona", "hydrazine": "hidrazina",
+           "THPC": "THPC", "glucose": "glicose"}
+LIT_CAP = {"CTAB": ("CTAB",), "CTAC": ("CTAC",), "PVP": ("PVP",), "PEG": ("PEG",), "tiol (GSH/dodecanotiol)": ("GSH", "dodecanethiol"),
+           "TOAB": ("TOAB",), "BSA": ("BSA",), "oleilamina": ("oleylamine",), "ácido oleico": ("oleic_acid",)}
+
+
+def _lit_features() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Registros da literatura com tamanho de 1 a 300 nm e as 28 variáveis do modelo de tamanho: presença de cada
+    reagente citado, rota, forma, temperatura, ano, menção a GO e base de origem."""
+    L = expdata.literature()
+    L = L[L["size_nm"].between(1, 300)].copy()
+    has = lambda col, *ks: L[col].fillna("").str.split("|").apply(lambda xs: any(k in xs for k in ks))  # noqa: E731
+    Fl = {lab: has("reductants_raw", k) for k, lab in LIT_RED.items()}
+    Fl.update({lab: has("capping_raw", *ks) for lab, ks in LIT_CAP.items()})
+    Fl.update({"mediada por sementes": L["seed"].eq(1), "temperatura (°C)": L["T_C"], "ano": L["year"],
+               "forma não esférica": ~L["morph"].isin([0, 2, 14, -1]), "bastão": L["morph"].eq(expdata.MORPH.index("rod")),
+               "aglomerado": L["morph"].eq(expdata.MORPH.index("cluster")), "menciona GO": L["go"].eq(1),
+               "base NSP": L["source"].eq("nsp2026"), "base AuNC": L["source"].eq("aunc2025")})
+    return L, pd.DataFrame({k: np.asarray(v, float) for k, v in Fl.items()}, index=L.index)
 
 def interpretability(designer: dict) -> dict:
     """SHAP (valores de Shapley exatos) do GP da campanha AgNP; árvores (TreeSHAP) para AuNC e literatura;
@@ -504,21 +612,7 @@ def interpretability(designer: dict) -> dict:
                    "cv_r2": float(1 - np.sum((em - pred_cv) ** 2) / np.sum((em - em.mean()) ** 2))}
     # literatura: ln(tamanho) com TODOS os reagentes citados (presença/ausência), morfologia, rota, base e época;
     # validação por ARTIGO (DOI ou, no NSP, título): registros do mesmo artigo nunca ficam em treino e teste juntos
-    L = expdata.literature()
-    L = L[L["size_nm"].between(1, 300)].copy()
-    has = lambda col, *ks: L[col].fillna("").str.split("|").apply(lambda xs: any(k in xs for k in ks))  # noqa: E731
-    rl = {"trisodium_citrate": "citrato", "NaBH4": "NaBH₄", "ascorbic_acid": "ácido ascórbico", "tannic_acid": "ácido tânico",
-          "H2O2": "H₂O₂", "hydroxylamine_HCl": "hidroxilamina", "hydroquinone": "hidroquinona", "hydrazine": "hidrazina",
-          "THPC": "THPC", "glucose": "glicose"}
-    cl = {"CTAB": ("CTAB",), "CTAC": ("CTAC",), "PVP": ("PVP",), "PEG": ("PEG",), "tiol (GSH/dodecanotiol)": ("GSH", "dodecanethiol"),
-          "TOAB": ("TOAB",), "BSA": ("BSA",), "oleilamina": ("oleylamine",), "ácido oleico": ("oleic_acid",)}
-    Fl = {lab: has("reductants_raw", k) for k, lab in rl.items()}
-    Fl.update({lab: has("capping_raw", *ks) for lab, ks in cl.items()})
-    Fl.update({"mediada por sementes": L["seed"].eq(1), "temperatura (°C)": L["T_C"], "ano": L["year"],
-               "forma não esférica": ~L["morph"].isin([0, 2, 14, -1]), "bastão": L["morph"].eq(expdata.MORPH.index("rod")),
-               "aglomerado": L["morph"].eq(expdata.MORPH.index("cluster")), "menciona GO": L["go"].eq(1),
-               "base NSP": L["source"].eq("nsp2026"), "base AuNC": L["source"].eq("aunc2025")})
-    Xl = pd.DataFrame({k: v.astype(float) for k, v in Fl.items()})
+    L, Xl = _lit_features()
     yl = np.log(L["size_nm"].to_numpy(float))
     groups = np.where(L["doi"] != "", L["doi"], L["title"])
     pcv = cross_val_predict(hgb(), Xl, yl, cv=GroupKFold(5), groups=groups)
@@ -537,6 +631,104 @@ def interpretability(designer: dict) -> dict:
                          "cv_r2_by_paper": float(1 - np.sum((yl - pcv) ** 2) / np.sum((yl - yl.mean()) ** 2)),
                          "boot": boot}
     return out
+
+
+# ---------------------------------------------------------------------------------------------- §4.18 preditor de síntese
+
+def _hgb_export(m) -> dict:
+    """Árvores de um HistGradientBoostingRegressor em vetores planos (o navegador soma as folhas: previsão =
+    base + Σ folha; a taxa de aprendizado já está aplicada nas folhas)."""
+    f, t, lft, rgt, v, ms, roots = [], [], [], [], [], [], []
+    for it in m._predictors:
+        nd, off = it[0].nodes, len(f)
+        roots.append(off)
+        for x in nd:
+            leaf = bool(x["is_leaf"])
+            f.append(-1 if leaf else int(x["feature_idx"]))
+            thr = float(x["num_threshold"])                         # ±inf (só os ausentes vão para um lado) → ±1e300 no JSON
+            t.append(0.0 if leaf else (round(thr, 6) if np.isfinite(thr) else float(np.sign(thr)) * 1e300))
+            lft.append(0 if leaf else off + int(x["left"]))
+            rgt.append(0 if leaf else off + int(x["right"]))
+            v.append(round(float(x["value"]), 6) if leaf else 0.0)
+            ms.append(int(x["missing_go_to_left"]))
+    return {"base": float(np.ravel(m._baseline_prediction)[0]), "roots": roots, "f": f, "t": t, "l": lft, "r": rgt, "v": v, "m": ms}
+
+
+def hgb_predict(ex: dict, X: np.ndarray) -> np.ndarray:
+    """Mesma conta que o navegador faz com _hgb_export (usada no teste de equivalência)."""
+    out = np.full(len(X), ex["base"])
+    for i, x in enumerate(np.asarray(X, float)):
+        acc = 0.0
+        for r in ex["roots"]:
+            k = r
+            while ex["f"][k] >= 0:
+                xv = x[ex["f"][k]]
+                k = (ex["l"][k] if ex["m"][k] else ex["r"][k]) if np.isnan(xv) else (ex["l"][k] if xv <= ex["t"][k] else ex["r"][k])
+            acc += ex["v"][k]
+        out[i] += acc
+    return out
+
+
+def predictor() -> dict:
+    """Preditor de síntese: dado o protocolo (reagentes, rota, forma, temperatura, ano, GO), a distribuição do tamanho
+    relatado na literatura, por regressão quantílica com árvores (q = 5, 25, 50, 75, 95 % de ln d) CONFORMALIZADA por
+    artigo (CQR; Romano et al. 2019): os escores fora da dobra (GroupKFold por artigo) recebem peso 1/nº de registros do
+    artigo, então a cobertura prometida vale para um ARTIGO novo, não para um parágrafo a mais de um artigo já visto.
+    A cobertura é conferida em validação cruzada aninhada. Junto vão as receitas da literatura (mesma combinação de
+    reagentes, rota e forma) com mediana, faixa e exemplos, para o navegador mostrar as vizinhas."""
+    from sklearn.ensemble import HistGradientBoostingRegressor
+    from sklearn.model_selection import GroupKFold
+    L, X = _lit_features()
+    y = np.log(L["size_nm"].to_numpy(float))
+    groups = np.where(L["doi"] != "", L["doi"], L["title"])
+    Q = [0.05, 0.25, 0.5, 0.75, 0.95]
+
+    def mk(q):
+        return HistGradientBoostingRegressor(loss="quantile", quantile=q, max_iter=200, max_depth=3, learning_rate=0.05,
+                                             min_samples_leaf=20, random_state=0)
+    oof, fold = {q: np.zeros(len(y)) for q in Q}, np.zeros(len(y), int)
+    for k, (tr, te) in enumerate(GroupKFold(5).split(X, y, groups)):
+        fold[te] = k
+        for q in Q:
+            oof[q][te] = mk(q).fit(X.iloc[tr], y[tr]).predict(X.iloc[te])
+    _, inv, cnt = np.unique(groups, return_inverse=True, return_counts=True)
+    w = 1.0 / cnt[inv]
+
+    def wquant(e, ww, lev):                                         # quantil ponderado (artigos com o mesmo peso)
+        o = np.argsort(e)
+        cw = np.cumsum(ww[o]) / ww.sum()
+        return float(e[o][min(np.searchsorted(cw, lev), len(e) - 1)])
+    bands = {}
+    for name, lo, hi, lev in (("50", 0.25, 0.75, 0.5), ("90", 0.05, 0.95, 0.9)):
+        E = np.maximum(oof[lo] - y, y - oof[hi])
+        cov_rec, cov_art = [], []
+        for k in range(5):                                          # aninhado: o ajuste conformal não vê a dobra k
+            m = fold != k
+            inside = E[~m] <= wquant(E[m], w[m], lev)
+            cov_rec.append(float(inside.mean()))
+            cov_art.append(float(np.average(inside, weights=w[~m])))
+        qa = wquant(E, w, lev)
+        bands[name] = {"q_lo": lo, "q_hi": hi, "level": lev, "Q": qa, "coverage_records": float(np.mean(cov_rec)),
+                       "coverage_articles": float(np.mean(cov_art)), "coverage_uncorrected": float(np.mean((y >= oof[lo]) & (y <= oof[hi]))),
+                       "median_fold_width": float(np.exp(np.median(oof[hi] - oof[lo] + 2 * qa)))}
+    models = {str(q): _hgb_export(mk(q).fit(X, y)) for q in Q}
+    # receitas: mesma combinação de reagentes, rota e forma
+    cat = [c for c in X.columns if c not in ("temperatura (°C)", "ano", "base NSP", "base AuNC", "menciona GO")]
+    sig = X[cat].astype(int).astype(str).agg("".join, axis=1).to_numpy()
+    ref = np.where(L["doi"] != "", L["doi"], L["title"].fillna("").str.replace(" _ ", " — ").str.slice(0, 110))
+    rec = []
+    for sg in pd.unique(sig):
+        ix = np.flatnonzero(sig == sg)
+        d = L["size_nm"].to_numpy(float)[ix]
+        arts = pd.unique(groups[ix])
+        ex = list(dict.fromkeys(ref[ix]))[:3]
+        rec.append({"sig": sg, "n": int(len(ix)), "n_art": int(len(arts)), "median": round(float(np.median(d)), 1),
+                    "q10": round(float(np.quantile(d, 0.1)), 1), "q90": round(float(np.quantile(d, 0.9)), 1), "ex": ex})
+    rec.sort(key=lambda r: -r["n"])
+    return {"features": list(X.columns), "categorical": cat, "models": models, "bands": bands,
+            "n": int(len(y)), "n_articles": int(len(cnt)), "recipes": rec,
+            "defaults": {"temperatura (°C)": 100.0, "ano": 2020.0},
+            "pinball_oof": {str(q): float(np.mean(np.maximum(q * (y - oof[q]), (q - 1) * (y - oof[q])))) for q in Q}}
 
 
 # ---------------------------------------------------------------------------------------------- §4.17/§4.18 ruído e variabilidade multi-fonte
@@ -800,7 +992,7 @@ def causal() -> dict:
         in_range = exp_["range"][0] <= est <= exp_["range"][1]
         effects.append(dict(r, key=key, name=name, population=pop, outcome=outcome, binary=binary, expected=exp_,
                             estimate=float(est), estimate_ci95=[float(ci[0]), float(ci[1])], verdict=verdict, in_range=bool(in_range),
-                            robust=robust))
+                            robust=robust, replication=_replicate(d, t, y, cov, binary)))
     chain = _chain_lspr(L, spheroid, base_cov)
     prim = effects[0]
     dag = {"nodes": [["base", "base e época"], ["temperatura", "temperatura"], ["sementes", "rota com sementes"],
@@ -815,6 +1007,45 @@ def causal() -> dict:
                                       "smd_before", "smd_after", "propensity")},
                 treatment="NaBH4 (redutor forte)", control="citrato de sódio", outcome="ln(tamanho, nm)",
                 naive=float(np.log(prim["naive_ratio"])), effects=effects, dag=dag, chain=chain)
+
+
+def _replicate(d: pd.DataFrame, t: np.ndarray, y: np.ndarray, cov: pd.DataFrame, binary: bool) -> dict:
+    """Replicação em bases INDEPENDENTES (Cruse 2022 × NSP 2026: extrações e corpora diferentes): o mesmo AIPW em cada
+    base e a heterogeneidade entre elas (Q de Cochran e I² de Higgins & Thompson 2002, na escala log, com o erro-padrão
+    tirado do IC por bootstrap de artigos). Efeito que só aparece numa base é suspeito de artefato de extração."""
+    from scipy.stats import chi2
+    out = {"bases": []}
+    for src, lab in (("cruse2022", "Cruse 2022"), ("nsp2026", "NSP 2026")):
+        m = (d["source"] == src).to_numpy()
+        if m.sum() < 60 or t[m].sum() < 15 or (1 - t[m]).sum() < 15:
+            continue
+        c = cov[m].drop(columns=["base NSP"], errors="ignore")
+        c = c.loc[:, c.std() > 0]
+        try:
+            r = _effect(d[m], t[m], y[m], c, d["clus"].to_numpy()[m], binary, B=150)
+        except Exception:                                                  # sem sobreposição suficiente na base
+            continue
+        est, ci = (r["rr"], r["rr_ci95"]) if binary else (r["ratio"], r["ratio_ci95"])
+        if not (np.all(np.isfinite(ci)) and min(ci) > 0):
+            continue
+        out["bases"].append({"base": lab, "n": r["n"], "n_treated": r["n_treated"], "n_articles": r["n_articles"],
+                             "estimate": float(est), "ci95": [float(ci[0]), float(ci[1])],
+                             "se_log": float((np.log(ci[1]) - np.log(ci[0])) / (2 * 1.96))})
+    b = out["bases"]
+    if len(b) == 2:
+        lg, se = np.log([x["estimate"] for x in b]), np.array([x["se_log"] for x in b])
+        wt = 1 / se ** 2
+        fixed = float(np.sum(wt * lg) / wt.sum())
+        Qc = float(np.sum(wt * (lg - fixed) ** 2))
+        # efeitos aleatórios (DerSimonian & Laird 1986): τ² entre bases entra no peso, o IC alarga com a heterogeneidade
+        tau2 = max(0.0, (Qc - 1) / (wt.sum() - np.sum(wt ** 2) / wt.sum()))
+        wr = 1 / (se ** 2 + tau2)
+        pooled, sp = float(np.sum(wr * lg) / wr.sum()), float(1 / np.sqrt(wr.sum()))
+        out.update({"pooled": float(np.exp(pooled)), "pooled_ci95": [float(np.exp(pooled - 1.96 * sp)), float(np.exp(pooled + 1.96 * sp))],
+                    "tau": float(np.sqrt(tau2)), "Q": Qc, "Q_p": float(chi2.sf(Qc, 1)), "I2": float(max(0.0, (Qc - 1) / Qc)) if Qc > 0 else 0.0,
+                    "same_direction": bool(np.sign(lg[0]) == np.sign(lg[1])),
+                    "both_significant": bool(all(x["ci95"][1] < 1 or x["ci95"][0] > 1 for x in b))})
+    return out
 
 
 def _chain_lspr(L: pd.DataFrame, spheroid: pd.Series, base_cov) -> dict:
