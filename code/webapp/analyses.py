@@ -522,6 +522,11 @@ def interpretability(designer: dict) -> dict:
     yl = np.log(L["size_nm"].to_numpy(float))
     groups = np.where(L["doi"] != "", L["doi"], L["title"])
     pcv = cross_val_predict(hgb(), Xl, yl, cv=GroupKFold(5), groups=groups)
+    old = pd.DataFrame({"citrato": L["reductant"].eq(0), "NaBH4": L["reductant"].eq(1), "ascórbico": L["reductant"].eq(2),
+                        "sementes": L["seed"].eq(1), "CTAB": L["capping"].eq(0), "PVP": L["capping"].eq(1),
+                        "tiol": L["capping"].isin([4, 8]), "T": L["T_C"], "não esférica": ~L["morph"].isin([0, 2, 14, -1])}).astype(float)
+    pold = cross_val_predict(hgb(), old, yl, cv=GroupKFold(5), groups=groups)
+    boot = _r2_boot(yl, {"28 variáveis": pcv, "9 variáveis": pold}, groups, B=500)
     gl = hgb().fit(Xl, yl)
     samp = R.choice(len(Xl), min(1500, len(Xl)), replace=False)
     lsv = shap.TreeExplainer(gl).shap_values(Xl.iloc[samp])
@@ -529,11 +534,37 @@ def interpretability(designer: dict) -> dict:
     out["literature"] = {"features": [Xl.columns[j] for j in top], "values": _r(lsv[:, top], 3),
                          "X": _r(Xl.iloc[samp].to_numpy(float)[:, top], 1), "target": "ln(tamanho, nm)", "n": int(len(Xl)),
                          "n_features": int(Xl.shape[1]), "n_articles": int(len(np.unique(groups))),
-                         "cv_r2_by_paper": float(1 - np.sum((yl - pcv) ** 2) / np.sum((yl - yl.mean()) ** 2))}
+                         "cv_r2_by_paper": float(1 - np.sum((yl - pcv) ** 2) / np.sum((yl - yl.mean()) ** 2)),
+                         "boot": boot}
     return out
 
 
 # ---------------------------------------------------------------------------------------------- §4.17/§4.18 ruído e variabilidade multi-fonte
+
+def _r2_boot(y: np.ndarray, preds: dict, groups: np.ndarray, B: int = 1000, seed: int = 11) -> dict:
+    """IC 95 % do R² de cada modelo e da diferença pareada (primeiro − segundo), reamostrando ARTIGOS inteiros
+    (as previsões fora da dobra são fixas; a incerteza é a da amostra de artigos)."""
+    rng = np.random.default_rng(seed)
+    ug, inv = np.unique(groups, return_inverse=True)
+    names = list(preds)
+    P = np.array([np.asarray(preds[k], float) for k in names])
+    # somas por artigo: R² = 1 − SSE/SST, com SST = Σy² − (Σy)²/n — tudo somável por grupo
+    def sums(v):
+        return np.bincount(inv, v, minlength=len(ug))
+    n_g, y_g, y2_g = sums(np.ones_like(y)), sums(y), sums(y * y)
+    sse_g = np.array([sums((y - p) ** 2) for p in P])
+    W = rng.multinomial(len(ug), np.full(len(ug), 1 / len(ug)), size=B).astype(float)   # nº de cópias de cada artigo
+    n, sy, sy2 = W @ n_g, W @ y_g, W @ y2_g
+    sst = sy2 - sy * sy / n
+    r2 = 1 - (W @ sse_g.T) / sst[:, None]                                             # B × modelos
+    out = {k: {"r2": float(1 - np.sum((y - P[i]) ** 2) / np.sum((y - y.mean()) ** 2)),
+               "ci95": _r(np.quantile(r2[:, i], [0.025, 0.975]), 3)} for i, k in enumerate(names)}
+    if len(names) == 2:
+        d = r2[:, 0] - r2[:, 1]
+        out["diff"] = {"value": out[names[0]]["r2"] - out[names[1]]["r2"], "ci95": _r(np.quantile(d, [0.025, 0.975]), 3),
+                       "p_le_0": float(np.mean(d <= 0))}
+    return out
+
 
 def variability() -> dict:
     from scipy import stats
@@ -544,9 +575,12 @@ def variability() -> dict:
     slope = np.polyfit(np.log(u["mean"]), np.log(u["std"].clip(lower=1e-6)), 1)[0]
     within = np.mean([g.var(ddof=1) for g in groups])
     between = np.var(u["mean"], ddof=1)
-    # literatura: Turkevich (citrato, sem sementes, esfera/partícula) — variação entre artigos × dentro do artigo
+    # literatura: Turkevich (citrato como ÚNICO redutor citado, sem sementes, esfera/partícula) — variação entre artigos;
+    # "citrato citado primeiro" deixaria entrar sínteses com NaBH₄ ou ascórbico junto (outra rota, partículas menores)
     L = expdata.literature()
-    t = L[L["reductant"].eq(0) & L["seed"].eq(0) & L["morph"].isin([0, 14]) & L["size_nm"].between(3, 120)
+    only_citr = _has(L["reductants_raw"], "trisodium_citrate") & ~_has(
+        L["reductants_raw"], *[r for r in expdata.REDUCTANTS if r != "trisodium_citrate"])
+    t = L[only_citr & L["seed"].eq(0) & L["morph"].isin([0, 14]) & L["size_nm"].between(3, 120)
           & (L["doi"] != "")].copy()
     per_paper = t.groupby("doi")["size_nm"].median()             # Cruse: tamanho é do ARTIGO (repete nos parágrafos)
     ly = np.log(per_paper.to_numpy())
@@ -580,6 +614,8 @@ def variability() -> dict:
             "aunc_generalization": {"rmse_random": rm(rnd), "rmse_new_paper": rm(loso), "r2_random": r2(rnd),
                                     "r2_new_paper": r2(loso), "target": "deslocamento de Stokes",
                                     "direct": {"r2_random": r2(rnd_d), "r2_new_paper": r2(loso_d)},
+                                    "boot_random": _r2_boot(em, {"stokes": rnd, "direta": rnd_d}, c["doi"].to_numpy()),
+                                    "boot_new_paper": _r2_boot(em, {"stokes": loso, "direta": loso_d}, c["doi"].to_numpy()),
                                     "sd_em": float(c["em_nm"].std()), "obs": _r(c["em_nm"], 0),
                                     "pred_random": _r(rnd, 1), "pred_new_paper": _r(loso, 1),
                                     "n_papers": int(c["doi"].nunique())}}

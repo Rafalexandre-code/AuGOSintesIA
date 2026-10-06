@@ -12,6 +12,19 @@
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   // redesenho no máximo uma vez por quadro (arrastar um controle dispara dezenas de eventos)
   const perFrame = (fn) => { let q = false; return () => { if (q) return; q = true; requestAnimationFrame(() => { q = false; fn(); }); }; };
+  // no máximo uma chamada a cada ms (a primeira na hora, a última garantida): gráficos 3D enquanto um controle é arrastado
+  const throttle = (fn, ms) => { let last = -1e9, tm = 0; return () => { const now = performance.now(), wait = ms - (now - last);
+    if (wait <= 0) { clearTimeout(tm); tm = 0; last = now; fn(); } else if (!tm) tm = setTimeout(() => { tm = 0; last = performance.now(); fn(); }, wait); }; };
+  // gráfico fora da tela não é redesenhado: a atualização fica guardada e roda quando ele aparece
+  const VIS = new WeakMap(), PEND = new WeakMap();
+  const IO = "IntersectionObserver" in window ? new IntersectionObserver((es) => es.forEach((e) => {
+    VIS.set(e.target, e.isIntersecting);
+    if (e.isIntersecting && PEND.has(e.target)) { const f = PEND.get(e.target); PEND.delete(e.target); f(); } }), { rootMargin: "120px" }) : null;
+  function whenVisible(el, fn) {
+    if (!IO || !el) return fn();
+    if (!VIS.has(el)) { VIS.set(el, true); IO.observe(el); }
+    if (VIS.get(el)) { PEND.delete(el); fn(); } else PEND.set(el, fn);
+  }
 
   /* ------------------------------------------------------------------ tema e paleta (validada: dataviz) */
   const CAT = {
@@ -272,22 +285,32 @@
         let ok = false; try { ok = document.execCommand("copy"); } catch (e2) { /* sem área de transferência */ } ta.remove();
         msg.textContent = ok ? "copiado" : "o navegador bloqueou a cópia; use baixar"; }
     };
-    const sv = $("#dataSave"); sv.hidden = false;
-    if (DL) DL.then((d) => { if (!d) sv.hidden = true; });           // visualizador sem permissão de download: só copiar
-    sv.onclick = async () => {
-      const fn = (card.id || "grafico") + ".csv";
+    const sv = $("#dataSave"), sp = $("#dataPng"), base = card.id || "grafico", gd = card.querySelector(".js-plotly-plot");
+    sv.hidden = false; sp.hidden = !gd;
+    if (DL) DL.then((d) => { if (!d) sv.hidden = sp.hidden = true; });   // visualizador sem permissão de download: só copiar
+    async function offer(fn, data, mime) {
       if (DL) {                                                       // dentro do visualizador: o download passa pela plataforma
-        const d = await DL; if (!d) { sv.hidden = true; return; }
-        try { await d.save({ filename: fn, data: "\ufeff" + csv }); msg.textContent = "arquivo salvo"; }
+        const d = await DL; if (!d) { sv.hidden = sp.hidden = true; return; }
+        try { await d.save({ filename: fn, data }); msg.textContent = "arquivo salvo"; }
         catch (e) { const c = e && e.code;
           if (c === "declined") msg.textContent = "download cancelado";
           else if (c === "rate_limited") msg.textContent = "aguarde e tente de novo";
-          else { msg.textContent = "download indisponível aqui; use copiar"; sv.hidden = true; } }
+          else { msg.textContent = "download indisponível aqui; use copiar"; sv.hidden = sp.hidden = true; } }
         return;
       }
       const a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" })); a.download = fn;
+      a.href = URL.createObjectURL(new Blob([data], { type: mime })); a.download = fn;
       document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    }
+    sv.onclick = () => offer(base + ".csv", "\ufeff" + csv, "text/csv;charset=utf-8");
+    sp.onclick = async () => {                                        // figura em 2× (boa para relatório), nas cores do tema
+      msg.textContent = "gerando a figura…";
+      try {
+        const url = await Plotly.toImage(gd, { format: "png", scale: 2, width: gd.clientWidth, height: gd.clientHeight });
+        const bin = atob(url.slice(url.indexOf(",") + 1)), u8 = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+        msg.textContent = ""; await offer(base + ".png", u8, "image/png");
+      } catch (e) { msg.textContent = "não foi possível gerar a figura"; }
     };
     const close = () => { dlg.hidden = true; if (!$(".card.full")) $("#backdrop").hidden = true; document.removeEventListener("keydown", esc_, true); opener.focus(); };
     const esc_ = (e) => { if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); close(); } };
@@ -626,11 +649,15 @@
       tr.push({ type: "scatter", mode: "lines", name: `previsto (d = ${nf(d, 0)} nm, σ = ${nf(100 * s, 0)} %)`, x: wl, y,
         line: { color: t.cat[0], width: 2.4 }, hovertemplate: "λ = %{x} nm: %{y:.3f}<extra>previsto</extra>" });
       plot("op-spec", tr, { xaxis: { title: { text: "λ (nm)" } }, yaxis: { title: { text: mode === "max" ? "extinção normalizada" : "Cext / V (nm⁻¹)" }, rangemode: "tozero" } });
-      const k = ld.reduce((b, l, i) => (Math.abs(l - Math.log(d)) < Math.abs(ld[b] - Math.log(d)) ? i : b), 0);
-      const es = $("#op-surf"), ej = $("#op-J");
-      if (es.data) Plotly.restyle(es, { y: [MV.cj.map(() => Math.log10(dg[k]))], z: [MV.cj.map((jj) => O.C_ext[k][jj] + 0.01)] }, [1]);
-      if (ej.data) Plotly.restyle(ej, { x: [[Math.log10(d)]], y: [[s]], z: [[Math.log10(Math.max(j, 1e-4))]] }, [1]);
+      now3 = { d, s, j }; mark3();
     }
+    let now3 = null;
+    const mark3 = throttle(() => {
+      const { d, s, j } = now3, k = ld.reduce((b, l, i) => (Math.abs(l - Math.log(d)) < Math.abs(ld[b] - Math.log(d)) ? i : b), 0);
+      const es = $("#op-surf"), ej = $("#op-J");
+      whenVisible(es, () => { if (es.data) Plotly.restyle(es, { y: [MV.cj.map(() => Math.log10(dg[k]))], z: [MV.cj.map((jj) => O.C_ext[k][jj] + 0.01)] }, [1]); });
+      whenVisible(ej, () => { if (ej.data) Plotly.restyle(ej, { x: [[Math.log10(d)]], y: [[s]], z: [[Math.log10(Math.max(j, 1e-4))]] }, [1]); });
+    }, 120);
     function full() {                                          // superfícies e validação: só na montagem e no tema
       const t = T(), d = dOf(), k = ld.reduce((b, l, i) => (Math.abs(l - Math.log(d)) < Math.abs(ld[b] - Math.log(d)) ? i : b), 0);
       plot("op-surf", [{ type: "surface", x: MV.wl, y: MV.ld, z: MV.z, surfacecolor: MV.ld.map((l) => MV.wl.map(() => l)), cmin: G.lmin, cmax: G.lmax,
@@ -685,7 +712,7 @@
   };
 
   /* ================================================================== AuNP Designer (GP no navegador) */
-  function gpPredict(gp, xn) {
+  function gpPredict(gp, xn, withSd = true) {
     const X = gp.X, ls = gp.ls, n = X.length, k = new Float64Array(n);
     for (let i = 0; i < n; i++) {
       let r2 = 0; const Xi = X[i]; for (let j = 0; j < ls.length; j++) { const d = (xn[j] - Xi[j]) / ls[j]; r2 += d * d; }
@@ -693,6 +720,7 @@
       k[i] = gp.outputscale * (1 + s5 + 5 / 3 * r2) * Math.exp(-s5);
     }
     let mu = gp.const; for (let i = 0; i < n; i++) mu += k[i] * gp.alpha[i];
+    if (!withSd) return [gp.y_mean + gp.y_std * mu, NaN];
     const L = gp.L, v = new Float64Array(n);                  // L v = k (substituição direta)
     let vv = 0;
     for (let i = 0; i < n; i++) { let s = k[i]; const Li = L[i]; for (let j = 0; j < i; j++) s -= Li[j] * v[j]; v[i] = s / Li[i]; vv += v[i] * v[i]; }
@@ -723,10 +751,16 @@
         { k: "Validação cruzada", v: "R² " + nf(D.cv.r2, 2), s: `RMSE em ln ${nf(D.cv.rmse, 3)} · cobertura ${nf(100 * D.cv.coverage95, 0)} %` },
         { k: "Melhoria esperada (EI)", v: nf(ei(mu, sd), 4), s: "em ln(perda), sobre a melhor medida" },
       ]);
+      surfAt = x; surfT();
+      pdPlot(t, x, xn, mu);
+    }
+    let surfAt = null;
+    const surfT = throttle(() => whenVisible($("#ds-surf"), () => surf(T(), surfAt, norm(surfAt))), 180);
+    function surf(t, x, xn) {
       const ix = +$("#ds-x").value, iy = +$("#ds-y").value;
       const gx = lin(lo[ix], hi[ix], 32), gy = lin(lo[iy], hi[iy], 32);
       const Z = gy.map((yv) => gx.map((xv) => { const q = xn.slice(); q[ix] = (xv - lo[ix]) / (hi[ix] - lo[ix]); q[iy] = (yv - lo[iy]) / (hi[iy] - lo[iy]);
-        const [m, s] = gpPredict(gp, q); return mode === "mean" ? Math.exp(m) : mode === "sd" ? s : ei(m, s); }));
+        const [m, s] = gpPredict(gp, q, mode !== "mean"); return mode === "mean" ? Math.exp(m) : mode === "sd" ? s : ei(m, s); }));
       const ztitle = mode === "mean" ? "perda prevista" : mode === "sd" ? "dp de ln(perda)" : "EI";
       const tr = [{ type: "surface", x: gx, y: gy, z: Z, colorscale: t.seqScale, reversescale: mode === "mean", opacity: 0.95, showlegend: false,
         colorbar: { title: { text: ztitle, side: "right", font: { color: t.ink2 } }, thickness: 12, len: 0.6, tickfont: { color: t.muted } },
@@ -740,6 +774,8 @@
         tr.push(pts(near, `medidas perto do corte (${near.length})`, t.ruby, 4.6, 0.95), pts(far, "demais medidas", t.other, 2.4, 0.4));
       }
       plot("ds-surf", tr, { margin: { l: 0, r: 0, t: 30, b: 0 }, uirevision: "ds", legend: { y: 1.02 }, scene: scene(D.labels[ix], D.labels[iy], ztitle) });
+    }
+    function pdPlot(t, x, xn, mu) {
       let ytop = 0;
       const traces = [], lay = { grid: { rows: 1, columns: p, pattern: "independent" }, showlegend: false, margin: { l: 50, r: 10, t: 16, b: 44 } };
       D.labels.forEach((lab, j) => {
@@ -856,7 +892,7 @@
       const imp = m.features.map((_, j) => V.reduce((a, r) => a + Math.abs(r[j] || 0), 0) / V.length);
       const ord = imp.map((v, j) => [v, j]).sort((a, b) => a[0] - b[0]).map((x) => x[1]);   // menor → maior (de baixo p/ cima)
       const top = ord[ord.length - 1];
-      const extra = m.cv_r2 != null ? `R² (validação) ${nf(m.cv_r2, 2)}` : m.cv_r2_by_paper != null ? `R² por artigo ${nf(m.cv_r2_by_paper, 2)}` : `R² do GP em CV ${nf(A.designer.cv.r2, 2)}`;
+      const extra = m.cv_r2 != null ? `R² (validação) ${nf(m.cv_r2, 2)}` : m.cv_r2_by_paper != null ? `R² por artigo ${nf(m.cv_r2_by_paper, 2)} (IC 95 % ${nf(m.boot["28 variáveis"].ci95[0], 2)}–${nf(m.boot["28 variáveis"].ci95[1], 2)}; +${nf(m.boot.diff.value, 2)} sobre o modelo de 9 variáveis)` : `R² do GP em CV ${nf(A.designer.cv.r2, 2)}`;
       kpis("#sh-kpis", [{ k: "Modelo e alvo", v: key === "agnp" ? "GP · SHAP exato" : "árvores · TreeSHAP", s: `${esc(m.target)} · ${extra}` },
         { k: "Sínteses explicadas", v: ni(V.length), s: m.n ? `amostra de ${ni(m.n)} registros de ${ni(m.n_articles)} artigos; as ${ni(m.features.length)} mais influentes de ${ni(m.n_features)} variáveis` : "todas as condições medidas" },
         { k: "Variável mais influente", v: esc(m.features[top]), s: `|SHAP| médio ${nf(imp[top], 3)}`, key: true }]);
@@ -905,7 +941,7 @@
       { k: "Fração da variância entre condições", v: nf(ag.icc, 2), s: "ICC: o resto é ruído de réplica" },
       { k: "Ruído heteroscedástico?", v: ag.levene_p < 0.05 ? "sim" : "não", s: `Brown–Forsythe W = ${nf(ag.levene_W, 1)}, ${pf(ag.levene_p)}: justifica o GP com ruído por condição`, key: true },
       { k: `Turkevich em ${ni(tk.n_papers)} artigos`, v: nf(tk.median, 1), u: "nm", s: `10–90 %: ${nf(tk.q10_q90[0], 1)}–${nf(tk.q10_q90[1], 1)} nm · fator ×${nf(tk.fold_1sd, 2)}` },
-      { k: "AuNC: R² para artigo novo", v: nf(ge.r2_new_paper, 2), s: `síntese nova: ${nf(ge.r2_random, 2)} · ${ni(ge.n_papers)} artigos · prevendo a emissão direto: ${nf(ge.direct.r2_random, 2)} → ${nf(ge.direct.r2_new_paper, 2)}` },
+      { k: "AuNC: R² para artigo novo", v: nf(ge.r2_new_paper, 2), s: `IC 95 % ${nf(ge.boot_new_paper.stokes.ci95[0], 2)} a ${nf(ge.boot_new_paper.stokes.ci95[1], 2)} · síntese nova: ${nf(ge.r2_random, 2)} · ${ni(ge.n_papers)} artigos` },
     ]);
     drawer(() => {
       const t = T();
@@ -929,6 +965,10 @@
         annotations: [{ x: Math.log10(tk.median), y: 1, yref: "paper", text: `mediana ${nf(tk.median, 1)} nm`, showarrow: false, xanchor: "left", xshift: 5, font: { color: t.ink, size: 11 } },
           { x: Math.log10(tk.q10_q90[1]), y: 0.85, yref: "paper", text: "90 %", showarrow: false, xanchor: "left", xshift: 4, font: { color: t.muted, size: 10 } },
           { x: Math.log10(tk.q10_q90[0]), y: 0.85, yref: "paper", text: "10 %", showarrow: false, xanchor: "right", xshift: -4, font: { color: t.muted, size: 10 } }] });
+      const bn = ge.boot_new_paper, br = ge.boot_random, sg = (d) => (d.ci95[0] > 0 ? "significativo" : "dentro do ruído: o IC inclui zero");
+      $("#va-gen-txt").innerHTML = `<p>Alvo = deslocamento de Stokes, comparado com prever a emissão direto nas mesmas ${ni(ge.obs.length)} sínteses. ` +
+        `Ganho no R²: síntese nova +${nf(br.diff.value, 2)} (IC 95 % ${nf(br.diff.ci95[0], 2)} a ${nf(br.diff.ci95[1], 2)}), artigo novo +${nf(bn.diff.value, 2)} ` +
+        `(IC 95 % ${nf(bn.diff.ci95[0], 2)} a ${nf(bn.diff.ci95[1], 2)}): ${sg(bn.diff)}. Intervalos por bootstrap de artigos.</p>`;
       const mn = Math.min(...ge.obs), mx = Math.max(...ge.obs);
       plot("va-gen", [
         { type: "scatter", mode: "markers", name: `síntese nova (R² ${nf(ge.r2_random, 2)})`, x: ge.obs, y: ge.pred_random, marker: { size: 7, color: t.cat[0], opacity: 0.8, line: { width: 1, color: t.surface } }, hovertemplate: "medido %{x} · previsto %{y:.0f} nm<extra>síntese nova</extra>" },
@@ -1280,11 +1320,31 @@
     });
   }
 
+  function trapFocus() {
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Tab") return;
+      const m = [$("#dataDlg"), $("#palette")].find((x) => x && !x.hidden) || $(".card.full");
+      if (!m) return;
+      const f = [...m.querySelectorAll('a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+        .filter((x) => !x.hidden && x.getClientRects().length);
+      if (!f.length) return;
+      const i = f.indexOf(document.activeElement);
+      if (e.shiftKey ? i <= 0 : i < 0 || i === f.length - 1) { e.preventDefault(); f[e.shiftKey ? f.length - 1 : 0].focus(); }
+    });
+  }
+  // impressão (Ctrl P → PDF): os gráficos se ajustam à largura da página e voltam depois
+  function printFit() {
+    const fit = () => document.querySelectorAll(".panel:not([hidden]) .js-plotly-plot").forEach((el) => { try { Plotly.Plots.resize(el); } catch (e) { /* oculto */ } });
+    window.addEventListener("beforeprint", fit); window.addEventListener("afterprint", () => setTimeout(fit, 50));
+  }
+
   /* ------------------------------------------------------------------ início */
   function start() {
+    trapFocus(); printFit();
     buildTabs();
     addExpanders();
     document.querySelectorAll(".nseeds").forEach((el) => { el.textContent = ni(A.benchmark.seeds); });
+    document.querySelectorAll(".nturk").forEach((el) => { el.textContent = ni(A.variability.turkevich.n_papers); });
     fichas(); numberFigures(); palette();
     $("#foot").innerHTML = `<div><b>AuGOSintesIA</b> · plataforma de aprendizado ativo para nanocompósitos GO–AuNP · IC FAPESP · UNESP-IQ Araraquara</div>` +
       `<div>Gerado em ${esc(A.overview.generated)} por <span class="mono">code/webapp/build_site.py</span> · só dados experimentais; modelos e previsões marcados como tal</div>`;

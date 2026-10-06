@@ -182,3 +182,14 @@ def test_modelos_validados_por_artigo(site):
     lit, ge = site["interpret"]["literature"], site["variability"]["aunc_generalization"]
     assert lit["n_articles"] < lit["n"] and lit["cv_r2_by_paper"] > 0.2 and len(lit["features"]) <= lit["n_features"]
     assert ge["r2_new_paper"] > ge["direct"]["r2_new_paper"] and ge["r2_random"] > ge["direct"]["r2_random"]
+    # incerteza por bootstrap de artigos: o IC contém a estimativa; o ganho da literatura é real (IC > 0)
+    for bt in (ge["boot_random"], ge["boot_new_paper"], lit["boot"]):
+        for k, v in bt.items():
+            if k != "diff":
+                assert v["ci95"][0] <= v["r2"] <= v["ci95"][1], k
+    assert lit["boot"]["diff"]["ci95"][0] > 0
+
+
+def test_turkevich_confere_com_frens(site):
+    tk = site["variability"]["turkevich"]
+    assert 14 <= tk["median"] <= 18 and tk["n_papers"] > 1000             # Frens 1973: 16 nm no protocolo padrão

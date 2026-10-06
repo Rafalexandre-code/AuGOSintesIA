@@ -275,7 +275,7 @@
       <h2>Ruído de réplica e variabilidade entre fontes</h2>
       <p class="lede">A premissa do projeto: a mesma receita não dá o mesmo produto quando a matéria-prima ou o
         laboratório mudam. Os dados abaixo medem essa variação em três escalas: réplicas da mesma condição, a mesma
-        rota em 1 746 artigos e a previsão para um artigo nunca visto.</p><span class="chip exp"><span class="dot"></span>experimental</span></div>
+        rota em <span class="nturk">1 521</span> artigos e a previsão para um artigo nunca visto.</p><span class="chip exp"><span class="dot"></span>experimental</span></div>
       <dl class="ficha" id="fi-variabilidade"></dl></div>
     <div class="kpis" id="va-kpis"></div>
     <div class="grid">
@@ -285,12 +285,12 @@
       <div class="card c6"><div class="card-h"><div><h3>Coeficiente de variação no espaço da receita</h3>
         <p>Onde a síntese é menos repetível (cor = CV das réplicas).</p></div></div>
         <div class="card-b"><div class="plot" id="va-3d"></div></div></div>
-      <div class="card c6"><div class="card-h"><div><h3>A mesma rota em 1 746 artigos (Turkevich)</h3>
-        <p>Citrato, sem sementes, esfera: tamanho relatado em cada artigo (um valor por artigo). Linhas: mediana e faixa 10–90 %. Parte da largura é desenho, não ruído: a razão citrato:Au ajusta o tamanho de 16 a 147 nm (Frens 1973).</p></div></div>
+      <div class="card c6"><div class="card-h"><div><h3>A mesma rota em <span class="nturk">1 521</span> artigos (Turkevich)</h3>
+        <p>Citrato como único redutor, sem sementes, esfera: tamanho relatado em cada artigo (um valor por artigo). Linhas: mediana e faixa 10–90 %. Parte da largura é desenho, não ruído: a razão citrato:Au ajusta o tamanho de 16 a 147 nm (Frens 1973).</p></div></div>
         <div class="card-b"><div class="plot" id="va-turk"></div></div></div>
       <div class="card c6"><div class="card-h"><div><h3>Prever um artigo novo × uma síntese nova</h3>
-        <p>Emissão de AuNC, validada por artigo (GroupKFold) e aleatoriamente, com o mesmo modelo. O modelo prevê o deslocamento de Stokes (emissão − excitação), que generaliza melhor que prever a emissão direto, e a emissão volta somando a excitação. Mesmo assim, o artigo novo quase não é previsto: a casca Au(I)–tiolato e a agregação (AIE), que não são registradas, decidem a emissão.</p></div></div>
-        <div class="card-b"><div class="plot" id="va-gen"></div></div></div>
+        <p>Emissão de AuNC, validada por artigo (GroupKFold) e aleatoriamente, com o mesmo modelo. O modelo prevê o deslocamento de Stokes (emissão − excitação) e a emissão volta somando a excitação. O artigo novo quase não é previsto: a casca Au(I)–tiolato e a agregação (AIE), que as bases não registram, decidem a emissão.</p></div></div>
+        <div class="card-b"><div class="plot" id="va-gen"></div><div class="prose" id="va-gen-txt" style="padding:4px 10px 0"></div></div></div>
     </div>
   </section>
 
@@ -401,7 +401,7 @@ python -m pytest code/tests/test_webapp.py</pre></div></div>
   <div class="dd-h"><b id="dataT">dados</b><button type="button" class="icon-btn" id="dataClose" aria-label="Fechar os dados">fechar</button></div>
   <div class="tbl-wrap" id="dataTbl" tabindex="0" role="region" aria-label="Dados do gráfico"></div>
   <div class="dd-f"><span id="dataN" class="muted"></span><span id="dataMsg" class="muted" role="status"></span>
-    <button type="button" class="icon-btn" id="dataCopy">copiar CSV</button><button type="button" class="icon-btn" id="dataSave">baixar .csv</button></div>
+    <button type="button" class="icon-btn" id="dataCopy">copiar CSV</button><button type="button" class="icon-btn" id="dataSave">baixar .csv</button><button type="button" class="icon-btn" id="dataPng">baixar figura (PNG)</button></div>
 </div>
 <div class="palette" id="palette" role="dialog" aria-modal="true" aria-label="Buscar gráfico ou seção" hidden>
   <input type="text" id="palQ" placeholder="Buscar: designer, Mie, SHAP, Turkevich, difração…" aria-label="Buscar" autocomplete="off">

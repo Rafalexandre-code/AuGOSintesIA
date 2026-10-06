@@ -409,3 +409,16 @@ footer b { color: var(--ink-2); font-weight: 600; }
 .ok-ico { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font: 700 .8rem var(--f-body); }
 .ok-ico.y { background: color-mix(in oklab, var(--ok) 18%, transparent); color: var(--ok-ink); }
 .ok-ico.w { background: color-mix(in oklab, var(--warn) 25%, transparent); color: var(--ink); }
+
+/* impressão: só a aba aberta, sem navegação nem botões; um cartão por largura, sem quebra no meio */
+@media print {
+  .top, .rail, .skip, .to-top, .backdrop, .palette, .boot, .card-h .btns, .hero .fx, .pick, #foot .mono { display: none !important; }
+  body { background: var(--surface) !important; }
+  .shell { display: block; max-width: none; }
+  main { padding: 0 !important; }
+  .grid { display: block; }
+  .card, .kpi, .ficha { box-shadow: none !important; break-inside: avoid; page-break-inside: avoid; margin-bottom: 12px; }
+  .card.full { position: static; }
+  .tbl-wrap { max-height: none !important; overflow: visible !important; }
+  a.fig { background: none; padding: 0; }
+}
