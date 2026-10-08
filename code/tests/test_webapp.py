@@ -3,6 +3,8 @@ pré-registro, e os dados versionados em site/data/ completos e coerentes."""
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 
 import numpy as np
@@ -256,3 +258,37 @@ def test_guia_cobre_todas_as_figuras():
     for tab in re.findall(r'<section class="panel" id="p-([a-z]+)"', tpl):
         if tab != "guia":
             assert re.search(rf"\n    {tab}: \{{", guide), tab                     # texto de cada aba
+
+
+def test_guia_executa_com_os_dados_e_sem_lacunas():
+    """Executa guide.js no node com os dados de site/data (como o navegador faz): nenhum número fica vazio, cada figura
+    tem todos os campos do guia, cada fileira de indicadores (kpis("#…") do app.js) tem um texto por cartão, e os
+    conceitos e o roteiro apontam para figuras, indicadores e demonstrações que existem."""
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node indisponível")
+    out = subprocess.run([node, os.path.join(ROOT, "code", "tests", "guide_check.js")], capture_output=True, text=True,
+                         check=True, timeout=120).stdout
+    G = json.loads(out)
+    for bad in ("NaN", "undefined", "[object", "Infinity"):
+        assert bad not in G["text"], bad
+    need = {"one", "what", "question", "elements", "steps", "example", "method", "code", "caution", "kind"}
+    falta = {k: sorted(need - set(f)) for k, f in G["figs"].items() if need - set(f)}
+    assert len(G["figs"]) > 60 and not falta, falta
+    campos = {"question", "purpose", "why", "data", "controls", "flow", "results", "take", "limits", "try"}
+    assert all(campos <= set(f) for f in G["tabFields"].values()), G["tabFields"]
+    app = open(os.path.join(ROOT, "code", "webapp", "app.js"), encoding="utf-8").read()
+    cartoes = {"ov-count": 4}                                    # contadores da abertura (não usam kpis())
+    for m in re.finditer(r'kpis\("#([a-z0-9-]+)", \[', app):
+        i, depth = m.end(), 1
+        j = i
+        while depth:
+            depth += {"[": 1, "]": -1}.get(app[j], 0)
+            j += 1
+        cartoes[m.group(1)] = app[i:j - 1].count("{ k:")
+    assert cartoes == G["kpi"], (cartoes, G["kpi"])
+    alvos = set(G["figs"]) | set(G["kpi"])
+    for c in G["concepts"]:
+        assert set(c["where"]) <= alvos, c
+        assert c["demo"] is None or f'"{c["demo"]}"' in app, c   # wrap("…") ou D_("…") em guideDemos()
+    assert len(G["concepts"]) >= 20 and set(G["tour"]) <= set(G["figs"])

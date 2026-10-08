@@ -1436,12 +1436,35 @@ estimativas são observacionais e trazem E-value.
 
 ### 20.3 Guia completo (aba do site)
 
-A aba **Guia completo** documenta o site inteiro para quem nunca viu a área (~15 mil palavras): como navegar e ler
-qualquer gráfico (esquemas anotados), 14 conceitos de química e estatística (nanopartícula e escala, tamanho → espectro →
-cor, nucleação e crescimento, variabilidade, mediana e escala log, incerteza e bootstrap, p-valor e Holm, correlação ×
-causa, validação, GP e EI, aprendizado ativo e sobrevivência, SHAP, conformal, Bayes), 12 com demonstração interativa que
-usa os dados reais do site; depois, aba por aba, o propósito, a origem dos dados, cada controle, um roteiro
-"Experimente" e as 69 figuras e tabelas (o que mostra, como ler, exemplo com os números atuais, cuidados); por fim, como
-foi feito, o registro de decisões (adotado × rejeitado), os limites, o glossário e as referências. Os textos ficam em
-`code/webapp/guide.js` e os números vêm dos dados, então acompanham as análises; cada gráfico do site tem um botão
-**como ler** que leva à sua explicação, e o teste `test_guia_cobre_todas_as_figuras` falha se uma figura nova ficar sem texto.
+A aba **Guia completo** documenta o site inteiro para quem nunca viu a área (~34 mil palavras, ~2,5 h de leitura), em
+sete partes:
+
+1. **Comece aqui**: o que é o site, um roteiro de 10 minutos (nove paradas com link para o gráfico e para a explicação),
+   como navegar, como ler qualquer gráfico (esquema anotado), o significado de cada cor e símbolo e os atalhos de teclado.
+2. **Conceitos** (24): nanopartícula e escala, tamanho → espectro → cor, síntese (LaMer), variabilidade, Mie, perda J,
+   Stokes, difração e Bragg, mediana e escala log, correlação de Spearman, incerteza e bootstrap, p-valor e Holm, ruído
+   de réplica e ICC, confundidores, escore de propensão, meta-análise, validação, árvores e boosting, GP e EI, calibração,
+   sobrevivência, SHAP e Sobol, conformal e Bayes. Cada um tem comparação do dia a dia, a conta em palavras, onde aparece
+   no site e a confusão mais comum; 20 têm demonstração interativa com os dados reais (sete novas nesta versão: perda J
+   ponto a ponto, correlação tamanho × pico por faixa, previsão do Preditor somando árvore a árvore, efeito fixo ×
+   aleatório na replicação, energia do feixe × anéis medidos, Stokes dos aglomerados e pesos de propensão antes/depois).
+3. **Aba por aba**: a pergunta de cada aba, para que serve e por que importa ao projeto, de onde vêm os dados, um roteiro
+   de leitura, cada controle (o que faz, faixa e padrão), cada fileira de indicadores (12 fileiras, um texto por cartão:
+   o que significa e como é calculado), resultados com os números atuais, mensagem principal, limites e "Experimente";
+   depois as 69 figuras e tabelas, recolhíveis, cada uma com a pergunta que responde, o que mostra, os elementos do
+   gráfico, a leitura passo a passo, como interagir, exemplo com os números atuais, cuidados, erros comuns de leitura,
+   como foi calculado (com a função do código) e os conceitos relacionados.
+4. **Fórmulas** (30), em símbolos e em palavras.
+5. **Como foi feito**: princípios e etapas, registro de decisões (adotado × rejeitado), mapa do código (aba → função em
+   Python → conta no navegador → arquivo de dados), linha do tempo e limites.
+6. **Perguntas frequentes** (22).
+7. **Glossário** (128 termos, com índice por letra) e **referências** (43, por área).
+
+No topo, uma busca filtra todo o guia (abre as figuras que contêm o termo), o nível **básico** esconde fórmulas e
+detalhes de cálculo, há botões para expandir/recolher as figuras, barra de progresso e sumário que acompanha a leitura;
+na impressão as figuras saem expandidas. Os textos ficam em `code/webapp/guide.js` e os números vêm dos dados, então
+acompanham as análises; cada gráfico do site tem um botão **como ler** que leva à sua explicação.
+`test_guia_cobre_todas_as_figuras` falha se uma figura nova ficar sem texto e `test_guia_executa_com_os_dados_e_sem_lacunas`
+executa o guia no node com os dados do site (`code/tests/guide_check.js`) e confere que nenhum número fica vazio, que
+cada figura tem todos os campos, que cada fileira de indicadores tem um texto por cartão e que conceitos e roteiro
+apontam para figuras e demonstrações que existem.

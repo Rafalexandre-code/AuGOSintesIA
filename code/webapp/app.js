@@ -211,6 +211,7 @@
     if (h && h.startsWith("doc-") && !document.getElementById(h)) show("guia");      // o guia é montado na primeira visita
     const el = h && document.getElementById(h), panel = el && el.closest(".panel");
     show(panel ? panel.id.slice(2) : "visao");
+    if (el && guideReveal && el.closest("#gd-main")) guideReveal(el);
     if (el) requestAnimationFrame(() => { el.scrollIntoView({ block: "start", behavior: "smooth" });
       if (el.classList.contains("card")) { el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); } });
   }
@@ -1229,6 +1230,7 @@
   /* ================================================================== guia completo */
   let GUIDE = null;
   const guide = () => (GUIDE = GUIDE || (window.AUGO_GUIDE ? window.AUGO_GUIDE(A, { nf, ni, esc, pf }) : null));
+  let guideReveal = null;                                     // definida pelo INIT.guia
   // gerador pseudoaleatório com semente (as demonstrações dão o mesmo resultado a cada visita)
   const rng32 = (seed) => () => { seed |= 0; seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -1248,73 +1250,176 @@
     const G = guide(), main = $("#gd-main"), toc = [];
     if (!G) { main.innerHTML = "<p>Guia indisponível.</p>"; return; }
     const sec = (id, title, html, lvl = 1) => { toc.push([id, title, lvl]); return `<section class="gsec" id="${id}"><h3 class="gh">${title}</h3>${html}</section>`; };
-    const card = (id, title, html, extra = "") => `<div class="card gcard" id="${id}"><div class="card-h"><div><h3>${title}</h3>${extra}</div></div><div class="card-b pad prose">${html}</div></div>`;
+    // cls "gs" = unidade de busca (some se não contiver o termo); cartões sem "gs" somem quando nenhuma unidade dentro deles casa
+    const card = (id, title, html, extra = "", cls = "gs") => `<div class="card gcard ${cls}" id="${id}"><div class="card-h"><div><h3>${title}</h3>${extra}</div></div><div class="card-b pad prose">${html}</div></div>`;
     const tabName = (id) => (TABS.find((t) => t[0] === id) || [id, id])[1];
     const figTitle = (el) => { const c = el.closest(".card"), h = c && c.querySelector("h3"); if (!h) return el.id;
       const f = h.querySelector(".fig"); return h.textContent.replace(f ? f.textContent : "", "").trim(); };
-    let html = "";
+    const KIND = { "2d": ["gráfico 2D", "Passe o mouse sobre pontos, barras ou linhas para ver os valores exatos. Arraste para ampliar uma região; duplo clique volta à vista inteira. Clique num item da legenda para escondê-lo (duplo clique mostra só ele). No cartão, <b>dados</b> mostra a tabela, copia o CSV e baixa o PNG; <b>ampliar</b> abre em tela cheia."],
+      "3d": ["gráfico 3D", "Arraste para girar. Para aproximar, use o botão de zoom da barra do gráfico (no celular, a pinça); o botão da casinha volta à vista inicial. Passe o mouse para ler as três coordenadas. A roda do mouse rola a página, de propósito, para você não ficar preso no gráfico."],
+      table: ["tabela", "Role para o lado se a tabela não couber na tela. Links (DOI, \"carregar\") são clicáveis; o negrito destaca o resultado principal ou o que passou no critério."],
+      html: ["painel", "Passe o mouse ou clique nos elementos; os textos, números e cores são recalculados dos dados ao abrir a página."],
+      svg: ["diagrama", "Diagrama desenhado a partir da teoria e dos resultados; os valores nas setas vêm das análises."] };
+    const cfor = {};                                                    // figura → conceitos que a explicam
+    G.CONCEPTS.forEach((c) => (c.where || []).forEach((w) => { (cfor[w] = cfor[w] || []).push(c); }));
+    const target = (id) => (G.FIG[id] ? "#doc-" + id : G.KPI[id] ? "#gk-" + id : null);
+    const chips = (list) => `<div class="gchips">${list.join("")}</div>`;
+    const symSvg = (k_) => `<svg viewBox="0 0 48 20" class="gsy" role="img" aria-label="${k_}">${{ dot: '<circle cx="24" cy="10" r="6" class="f"/>', ring: '<circle cx="24" cy="10" r="5.5" class="o"/>',
+      diamond: '<path d="M24 3l7 7-7 7-7-7z" class="f"/>', line: '<path d="M4 10h40" class="l"/>', dash: '<path d="M4 10h40" class="l" stroke-dasharray="7 5"/>',
+      dotted: '<path d="M4 10h40" class="l" stroke-dasharray="1.5 4" stroke-linecap="round"/>', band: '<rect x="4" y="4" width="40" height="12" rx="2" class="b"/><path d="M4 10h40" class="l"/>',
+      err: '<path d="M8 10h32M8 5v10M40 5v10" class="l"/><circle cx="24" cy="10" r="4" class="f"/>' }[k_] || ""}</svg>`;
+    const swatch = (c) => (c === "seq" ? `<i class="gsw" data-c="seq"></i>` : `<i class="gsw" data-c="${c}"></i>`);
+    let html = `<div class="gbar" id="gd-bar" role="search"><label class="gsearch"><span class="sr">Buscar no guia</span>` +
+      `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.4 10.4L14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>` +
+      `<input type="search" id="gd-q" placeholder="buscar no guia: bootstrap, cor, Fig. 4.9…" autocomplete="off"></label>` +
+      `<div class="seg" id="gd-lvl" role="group" aria-label="Nível de detalhe"><button type="button" aria-pressed="true" data-v="full">completo</button><button type="button" aria-pressed="false" data-v="basic">básico</button></div>` +
+      `<button type="button" class="btn ghost" id="gd-open">expandir figuras</button><button type="button" class="btn ghost" id="gd-close">recolher</button>` +
+      `<span class="gcount" id="gd-count" role="status" aria-live="polite"></span><div class="gprog" aria-hidden="true"><i id="gd-prog"></i></div></div>`;
     /* ---------- parte 1: comece aqui */
     html += sec("g-start", "1. Comece aqui",
       card("g-what", "O que é este site, em um minuto",
         `<p>Este painel acompanha uma pesquisa de iniciação científica (FAPESP, UNESP de Araraquara) que quer usar <b>inteligência artificial</b> para decidir, experimento a experimento, como produzir <b>nanopartículas de ouro sobre óxido de grafeno</b> com o tamanho e a cor desejados, mesmo quando a matéria-prima muda de um lote para outro.</p>` +
         `<p>Enquanto as sínteses do projeto não ficam prontas, o site aplica os métodos da proposta a <b>dados experimentais reais e públicos</b>: ${ni(A.overview.kpis.literature_records)} sínteses de ouro descritas em ${ni(A.overview.kpis.literature_dois)} artigos, cinco campanhas de laboratórios automatizados, a emissão de ${ni(A.overview.kpis.aunc_entries)} nanoaglomerados, imagens de difração de raios X e as propriedades ópticas medidas do ouro. Nada vem de simulação.</p>` +
-        `<div class="gdiag">${svgPipeline()}</div><p class="muted">Esquema do fluxo: dos dados públicos às análises, ao site e às decisões do projeto.</p>`) +
+        `<div class="gdiag">${svgPipeline()}</div><p class="muted">Esquema do fluxo: dos dados públicos às análises, ao site e às decisões do projeto.</p>` +
+        `<p><b>Como usar este guia.</b> Leia a parte 1 para se orientar; a parte 2 explica os conceitos (com exemplos que você pode mexer); a parte 3 percorre cada aba e cada figura; as partes 4 a 7 trazem as fórmulas, como tudo foi feito, perguntas frequentes e o glossário. A busca no topo filtra tudo; <b>básico</b> esconde fórmulas e detalhes de cálculo.</p>`) +
+      card("g-tour", "Roteiro de 10 minutos", `<p>Para quem tem pouco tempo: nove paradas, na ordem, que contam a história inteira. Cada uma leva ao gráfico no painel e à explicação aqui.</p><ol class="gtour">` +
+        G.TOUR.map(([tab, fid, min, txt]) => `<li class="gs"><span class="gt-tab">${ico(tab, "gt-ico")} ${esc(tabName(tab))} · ${min} min</span><span>${txt}</span><span class="gt-go"><a href="#${fid}">ver no painel →</a> <a href="#doc-${fid}">como ler</a></span></li>`).join("") + "</ol>") +
       card("g-nav", "Como navegar",
         `<div class="gsteps">` + [["Menu lateral", "As abas seguem as etapas da proposta: Panorama, Dados, Modelos, Decisão e Projeto. O ponto colorido mostra o estado de cada aba (verde = dados experimentais; amarelo = parcial; cinza = aguarda o laboratório)."],
           ["Ficha de cada aba", "No topo de cada aba, três linhas resumem tudo: <b>Dados</b> (de onde veio), <b>Método</b> (o que foi feito) e <b>Achado</b> (o resultado)."],
-          ["Figuras numeradas", "Cada gráfico tem um número (Fig. 4.9e = seção 4.9 da proposta, 5º gráfico). Clicar no número copia o endereço daquela figura."],
+          ["Figuras numeradas", "Cada gráfico tem um número (Fig. 4.9e = seção 4.9 da proposta, 5º gráfico da aba). O número é um link: clicar nele faz o endereço da página apontar para aquela figura, pronto para copiar."],
           ["Botões dos gráficos", "<b>como ler</b> abre a explicação aqui no guia; <b>dados</b> mostra a tabela, copia o CSV e baixa a figura em PNG; <b>ampliar</b> abre em tela cheia (Esc fecha)."],
-          ["Interagir", "Passe o mouse para ver os valores; arraste para girar os gráficos 3D ou dar zoom nos 2D (duplo clique volta); clique na legenda para esconder uma série."],
-          ["Buscar", "Ctrl K (ou /) abre a busca de qualquer gráfico ou seção, inclusive deste guia."],
-          ["Tema e impressão", "O botão no topo troca entre claro e escuro; Ctrl P imprime (ou salva em PDF) só a aba aberta."]]
+          ["Interagir", "Passe o mouse para ver os valores; arraste para girar os gráficos 3D ou ampliar os 2D (duplo clique volta); clique na legenda para esconder uma série."],
+          ["Buscar", "Ctrl K (ou /) abre a busca de qualquer gráfico ou seção do site; a busca no topo deste guia filtra o próprio guia."],
+          ["Tema e impressão", "O botão no topo troca entre claro e escuro; Ctrl P imprime (ou salva em PDF) só a aba aberta, com as figuras do guia expandidas."]]
           .map(([t, d], i) => `<div class="gstep"><span class="n">${i + 1}</span><div><b>${t}</b><p>${d}</p></div></div>`).join("") + "</div>") +
       card("g-anatomy", "Como ler qualquer gráfico",
-        `<div class="gdiag">${svgAnatomy()}</div><ol class="glist"><li><b>Título e legenda</b> dizem o que está sendo comparado; leia antes de olhar os pontos.</li><li><b>Eixos</b>: confira a unidade e se a escala é linear ou logarítmica (marcas 1, 10, 100 = log).</li><li><b>Ponto</b> = uma medida ou estimativa; <b>barra de erro</b> = a incerteza (normalmente IC 95 %).</li><li><b>Faixa sombreada</b> = região de incerteza ou região de referência (o alvo, a faixa da literatura).</li><li><b>Linha de referência</b> (pontilhada) = \"nenhum efeito\", \"previsão perfeita\" ou \"calibração perfeita\".</li><li>Desconfie de diferenças menores que a barra de erro.</li></ol>`));
+        `<div class="gdiag">${svgAnatomy()}</div><ol class="glist"><li><b>Título e legenda</b> dizem o que está sendo comparado; leia antes de olhar os pontos.</li><li><b>Eixos</b>: confira a unidade e se a escala é linear ou logarítmica (marcas 1, 10, 100 = log).</li><li><b>Ponto</b> = uma medida ou estimativa; <b>barra de erro</b> = a incerteza (normalmente IC 95 %).</li><li><b>Faixa sombreada</b> = região de incerteza ou região de referência (o alvo, a faixa da literatura).</li><li><b>Linha de referência</b> (pontilhada) = \"nenhum efeito\", \"previsão perfeita\" ou \"calibração perfeita\".</li><li>Desconfie de diferenças menores que a barra de erro.</li></ol>`) +
+      card("g-colors", "Cores e símbolos usados em todo o site",
+        `<p>As cores têm o mesmo significado em todas as abas, e nenhuma informação depende só da cor (há sempre legenda, rótulo ou forma).</p><div class="gpal">${G.PALETTE.map(([c, n, d]) => `<div class="gs">${swatch(c)}<div><b>${n}</b><p>${d}</p></div></div>`).join("")}</div>` +
+        `<h4 class="gk">Símbolos</h4><table class="gtbl gsym"><tbody>${G.SYMBOLS.map(([s, d]) => `<tr class="gs"><th>${symSvg(s)}</th><td>${d}</td></tr>`).join("")}</tbody></table>`, "", "") +
+      card("g-keys", "Atalhos de teclado e gestos", `<table class="gtbl"><tbody>${G.KEYS.map(([k_, d]) => `<tr class="gs"><th><kbd>${k_}</kbd></th><td>${d}</td></tr>`).join("")}</tbody></table>`, "", ""));
     /* ---------- parte 2: conceitos */
     const groups = [...new Set(G.CONCEPTS.map((c) => c.group))];
     html += sec("g-concepts", "2. Conceitos, com exemplos interativos",
-      `<p class="gintro">Cada conceito vem com um exemplo que você pode mexer. Todos usam os dados reais do site (nada inventado); os esquemas desenhados estão marcados como esquema.</p>` +
+      `<p class="gintro">${G.CONCEPTS.length} conceitos de química, física e estatística, cada um com uma comparação do dia a dia, a conta em palavras, onde aparece no site, o erro de leitura mais comum e, quase sempre, um exemplo que você pode mexer. Todos os exemplos usam os dados reais do site; os esquemas desenhados estão marcados como esquema.</p>` +
       groups.map((gname) => `<h4 class="gsub">${gname}</h4>` + G.CONCEPTS.filter((c) => c.group === gname).map((c) =>
-        card(c.id, c.title, c.body + (c.demo ? `<div class="gdemo" id="demo-${c.demo}"></div>` : ""))).join("")).join(""));
+        card(c.id, c.title, c.body +
+          (c.analogy ? `<div class="gana"><b>Comparação.</b> ${c.analogy}</div>` : "") +
+          (c.formula ? `<div class="gadv gform1"><b>A conta.</b> ${c.formula}</div>` : "") +
+          (c.confuse ? `<div class="gwarn"><b>Confusão comum.</b> ${c.confuse}</div>` : "") +
+          (c.where && c.where.length ? `<div class="gwhere"><span>Onde aparece:</span>${chips(c.where.map((w) => `<a class="gchip" href="${target(w) || "#" + w}">${esc(G.FIG[w] && G.FIG[w].title ? G.FIG[w].title : (G.KPI[w] ? G.KPI[w].title : w))}</a>`))}</div>` : "") +
+          (c.demo ? `<div class="gdemo" id="demo-${c.demo}"></div>` : ""))).join("")).join(""));
     G.CONCEPTS.forEach((c) => toc.push([c.id, c.title, 2]));
     /* ---------- parte 3: aba por aba */
     const tabsDoc = TABS.filter(([id]) => id !== "guia" && G.TABS[id]), tabToc = [];
+    let nFig = 0;
     html += sec("g-tabs", "3. Aba por aba, figura por figura",
-      `<p class="gintro">Para cada aba: para que serve, de onde vêm os dados, o que faz cada controle e, para cada gráfico ou tabela, o que mostra, como ler, um exemplo com os números atuais e os cuidados na interpretação.</p>` +
+      `<p class="gintro">Para cada aba: a pergunta que ela responde, para que serve, de onde vêm os dados, um roteiro de leitura, o que faz cada controle, o significado de cada indicador, os resultados e os limites. Depois, cada gráfico e tabela: a pergunta, os elementos, a leitura passo a passo, como interagir, um exemplo com os números atuais, os cuidados, os erros comuns e como foi calculado. Clique numa figura para abrir a explicação (ou use <b>expandir figuras</b> no topo).</p>` +
       tabsDoc.map(([id, , secn]) => {
         const T_ = G.TABS[id], panel = document.getElementById("p-" + id);
         const ids = [...panel.querySelectorAll("[id]")].map((e) => e.id).filter((x, i, a) => G.FIG[x] && a.indexOf(x) === i);
-        const ctrls = T_.controls.length ? `<h4 class="gk">Controles</h4><table class="gtbl"><tbody>${T_.controls.map(([c, d]) => `<tr><th>${c}</th><td>${d}</td></tr>`).join("")}</tbody></table>` : "";
-        const figs = ids.map((fid) => {
-          const F = G.FIG[fid], el = document.getElementById(fid), c = el && el.closest(".card"), lab = c && c.querySelector(".fig");
-          const head = `${lab ? `<a class="fig" href="#${c.id}">${lab.textContent}</a>` : ""}<h4>${esc(F.title || (el ? figTitle(el) : fid))}</h4>${c && c.id ? `<a class="go" href="#${c.id}">ver no painel →</a>` : ""}`;
-          return `<article class="gfig" id="doc-${fid}"><header>${head}</header><div class="gcols"><div><h5>O que mostra</h5><p>${F.what}</p></div>` +
-            `<div><h5>Como ler</h5><ul>${F.read.map((r) => `<li>${r}</li>`).join("")}</ul></div></div>` +
+        const ctrls = T_.controls.length ? `<h4 class="gk">Controles: o que cada um faz</h4><table class="gtbl gctrl"><thead><tr><th>Controle</th><th>O que faz</th><th>Faixa e padrão</th></tr></thead><tbody>${T_.controls.map(([c, d, r]) => `<tr><th>${c}</th><td>${d}</td><td>${r || "—"}</td></tr>`).join("")}</tbody></table>` : "";
+        const kpis_ = Object.entries(G.KPI).filter(([, K]) => K.tab === id).map(([kid, K]) => `<div class="gkpi" id="gk-${kid}"><h4 class="gk">${esc(K.title)}</h4><table class="gtbl"><thead><tr><th>Indicador</th><th>O que significa</th><th>Como é calculado e como ler</th></tr></thead><tbody>${K.items.map(([a, b, c]) => `<tr><th>${a}</th><td>${b}</td><td>${c}</td></tr>`).join("")}</tbody></table></div>`).join("");
+        const flow = T_.flow && T_.flow.length ? `<h4 class="gk">Roteiro de leitura</h4><ol class="gflow">${T_.flow.map(([fid, txt]) => { const tg = fid && target(fid); return `<li>${txt}${tg ? ` <a href="${tg}">explicação ↓</a>` : ""}</li>`; }).join("")}</ol>` : "";
+        const figIdx = [], figs = ids.map((fid) => {
+          const F = G.FIG[fid], el = document.getElementById(fid), c = el && el.closest(".card"), lab = c && c.querySelector(".fig"), kd = KIND[F.kind] || KIND.html;
+          const title = esc(F.title || (el ? figTitle(el) : fid)); nFig++;
+          figIdx.push(`<a class="gchip" href="#doc-${fid}">${lab ? `<b>${lab.textContent}</b> ` : ""}${title}</a>`);
+          const rel = (cfor[fid] || []).map((cc) => `<a class="gchip" href="#${cc.id}">${esc(cc.title)}</a>`);
+          return `<details class="gfig gs" id="doc-${fid}"><summary><span class="gsum">${lab ? `<span class="fig">${lab.textContent}</span>` : ""}<span class="gft">${title}</span><span class="gkind">${kd[0]}</span></span><span class="gone">${F.one}</span></summary><div class="gfb">` +
+            (F.question ? `<p class="gq"><b>A pergunta que responde.</b> ${F.question}</p>` : "") +
+            `<div class="gcols"><div><h5>O que mostra</h5><p>${F.what}</p></div>` +
+            (F.elements && F.elements.length ? `<div><h5>Elementos do gráfico</h5><table class="gtbl gel"><tbody>${F.elements.map(([a, b]) => `<tr><th>${a}</th><td>${b}</td></tr>`).join("")}</tbody></table></div>` : "") + `</div>` +
+            (F.steps && F.steps.length ? `<h5>Como ler, passo a passo</h5><ol class="gnum">${F.steps.map((s) => `<li>${s}</li>`).join("")}</ol>` : "") +
+            `<h5>Como interagir</h5><p>${kd[1]}</p>` +
             (F.example ? `<div class="gex"><b>Exemplo com os dados atuais.</b> ${F.example}</div>` : "") +
-            (F.caution ? `<div class="gwarn"><b>Cuidado.</b> ${F.caution}</div>` : "") + "</article>";
+            (F.caution ? `<div class="gwarn"><b>Cuidado.</b> ${F.caution}</div>` : "") +
+            (F.mistakes && F.mistakes.length ? `<div class="gmis"><b>Erros comuns de leitura</b><ul>${F.mistakes.map((m) => `<li>${m}</li>`).join("")}</ul></div>` : "") +
+            `<div class="gadv gmeth"><h5>Como foi calculado</h5><p>${F.method}</p>${F.code ? `<p class="gcode"><span>Código:</span> ${esc(F.code)}</p>` : ""}</div>` +
+            (rel.length ? `<div class="gwhere"><span>Conceitos para entender:</span>${chips(rel)}</div>` : "") +
+            (c && c.id ? `<p class="gfoot"><a class="go" href="#${c.id}">ver no painel →</a></p>` : "") + "</div></details>";
         }).join("");
         tabToc.push(["g-tab-" + id, tabName(id), 2]);
         return `<div class="card gcard gtab" id="g-tab-${id}"><div class="card-h"><div><span class="eyebrow">${secn ? "§" + secn + " · " : ""}aba</span><h3>${ico(id, "gt-ico")} ${esc(tabName(id))}</h3></div><a class="icon-btn" href="#${id}">abrir a aba →</a></div>` +
-          `<div class="card-b pad prose"><div class="gcols"><div><h4 class="gk">Para que serve</h4><p>${T_.purpose}</p></div><div><h4 class="gk">De onde vêm os dados</h4><p>${T_.data}</p></div></div>${ctrls}` +
+          `<div class="card-b pad prose"><div class="gs gtabi">${T_.question ? `<p class="gq gqbig">${T_.question}</p>` : ""}` +
+          `<div class="gcols"><div><h4 class="gk">Para que serve</h4><p>${T_.purpose}</p></div>${T_.why ? `<div><h4 class="gk">Por que importa para o projeto</h4><p>${T_.why}</p></div>` : ""}</div>` +
+          `<h4 class="gk">De onde vêm os dados</h4><p>${T_.data}</p>${flow}${ctrls}${kpis_}` +
+          (T_.results && T_.results.length ? `<h4 class="gk">Resultados principais (números atuais)</h4><ul class="glist">${T_.results.map((r) => `<li>${r}</li>`).join("")}</ul>` : "") +
           `<div class="gkey"><b>A mensagem principal.</b> ${T_.take}</div>` +
-          (T_.try && T_.try.length ? `<div class="gtry"><b>Experimente</b><ol>${T_.try.map((x) => `<li>${x}</li>`).join("")}</ol><a class="icon-btn" href="#${id}">abrir a aba →</a></div>` : "") + `${figs}</div></div>`;
+          (T_.limits && T_.limits.length ? `<div class="gwarn"><b>Limites desta aba.</b><ul>${T_.limits.map((x) => `<li>${x}</li>`).join("")}</ul></div>` : "") +
+          (T_.try && T_.try.length ? `<div class="gtry"><b>Experimente</b><ol>${T_.try.map((x) => `<li>${x}</li>`).join("")}</ol><a class="icon-btn" href="#${id}">abrir a aba →</a></div>` : "") + `</div>` +
+          (figs ? `<h4 class="gk">Figuras e tabelas desta aba (${ids.length})</h4>${chips(figIdx)}${figs}` : "") + `</div></div>`;
       }).join(""));
     toc.push(...tabToc);
-    /* ---------- parte 4: como foi feito */
-    html += sec("g-how", "4. Como tudo foi feito",
-      card("g-pipe", "Princípios e etapas", `<div class="gsteps">${G.HOW.map(([t, d], i) => `<div class="gstep"><span class="n">${i < 3 ? "★" : i - 2}</span><div><b>${t}</b><p>${d}</p></div></div>`).join("")}</div>`) +
+    /* ---------- parte 4: fórmulas */
+    html += `<div class="gadv">` + sec("g-formulas", "4. Fórmulas, em símbolos e em palavras",
+      card("g-form", `As ${G.FORMULAS.length} contas por trás do site`, `<p>Para quem quer conferir: cada fórmula usada nas análises, com a leitura em palavras e a aba onde aparece. Nada aqui é necessário para ler os gráficos.</p>` +
+        `<div class="tbl-wrap" tabindex="0" role="region" aria-label="Fórmulas"><table class="gtbl gformt"><thead><tr><th>Nome</th><th>Fórmula</th><th>Em palavras</th><th>Onde</th></tr></thead><tbody>${G.FORMULAS.map(([n, f, w, o]) => `<tr class="gs"><th>${n}</th><td class="gfx">${f}</td><td>${w}</td><td>${o}</td></tr>`).join("")}</tbody></table></div>`, "", "")) + `</div>`;
+    /* ---------- parte 5: como foi feito */
+    html += sec("g-how", "5. Como tudo foi feito",
+      card("g-pipe", "Princípios e etapas", `<div class="gsteps">${G.HOW.map(([t, d], i) => `<div class="gstep gs"><span class="n">${i < 4 ? "★" : i - 3}</span><div><b>${t}</b><p>${d}</p></div></div>`).join("")}</div>`, "", "") +
       card("g-dec", "Registro de decisões: o que foi testado, adotado e rejeitado",
-        `<p>Toda escolha de método seguiu um critério fixado antes de olhar o resultado e avaliado em dados separados. Esta é a lista completa, inclusive do que não funcionou.</p><table class="gtbl"><thead><tr><th>Decisão</th><th>O que foi comparado</th><th>Resultado</th></tr></thead><tbody>${G.DECISIONS.map(([a, b, c]) => `<tr><th>${a}</th><td>${b}</td><td>${c}</td></tr>`).join("")}</tbody></table>`) +
-      card("g-lim", "Limites: o que estes resultados NÃO dizem", `<ul class="glist">${G.LIMITS.map((x) => `<li>${x}</li>`).join("")}</ul>`));
-    /* ---------- parte 5: glossário e referências */
-    html += sec("g-gloss", "5. Glossário e referências",
-      card("g-glossary", `Glossário (${G.GLOSS.length} termos)`, `<label class="gfind"><span class="sr">Filtrar o glossário</span><input type="search" id="gd-gq" placeholder="filtrar termos…"></label><dl class="gglos" id="gd-gl">${G.GLOSS.map(([t, d]) => `<div><dt>${t}</dt><dd>${d}</dd></div>`).join("")}</dl>`) +
-      card("g-refs", "Referências citadas no site", `<ol class="glist">${G.REFS.map((r) => `<li>${esc(r)}</li>`).join("")}</ol>`));
+        `<p>Toda escolha de método seguiu um critério fixado antes de olhar o resultado e avaliado em dados separados. Esta é a lista completa, inclusive do que não funcionou.</p><div class="tbl-wrap" tabindex="0" role="region" aria-label="Decisões"><table class="gtbl"><thead><tr><th>Decisão</th><th>O que foi comparado</th><th>Resultado</th></tr></thead><tbody>${G.DECISIONS.map(([a, b, c]) => `<tr class="gs"><th>${a}</th><td>${b}</td><td>${c}</td></tr>`).join("")}</tbody></table></div>`, "", "") +
+      `<div class="gadv">` + card("g-code", "Mapa do código: de cada aba ao programa que a calcula",
+        `<p>Onde está cada conta, para quem quiser conferir ou reproduzir. As análises em Python ficam em <span class="mono">code/webapp/analyses.py</span>; as contas feitas ao vivo no navegador, em <span class="mono">code/webapp/app.js</span>.</p><div class="tbl-wrap" tabindex="0" role="region" aria-label="Mapa do código"><table class="gtbl"><thead><tr><th>Aba</th><th>Análise (Python)</th><th>No navegador</th><th>Dados</th></tr></thead><tbody>${G.CODEMAP.map(([a, b, c, d]) => `<tr class="gs"><th>${a}</th><td class="mono">${b}</td><td>${c}</td><td class="mono">${d}</td></tr>`).join("")}</tbody></table></div>`, "", "") + `</div>` +
+      card("g-time", "Linha do tempo do trabalho", `<ol class="gtime">${G.TIMELINE.map(([d, t, x]) => `<li class="gs"><time>${d}</time><b>${t}</b><p>${x}</p></li>`).join("")}</ol>`, "", "") +
+      card("g-lim", "Limites: o que estes resultados NÃO dizem", `<ul class="glist">${G.LIMITS.map((x) => `<li class="gs">${x}</li>`).join("")}</ul>`, "", ""));
+    /* ---------- parte 6: perguntas frequentes */
+    html += sec("g-faq", "6. Perguntas frequentes",
+      card("g-faqs", `${G.FAQ.length} perguntas e respostas`, G.FAQ.map(([q, a]) => `<details class="gfaq gs"><summary>${q}</summary><p>${a}</p></details>`).join(""), "", ""));
+    /* ---------- parte 7: glossário e referências */
+    const GL = G.GLOSS.slice().sort((a, b) => a[0].localeCompare(b[0], "pt", { sensitivity: "base" }));
+    const letter = (t) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").charAt(0).toUpperCase();
+    const letters = [...new Set(GL.map(([t]) => letter(t)))].filter((c) => /[A-Z]/.test(c));
+    html += sec("g-gloss", "7. Glossário e referências",
+      card("g-glossary", `Glossário (${GL.length} termos)`, `<nav class="gabc" aria-label="Letras do glossário">${letters.map((l) => `<a href="#gl-${l}">${l}</a>`).join("")}</nav><dl class="gglos" id="gd-gl">` +
+        GL.map(([t, d], i) => { const l = letter(t), first = i === 0 || letter(GL[i - 1][0]) !== l; return `<div class="gs"${first && /[A-Z]/.test(l) ? ` id="gl-${l}"` : ""}><dt>${t}</dt><dd>${d}</dd></div>`; }).join("") + "</dl>", "", "") +
+      card("g-refs", `Referências (${G.REFS.reduce((a, [, r]) => a + r.length, 0)})`, G.REFS.map(([g, rs]) => `<h4 class="gk">${g}</h4><ol class="glist">${rs.map((r) => `<li class="gs">${esc(r)}</li>`).join("")}</ol>`).join(""), "", ""));
     main.innerHTML = html;
-    $("#gd-toc").innerHTML = `<b>Sumário</b><ol>${toc.map(([id, t, l]) => `<li class="l${l}"><a href="#${id}">${id.startsWith("g-tab-") ? ico(id.slice(6), "gt-ico") + " " : ""}${esc(t.replace(/^\d+\.\s*/, ""))}</a></li>`).join("")}</ol>`;
-    $("#fi-guia").innerHTML = `<div><dt>Dados</dt><dd>os mesmos do site; cada número citado aqui é lido dos dados e acompanha as análises</dd></div><div><dt>Método</dt><dd>${G.CONCEPTS.length} conceitos com exemplos interativos, ${Object.keys(G.FIG).length} figuras e tabelas explicadas, ${G.GLOSS.length} termos</dd></div><div><dt>Achado</dt><dd>leitura guiada de todas as ${tabsDoc.length} abas, do zero</dd></div>`;
-    $("#gd-gq").addEventListener("input", (e) => { const q = e.target.value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-      $("#gd-gl").querySelectorAll("div").forEach((d) => { d.hidden = q && !d.textContent.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().includes(q); }); });
+    $("#gd-toc").innerHTML = `<b>Sumário</b><ol>${toc.map(([id, t, l]) => `<li class="l${l}"><a href="#${id}" data-t="${id}">${id.startsWith("g-tab-") ? ico(id.slice(6), "gt-ico") + " " : ""}${esc(t.replace(/^\d+\.\s*/, ""))}</a></li>`).join("")}</ol>`;
+    const nWords = main.textContent.split(/\s+/).filter(Boolean).length;
+    $("#fi-guia").innerHTML = `<div><dt>Dados</dt><dd>os mesmos do site; cada número citado aqui é lido dos dados e acompanha as análises</dd></div><div><dt>Método</dt><dd>${G.CONCEPTS.length} conceitos com ${main.querySelectorAll(".gdemo").length} exemplos interativos, ${nFig} figuras e tabelas explicadas, ${Object.keys(G.KPI).length} fileiras de indicadores, ${G.FORMULAS.length} fórmulas, ${G.FAQ.length} perguntas, ${GL.length} termos</dd></div><div><dt>Achado</dt><dd>leitura guiada de todas as ${tabsDoc.length} abas, do zero (~${ni(Math.round(nWords / 1000) * 1000)} palavras, ~${ni(Math.round(nWords / 220 / 5) * 5)} min de leitura)</dd></div>`;
+    // cores das amostras: seguem o tema
+    drawer(() => { const t = T(); main.querySelectorAll(".gsw").forEach((s) => { const c = s.dataset.c;
+      s.style.background = c === "seq" ? `linear-gradient(90deg, ${t.seqScale.map((x) => x[1]).join(", ")})` : c.startsWith("cat:") ? t.cat[+c.slice(4)] : c; }); });
+    /* ---------- busca, nível, recolher/expandir, sumário ativo e progresso */
+    const norm = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+    const units = [...main.querySelectorAll(".gs")], boxes = [...main.querySelectorAll(".gcard:not(.gs)")], secs = [...main.querySelectorAll(".gsec")];
+    const utext = units.map((u) => norm(u.textContent));
+    const search = (raw) => {
+      const q = norm(raw.trim()); let n = 0;
+      units.forEach((u, i) => { const hit = !q || utext[i].includes(q); u.hidden = !hit; if (hit && q) { n++; if (u.tagName === "DETAILS") u.open = true; } });
+      boxes.forEach((b) => { b.hidden = !!q && !b.querySelector(".gs:not([hidden])"); });
+      secs.forEach((s) => { s.hidden = !!q && !s.querySelector(".gcard:not([hidden])"); });
+      main.querySelectorAll(".gsub").forEach((h_) => { let x = h_.nextElementSibling, any = false;          // título de grupo sem cartões visíveis some
+        while (x && !x.classList.contains("gsub")) { if (x.classList.contains("gcard") && !x.hidden) any = true; x = x.nextElementSibling; } h_.hidden = !!q && !any; });
+      $("#gd-count").textContent = q ? (n ? `${ni(n)} trecho${n > 1 ? "s" : ""} com \"${raw.trim()}\"` : "nada encontrado") : "";
+    };
+    $("#gd-q").addEventListener("input", throttle(() => search($("#gd-q").value), 120));
+    let lvl = "full"; try { lvl = localStorage.getItem("augo-guia-lvl") || "full"; } catch (e) { /* armazenamento indisponível */ }
+    const setLvl = (x) => { lvl = x; main.classList.toggle("basic", x === "basic"); $("#gd-lvl").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.v === x ? "true" : "false"));
+      try { localStorage.setItem("augo-guia-lvl", x); } catch (e) { /* armazenamento indisponível */ } };
+    setLvl(lvl); segmented("#gd-lvl", setLvl);
+    // um link para dentro do guia (#doc-…, sumário) precisa achar o alvo visível: limpa a busca, volta ao nível completo e abre a figura
+    guideReveal = (el) => {
+      if (el.closest("#gd-main [hidden]")) { $("#gd-q").value = ""; search(""); }
+      if (el.closest(".gadv") && lvl === "basic") setLvl("full");
+      const d = el.tagName === "DETAILS" ? el : el.closest("details"); if (d) d.open = true;
+    };
+    $("#gd-open").addEventListener("click", () => main.querySelectorAll("details.gfig").forEach((d) => { d.open = true; }));
+    $("#gd-close").addEventListener("click", () => main.querySelectorAll("details.gfig, details.gfaq").forEach((d) => { d.open = false; }));
+    window.addEventListener("beforeprint", () => { if (current === "guia") main.querySelectorAll("details").forEach((d) => { d.open = true; }); });
+    const links = [...$("#gd-toc").querySelectorAll("a[data-t]")], tgt = links.map((a) => document.getElementById(a.dataset.t));
+    const onScroll = throttle(() => {
+      if (current !== "guia") return;
+      const top = (document.querySelector(".top") || { offsetHeight: 60 }).offsetHeight + 40;
+      let k = 0; tgt.forEach((el, i) => { if (el && !el.closest("[hidden]") && el.getBoundingClientRect().top < top) k = i; });
+      links.forEach((a, i) => a.classList.toggle("on", i === k));
+      const r = main.getBoundingClientRect(), span = Math.max(1, r.height - innerHeight);
+      $("#gd-prog").style.width = `${Math.max(0, Math.min(100, (-r.top + top) / span * 100))}%`;
+    }, 100);
+    window.addEventListener("scroll", onScroll, { passive: true }); onScroll();
     guideDemos();
     addExpanders(main);
   };
@@ -1489,6 +1594,95 @@
             { xaxis: { type: "log", title: { text: "diâmetro (nm)" }, tickvals: [2, 5, 10, 20, 50, 100, 200] }, yaxis: { title: { text: "plausibilidade (máx. = 1)" }, range: [0, 1.05] } });
           $("#bayes-txt").innerHTML = `<p>Posterior = a priori × verossimilhança, renormalizada. Com o pico em ${pk} nm, ${pk < 530 ? "a verossimilhança é larga (o pico quase não muda abaixo de 25 nm) e a posterior herda boa parte da a priori" : "a verossimilhança se concentra em partículas maiores e puxa a posterior para lá"}.</p>`; };
         segmented("#gd-pk", (x) => { pk = +x; draw(); }); drawer(draw); } }
+    // perda J ponto a ponto (ensemble de Mie com σ do alvo)
+    { const O = A.optics, tg = O.target, wl = O.wl, ld = O.d.map(Math.log), C = O.C_ext.map((r, i) => r.map((v2) => v2 * O.C_ext_max[i]));
+      const nG = Math.round((tg.grid[1] - tg.grid[0]) / tg.grid[2]) + 1, gw = Array.from({ length: nG }, (_, i) => tg.grid[0] + i * tg.grid[2]);
+      const at = (w, xs, ys) => { let j = 0; while (j < xs.length - 2 && xs[j + 1] < w) j++; const f = (w - xs[j]) / (xs[j + 1] - xs[j]); return ys[j] + f * (ys[j + 1] - ys[j]); };
+      const tN = (() => { const e = gw.map((w) => at(w, tg.wl, tg.E)), m = Math.max(...e); return e.map((x) => x / m); })();
+      const spec = (d) => { const sl = Math.sqrt(Math.log(1 + tg.sigma * tg.sigma)), mu = Math.log(d) - sl * sl / 2, w = ld.map((x) => Math.exp(-0.5 * ((x - mu) / sl) ** 2)), tot = w.reduce((a, b) => a + b, 0);
+        const E = wl.map((_, j) => w.reduce((a, wi, i) => a + (wi > 1e-9 * tot ? wi * C[i][j] : 0), 0) / tot), e = gw.map((x) => at(x, wl, E)), m = Math.max(...e); return e.map((x) => x / m); };
+      const el = wrap("jloss", `<div class="ctl"><label for="gd-jd">Diâmetro médio <output id="gd-jd-o"></output></label><input type="range" id="gd-jd" min="0" max="100" step="1" value="50"></div>`, [["gd-jl", "tall"]]);
+      if (el) { const draw = () => { const t = T(), d = tg.diameter * Math.pow(2.5, (+$("#gd-jd").value - 50) / 50), e = spec(d), r = e.map((x, i) => (x - tN[i]) / tg.s_m), J = r.reduce((a, x) => a + x * x, 0) / r.length;
+          $("#gd-jd-o").textContent = `${nf(d, d < 10 ? 1 : 0)} nm`;
+          plot("gd-jl", [{ type: "scatter", mode: "lines", name: "espectro da amostra", x: gw, y: e, line: { color: t.cat[0], width: 2.4 }, hovertemplate: "λ = %{x} nm: %{y:.3f}<extra></extra>" },
+            { type: "scatter", mode: "lines", name: `alvo (${nf(tg.diameter, 0)} nm, σ = ${nf(100 * tg.sigma, 0)} %)`, x: gw, y: tN, line: { color: t.ink, dash: "dash", width: 1.8 }, hoverinfo: "skip" },
+            { type: "bar", name: "diferença ÷ sₘ", x: gw, y: r, marker: { color: r.map((x) => (x > 0 ? t.cat[1] : t.cat[2])) }, xaxis: "x2", yaxis: "y2", hovertemplate: "λ = %{x} nm: %{y:.0f} × sₘ<extra></extra>" }],
+            { grid: { rows: 2, columns: 1, pattern: "independent", roworder: "top to bottom" }, xaxis: { matches: "x2", showticklabels: false }, yaxis: { title: { text: "extinção (máx. = 1)" }, range: [0, 1.05] },
+              xaxis2: { title: { text: "comprimento de onda (nm)" } }, yaxis2: { title: { text: "(E − E*) / sₘ" } }, bargap: 0, legend: { y: 1.14 } });
+          $("#jloss-txt").innerHTML = `<p>Embaixo, a diferença em cada comprimento de onda em unidades do ruído de medida (sₘ = ${nf(tg.s_m, 3)}): barras laranja = a amostra absorve mais que o alvo; verdes = menos. J é a média dos quadrados dessas barras: <b>J ${J < 0.01 ? "≈ 0" : "= " + nf(J, J < 10 ? 2 : 0)}</b> (log₁₀ J = ${J > 0 ? nf(Math.log10(J), 1) : "−∞"}). ${J < 1 ? "Abaixo de 1: a diferença é do tamanho do ruído, a amostra atende ao alvo." : J < 100 ? "Diferença maior que o ruído: forma do espectro distinguível do alvo." : "Diferença muito maior que o ruído: espectro claramente fora do alvo."} A dispersão foi mantida igual à do alvo (${nf(100 * tg.sigma, 0)} %) para isolar o efeito do diâmetro.</p>`; };
+        $("#gd-jd").addEventListener("input", perFrame(draw)); drawer(draw); } }
+    // correlação de Spearman: tamanho × pico relatados
+    { const S0 = A.optics.lit_spheres, el = wrap("corr", `<div class="ctl ctl-auto"><span class="lbl" id="gd-cr-l">Faixa de tamanho</span><div class="seg" id="gd-cr" role="group" aria-labelledby="gd-cr-l"><button type="button" aria-pressed="true" data-v="all">todos</button><button type="button" aria-pressed="false" data-v="small">abaixo de 25 nm</button><button type="button" aria-pressed="false" data-v="big">25 a 150 nm</button></div></div>`, [["gd-corr"]]);
+      const rank = (v) => { const o = v.map((x, i) => [x, i]).sort((a, b) => a[0] - b[0]), r = new Array(v.length); let i = 0;
+        while (i < o.length) { let j = i; while (j + 1 < o.length && o[j + 1][0] === o[i][0]) j++; for (let k2 = i; k2 <= j; k2++) r[o[k2][1]] = (i + j) / 2 + 1; i = j + 1; } return r; };
+      const pear = (a, b) => { const n = a.length, ma = a.reduce((s, x) => s + x, 0) / n, mb = b.reduce((s, x) => s + x, 0) / n; let sab = 0, saa = 0, sbb = 0;
+        for (let i = 0; i < n; i++) { sab += (a[i] - ma) * (b[i] - mb); saa += (a[i] - ma) ** 2; sbb += (b[i] - mb) ** 2; } return sab / Math.sqrt(saa * sbb); };
+      if (el) { let rg = "all"; const draw = () => { const t = T(), keep = S0.size.map((s, i) => i).filter((i) => (rg === "all" ? true : rg === "small" ? S0.size[i] < 25 : S0.size[i] >= 25 && S0.size[i] <= 150));
+          const x = keep.map((i) => S0.size[i]), y = keep.map((i) => S0.peak[i]), rho = pear(rank(x), rank(y));
+          plot("gd-corr", [{ type: "scatter", mode: "markers", x, y, marker: { size: 6, color: t.cat[0], opacity: 0.55, line: { width: 0 } }, hovertemplate: "%{x:.1f} nm → pico %{y:.0f} nm<extra></extra>" }],
+            { showlegend: false, xaxis: { type: "log", title: { text: "tamanho relatado (nm)" }, tickvals: [3, 5, 10, 20, 50, 100] }, yaxis: { title: { text: "pico relatado (nm)" } } });
+          $("#corr-txt").innerHTML = `<p>${ni(x.length)} relatos de esferas. Correlação de Spearman <b>ρ = ${nf(rho, 2)}</b>: ${rho > 0.6 ? "forte e positiva (partículas maiores, pico mais à direita)" : rho > 0.3 ? "moderada" : "fraca"}. ${rg === "small" ? "Abaixo de 25 nm o pico quase não muda com o tamanho (Mie), e a correlação cai: o que sobra é ruído de relato." : rg === "big" ? "Acima de 25 nm o pico anda com o tamanho, como Mie e Haiss preveem." : "Restrinja a faixa para ver onde a relação existe."}</p>`; };
+        segmented("#gd-cr", (v2) => { rg = v2; draw(); }); drawer(draw); } }
+    // boosting: a previsão se formando árvore a árvore
+    { const P = A.predictor, M = P.models["0.5"], F = P.features, fi = (n) => F.indexOf(n);
+      const R = [["Turkevich (citrato, 100 °C)", ["citrato"], 0, 100, 0], ["Brust (NaBH₄ + tiol + TOAB, 25 °C)", ["NaBH₄", "tiol (GSH/dodecanotiol)", "TOAB"], 0, 25, 0], ["Sementes + CTAB, bastões (30 °C)", ["NaBH₄", "ácido ascórbico", "CTAB"], 1, 30, 1]];
+      const vecR = ([, names, seed, Tc, rod]) => { const x = new Array(F.length).fill(0); names.forEach((n) => { x[fi(n)] = 1; }); x[fi("mediada por sementes")] = seed; x[fi("temperatura (°C)")] = Tc; x[fi("ano")] = 2020;
+        x[fi("forma não esférica")] = rod; x[fi("bastão")] = rod; return x; };
+      const leaf = (r, x) => { let k2 = r; while (M.f[k2] >= 0) { const v2 = x[M.f[k2]]; k2 = v2 == null || Number.isNaN(v2) ? (M.m[k2] ? M.l[k2] : M.r[k2]) : (v2 <= M.t[k2] ? M.l[k2] : M.r[k2]); } return M.v[k2]; };
+      const el = wrap("boost", `<div class="ctl"><label for="gd-br">Receita</label><select id="gd-br">${R.map((r, i) => `<option value="${i}">${esc(r[0])}</option>`).join("")}</select></div><div class="ctl"><label for="gd-bn">Árvores somadas <output id="gd-bn-o"></output></label><input type="range" id="gd-bn" min="0" max="${M.roots.length}" step="1" value="${M.roots.length}"></div>`, [["gd-boost"]]);
+      if (el) { const draw = () => { const t = T(), x = vecR(R[+$("#gd-br").value]), n = +$("#gd-bn").value, cum = [M.base]; M.roots.forEach((r) => cum.push(cum[cum.length - 1] + leaf(r, x)));
+          const nm = cum.map(Math.exp);
+          plot("gd-boost", [{ type: "scatter", mode: "lines", name: "todas as árvores", x: nm.map((_, i) => i), y: nm, line: { color: t.lineStrong, width: 1.5 }, hoverinfo: "skip" },
+            { type: "scatter", mode: "lines", name: "somadas até aqui", x: nm.slice(0, n + 1).map((_, i) => i), y: nm.slice(0, n + 1), line: { color: t.cat[0], width: 2.6 }, hovertemplate: "%{x} árvores: %{y:.1f} nm<extra></extra>" },
+            { type: "scatter", mode: "markers", name: "previsão atual", x: [n], y: [nm[n]], marker: { size: 11, color: t.ruby, line: { width: 2, color: t.surface } }, hovertemplate: "%{y:.1f} nm<extra></extra>" }],
+            { xaxis: { title: { text: "número de árvores somadas" } }, yaxis: { type: "log", title: { text: "tamanho mediano previsto (nm)" } }, legend: { y: 1.12 } });
+          $("#gd-bn-o").textContent = ni(n);
+          const q4 = Math.round(M.roots.length / 4), tot = cum[cum.length - 1] - cum[0], fr = Math.abs(tot) > 1e-9 ? (cum[q4] - cum[0]) / tot : 1;
+          $("#boost-txt").innerHTML = `<p>A previsão começa no valor típico de toda a base (${nf(nm[0], 1)} nm, árvore 0) e cada árvore pequena acrescenta uma correção (a taxa de aprendizado deixa cada passo pequeno, o que evita decorar os dados). Com ${ni(n)} de ${ni(M.roots.length)} árvores a mediana prevista é <b>${nf(nm[n], 1)} nm</b>. Nesta receita, o primeiro quarto das árvores (${ni(q4)}) faz ${nf(100 * Math.max(0, Math.min(1.5, fr)), 0)} % da mudança total, de ${nf(nm[0], 1)} para ${nf(nm[nm.length - 1], 1)} nm. Troque a receita: com a de Brust a soma desce para poucos nanômetros.</p>`; };
+        $("#gd-br").addEventListener("change", draw); $("#gd-bn").addEventListener("input", perFrame(draw)); drawer(draw); } }
+    // meta-análise: efeitos fixos × aleatórios
+    { const E_ = A.causal.effects, el = wrap("meta", `<div class="ctl"><label for="gd-me">Efeito</label><select id="gd-me">${E_.map((e, i) => `<option value="${i}">${esc(e.name)}</option>`).join("")}</select></div><div class="ctl ctl-auto"><span class="lbl" id="gd-mm-l">Modelo</span><div class="seg" id="gd-mm" role="group" aria-labelledby="gd-mm-l"><button type="button" aria-pressed="false" data-v="fixed">efeito fixo</button><button type="button" aria-pressed="true" data-v="random">efeitos aleatórios</button></div></div>`, [["gd-meta", "short"]]);
+      if (el) { let mm = "random"; const draw = () => { const t = T(), e = E_[+$("#gd-me").value], R2 = e.replication, b = R2.bases;
+          const w = b.map((x) => 1 / (x.se_log * x.se_log)), fx = Math.exp(b.reduce((a, x, i) => a + w[i] * Math.log(x.estimate), 0) / w.reduce((a, x) => a + x, 0)), fse = 1 / Math.sqrt(w.reduce((a, x) => a + x, 0));
+          const pool = mm === "fixed" ? [fx, fx * Math.exp(-1.96 * fse), fx * Math.exp(1.96 * fse)] : [R2.pooled, R2.pooled_ci95[0], R2.pooled_ci95[1]];
+          const ys = [...b.map((x) => x.base), mm === "fixed" ? "combinado (fixo)" : "combinado (aleatório)"], xs = [...b.map((x) => x.estimate), pool[0]], lo = [...b.map((x) => x.ci95[0]), pool[1]], hi = [...b.map((x) => x.ci95[1]), pool[2]];
+          plot("gd-meta", [{ type: "scatter", mode: "markers", x: xs, y: ys, marker: { size: [12, 12, 15], symbol: ["circle", "circle", "diamond"], color: [t.cat[0], t.cat[3], t.ruby], line: { width: 2, color: t.surface } },
+            error_x: { type: "data", symmetric: false, array: hi.map((h2, i) => h2 - xs[i]), arrayminus: lo.map((l2, i) => xs[i] - l2), color: t.ink2, width: 5 }, hovertemplate: "%{y}: ×%{x:.2f}<extra></extra>" }],
+            { showlegend: false, xaxis: { type: "log", title: { text: e.binary ? "razão de riscos (1 = nenhum efeito)" : "razão de tamanhos (1 = nenhum efeito)" } }, yaxis: { automargin: true, autorange: "reversed" },
+              shapes: [{ type: "line", x0: 1, x1: 1, yref: "paper", y0: 0, y1: 1, line: { color: t.ink, dash: "dot", width: 1 } }] });
+          $("#meta-txt").innerHTML = `<p>${mm === "fixed" ? `O modelo de efeito fixo supõe um único efeito verdadeiro e dá um intervalo estreito (×${nf(pool[1], 2)} a ×${nf(pool[2], 2)}), mas ignora que as bases discordam mais do que o acaso explica.` : `O modelo de efeitos aleatórios admite que o efeito varie entre as bases (τ = ${nf(R2.tau, 2)} em log) e alarga o intervalo para ×${nf(pool[1], 2)} a ×${nf(pool[2], 2)}: é o intervalo honesto.`} I² = ${nf(100 * R2.I2, 0)} %: ${R2.I2 > 0.75 ? "a maior parte da diferença entre as bases não é acaso" : R2.I2 > 0.25 ? "parte da diferença entre as bases não é acaso" : "a diferença entre as bases é compatível com o acaso"}. ${R2.same_direction ? "As duas bases concordam na direção." : "As bases discordam na direção."}</p>`; };
+        $("#gd-me").addEventListener("change", draw); segmented("#gd-mm", (v2) => { mm = v2; draw(); }); drawer(draw); } }
+    // lei de Bragg: energia do feixe × anéis medidos
+    { const X_ = A.xrd, g = X_.geometry, rings = X_.rings, el = wrap("bragg", `<div class="ctl"><label for="gd-be">Energia do feixe <output id="gd-be-o"></output></label><input type="range" id="gd-be" min="${Math.round(g.energy_keV - 12)}" max="${Math.round(g.energy_keV + 12)}" step="0.1" value="${nf(g.energy_keV, 1).replace(",", ".")}"></div>`, [["gd-bragg"]]);
+      if (el) { const r0 = X_.profile.map((_, i) => i), prof = X_.profile.map((v2, i) => Math.max(v2 - X_.baseline[i], 0) + 1);
+        const draw = () => { const t = T(), E = +$("#gd-be").value, lam = 12.398 / E, rp = rings.map((r) => { const s = lam / (2 * g.a_ceo2_A / Math.sqrt(r.N)); return g.distance_px * Math.tan(2 * Math.asin(s)); });
+          const res = rp.map((r, i) => r - rings[i].r_obs), rms = Math.sqrt(res.reduce((a, x) => a + x * x, 0) / res.length), top = Math.max(...prof);
+          $("#gd-be-o").textContent = `${nf(E, 1)} keV`;
+          plot("gd-bragg", [{ type: "scatter", mode: "lines", name: "perfil medido (anéis = picos)", x: r0, y: prof, line: { color: t.cat[0], width: 1.4 }, hovertemplate: "r = %{x} px<extra></extra>" },
+            { type: "scatter", mode: "markers", name: "anel previsto pela energia escolhida", x: rp, y: rp.map(() => top * 1.6), text: rings.map((r) => r.hkl), marker: { symbol: "triangle-down", size: 10, color: t.ruby }, hovertemplate: "hkl %{text}: previsto %{x:.0f} px<extra></extra>" }],
+            { xaxis: { title: { text: "raio no detector (pixels)" }, range: [150, X_.profile.length] }, yaxis: { type: "log", title: { text: "intensidade acima da linha de base" } }, legend: { y: 1.14 },
+              shapes: rp.map((x) => ({ type: "line", x0: x, x1: x, yref: "paper", y0: 0, y1: 1, line: { color: hexA(t.ruby, 0.45), width: 1, dash: "dot" } })) });
+          $("#bragg-txt").innerHTML = `<p>Os picos azuis são os anéis medidos; os triângulos vermelhos, onde a lei de Bragg põe cada anel para a energia escolhida (com a distância do detector fixa em ${ni(g.distance_px)} px). Erro médio entre previsto e medido: <b>${nf(rms, rms < 1 ? 2 : 0)} pixel</b>. ${Math.abs(E - g.energy_keV) < 0.15 ? `Na energia ajustada (${nf(g.energy_keV, 1)} keV) os triângulos caem exatamente sobre os picos: é a calibração.` : `Fora da energia ajustada (${nf(g.energy_keV, 1)} keV) os triângulos escorregam: ${E > g.energy_keV ? "energia maior = comprimento de onda menor = ângulos menores = anéis mais perto do centro" : "energia menor = comprimento de onda maior = ângulos maiores = anéis mais longe do centro"}.`}</p>`; };
+        $("#gd-be").addEventListener("input", perFrame(draw)); drawer(draw); } }
+    // deslocamento de Stokes
+    { const U_ = A.aunc, idx = U_.exc.map((_, i) => i).filter((i) => U_.exc[i] != null && U_.em[i] != null), el = wrap("stokes", "", [["gd-stokes"]]);
+      if (el) { const draw = () => { const t = T(), x = idx.map((i) => U_.exc[i]), y = idx.map((i) => U_.em[i]), st = idx.map((i) => U_.em[i] - U_.exc[i]), lo = Math.min(...x, ...y) - 10, hi = Math.max(...x, ...y) + 10;
+          plot("gd-stokes", [{ type: "scatter", mode: "lines", name: "emissão = excitação", x: [lo, hi], y: [lo, hi], line: { color: t.muted, dash: "dot", width: 1.2 }, hoverinfo: "skip" },
+            { type: "scatter", mode: "markers", name: "aglomerado relatado", x, y, customdata: st, marker: { size: 7, color: t.cat[0], opacity: 0.7, line: { width: 1, color: t.surface } }, hovertemplate: "excitação %{x} nm → emissão %{y} nm<br>Stokes %{customdata} nm<extra></extra>" }],
+            { xaxis: { title: { text: "excitação (nm)" } }, yaxis: { title: { text: "emissão (nm)" } }, legend: { y: 1.12 } });
+          $("#stokes-txt").innerHTML = `<p>${ni(x.length)} aglomerados. Todos ficam acima da diagonal: a luz emitida tem comprimento de onda maior (menos energia) que a de excitação. Deslocamento de Stokes mediano: <b>${nf(median(st), 0)} nm</b> (metade entre ${nf(quant(st, 0.25), 0)} e ${nf(quant(st, 0.75), 0)} nm). A distância vertical até a diagonal é o deslocamento de cada ponto.</p>`; };
+        drawer(draw); } }
+    // pesos de propensão: antes × depois
+    { const E_ = A.causal.effects, el = wrap("ipw", `<div class="ctl"><label for="gd-pe">Efeito</label><select id="gd-pe">${E_.map((e, i) => `<option value="${i}">${esc(e.name)}</option>`).join("")}</select></div><label class="toggle" for="gd-pw"><input type="checkbox" id="gd-pw"> aplicar os pesos (1/e e 1/(1 − e))</label>`, [["gd-ipw"]]);
+      if (el) { const hist = (v, w) => { const c = new Array(25).fill(0); v.forEach((x, i) => { const j = Math.min(24, Math.max(0, Math.floor(x * 25))); c[j] += w[i]; }); const s = c.reduce((a, b) => a + b, 0) || 1; return c.map((x) => x / s * 25); };
+        const draw = () => { const t = T(), e = E_[+$("#gd-pe").value], on = $("#gd-pw").checked, cl = (x) => Math.min(0.98, Math.max(0.02, x)), tr = e.propensity.treated, ct = e.propensity.control;
+          const ht = hist(tr, tr.map((x) => (on ? 1 / cl(x) : 1))), hc = hist(ct, ct.map((x) => (on ? 1 / (1 - cl(x)) : 1))), mid = ht.map((_, j) => (j + 0.5) / 25);
+          const ov = ht.reduce((a, x, j) => a + Math.min(x, hc[j]), 0) / 25;
+          plot("gd-ipw", [{ type: "bar", name: "tratados", x: mid, y: ht, marker: { color: hexA(t.cat[1], 0.65) }, hovertemplate: "e ≈ %{x:.2f}: densidade %{y:.2f}<extra>tratados</extra>" },
+            { type: "bar", name: "controles", x: mid, y: hc, marker: { color: hexA(t.cat[0], 0.65) }, hovertemplate: "e ≈ %{x:.2f}: densidade %{y:.2f}<extra>controles</extra>" }],
+            { barmode: "overlay", bargap: 0.04, xaxis: { title: { text: "escore de propensão e (chance de receber o tratamento)" }, range: [0, 1] }, yaxis: { title: { text: on ? "densidade ponderada" : "densidade" } }, legend: { y: 1.12 } });
+          $("#ipw-txt").innerHTML = `<p>${esc(e.name)}: ${ni(e.n_treated)} tratados e ${ni(e.n - e.n_treated)} controles (amostra para o gráfico). ${on ? "Com os pesos, cada síntese \"rara\" para o seu grupo vale por várias, e as duas distribuições se aproximam: os grupos ficam comparáveis, como num sorteio." : "Sem pesos, tratados têm escores mais altos que os controles: os grupos diferem antes mesmo do tratamento."} Sobreposição das duas distribuições: <b>${nf(100 * ov, 0)} %</b>. Marque e desmarque a caixa para comparar.</p>`; };
+        $("#gd-pe").addEventListener("change", draw); $("#gd-pw").addEventListener("change", draw); drawer(draw); } }
   }
 
   /* ================================================================== variabilidade */
