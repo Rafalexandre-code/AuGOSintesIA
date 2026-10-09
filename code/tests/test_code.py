@@ -291,7 +291,7 @@ def test_cli_help():
                    "code/characterization/sers.py", "code/characterization/saxs.py", "code/kinetics/kinetics.py",
                    "code/go_navigator/fingerprint.py", "code/aunp_designer/autopilot.py", "code/campaign/ingest.py",
                    "code/benchmarking/calibrate.py", "code/sdl/loop.py",
-                   "code/transfer_learning/hardware.py"):
+                   "code/transfer_learning/hardware.py", "code/webapp/build_site.py"):
         assert subprocess.run([sys.executable, os.path.join(ROOT, script), "--help"], capture_output=True).returncode == 0
 
 

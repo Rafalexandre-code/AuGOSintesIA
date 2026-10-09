@@ -48,6 +48,8 @@
 16. [Ecossistema JARVIS e design inverso atomístico GO–Au](#16-ecossistema-jarvis-e-design-inverso-atomístico-goau)
 17. [Fechamento do checklist do núcleo da proposta (2026-10-02)](#17-fechamento-do-checklist-do-núcleo-da-proposta-2026-10-02)
 18. [Segunda auditoria: desenho estatístico e itens restantes (2026-10-02)](#18-segunda-auditoria-desenho-estatístico-e-itens-restantes-2026-10-02)
+19. [Terceira auditoria: da bancada ao modelo (2026-10-03)](#19-terceira-auditoria-da-bancada-ao-modelo-2026-10-03)
+20. [A proposta com os dados experimentais disponíveis: o site (2026-10-04)](#20-a-proposta-com-os-dados-experimentais-disponíveis-o-site-2026-10-04)
 
 ---
 
@@ -1349,3 +1351,167 @@ simulações antes do `freeze`; decidir com o orientador o `premise_test`; rodar
 exige GPU e acesso ao Hugging Face); publicar o DOI (conta no Zenodo); habilitar o GitHub Actions no repositório,
 se estiver desligado.
 
+---
+
+## 20. A proposta com os dados experimentais disponíveis: o site (2026-10-04)
+
+`datasets/lab/` ainda não tem medidas do projeto. Para executar a proposta desde já **sem o simulador**, os métodos
+foram aplicados às medidas reais e publicadas que o repositório já tem, e os resultados ficam num site interativo:
+**[`site/index.html`](../site/README.md)** (abre com duplo clique; 13 abas, incluindo um **Guia completo** para leigos e o **Nanocompósito 3D** em WebGL, gráficos 2D e 3D Plotly, temas claro e
+escuro, uso no celular). O código fica em `code/webapp/`: `expdata.py` carrega só dados experimentais,
+`analyses.py` faz as análises por seção, `build_site.py` gera `site/`, e `app.js` desenha os gráficos e roda no
+navegador o GP do Designer (mesma conta do GPyTorch) e o Mie + perda J (mesma conta de `uvvis.spectral_loss_J`).
+
+| Seção | Dados reais usados | Resultado |
+|---|---|---|
+| §4.1, §4.3 | 15 928 sínteses de Au de 5 132 DOIs (Cruse 2022, NSP 2026, AuNC 2025); 312 registros GO–AuNP de 120 artigos | filtros por base, redutor, morfologia, rota e GO; tamanho mediano 15 nm |
+| §4.4, §4.6, §4.10 | n, k do Au (Johnson & Christy) + 798 pares tamanho–pico relatados | Mie (σ = 10 %) prevê o LSPR com erro mediano de **4,0 nm** (53 % dentro de 5 nm); no alvo do pré-registro, J ≈ 0, como deve |
+| §4.5, §4.18 | campanha AgNP em microfluídica (Mekki-Berrada 2021): 3 295 medidas, 164 condições, perda espectral contra alvo | GP Matérn-5/2 + ARD em ln(perda): **R² 0,93** em 10 dobras, cobertura do IC 95 % de 92 %; 5 sugestões por EI |
+| §4.15, §4.16 | 5 campanhas experimentais (AgNP + 4 de Liang 2021), 40 repetições por estratégia, mesma partida de 5 condições por repetição | experimentos até o top 5 % (mediana; quem não chega conta como orçamento + 1): GP-EI é **melhor que o acaso** em AgNP (9 × 13; Wilcoxon pareado p < 0,001), crossed barrel (9 × 14; p = 0,005) e P3HT/CNT (7 × 11,5; p = 0,026), mas só o AgNP resiste à correção de Holm para as 15 comparações (p_Holm = 0,002); empata em perovskitas e AutoAM (~100 condições, onde a partida aleatória já cobre o top 5 %), como em Liang et al. 2021 |
+| §4.13 | GP AgNP (SHAP exato), AuNC e literatura (TreeSHAP) | AgNP: sementes ≈ AgNO₃ > citrato, interação H² até 0,14; literatura (28 variáveis, 10 993 registros de 6 792 artigos, R² por artigo 0,25): NaBH₄, época, citrato, ácido ascórbico, rota com sementes e forma movem o tamanho |
+| §4.7, §4.17 | réplicas AgNP; Turkevich (citrato como único redutor, sem sementes, esfera) em 1 521 artigos; AuNC por artigo | ruído **heteroscedástico** (Brown–Forsythe p < 10⁻¹⁰⁰), ICC 0,95, CV mediano 4,9 %; a mesma rota dá mediana 16,0 nm (Frens: 16 nm) e 10–46 nm (10–90 %), fator ×1,88 por dp; prever a emissão de AuNC (pelo deslocamento de Stokes) para um **artigo novo** cai de R² 0,31 para 0,09 (IC 95 % −0,26 a 0,37) |
+| §4.9 | Cruse 2022 + NSP 2026 (a base de AuNC, selecionada pelo produto, fica fora) | grafo mecanístico e quatro efeitos por AIPW (conferidos por IPW, entropia e aparo; bootstrap de artigos; E-value): NaBH₄ × citrato na rota direta **×0,38** (0,34–0,43); sementes × direta **×1,63** (1,48–1,80); CTAB/CTAC → forma não esférica **RR 2,2** (1,9–2,6); tiol **×0,62** (0,46–0,82, magnitude frágil). Os quatro na direção prevista pela literatura |
+| §4.2 | 5 quadros GE de CeO₂ + dark (2048²) | centro pelo contraste do perfil radial; **14 anéis** da fluorita indexados, r = D·tan 2θ: λ = 0,1956 Å (63,4 keV), D = 4 118 px, resíduo RMS 0,08 px |
+
+Como ler: os números de §4.15 são reamostragens das medidas reais (cada estratégia só escolhe entre condições
+medidas), não simulação; como a mesma semente sorteia a mesma partida em todos os braços, a comparação é pareada
+(Wilcoxon por repetição). O resultado misto é a razão de o projeto comparar braços em vez de assumir que o GP ganha.
+A análise causal é observacional. Mineração de texto erra: os filtros físicos removem os erros grosseiros, e o tamanho
+de Cruse et al. é por artigo. O que exige as sínteses GO–AuNP do próprio projeto (lotes de GO e GO Navigator, braços
+contextuais e transferência entre lotes, MISO, campanha prospectiva e confirmação por TEM) aparece no site como
+"aguarda o laboratório", com o código já pronto em `code/`.
+
+Desenho: navegação lateral por etapa da proposta, ficha Dados · Método · Achado por aba, figuras numeradas, busca
+rápida (Ctrl K) e a cor real do ouro coloidal calculada por Mie + colorimetria CIE (faixa de cores por tamanho,
+superfície 3D colorida e cubeta interativa na aba Óptica).
+Recursos do painel: cada aba guarda o estado (filtros, controles) ao trocar o tema; controles redesenham uma vez por
+quadro; gráficos ampliáveis em tela cheia, com tabela de dados, CSV e figura PNG em 2× (botão "dados"), endereço próprio por figura (`#fig-4.9e`) e impressão em PDF (Ctrl P) só da aba aberta; clique num ponto da literatura para ver o artigo; exemplos prontos na aba
+Óptica; medidas próximas do corte em destaque no Designer; anéis ajustados sobre a imagem do detector; glossário.
+Acessibilidade conferida com axe-core (sem violações nas 13 abas), contraste ≥ 4,5:1, navegação por teclado nas abas
+(setas, Home, End) e nas tabelas roláveis.
+
+```bash
+python code/webapp/build_site.py             # refaz as análises e o site (~5 min)
+python -m pytest code/tests/test_webapp.py   # GP do navegador = GPyTorch, J = pré-registro, nada simulado
+```
+
+### 20.1 Revisão dos resultados contra a literatura (2026-10-05)
+
+Cada resultado foi revisado em três frentes: física e estatística, possibilidade de melhoria legítima (critério de
+escolha fixado antes, avaliado em validação) e concordância com valores e mecanismos estabelecidos.
+
+| Resultado | O que foi testado | Decisão | Literatura |
+|---|---|---|---|
+| Mie × LSPR | índice efetivo do meio (1,333–1,39) ajustado em metade dos artigos e validado na outra | mantém a **água sem ajuste**: o melhor índice ganha 0,2 nm na validação e se afasta de Haiss | Mie difere de Haiss et al. (2007) em ≤ 3,1 nm entre 25 e 100 nm; 20 nm → 522 nm (≈ 520 nm) |
+| GP do Designer | núcleos Matérn-1/2, 3/2, 5/2, RBF e ruído medido das réplicas, mesmas 10 dobras, critério NLPD | mantém o **Matérn-5/2** da proposta: os núcleos empatam (Δ < 0,05 nat) | o erro-padrão das réplicas é ~10× menor que o erro do modelo: a variação que sobra é não medida (dia, lote), a premissa do projeto |
+| Efeitos das vazões (AgNP) | contraste intervencional do GP, do(x + 10 % da faixa), com covariância conjunta | AgNO₃ ×0,90 (aproxima do alvo), citrato ×1,05 (afasta), demais nulos | crescimento mediado por sementes (mais Ag por semente); citrato como agente de forma da prata |
+| Benchmark | 40 repetições (antes 20), Wilcoxon pareado pela partida comum | GP-EI melhor que o acaso em 3 de 5 campanhas (antes 2 de 5 com 20 repetições); empate nas duas menores | Liang et al. 2021: ganho maior em espaços grandes |
+| Causalidade | tratamentos por presença/ausência (não "primeiro redutor citado"), só rota direta e partículas esferoidais para o tamanho, base AuNC fora (seleção pelo produto), bootstrap por artigo, E-value para desfecho contínuo (VanderWeele & Ding 2017) | quatro efeitos confirmam a direção; três robustos a todos os estimadores | Brust 1994; Turkevich 1951; Frens 1973; Jana 2001; Nikoobakht & El-Sayed 2003 |
+| Modelo da literatura (tamanho) | validação agrupada por artigo: o NSP não tem DOI, e agrupar por registro deixava o mesmo artigo no treino e no teste; variáveis: antes 9 (1º redutor e 1º ligante citados), agora presença de cada um dos 19 reagentes + forma, rota, base e ano (28) | grupos por DOI ou título; **28 variáveis**: R² por artigo 0,25 (IC 95 % 0,23–0,28), +0,07 sobre as 9 variáveis nos mesmos registros (IC 0,06–0,08, bootstrap de artigos) | os efeitos do SHAP têm a mesma direção dos efeitos causais (aba Causalidade) |
+| Emissão de AuNC | alvo = emissão × deslocamento de Stokes (emissão − excitação), mesmas 202 sínteses com excitação | **Stokes**: R² 0,22 → 0,31 (síntese nova) e −0,03 → 0,09 (artigo novo); os ganhos ficam **dentro do ruído** (IC 95 % da diferença −0,03 a 0,24 e −0,07 a 0,35): mantido pela física (tira a dependência trivial da excitação), sem alegar melhora significativa | a emissão de AuNC depende da casca Au(I)–tiolato e da agregação (AIE), que as bases não registram: o artigo novo continua quase imprevisível, como a premissa de variabilidade entre fontes prevê |
+| Cadeia NaBH₄ → tamanho → LSPR | efeito do NaBH₄ no pico (AIPW, 380 registros com tamanho e pico, 302 artigos) × deslocamento previsto por Mie a partir do efeito no tamanho (×0,28) | **coerente**: Mie prevê −2,2 nm; observado −1,0 nm (IC 95 % −5,7 a 3,3) | abaixo de ~25 nm o pico é quase plano; por isso Haiss et al. (2007) usam A_LSPR/A_450 e o projeto usa o espectro inteiro (J) e a TEM |
+| Turkevich | definição: "citrato citado primeiro" deixava entrar sínteses com NaBH₄ ou ascórbico junto | citrato como **único** redutor: mediana 15,1 → **16,0 nm**, 10–90 % de 8,7–45,6 → 10–46 nm (1 521 artigos) | confere com Frens (1973: 16 nm); parte da largura é desenho (a razão citrato:Au ajusta 16–147 nm) |
+
+**A lógica causal adotada** (aba Causalidade): base e época influenciam as escolhas (temperatura, redutor, rota,
+ligante); temperatura e força do redutor controlam a supersaturação e a **nucleação** (latente), que fixa o número de
+núcleos e, com a massa de ouro, o tamanho; sementes separam nucleação de crescimento; o ligante passiva a superfície
+(tamanho) e seleciona faces (forma); tamanho e forma determinam o LSPR pela física de Mie. Nas campanhas de laboratório
+autônomo as variáveis são intervenções, então os contrastes do GP são efeitos do tipo do(x); na literatura, as
+estimativas são observacionais e trazem E-value.
+
+
+### 20.2 Estatística e probabilidade (2026-10-06)
+
+| Análise | Onde | Método | Resultado |
+|---|---|---|---|
+| Preditor de síntese | aba **Preditor** (nova) | regressão quantílica com árvores (q = 5, 25, 50, 75, 95 % de ln d; 28 variáveis) **conformalizada por artigo** (CQR, Romano et al. 2019): escores fora da dobra (GroupKFold por artigo) com peso 1/nº de registros do artigo; cobertura conferida em validação cruzada aninhada; árvores exportadas e avaliadas no navegador (teste de equivalência com o Python) | 90 % nominal → **90,0 %** dos artigos novos; 50 % → 50,0 %. O intervalo de 90 % cobre um fator ×24 no tamanho: a receita sozinha determina pouco (a premissa da variabilidade entre fontes). Profundidade 5 ou 6 não melhorou a perda quantílica por artigo (0,2177 → 0,2171): mantida a 3 |
+| Sobrevivência das campanhas | aba Aprendizado | experimentos até o top 5 % como tempo até o evento, **censurado** no orçamento: Kaplan–Meier (IC de Greenwood em log(−log)), log-rank, RMST = E[min(T, orçamento)] e a diferença pareada por semente com IC por bootstrap e P(melhor) por bootstrap bayesiano (Rubin 1981) | GP-EI economiza **6,7 experimentos** no AgNP (IC 3,9–9,9; P ≈ 1; log-rank p < 10⁻⁴), 7,3 no crossed barrel, 5,5 no P3HT/CNT; empata em perovskitas e AutoAM |
+| Calibração do GP | aba Designer | curva de confiabilidade em 11 níveis, PIT, Kolmogorov–Smirnov e CRPS contra um σ constante | calibrado no conjunto (dp dos resíduos padronizados 1,04; KS p = 0,20); o CRPS não supera o σ constante: a incerteza por condição não ordena quais medidas erram mais |
+| Replicação causal | aba Causalidade | o mesmo AIPW em Cruse 2022 e NSP 2026 (corpora e extrações independentes); combinado por efeitos aleatórios (DerSimonian–Laird), Q de Cochran, I² | os 4 efeitos têm a **mesma direção** nas duas bases e 3 são significativos em ambas; magnitudes maiores no NSP em todos (I² 92–99 %), o esperado por diluição no Cruse, onde o tamanho é um só por artigo |
+| Incerteza das melhorias | Interpretabilidade, Variabilidade | bootstrap de artigos do R² e da diferença pareada | literatura: +0,07 (IC 0,06–0,08) com 28 variáveis; AuNC pelo deslocamento de Stokes: ganho dentro do ruído (IC inclui 0) |
+| Comparações múltiplas | aba Aprendizado | Holm (1979) nas 15 comparações pareadas (5 campanhas × 3 estratégias) | só o AgNP continua significativo após Holm (GP-EI p_Holm = 0,002; GP-UCB 0,008); crossed barrel 0,065 e P3HT/CNT 0,29 ficam como evidência sugestiva (a economia em experimentos, RMST, tem IC fora do zero nelas) |
+| Sensibilidade global | aba Interpretabilidade | índices de Sobol da média do GP (Saltelli 2010 / Jansen 1999, amostras de Sobol, N = 4 096, IC por bootstrap) | AgNO₃ S1 0,36 / ST 0,54; sementes 0,28 / 0,42; citrato 0,11 / 0,28 (age quase todo em interação); PVA e vazão total ≈ 0 (podem ser fixadas). 24 % da variância vem de interações |
+| Do pico ao tamanho | aba Óptica | inversão bayesiana: a priori = KDE dos tamanhos de esferas relatados; verossimilhança = Mie + resíduo pico − Mie por faixa; escolha da verossimilhança pela cobertura do IC 90 % em 5 dobras por artigo (gaussiana 80 %, t ν = 10: 83 %, ν = 5: 85 %, ν = 3: 88 %, **ν = 2: 89 %**) | com o pico em 518–522 nm o IC 90 % vai de ~4 a ~31 nm: o UV-Vis sozinho não identifica o tamanho na faixa do alvo; a TEM confirma (e o MISO decide quando vale) |
+| Design inverso | aba Preditor | receitas publicadas com ≥ 5 sínteses × {25, 60, 100 °C}, ordenadas por P(alvo ± 20 %) | para 3 nm aparecem NaBH₄ + TOAB/tiol (rota de Brust), como a química prevê. Testado e **rejeitado**: efeito aleatório por receita (encolhimento do resíduo da receita), ganho de 0,4 % na perda quantílica por artigo, menor que o ruído |
+
+### 20.3 Guia completo (aba do site)
+
+A aba **Guia completo** documenta o site inteiro para quem nunca viu a área (~34 mil palavras, ~2,5 h de leitura), em
+sete partes:
+
+1. **Comece aqui**: o que é o site, um roteiro de 10 minutos (dez paradas com link para o gráfico e para a explicação),
+   como navegar, como ler qualquer gráfico (esquema anotado), o significado de cada cor e símbolo e os atalhos de teclado.
+2. **Conceitos** (24): nanopartícula e escala, tamanho → espectro → cor, síntese (LaMer), variabilidade, Mie, perda J,
+   Stokes, difração e Bragg, mediana e escala log, correlação de Spearman, incerteza e bootstrap, p-valor e Holm, ruído
+   de réplica e ICC, confundidores, escore de propensão, meta-análise, validação, árvores e boosting, GP e EI, calibração,
+   sobrevivência, SHAP e Sobol, conformal e Bayes. Cada um tem comparação do dia a dia, a conta em palavras, onde aparece
+   no site e a confusão mais comum; 20 têm demonstração interativa com os dados reais (sete novas nesta versão: perda J
+   ponto a ponto, correlação tamanho × pico por faixa, previsão do Preditor somando árvore a árvore, efeito fixo ×
+   aleatório na replicação, energia do feixe × anéis medidos, Stokes dos aglomerados e pesos de propensão antes/depois).
+3. **Aba por aba**: a pergunta de cada aba, para que serve e por que importa ao projeto, de onde vêm os dados, um roteiro
+   de leitura, cada controle (o que faz, faixa e padrão), cada fileira de indicadores (13 fileiras, um texto por cartão:
+   o que significa e como é calculado), resultados com os números atuais, mensagem principal, limites e "Experimente";
+   depois as 77 figuras e tabelas, recolhíveis, cada uma com a pergunta que responde, o que mostra, os elementos do
+   gráfico, a leitura passo a passo, como interagir, exemplo com os números atuais, cuidados, erros comuns de leitura,
+   como foi calculado (com a função do código) e os conceitos relacionados.
+4. **Fórmulas** (30), em símbolos e em palavras.
+5. **Como foi feito**: princípios e etapas, registro de decisões (adotado × rejeitado), mapa do código (aba → função em
+   Python → conta no navegador → arquivo de dados), linha do tempo e limites.
+6. **Perguntas frequentes** (25).
+7. **Glossário** (142 termos, com índice por letra) e **referências** (43, por área).
+
+No topo, uma busca filtra todo o guia (abre as figuras que contêm o termo), o nível **básico** esconde fórmulas e
+detalhes de cálculo, há botões para expandir/recolher as figuras, barra de progresso e sumário que acompanha a leitura;
+na impressão as figuras saem expandidas. Os textos ficam em `code/webapp/guide.js` e os números vêm dos dados, então
+acompanham as análises; cada gráfico do site tem um botão **como ler** que leva à sua explicação.
+`test_guia_cobre_todas_as_figuras` falha se uma figura nova ficar sem texto e `test_guia_executa_com_os_dados_e_sem_lacunas`
+executa o guia no node com os dados do site (`code/tests/guide_check.js`) e confere que nenhum número fica vazio, que
+cada figura tem todos os campos, que cada fileira de indicadores tem um texto por cartão e que conceitos e roteiro
+apontam para figuras e demonstrações que existem.
+
+
+### 20.4 Nanocompósito 3D (aba do site)
+
+Ambiente 3D (three.js r147, vendorizado em `code/webapp/vendor/`) para ver o material do projeto por dentro. É um
+**modelo ilustrativo com parâmetros medidos**, marcado assim no site (ponto dourado no menu), e não uma medida:
+
+- **Folhas de GO publicadas** (padrão da escala atômica): recortes de 9,6 × 9,6 nm das três estruturas de
+  El-Machachi et al. (Angew. Chem. Int. Ed. 2024, e202410088; dados Zenodo 10.5281/zenodo.14066557, já no repositório
+  em `projects/atomistic/GO-MACE-23/structures/{900K,1200K,1500K}/optimized.xyz`): 2 ns de dinâmica molecular a 900,
+  1 200 e 1 500 K com o potencial GO-MACE-23 e otimização. `analyses.go_structures()` lê as células inteiras
+  (11 984 a 15 009 átomos), detecta as ligações por distância com contorno periódico e classifica cada átomo (C sp², sp³
+  ou de borda; O epóxi, hidroxila, éter, carbonila, carboxila ou lactona/anidrido) → `site/data/gostruct.js`. A
+  composição segue a redução térmica: O/C 0,34 → 0,26 → 0,21, C sp³ 32 % → 2 % → 0,2 %, epóxis 10,8 → 0,3 → 0 por
+  100 C, enquanto éter, carbonila e lactona ocupam as bordas dos buracos. São estruturas de simulação, não medidas.
+  "Cores por: grupos do GO" pinta cada grupo; o cartão "O que há nas folhas de GO publicadas" compara as três (e a
+  folha-modelo). `test_folhas_de_go_publicadas` confere o classificador numa molécula montada à mão e a química das três.
+- **Folha-modelo** ("modelo ajustável", e a usada na síntese): folha de GO átomo a átomo (C–C 1,42 Å, ondulação suave),
+  grupos epóxi e hidroxila nas duas faces e carboxila nas bordas, sorteados em domínios oxidados (modelo de
+  Lerf–Klinowski), com os carbonos sp³ saindo do plano; a razão O/C é um controle (lote mais ou menos oxidado).
+- **Nanopartícula de ouro** com a rede fcc real
+  (a = 4,078 Å), forma de equilíbrio de Wulff (faces {111} e {100}, γ₁₀₀/γ₁₁₁ = 1,15) truncada pela adesão ao suporte
+  (Winterbottom), apoiada numa face (111) (na folha publicada, pousada sobre os átomos mais altos, sem relaxar a
+  interface), em material metálico PBR que reflete um estúdio virtual (`RoomEnvironment` do three.js); cada átomo tem o número de coordenação calculado (faces, arestas, vértices,
+  interface, interior), há corte transversal, ancoragens Au–O, clique com informação e medida de distância.
+- **Síntese ao vivo**: Monte Carlo cinético qualitativo com 1 400 átomos (redução Au³⁺ → Au⁰ de primeira ordem,
+  nucleação nos O da face de cima com taxa ∝ exp(−B/ln²S), crescimento no sítio fcc de maior coordenação com bônus de
+  adesão no primeiro plano). Gera a curva de LaMer ao vivo e reproduz as tendências químicas: NaBH₄ forma cerca do
+  dobro de núcleos que o citrato e partículas menores; GO menos oxidado forma menos núcleos. Com uma folha publicada
+  escolhida, a síntese usa a folha-modelo com o O/C dela.
+- **Experimento de lotes**: a mesma síntese (1 000 átomos) repetida em folhas-modelo de O/C 0,05 a 0,40 com 2 a 6
+  sementes por nível, calculada no navegador em fatias de ~25 ms (`AUGO_N3CORE.batch`, pausa fora da aba; nada é
+  gravado em `site/data`). Com NaBH₄ o número de partículas sobe de ~7 para ~20 e o diâmetro médio cai de ~1,5 para
+  ~1,1 nm: a hipótese do projeto (lote de GO → tamanho) na forma de um modelo qualitativo.
+- **Plásmon**: a onda de luz atravessa a cena e a nuvem de elétrons oscila com amplitude proporcional à extinção de
+  Mie da partícula naquela cor (a mesma conta da aba Óptica); "varrer as cores" percorre 400–780 nm.
+- **Escala de partículas** (~400 nm): flocos de GO enrugados com AuNP de diâmetros log-normais, na cor metálica ou na
+  cor da dispersão (Mie), e uma vista "como no TEM" (projeção de cima em tons de cinza).
+- Roteiro guiado de 9 passos (grafeno → GO publicado de 900 K → GO de 1 500 K → cristal → sítios → interface →
+  síntese → plásmon → partículas), indicadores por modo, gráficos de sítios × diâmetro, espectro de Mie, LaMer,
+  tamanhos da cena × 184 tamanhos relatados em sínteses de ouro com GO, composição das folhas publicadas e lotes, e a
+  tabela de parâmetros com as fontes. A Visão geral tem um atalho para a aba.
+
+O desenho é sob demanda (a cena só redesenha quando algo muda e para quando sai da tela). O núcleo (geometria e
+síntese, `AUGO_N3CORE` em `code/webapp/nano3d.js`) roda sem three.js e é conferido por `test_nanocomposito_3d_geometria_e_sintese`
+(`code/tests/nano3d_check.js`): distâncias das redes, coordenação, fração de superfície citada no site e as tendências
+da síntese, inclusive no experimento de lotes.

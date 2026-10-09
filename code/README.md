@@ -3,7 +3,7 @@
 Código próprio da proposta, organizado pelas seções do projeto FAPESP. `tools/data_sources/build_deposit.py` copia
 estas pastas para o depósito [`GO-AuNP-Autonomous-Design`](../deposit/GO-AuNP-Autonomous-Design/README.md).
 Ambiente: `tools/setup_env.sh core && source .venvs/core/bin/activate` (Windows: `tools\setup_env.ps1 core` e
-`.\.venvs\core\Scripts\Activate.ps1`). Testes: `python -m pytest code/tests -q` (83 testes no `core`: sinais com
+`.\.venvs\core\Scripts\Activate.ps1`). Testes: `python -m pytest code/tests -q` (106 testes no `core`: sinais com
 parâmetros conhecidos, soluções analíticas, laço completo simulado e regressões dos bugs corrigidos). O módulo
 `atomistic/` usa o ambiente `jarvis` (10 testes em `code/tests/test_atomistic.py`, pulados no `core`).
 Os valores do plano (alvo E\*, faixa, normalização, sₘ, ε, restrições, orçamento, custos) vêm de
@@ -25,6 +25,7 @@ Os valores do plano (alvo E\*, faixa, normalização, sₘ, ε, restrições, or
 | [`benchmarking/`](benchmarking) | §4.11, §4.15, §4.18 | `simulator.py` + `sim_lab.py`: laboratório **simulado**. `strategies.py`: GP+qLogNEI, RF+qNEHVI, **DNN ensemble + qNEHVI**, **EGBO**, **TPE (Optuna)**, Sobol. `campaign_sim.py`: cenários `main` (todos os braços, inclusive novelty w de 0 a 1 e autopilot; HV/IGD/spread), `transfer` (lote reservado), **`prospective`** (o desenho real com placebo e nulo para o erro tipo I), **`batches`** (poder × nº de lotes de GO com as mesmas 60 sínteses) e **`factorial`** (poder do 2×2 por réplicas); `--resume` reaproveita campanhas; `calibrate.py`: **calibração do simulador pelo piloto** (momentos simulados: ruído entre preparações e efeito de lote, com faixa plausível; ruído do instrumento pelas duplicatas) → `campaign_sim.py --calibration`; `report` gera [`docs/SIMULACOES.md`](../docs/SIMULACOES.md). `stats.py`: Friedman, Wilcoxon + Holm, bootstrap, redução geométrica, poder, experimentos até o critério (RMST + log-rank) |
 | [`causal/`](causal/causal_analysis.py) | §4.9 | DAG GO–AuNP explícito, backdoor no DoWhy com refutações, **E-value**; **IPW por balanceamento de entropia** (balanço exato; ou propensão clássica) com SMD/correlação antes e depois; **mediação** (NDE/NIE com interação T×M, avisando confundidores induzidos pelo tratamento); PC (causal-learn) exploratório |
 | [`sustainability/`](sustainability/metrics.py) | §4.14 | E-factor (sEF/cEF), EcoScale, **CPU** a partir das tabelas (`from-lab`, decisão ligada ao EVSI); extensões condicionais **CAPEX/OPEX** por análise e **ComplexGAPI** (síntese) com regras configuráveis |
+| [`webapp/`](webapp/build_site.py) | §4.1–4.18 | **site com a proposta executada só com dados experimentais** ([`site/`](../site/README.md)): `expdata.py` (literatura, AgNP, AuNC, campanhas de Liang 2021, constantes ópticas, difração), `analyses.py` (Mie validado contra a literatura + perda J, GP do Designer com validação cruzada e EI, reexecução das campanhas por estratégia, SHAP/H², ruído de réplica e generalização por artigo, IPW, indexação dos anéis de CeO₂), `build_site.py` (gera `site/`; `--reuse`, `--artifact` para página única), `app.js` (gráficos Plotly; GP e Mie/J no navegador com a mesma conta do Python) |
 | [`atomistic/`](atomistic/README.md) | §4.2, §4.5 | **design inverso atomístico GO–Au com o ecossistema JARVIS** (ambiente `jarvis`) |
 
 ```bash
