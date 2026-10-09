@@ -6,6 +6,8 @@
 |               |                                         |                | pasta de um modelo treinado aqui (--model-path)      |
 | mace-mp       | MACE-MP-0 (Materials Project)           | 89 elementos   | GitHub (ACEsuit/mace-mp), baixa sozinho              |
 | mace-mp-d3    | MACE-MP-0 + dispersão D3(BJ)            | 89 elementos   | idem + torch-dftd (adesão Au/grafeno, GO empilhado)  |
+| hybrid        | GO-MACE-23 (C/H/O) + MACE-MP-0 + D3     | GO + metal     | E = E_GO-MACE-23(GO) + E_MP(tudo) − E_MP(GO): o GO   |
+|               | (au_go_interface.py)                    |                | fica com o potencial próprio (recomendado p/ GO–Au)  |
 | chgnet        | CHGNet                                  | 89 elementos   | dentro do pacote PyPI                                |
 | sevennet      | SevenNet-0                              | 89 elementos   | dentro do pacote PyPI                                |
 | go-mace-23    | projects/atomistic/GO-MACE-23           | C, H, O        | versionado (sem Au: só para o GO isolado)            |
@@ -27,7 +29,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import jarvis_data  # noqa: E402,F401 — ativa o cache do projeto (<repo>/.cache) antes de importar jarvis/alignn
 GO_MACE_MODEL = os.path.join(ROOT, "projects", "atomistic", "GO-MACE-23", "models", "fitting", "potential",
                              "iter-12-final-model", "go-mace-23.pt")
-NAMES = ("alignn-ff", "mace-mp", "mace-mp-d3", "chgnet", "sevennet", "go-mace-23", "lammps-eam", "emt")
+NAMES = ("alignn-ff", "mace-mp", "mace-mp-d3", "hybrid", "chgnet", "sevennet", "go-mace-23", "lammps-eam", "emt")
 EMT_ELEMENTS = {"H", "C", "N", "O", "Al", "Ni", "Cu", "Pd", "Ag", "Pt", "Au"}
 
 
@@ -91,6 +93,13 @@ def get_calculator(name: str = "mace-mp", model_path: str | None = None, device:
         # PBE não descreve van der Waals: sem D3, Au sobre grafeno quase não se liga
         return mace_mp(model=kw.get("size", "small"), device=device, default_dtype=kw.get("dtype", "float64"),
                        dispersion=name == "mace-mp-d3")
+    if name == "hybrid":
+        # GO-MACE-23 para o GO (C, H, O) + MACE-MP-0 + D3 só para o que envolve o metal (embutimento subtrativo):
+        # o MACE-MP-0 sozinho deforma o GO (forças de ~0,9 eV/Å na geometria do GO-MACE-23); ver au_go_interface.py
+        import au_go_interface as H
+
+        H.MP_SIZE = kw.get("size", "small")
+        return H.element_hybrid_calculator(kw.get("dtype", "float64"))
     if name == "alignn-ff":
         from alignn.ff.ff import AlignnAtomwiseCalculator, default_path
 

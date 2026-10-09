@@ -89,6 +89,15 @@ def test_dados_do_site_completos(site):
     assert os.path.exists(os.path.join(build_site.SITE, "vendor", "plotly.min.js"))
 
 
+def test_ids_unicos_na_pagina():
+    """Nenhum id repetido no index.html (um gráfico com o mesmo id de um controle quebra os dois)."""
+    from collections import Counter
+
+    html = open(os.path.join(build_site.SITE, "index.html"), encoding="utf-8").read()
+    rep = {k: v for k, v in Counter(re.findall(r'\sid="([^"]+)"', html)).items() if v > 1}
+    assert not rep, rep
+
+
 def test_gp_do_site_e_cv(site):
     D = site["designer"]
     Xn = (np.array(D["points"]["X"]) - D["lo"]) / (np.array(D["hi"]) - D["lo"])
@@ -319,6 +328,62 @@ def test_folhas_de_go_publicadas(site):
         c = q["crop"]
         assert c["L"] == 96.0 and c["n"] == len(c["x"]) == len(c["t"]) == len(c["s"]) > 3000
         assert set(c["t"]) <= set(range(len(G["types"]))) and max(map(abs, c["x"] + c["z"])) <= 4800
+
+
+def test_interface_au_go_calculada(site):
+    """Interface Au–GO calculada (code/atomistic/au_go_interface.py → datasets/au-go-interface → aba 3D): referências
+    do ouro plausíveis no mesmo potencial, todas as relaxações convergidas, adesão positiva, ligações Au–GO curtas de
+    verdade, deslocamentos dentro do recorte da cena e a partícula calculada igual à da cena (mesma geometria e mesma
+    regra de pouso)."""
+    M = site["gostruct"].get("mace")
+    assert M, "datasets/au-go-interface ausente: rode code/atomistic/au_go_interface.py collect e o build_site.py"
+    rf = M["refs"]
+    assert 4.0 < rf["a0_A"] < 4.2 and 1.0 < rf["gamma111_J_m2"] < 1.8 and rf["mu_Au_eV"] < -3
+    S = M["sites"]
+    assert {"900K", "1200K", "1500K", "graphene"} <= set(S["structure"]) and len(S["E"]) >= 60
+    assert all(S["converged"]) and max(S["fmax"]) <= 0.05 + 1e-6
+    assert all(e is not None and -6 < e < 4 for e in S["E"])
+    ads = {}                                         # energia de adsorção (átomo livre = 0): todas ligadas, nenhuma absurda
+    for ty, e in zip(S["type"], S["E_ads"]):
+        ads.setdefault(ty, []).append(e)
+    assert all(-3 < e < 0.05 for v in ads.values() for e in v)
+    med = {ty: float(np.median(v)) for ty, v in ads.items()}
+    assert min(med, key=med.get) == "C de borda" and -0.4 < med["grafeno intacto"] < 0      # borda exposta > fisissorção
+    assert 2 < M["refs"]["E_free_atom_model_eV"] < 4                    # coesão do ouro no modelo (PBE ≈ 3,0 eV)
+    V = M["validation_medium"]
+    assert V and V["n"] >= 5 and V["mean_abs_diff_eV"] < 1 and all(len(r) == 7 for r in V["sites"])
+    eq = M["equilibrium"]
+    assert set(eq) == {"900K", "1200K", "1500K"} and all(e["median_eV_A"] < 0.01 and e["n_gt_1"] < 0.05 * e["n_atoms"] for e in eq.values())
+    C = M["contact"]                                 # Au(111)/grafeno nos dois modelos, contra vdW-DF e STM
+    assert C and all(2.5 < C[m]["d_eq_A"] < 4.5 and -200 < C[m]["E_b_meV_per_C"] < 0 for m in ("small", "medium"))
+    assert C["reference"]["vdwdf_d_A"] == [3.40, 3.72] and C["reference"]["stm_max_meV_per_C"] == 13
+    P = M["particles"]
+    assert set(P) == {"900K", "1200K", "1500K", "graphene"}
+    crops = {q["T"].replace(" ", ""): q["crop"] for q in site["gostruct"]["structures"]}
+    for T, q in P.items():
+        assert q["converged"] and q["fmax"] <= 0.05 + 1e-6 and q["W_adh_J_m2"] > 0 and q["N_Au"] == 119
+        # conferência com outro modelo: na geometria relaxada, o mínimo do small ao varrer a altura fica onde ela está
+        assert abs(q["int_small"]["h_min_A"]) < 0.15 and q["int_small"]["E_min_eV"] < 0 and q["int_medium"]["E_min_eV"] < 0
+        if T == "graphene":
+            assert "au" not in q
+            continue
+        assert len(q["au"]) == len(q["au0"]) == 119 and all(d <= 2.6 for _, _, d in q["bonds"])
+        assert all(0 <= k < crops[T]["n"] for k, *_ in q["moved"]) and q["n_AuO"] == sum(
+            crops[T]["t"][k] >= 3 and crops[T]["t"][k] < 10 for _, k, _ in q["bonds"])
+    node = shutil.which("node")
+    if node:                                         # a partícula do cálculo é a da cena, pousada pela mesma regra
+        js = ("const fs=require('fs'),vm=require('vm');const c={window:{},setTimeout};vm.createContext(c);"
+              f"vm.runInContext(fs.readFileSync({json.dumps(os.path.join(ROOT, 'code', 'webapp', 'nano3d.js'))},'utf8'),c);"
+              "console.log(JSON.stringify(c.window.AUGO_N3CORE.buildParticle(1.5,0.35).P))")
+        ref = np.array(json.loads(subprocess.run([node, "-e", js], capture_output=True, text=True, check=True).stdout))
+        for T in ("900K", "1200K", "1500K"):
+            a0 = np.array(P[T]["au0"]) / 100
+            assert np.abs((a0 - a0[:, 1:2].min() * np.r_[0, 1, 0]) - (ref - ref[:, 1].min() * np.r_[0, 1, 0])).max() < 0.011
+            c = crops[T]
+            x, y, z = (np.array(c[k]) / 100 for k in "xyz")
+            under = np.hypot(x, z) < 6.4 + 1
+            off = np.where(np.array(c["t"]) >= 10, 2.0, np.where(np.array(c["t"]) >= 3, 2.15, 3.25))
+            assert abs(a0[:, 1].min() - (y[under] + off[under]).max()) < 0.011
 
 
 def test_nanocomposito_3d_geometria_e_sintese():

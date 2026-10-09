@@ -1311,68 +1311,93 @@ def aunc_section() -> dict:
 
 # ---------------------------------------------------------------------------------- estruturas publicadas de GO (aba 3D)
 
-GO_MACE = os.path.join(ROOT, "projects", "atomistic", "GO-MACE-23", "structures")
-GO_TYPES = ["C sp²", "C sp³", "C de borda", "O epóxi", "O hidroxila", "O éter", "O carbonila", "O carboxila", "O lactona",
-            "O outro", "H"]
+sys.path.append(os.path.join(ROOT, "code", "atomistic"))
+from go_sites import GO_MACE, GO_TYPES, classify as _go_classify, flattest_crop, read_xyz as _read_xyz  # noqa: E402,F401
+
+AU_GO = os.path.join(ROOT, "datasets", "au-go-interface")
 
 
-def _read_xyz(path: str):
-    with open(path, encoding="utf-8") as fh:
-        n = int(fh.readline())
-        hdr = fh.readline()
-        lat = np.array([float(x) for x in hdr.split('Lattice="')[1].split('"')[0].split()]).reshape(3, 3)
-        rows = [fh.readline().split() for _ in range(n)]
-    return np.array([r[0] for r in rows]), np.array([[float(v) for v in r[1:4]] for r in rows]), lat
+def _au_go_interface(crop_idx: dict) -> dict | None:
+    """CÁLCULO atomístico da interface Au–GO (code/atomistic/au_go_interface.py → datasets/au-go-interface/): potencial
+    híbrido GO-MACE-23 + MACE-MP-0 + D3 sobre as folhas publicadas — não é medida. `crop_idx[T]` = índices (na folha
+    inteira) dos átomos do recorte da cena, na ordem do recorte. Devolve as energias de cada sítio, a adesão da
+    nanopartícula a cada folha e, para a cena, o ouro antes/depois de relaxar, as ligações Au–GO e os átomos do GO que
+    se moveram (centésimos de Å, no referencial do recorte)."""
+    import json
+    from collections import Counter
 
+    fp, fs = os.path.join(AU_GO, "particles.json"), os.path.join(AU_GO, "sites.csv")
+    if not (os.path.exists(fp) and os.path.exists(fs)):
+        return None
+    J = json.load(open(fp, encoding="utf-8"))
+    S = pd.read_csv(fs, keep_default_na=False)
+    e_free = J["refs"].get("E_free_atom_model_eV")           # átomo livre no modelo, com o ouro maciço = 0
+    sites = {"structure": S["structure"].tolist(), "type": S["type"].tolist(), "E": _r(S["E_site_eV"], 3),
+             "E_ads": _r(S["E_site_eV"] - e_free, 3) if e_free is not None else None,
+             "E_rigid": _r(S["E_site_rigid_eV"], 3), "n_contacts": S["n_contacts"].astype(int).tolist(),
+             "contacts": S["contacts"].astype(str).tolist(), "broken": S["broken"].astype(str).tolist(),
+             "fmax": _r(S["fmax"], 3), "converged": S["converged"].astype(str).str.lower().eq("true").tolist()}
+    parts = {}
+    for T, r in J["particles"].items():
+        au0, au = np.array(r["au_pos0"]), np.array(r["au_pos"])
+        disp = np.array(r["go_pos"]) - np.array(r["go_pos0"])
+        ct = r["contacts"]
+        # a mesma partícula em todas as folhas: compara-se E_adh (eV por partícula). Por área, duas convenções: a face de
+        # contato (átomos do primeiro plano × 7,2 Å²) superestima W, porque a atração de van der Waals vem da partícula
+        # inteira; a área projetada (π (r_max + 1,44 Å)²) é a referência mais justa para uma partícula pequena
+        n_base = int((au0[:, 1] < au0[:, 1].min() + 0.5).sum())
+        area = n_base * 4.078 ** 2 * np.sqrt(3) / 4
+        c0 = au0.mean(0)
+        a_proj = float(np.pi * (np.hypot(au0[:, 0] - c0[0], au0[:, 2] - c0[2]).max() + 1.44) ** 2)
+        q = {"N_Au": r["N_Au"], "d_nm": r["d_nm"], "d_input": r.get("d_input", 1.5), "adh_input": r.get("adh_input", 0.35),
+             "E_adh_eV": r["E_adh_eV"], "E_adh_rigid_eV": r["E_adh_rigid_eV"],
+             "W_adh_J_m2": -r["E_adh_eV"] / a_proj * 16.0218, "W_adh_rigid_J_m2": -r["E_adh_rigid_eV"] / a_proj * 16.0218,
+             "W_facet_J_m2": -r["E_adh_eV"] / area * 16.0218, "n_interface_Au": n_base, "facet_area_A2": area,
+             "projected_area_A2": a_proj, "drop_A": r.get("drop_A"), "go_prerelax_eV": r.get("go_prerelax_eV"),
+             "n_AuO": sum(c["el"] == "O" for c in ct),
+             "n_AuC": sum(c["el"] == "C" for c in ct), "n_AuH": sum(c["el"] == "H" for c in ct),
+             "O_types": dict(Counter(c.get("type", "") for c in ct if c["el"] == "O")),
+             "C_types": dict(Counter(c.get("type", "") for c in ct if c["el"] == "C")),
+             "shape_rmsd_A": float(np.sqrt((((au - au.mean(0)) - (au0 - au0.mean(0))) ** 2).sum(1).mean())),
+             "sink_A": float(au0[:, 1].mean() - au[:, 1].mean()),
+             "d_AuO_min": min([c["d"] for c in ct if c["el"] == "O"], default=None), "broken": len(r["broken"]),
+             "converged": bool(r["relax"]["converged"]), "fmax": r["relax"]["fmax"],
+             "steps": r["relax"]["steps"] + r["relax_rigid"]["steps"], "n_go": r["n_go"], "n_free_go": r["n_free_go"],
+             "go_max_disp_A": float(np.linalg.norm(disp, axis=1).max()),
+             "au_mean_disp_A": float(np.linalg.norm(au - au0, axis=1).mean())}
+        for m, x in (r.get("interaction") or {}).items():   # conferência: a interação na mesma geometria em outro modelo
+            q[f"int_{m}"] = {"E_min_eV": x["E_min_eV"], "h_min_A": x["h_min_A"], "E_at_relaxed_eV": x["E_at_relaxed_eV"]}
+        if T in crop_idx:                          # cena: índice na folha inteira → posição no recorte
+            at = {int(g): k for k, g in enumerate(crop_idx[T])}
+            gi = r["go_index"]
+            q.update({"au0": np.round(au0 * 100).astype(int).tolist(), "au": np.round(au * 100).astype(int).tolist(),
+                      "moved": [[at[g], *np.round(disp[k] * 100).astype(int).tolist()] for k, g in enumerate(gi)
+                                if g in at and np.linalg.norm(disp[k]) > 0.03],
+                      "bonds": [[c["au"], at[gi[c["go"]]], c["d"]] for c in ct if gi[c["go"]] in at]})
+        parts[T] = q
+    rf = J["refs"]
+    val = None
+    V = J.get("validation_medium")
+    if V and V.get("sites"):                     # os mesmos sítios com o MACE-MP-0 medium: o resultado depende do modelo?
+        from scipy.stats import spearmanr
 
-def _go_classify(el: np.ndarray, pos: np.ndarray, box: np.ndarray):
-    """Ligações por distância (C–C < 1,85; C–O < 1,75; C–H < 1,25; O–H < 1,20 Å; periódico em x e z) e o tipo de cada
-    átomo: C sp³ (4 vizinhos), C de borda (menos de 3 vizinhos C: bordas de buracos e da folha), O por grupo funcional
-    (epóxi = ponte entre dois C ligados; éter = ponte entre C não ligados; hidroxila; carbonila C=O; carboxila COOH;
-    lactona/anidrido = C=O cujo carbono também tem um O em ponte) e o lado da folha de cada O."""
-    from scipy.spatial import cKDTree
-    cut = {("C", "C"): 1.85, ("C", "O"): 1.75, ("C", "H"): 1.25, ("O", "H"): 1.20, ("O", "O"): 0.0, ("H", "H"): 0.0}
-    p = pos.copy()
-    p[:, 0] %= box[0]
-    p[:, 2] %= box[2]
-    tree = cKDTree(np.c_[p[:, 0], p[:, 1] - p[:, 1].min(), p[:, 2]], boxsize=[box[0], 1e6, box[2]])
-    pr = tree.query_pairs(1.9, output_type="ndarray")
-    dv = p[pr[:, 0]] - p[pr[:, 1]]
-    dv[:, 0] -= box[0] * np.round(dv[:, 0] / box[0])
-    dv[:, 2] -= box[2] * np.round(dv[:, 2] / box[2])
-    d = np.linalg.norm(dv, axis=1)
-    ok = np.array([d[k] < cut.get((el[a], el[b]), cut.get((el[b], el[a]), 0)) for k, (a, b) in enumerate(pr)])
-    nb = [[] for _ in el]
-    for a, b in pr[ok]:
-        nb[a].append(b)
-        nb[b].append(a)
-    t = np.full(len(el), 9)
-    side = np.zeros(len(el), int)
-    for i, e in enumerate(el):
-        if e == "H":
-            t[i] = 10
-        elif e == "C":
-            ncc = sum(el[j] == "C" for j in nb[i])
-            t[i] = 1 if len(nb[i]) >= 4 else 2 if ncc < 3 else 0
-    hasH = lambda j: any(el[q] == "H" for q in nb[j])                                     # noqa: E731
-    for i in np.where(el == "O")[0]:
-        nc = [j for j in nb[i] if el[j] == "C"]
-        nh = [j for j in nb[i] if el[j] == "H"]
-        if nc:
-            side[i] = 1 if p[i, 1] >= np.mean(p[nc, 1]) else -1
-        if len(nc) == 2 and not nh:
-            if nc[1] in nb[nc[0]]:
-                t[i] = 3
-            else:
-                carb = any(len([q for q in nb[c] if el[q] == "O" and q != i and len(nb[q]) == 1]) for c in nc)
-                t[i] = 8 if carb else 5
-        elif len(nc) == 1 and len(nh) == 1:
-            others = [q for q in nb[nc[0]] if el[q] == "O" and q != i]
-            t[i] = 7 if others else 4
-        elif len(nc) == 1 and not nh:
-            others = [q for q in nb[nc[0]] if el[q] == "O" and q != i]
-            t[i] = 7 if any(hasH(q) for q in others) else 8 if others else 6
-    return t, side, p
+        e_s, e_m = np.array([r[3] for r in V["sites"]]), np.array([r[4] for r in V["sites"]])
+        val = {"model": V["model"], "n": len(e_s), "mean_abs_diff_eV": float(np.abs(e_m - e_s).mean()),
+               "max_abs_diff_eV": float(np.abs(e_m - e_s).max()), "mean_diff_eV": float((e_m - e_s).mean()),
+               "spearman": float(spearmanr(e_s, e_m)[0]) if len(e_s) >= 4 else None,
+               "gamma111_J_m2": V["refs"]["gamma111_J_m2"], "E_free_atom_model_eV": V["refs"]["E_free_atom_model_eV"],
+               "sites": [[r[0], r[1], r[2], round(r[3], 3), round(r[4], 3), r[5], r[6]] for r in V["sites"]]}
+    contact = {}                                 # Au(111)/grafeno no mesmo potencial × vdW-DF e STM (`contact`)
+    for m, g in (("small", rf.get("au_graphene")), ("medium", ((V or {}).get("refs") or {}).get("au_graphene"))):
+        if g:
+            contact[m] = {"d_eq_A": g["d_eq_A"], "E_b_meV_per_C": g["E_b_meV_per_C"], "E_b_D3_meV_per_C": g["E_b_D3_meV_per_C"]}
+    if contact:
+        contact["reference"] = {"vdwdf_d_A": [3.40, 3.72], "vdwdf_source": "Vanin et al., Phys. Rev. B 81, 081408 (2010)",
+                                "stm_max_meV_per_C": 13, "stm_source": "Nie et al., Phys. Rev. B 85, 205406 (2012)"}
+    return {"method": "GO-MACE-23 + MACE-MP-0 (small) + D3(BJ), embutimento subtrativo; code/atomistic/au_go_interface.py",
+            "refs": {k: rf[k] for k in ("mu_Au_eV", "a0_A", "B_GPa", "gamma111_J_m2", "E_free_atom_model_eV") if k in rf},
+            "contact": contact or None,
+            "sites": sites, "particles": parts, "validation_medium": val, "equilibrium": J.get("equilibrium") or {}}
 
 
 def go_structures(crop: float = 96.0) -> dict:
@@ -1382,6 +1407,7 @@ def go_structures(crop: float = 96.0) -> dict:
     funcionais, O/C, carbonos sp³ e de borda, ondulação) e um recorte de ~10 nm × 10 nm, o mais plano, para a cena 3D."""
     out = {"types": GO_TYPES, "source": "El-Machachi et al., Angew. Chem. Int. Ed. 2024, e202410088",
            "doi_data": "10.5281/zenodo.14066557", "structures": []}
+    crop_idx = {}
     for T in ("900K", "1200K", "1500K"):
         el, pos, lat = _read_xyz(os.path.join(GO_MACE, T, "optimized.xyz"))
         box = np.array([lat[0, 0], 0.0, lat[2, 2]])
@@ -1390,17 +1416,8 @@ def go_structures(crop: float = 96.0) -> dict:
         cnt = {GO_TYPES[k]: int((t == k).sum()) for k in range(len(GO_TYPES))}
         isC = el == "C"
         # recorte mais plano (menor desvio da altura dos C) numa grade de centros, com periodicidade em x e z
-        best = None
-        for cx in np.arange(0, box[0], 8.0):
-            for cz in np.arange(0, box[2], 8.0):
-                dx = (p[:, 0] - cx + box[0] / 2) % box[0] - box[0] / 2
-                dz = (p[:, 2] - cz + box[2] / 2) % box[2] - box[2] / 2
-                m = (np.abs(dx) <= crop / 2) & (np.abs(dz) <= crop / 2)
-                sd = float(p[m & isC, 1].std())
-                if best is None or sd < best[0]:
-                    best = (sd, dx, dz, m)
-        sd, dx, dz, m = best
-        y0 = float(np.median(p[m & isC, 1]))
+        _, _, dx, dz, m, y0, sd = flattest_crop(el, p, box, crop)
+        crop_idx[T] = np.where(m)[0]
         out["structures"].append({
             "T": T.replace("K", " K"), "n_atoms": int(len(el)), "n_C": nC, "n_O": nO, "n_H": int((el == "H").sum()),
             "OC": nO / nC, "sp3_frac": cnt["C sp³"] / nC, "edge_frac": cnt["C de borda"] / nC,
@@ -1409,4 +1426,7 @@ def go_structures(crop: float = 96.0) -> dict:
             "crop": {"L": crop, "corrugation_A": sd, "n": int(m.sum()),
                      "x": np.round(dx[m] * 100).astype(int).tolist(), "y": np.round((p[m, 1] - y0) * 100).astype(int).tolist(),
                      "z": np.round(dz[m] * 100).astype(int).tolist(), "t": t[m].astype(int).tolist(), "s": side[m].astype(int).tolist()}})
+    mace = _au_go_interface(crop_idx)
+    if mace:
+        out["mace"] = mace
     return out

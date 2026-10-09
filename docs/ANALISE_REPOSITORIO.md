@@ -1506,10 +1506,44 @@ Ambiente 3D (three.js r147, vendorizado em `code/webapp/vendor/`) para ver o mat
   Mie da partícula naquela cor (a mesma conta da aba Óptica); "varrer as cores" percorre 400–780 nm.
 - **Escala de partículas** (~400 nm): flocos de GO enrugados com AuNP de diâmetros log-normais, na cor metálica ou na
   cor da dispersão (Mie), e uma vista "como no TEM" (projeção de cima em tons de cinza).
-- Roteiro guiado de 9 passos (grafeno → GO publicado de 900 K → GO de 1 500 K → cristal → sítios → interface →
-  síntese → plásmon → partículas), indicadores por modo, gráficos de sítios × diâmetro, espectro de Mie, LaMer,
-  tamanhos da cena × 184 tamanhos relatados em sínteses de ouro com GO, composição das folhas publicadas e lotes, e a
-  tabela de parâmetros com as fontes. A Visão geral tem um atalho para a aba.
+- **Interface calculada** (opção "interface relaxada (cálculo)", cartões "Onde um átomo de ouro se prende ao GO" e
+  "Adesão da nanopartícula a cada folha"): `code/atomistic/au_go_interface.py` relaxa átomos de Au em cada tipo de sítio
+  e a própria partícula da cena (119 átomos, `buildParticle(1.5, 0.35)`, pousada pela mesma regra) sobre as folhas
+  publicadas e sobre grafeno, com um potencial **híbrido** — E = E_GO-MACE-23(GO) + E_MACE-MP-0+D3(GO+Au) −
+  E_MACE-MP-0+D3(GO) —, porque o MACE-MP-0 sozinho não reproduz o GO (forças de ~0,9 eV/Å na geometria otimizada,
+  contra ~0,001 eV/Å do GO-MACE-23). Referências no mesmo potencial: μ(Au maciço) e γ(111) = 1,40 J/m². O resultado
+  (`datasets/au-go-interface/`, CÁLCULO e não medida; README com método, resultados e limites) entra no site por
+  `analyses._au_go_interface()`: a cena anima o ouro da posição pousada até a relaxada e mostra as ligações Au–O/Au–C
+  formadas; o modo de cor "afinidade pelo ouro" pinta cada átomo pela mediana calculada do seu tipo; os gráficos
+  ordenam os sítios pela energia de adsorção (átomo livre do modelo = 0) e comparam a adesão da partícula (eV por
+  partícula; W pela área projetada só no texto).
+  - **Equilíbrio das folhas publicadas:** no próprio GO-MACE-23, a força mediana é ~0,001 eV/Å, mas 1,4–2,5 % dos
+    átomos (204 a 300 por folha, sobretudo C nas bordas de buracos) passam de 1 eV/Å (até ~16 eV/Å). Nos primeiros
+    cálculos, 6 sítios perto dessas regiões deram "adsorção" de até −3,5 eV sem ligação Au–GO — era o GO relaxando.
+    Correção: a referência é o GO sem ouro relaxado com os mesmos átomos livres, e o sorteio fica a mais de 8 Å de
+    átomos com |F| > 1 eV/Å (`force_map`, `prune`, `recheck`); nos 70 sítios finais, o GO sem ouro baixa < 0,006 eV.
+  - **Sítios** (70: até 3 por tipo e folha, 30 com ligação Au–GO, todos convergidos): o ouro se prende de verdade a C
+    de borda (mediana −0,82 eV), carbonila (−0,34) e lactona (−0,20); epóxi, éter, hidroxila e carboxila ficam entre
+    −0,03 e −0,07 eV (só dispersão, como o grafeno, −0,10 eV), com exceções fortes (até −1,1 eV) quando o ouro alcança
+    também um C de borda vizinho ou o epóxi se abre ou se distorce.
+  - **Conferência do modelo:** 18 sítios refeitos com o MACE-MP-0 medium mudam 0,31 eV em média (máx. 0,95; Spearman
+    0,59): os 4 C de borda conferidos prendem forte nos dois (medium −0,93 a −1,57 eV), os oxigênios fortes no small
+    enfraquecem no medium. No contato Au(111)/grafeno (`contact`), o small + D3 liga a 2,94 Å com 121 meV por C, o
+    medium a 4,00 Å com 51 meV/C; o vdW-DF dá 3,40–3,72 Å (Vanin et al. 2010) e o STM limita a < 13 meV/C (Nie et al.
+    2012): o small exagera a atração ouro–carbono. (O W_ad ≈ 0,23 J/m² de `go_au.py interface` registrado antes vinha
+    de um filme de "Au(111)" deformado pelo InterMat — 13 Å² por átomo e planos a 1,4 Å — e foi retirado; `interface`
+    agora confere o filme.)
+  - **Partícula** (uma posição por folha, no centro do recorte da cena): adesão −2,1 eV (900 K, apoiada em hidroxilas
+    e carbonilas), −8,9 eV (1 200 K) e −5,9 eV (1 500 K) — nessas duas há um buraco sob a partícula: ela afunda 2–4,5 Å,
+    se deforma e se prende a C de borda, lactonas e carbonilas — e −6,6 eV no grafeno perfeito. Na mesma geometria, o
+    medium tira 29 % (900 K) a 65 % (grafeno) da interação, mas mantém "folhas com buraco > grafeno > 900 K"
+    (`crosscheck`). A de 1 500 K travou no LBFGS (modos C=O de lactonas) e foi continuada com FIRE (`--resume`).
+  `test_interface_au_go_calculada` confere convergência, adesão positiva, ligações curtas, índices do recorte e que a
+  partícula calculada é a da cena (mesma geometria e mesma regra de pouso, via node).
+- Roteiro guiado de 10 passos (grafeno → GO publicado de 900 K → GO de 1 500 K → cristal → sítios → interface →
+  interface calculada → síntese → plásmon → partículas), indicadores por modo, gráficos de sítios × diâmetro, espectro de Mie, LaMer,
+  tamanhos da cena × 184 tamanhos relatados em sínteses de ouro com GO, composição das folhas publicadas, lotes, energias de sítio e
+  adesão calculadas, e a tabela de parâmetros com as fontes. A Visão geral tem um atalho para a aba.
 
 O desenho é sob demanda (a cena só redesenha quando algo muda e para quando sai da tela). O núcleo (geometria e
 síntese, `AUGO_N3CORE` em `code/webapp/nano3d.js`) roda sem three.js e é conferido por `test_nanocomposito_3d_geometria_e_sintese`

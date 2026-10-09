@@ -14,14 +14,17 @@ Fluxo no estilo JARVIS (gerar → triar com ML → validar com FF/DFT):
   3. `train-alignn`    — treina o ALIGNN (JARVIS-ML) estrutura → E_ads com os dados do `screen` (modelo direto).
      `train-alignn-ff` — treina um ALIGNN-FF específico de GO–Au com os quadros das relaxações.
   4. `predict` — triagem rápida de composições novas com o ALIGNN treinado (sem MLFF); os melhores seguem para o MLFF.
-  5. `interface` — interface Au(111)/grafite(001) com o InterMat (JARVIS) e energia de adesão W_ad.
+  5. `interface` — interface Au(111)/grafite(001) com o InterMat (JARVIS) e energia de adesão W_ad (confere se o
+                 filme de ouro ainda é Au(111); o contato Au(111)/grafeno bem casado está em au_go_interface.py contact).
 Validação do próprio MLFF contra DFT: jarvis_ff.py (Au) e chipsff_run.py (CHIPS-FF).
 
+Para GO–Au prefira --calc hybrid (GO-MACE-23 no GO + MACE-MP-0 + D3 só no que envolve o ouro; ver au_go_interface.py):
+o MACE-MP-0 sozinho deforma o GO (forças de ~0,9 eV/Å na geometria otimizada com o GO-MACE-23).
 As energias vêm de MLFFs universais (DFT de cristais): servem para ordenar composições; confirme os finalistas com DFT
 (Quantum ESPRESSO/VASP via jarvis.tasks) antes de usá-las como número. Saídas em outputs/atomistic/.
 
 Uso:
-    python code/atomistic/go_au.py screen --oc 0.1 0.2 0.3 --foh 0.0 0.5 1.0 --reps 2 --calc mace-mp-d3
+    python code/atomistic/go_au.py screen --oc 0.1 0.2 0.3 --foh 0.0 0.5 1.0 --reps 2 --calc hybrid
     python code/atomistic/go_au.py design --target -1.5 --n-init 6 --n-iter 10 --calc mace-mp-d3
     python code/atomistic/go_au.py train-alignn outputs/atomistic/screen_<data>
     python code/atomistic/go_au.py predict outputs/atomistic/screen_<data>/alignn --oc 0.15 0.25 --foh 0.3 0.7
@@ -344,6 +347,23 @@ def predict(a):
 
 
 # --------------------------------------------------------------------------------------------- interface
+AU111_AREA, AU111_DZ = 4.078 ** 2 * np.sqrt(3) / 4, 4.078 / np.sqrt(3)       # Å² por átomo e espaçamento de Au(111)
+
+
+def au_film_check(atoms, mask, tol: float = 0.10) -> dict:
+    """O filme de ouro de uma interface é Au(111) de verdade? Área por átomo em cada plano (7,2 Å² no Au(111)) e
+    espaçamento entre planos (2,35 Å), ao longo do 3º vetor da célula. Para casar redes muito diferentes, o InterMat
+    pode esticar o ouro até ficar irreconhecível (já aconteceu aqui: 13 Å² por átomo e planos a 1,4 Å) — então W_ad não
+    representa Au(111) e `ok` é False."""
+    n = atoms.cell[2] / np.linalg.norm(atoms.cell[2])
+    h = np.unique(np.round(atoms.positions[mask] @ n, 1))
+    area = float(np.linalg.norm(np.cross(atoms.cell[0], atoms.cell[1])))
+    per = area * len(h) / int(np.sum(mask))
+    dz = float(np.median(np.diff(np.sort(h)))) if len(h) > 1 else float("nan")
+    ok = abs(per / AU111_AREA - 1) <= tol and abs(dz / AU111_DZ - 1) <= 2 * tol
+    return {"au_area_per_atom_A2": round(per, 3), "au_layer_spacing_A": round(dz, 3), "n_au_layers": int(len(h)), "ok": bool(ok)}
+
+
 def interface(a):
     """Au(111)/grafite(001) com o InterMat (JARVIS) e W_ad = (E_filme + E_substrato − E_interface)/A, com filme e
     substrato isolados na célula da própria interface."""
@@ -377,15 +397,20 @@ def interface(a):
         # filme e substrato na MESMA célula (deformada) da interface: W_ad mede só a ligação, sem a energia de
         # deformação do descasamento (film_sl/subs_sl do InterMat estão sem deformação)
         au_mask = np.array(intf.get_chemical_symbols()) == "Au"
+        film = au_film_check(intf, au_mask)
+        if not film["ok"]:
+            print(f"  AVISO: o filme de ouro não é Au(111): {film['au_area_per_atom_A2']:.1f} Å² por átomo (Au(111): "
+                  f"{AU111_AREA:.1f}) e planos a {film['au_layer_spacing_A']:.2f} Å ({AU111_DZ:.2f}); aumente --max-area "
+                  "ou use au_go_interface.py contact")
         e_i, e_f, e_s = energy(intf), energy(intf[au_mask]), energy(intf[~au_mask])
         area = np.linalg.norm(np.cross(intf.cell[0], intf.cell[1]))
-        scan.append({"sep_A": sep, "W_ad_J_m2": (e_f + e_s - e_i) / area * 16.0217663, "het": het, "intf": intf})
+        scan.append({"sep_A": sep, "W_ad_J_m2": (e_f + e_s - e_i) / area * 16.0217663, "het": het, "intf": intf, "film": film})
         print(f"  separação {sep:.2f} Å: W_ad = {scan[-1]['W_ad_J_m2']:+.3f} J/m²")
     best = max(scan, key=lambda r: r["W_ad_J_m2"])
     het = best["het"]
     res = {"n_atomos_interface": len(best["intf"]), "descasamento_u": het.get("mismatch_u"),
            "descasamento_v": het.get("mismatch_v"), "separacao_otima_A": best["sep_A"],
-           "W_ad_J_m2": best["W_ad_J_m2"], "calc": a.calc,
+           "W_ad_J_m2": best["W_ad_J_m2"], "calc": a.calc, "filme_Au": best["film"],
            "nota": "pontos únicos (sem relaxar), filme/substrato na célula da interface"}
     os.makedirs(OUT, exist_ok=True)
     ase_to_atoms(best["intf"]).write_poscar(os.path.join(OUT, "Au111_grafite001_interface.vasp"))

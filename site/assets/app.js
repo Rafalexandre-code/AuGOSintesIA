@@ -1693,7 +1693,7 @@
     const near = (d) => O.d.reduce((b, x, i) => (Math.abs(Math.log(x / d)) < Math.abs(Math.log(O.d[b] / d)) ? i : b), 0);
     const colorOf = (d) => G.cols[near(d)], lsprOf = (d) => peakOf(O.wl, O.C_ext[near(d)]);
     const R = A.literature.records, litGO = finite(R.size.filter((_, i) => R.go[i]));
-    const th = () => { const t = T(); return { dark: t.dark, surface: t.surface, ink: t.ink, muted: t.muted, cat: t.cat }; };
+    const th = () => { const t = T(); return { dark: t.dark, surface: t.surface, ink: t.ink, muted: t.muted, cat: t.cat, seq: t.seqScale.map((c) => c[1]) }; };
     let st = null, curve = K3 ? K3.siteCurve(0.35) : [], curveAdh = 0.35, ready = false;
     const GS = A.gostruct || { structures: [] }, gsOf = (k) => GS.structures.find((q) => q.T.replace(" ", "") === k);
     const E = K3 && window.AUGO_NANO3D ? window.AUGO_NANO3D($("#n3-scene"), { optics: O, colorOf, lsprOf, theme: th(), gostruct: GS,
@@ -1704,10 +1704,15 @@
     const P = E ? E.P : { scale: "atom", mode: "explore", sheet: "900K", color: "element", d: 2.6, adh: 0.35, ox: 0.3, lam: 520, md: 18, msig: 0.25, cov: 0.2, speed: 10 };
     if (!st && E) st = E.stats();
     const set = (k, v) => { if (E) E.set(k, v); else P[k] = v; };
-    // controles visíveis conforme a escala e o modo
+    // controles visíveis conforme a escala e o modo; "pub" = folha publicada fora da síntese, "relaxed" = interface
+    // calculada ligada, "geo" = partícula geométrica (diâmetro e adesão ajustáveis)
+    const MX = GS.mace || null, hasRelax = () => !!(MX && P.sheet !== "model" && MX.particles[P.sheet] && MX.particles[P.sheet].au);
+    let tok3 = {};
     function showCtl() {
+      const pub = P.scale === "atom" && P.mode !== "synth" && P.sheet !== "model" && hasRelax();
+      tok3 = { pub, relaxed: pub && !!P.relax, geo: P.mode !== "synth" && !(pub && P.relax) };
       card.querySelectorAll("[data-show]").forEach((el) => { const tk = el.dataset.show.split(" ");
-        el.hidden = !tk.some((t) => t === P.scale || (P.scale === "atom" && (t === P.mode || (t === "model" && P.sheet === "model")))); });
+        el.hidden = !tk.some((t) => t === P.scale || (P.scale === "atom" && (t === P.mode || (t === "model" && P.sheet === "model") || tok3[t]))); });
       const lg = E ? E.legend() : [];
       $("#n3-legend").innerHTML = lg.map(([c, l]) => `<span><i style="background:${c}"></i>${esc(l)}</span>`).join("");
       $("#n3-legend").classList.toggle("two", lg.length > 8);
@@ -1736,6 +1741,9 @@
     segmented("#n3-mcol", (v) => { set("mcolor", v); showCtl(); });
     segmented("#n3-view", (v) => { set("tem", v === "tem"); showCtl(); });
     [["lab", "labels"], ["clip", "clip"], ["hyd", "hyd"]].forEach(([id, k]) => $(`#n3-${id}`).addEventListener("change", (e) => set(k, e.target.checked)));
+    $("#n3-relax").addEventListener("change", (e) => { set("relax", e.target.checked); showCtl(); drawAdh(); });
+    $("#n3-replay").addEventListener("click", () => E && E.replayRelax());
+    if (!MX) { $("#n3-relax-l").remove(); $("#n3-sites-card").remove(); $("#n3-wadh-card").remove(); $('#n3-color [data-v="affinity"]').remove(); }
     const playLbl = () => { $("#n3-play").textContent = st && st.running ? "pausar" : st && st.sim && st.sim.done ? "nova síntese" : "iniciar"; };
     $("#n3-play").addEventListener("click", () => { if (E) E.play(!(st && st.running)); playLbl(); });
     $("#n3-restart").addEventListener("click", () => { if (E) E.restart(); playLbl(); });
@@ -1766,6 +1774,7 @@
       const segSet = (id, v) => $(id).querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.v === String(v) ? "true" : "false"));
       segSet("#n3-scale", P.scale); segSet("#n3-mode", P.mode); segSet("#n3-color", P.color); segSet("#n3-view", P.tem ? "tem" : "3d"); segSet("#n3-sheet", P.sheet);
       $("#n3-ox").value = P.ox; $("#n3-ox-o").textContent = outs.ox(); drawGo();
+      if (MX) { $("#n3-relax").checked = !!P.relax; drawAdh(); }
       $("#n3-clip").checked = !!P.clip; $("#n3-lam").value = P.lam; outLam(); showCtl(); playLbl();
     }
     function tourBox(s) {
@@ -1787,11 +1796,12 @@
     const med = (a) => median(a);
     function kp() {
       const s = st || {}, syn = P.scale === "atom" && P.mode === "synth", meso = P.scale === "meso", sim = s.sim || {}, ms = s.meso || [], mm = ms.length ? med(ms) : P.md;
-      const pl = P.mode === "plasmon" && s.plasmon, gr = s.groups || { epoxi: 0, hidroxila: 0, carboxila: 0 };
+      const pl = P.mode === "plasmon" && s.plasmon, gr = s.groups || { epoxi: 0, hidroxila: 0, carboxila: 0 }, rx = !syn && !meso && s.relax ? s.relax : null;
       kpis("#n3-kpis", [
-        { k: syn ? "Partículas formadas" : meso ? "Diâmetro mediano na cena" : "AuNP na cena", key: true,
-          v: syn ? ni(sim.n || 0) : meso ? nf(mm, 1) : nf(s.d, 1), u: syn ? "" : "nm",
-          s: syn ? (sim.n ? `diâmetro médio ${nf(sim.d, 2)} nm · variação ${nf(100 * sim.cv, 0)} %` : "aguardando os primeiros núcleos") : meso ? `${ni(ms.length)} partículas · dispersão ${nf(100 * P.msig, 0)} %` : `${ni(s.N)} átomos de ouro · forma de Wulff truncada` },
+        { k: syn ? "Partículas formadas" : meso ? "Diâmetro mediano na cena" : rx ? "AuNP relaxada (cálculo)" : "AuNP na cena", key: true,
+          v: syn ? ni(sim.n || 0) : meso ? nf(mm, 1) : nf(s.d, rx ? 2 : 1), u: syn ? "" : "nm",
+          s: syn ? (sim.n ? `diâmetro médio ${nf(sim.d, 2)} nm · variação ${nf(100 * sim.cv, 0)} %` : "aguardando os primeiros núcleos") : meso ? `${ni(ms.length)} partículas · dispersão ${nf(100 * P.msig, 0)} %`
+            : rx ? `${ni(s.N)} átomos · ${rx.anim ? "relaxando…" : `cada átomo andou ${nf(rx.au_mean_disp_A, 2)} Å em média`} · GO-MACE-23 + MACE-MP-0 + D3` : `${ni(s.N)} átomos de ouro · forma de Wulff truncada` },
         { k: syn ? "Supersaturação S" : meso ? "Cobertura da folha" : "Átomos na superfície",
           v: syn ? nf(sim.S || 0, 1) : meso ? nf(100 * (s.coverage || 0), 0) : nf(100 * s.surfFrac, 0), u: syn ? "" : "%",
           s: syn ? `nucleação rápida acima de S* ≈ ${nf(s.Sstar, 0)}` : meso ? "fração da área do GO coberta pelas partículas (vista de cima)" : `${nf(100 * s.lowCN, 0)} % em arestas e vértices, os sítios mais reativos` },
@@ -1802,9 +1812,10 @@
           v: syn ? nf(100 * (1 - (sim.ions == null ? 1400 : sim.ions) / 1400), 0) : meso ? nf(med(litGO), 0) : pl ? nf(100 * pl.rel, 0) : nf(lsprOf(s.d || 2.6), 0),
           u: syn ? "%" : meso ? "nm" : pl ? "% do pico" : "nm",
           s: syn ? `${ni(sim.att || 0)} átomos já em partículas · ${ni(sim.mon || 0)} livres` : meso ? `mediana de ${ni(litGO.length)} sínteses de ouro relatadas com GO` : pl ? `luz de ${Math.round(pl.lam)} nm; o pico desta partícula fica em ${Math.round(pl.peak)} nm` : `cor da dispersão: ${colorOf(s.d || 2.6)}` },
-        { k: syn ? "Tempo de simulação" : meso ? "Ouro na cena" : "Ancoragem Au–O",
-          v: syn ? ni(sim.t || 0) : meso ? nf(ms.reduce((a, d) => a + K3.RHO_AU * 1000 * Math.PI / 6 * d * d * d, 0) / 1e6, 1) : ni(s.anchors || 0), u: syn ? "passos" : meso ? "milhões de átomos" : "",
-          s: syn ? (sim.done ? "síntese concluída" : s.running ? "em andamento" : "pausada: aperte iniciar") : meso ? "somando todas as partículas" : `oxigênios junto ao contato de ${nf(2 * (s.foot || 0) / 10, 1)} nm de diâmetro` },
+        { k: syn ? "Tempo de simulação" : meso ? "Ouro na cena" : rx ? "Ligações Au–O formadas" : "Ancoragem Au–O",
+          v: syn ? ni(sim.t || 0) : meso ? nf(ms.reduce((a, d) => a + K3.RHO_AU * 1000 * Math.PI / 6 * d * d * d, 0) / 1e6, 1) : rx ? ni(rx.n_AuO) : ni(s.anchors || 0), u: syn ? "passos" : meso ? "milhões de átomos" : "",
+          s: syn ? (sim.done ? "síntese concluída" : s.running ? "em andamento" : "pausada: aperte iniciar") : meso ? "somando todas as partículas"
+            : rx ? `${ni(rx.n_AuC)} Au–C · adesão ${nf(-rx.E_adh_eV, 1)} eV para a partícula (W ≈ ${nf(rx.W_adh_J_m2, 2)} J/m²)` : `oxigênios junto ao contato de ${nf(2 * (s.foot || 0) / 10, 1)} nm de diâmetro` },
       ]);
     }
     function drawDisp() {
@@ -1865,7 +1876,8 @@
       plot("n3-go", tr, { barmode: "group", bargap: 0.22, bargroupgap: 0.06, legend: { y: 1.22 }, yaxis: { title: { text: "átomos de O por 100 C" }, rangemode: "tozero" }, xaxis: { title: { text: "grupo oxigenado" } } });
       const r = GS.structures.map((q) => `<b>${q.T}</b>: O/C ${nf(q.OC, 2)} · ${nf(100 * q.sp3_frac, 0)} % C sp³ · ${nf(100 * q.edge_frac, 0)} % C de borda · ondulação ${nf(q.corrugation_A, 1)} Å`).join("; ");
       $("#n3-go-txt").innerHTML = `<p>${r}. Com mais temperatura o GO perde oxigênio (O/C cai), os epóxis e hidroxilas do plano dão lugar a buracos com carbonila, éter e lactona nas bordas, e o carbono volta a sp². ` +
-        `Fonte: ${esc(GS.source)} (dados: doi ${esc(GS.doi_data)}), ${ni(GS.structures[0].n_atoms)} (900 K) a ${ni(GS.structures[2].n_atoms)} (1 500 K) átomos por célula de ${GS.structures[0].cell_nm.map((v) => nf(v, 1)).join(" × ")} nm; a cena mostra um recorte de ${nf(GS.structures[0].crop.L / 10, 1)} × ${nf(GS.structures[0].crop.L / 10, 1)} nm. São estruturas de simulação, não medidas; a folha-modelo só tem epóxi, hidroxila e carboxila.</p>`;
+        `Fonte: ${esc(GS.source)} (dados: doi ${esc(GS.doi_data)}), ${ni(GS.structures[0].n_atoms)} (900 K) a ${ni(GS.structures[2].n_atoms)} (1 500 K) átomos por célula de ${GS.structures[0].cell_nm.map((v) => nf(v, 1)).join(" × ")} nm; a cena mostra um recorte de ${nf(GS.structures[0].crop.L / 10, 1)} × ${nf(GS.structures[0].crop.L / 10, 1)} nm. São estruturas de simulação, não medidas; a folha-modelo só tem epóxi, hidroxila e carboxila.` +
+        (GS.mace && GS.mace.equilibrium && Object.keys(GS.mace.equilibrium).length ? ` Conferidas no próprio GO-MACE-23 publicado, as folhas "otimizadas" estão em equilíbrio quase todo (força mediana ${nf(GS.mace.equilibrium["900K"] ? GS.mace.equilibrium["900K"].median_eV_A : 0.001, 3)} eV/Å), mas ${Object.entries(GS.mace.equilibrium).map(([k, e]) => `${nf(100 * e.n_gt_1 / e.n_atoms, 1)} % (${k.replace("K", " K")})`).join(", ")} dos átomos têm forças acima de 1 eV/Å, em regiões localizadas (sobretudo C nas bordas de buracos); os cálculos com ouro evitam essas regiões.` : "") + "</p>";
     }
     // experimento de lotes: a síntese repetida em folhas de O/C diferente (roda no navegador, em fatias)
     const BOX = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4];
@@ -1906,12 +1918,101 @@
     segmented("#n3-bred", () => {});
     $("#n3-breps").addEventListener("input", () => { $("#n3-breps-o").textContent = $("#n3-breps").value; });
     $("#n3-breps-o").textContent = $("#n3-breps").value;
+    // interface calculada: energia de um Au por tipo de sítio e adesão da partícula a cada folha (CÁLCULO, não medida)
+    const STY = ["O epóxi", "O hidroxila", "O éter", "O carbonila", "O carboxila", "O lactona", "C de borda", "C sp²", "grafeno intacto"];
+    const STL = ["epóxi", "hidroxila", "éter", "carbonila", "carboxila", "lactona", "C de borda", "C sp² (ilha)", "grafeno"];
+    const TS = ["900K", "1200K", "1500K"], tLab = (T) => (T === "graphene" ? "grafeno" : T.replace("K", " K"));
+    function drawSites() {
+      if (!MX) return;
+      const t = T(), sq = t.seqScale.map((c) => c[1]), cols = { "900K": sq[4], "1200K": sq[8], "1500K": sq[12], graphene: t.other }, S = MX.sites, tr = [];
+      const fa = MX.refs.E_free_atom_model_eV, Y = S.E_ads || S.E, ads = !!S.E_ads;      // energia de adsorção: átomo livre = 0
+      const xi = (ty) => STY.indexOf(ty), off = { "900K": -0.22, "1200K": 0, "1500K": 0.22, graphene: 0 };
+      ["900K", "1200K", "1500K", "graphene"].forEach((T0) => {
+        const k = S.structure.map((x, i) => (x === T0 ? i : -1)).filter((i) => i >= 0 && xi(S.type[i]) >= 0);
+        if (!k.length) return;
+        tr.push({ type: "scatter", mode: "markers", name: T0 === "graphene" ? "grafeno perfeito" : `folha de ${tLab(T0)}`, x: k.map((i) => xi(S.type[i]) + off[T0]), y: k.map((i) => Y[i]),
+          marker: { size: 9, color: cols[T0], line: { color: t.surface, width: 1.5 } },
+          customdata: k.map((i) => [STL[xi(S.type[i])], S.contacts[i] || "nenhuma", S.broken[i] || "nenhuma", ads ? S.E_rigid[i] - fa : S.E_rigid[i]]),
+          hovertemplate: "%{customdata[0]}: %{y:.2f} eV<br>ligações do Au: %{customdata[1]}<br>ligações do GO rompidas: %{customdata[2]}<br>com o GO parado: %{customdata[3]:.2f} eV<extra>" + tLab(T0) + "</extra>" });
+      });
+      const med = STY.map((ty) => { const v = S.type.map((x, i) => (x === ty ? Y[i] : null)).filter((v) => v != null); return v.length ? median(v) : null; });
+      tr.push({ type: "scatter", mode: "markers", name: "mediana do tipo", x: STY.map((_, i) => i), y: med, marker: { symbol: "line-ew", size: 26, line: { color: t.ink, width: 2.4 } }, hovertemplate: "mediana: %{y:.2f} eV<extra></extra>" });
+      const V = MX.validation_medium;
+      if (V && ads) {                              // os mesmos sítios com o MACE-MP-0 medium: a incerteza do modelo à vista
+        const vv = V.sites.filter((r) => xi(r[1]) >= 0);
+        tr.push({ type: "scatter", mode: "markers", name: "mesmo sítio, modelo maior (medium)", x: vv.map((r) => xi(r[1]) + (off[r[0]] || 0)), y: vv.map((r) => r[4]),
+          marker: { symbol: "diamond-open", size: 12, color: t.ink, line: { width: 1.8 } }, customdata: vv.map((r) => [STL[xi(r[1])], tLab(r[0]), r[3]]),
+          hovertemplate: "%{customdata[0]} (%{customdata[1]}): medium %{y:.2f} eV × small %{customdata[2]:.2f} eV<extra>conferência</extra>" });
+      }
+      const gi = S.type.indexOf("grafeno intacto"), g = gi >= 0 ? Y[gi] : null;
+      const shapes = [{ type: "line", xref: "paper", x0: 0, x1: 1, y0: 0, y1: 0, line: { color: t.muted, width: 1.2, dash: "dash" } }];
+      const ann = [{ xref: "paper", x: 1, y: 0, text: ads ? "átomo de ouro livre" : "ouro maciço", showarrow: false, xanchor: "right", yanchor: "bottom", font: { size: 10, color: t.muted } }];
+      if (g != null) { shapes.push({ type: "line", xref: "paper", x0: 0, x1: 1, y0: g, y1: g, line: { color: t.other, width: 1.2, dash: "dot" } });
+        ann.push({ xref: "paper", x: 0, y: g, text: "grafeno perfeito", showarrow: false, xanchor: "left", yanchor: "top", font: { size: 10, color: t.muted } }); }
+      if (!ads && fa != null) { shapes.push({ type: "line", xref: "paper", x0: 0, x1: 1, y0: fa, y1: fa, line: { color: t.muted, width: 1, dash: "dashdot" } });
+        ann.push({ xref: "paper", x: 1, y: fa, text: "átomo livre (neste modelo)", showarrow: false, xanchor: "right", yanchor: "bottom", font: { size: 10, color: t.muted } }); }
+      plot("n3-sites", tr, { legend: { y: 1.2 }, shapes, annotations: ann, xaxis: { tickvals: STY.map((_, i) => i), ticktext: STL, tickangle: -30 },
+        yaxis: { title: { text: ads ? "energia de adsorção do Au (eV; átomo livre = 0)" : "energia do Au no sítio (eV, ouro maciço = 0)" }, zeroline: false } });
+      const by = STY.map((ty, i) => [STL[i], med[i]]).filter((x) => x[1] != null).sort((a, b) => a[1] - b[1]);
+      const nconv = S.converged.filter(Boolean).length, nchem = S.n_contacts.filter((c) => c > 0).length;
+      $("#n3-sites-txt").innerHTML = by.length ? `<p>Ordem da ancoragem (mediana): ${by.map(([l, v]) => `<b>${l}</b> ${nf(v, 2)}`).join(" · ")} eV. ` +
+        (ads ? `Para comparar: dentro do ouro maciço o mesmo átomo estaria a ${nf(-fa, 2)} eV neste modelo. ${by[0][1] < -fa ? "O sítio mais forte prende o átomo melhor que o próprio ouro." : "Nenhum sítio chega perto disso: os átomos reduzidos tendem a se juntar em partículas, que nascem onde a ancoragem é mais forte."} `
+          : `${by[0][1] < 0 ? "Só o sítio mais forte prende o átomo melhor que o próprio ouro maciço." : "Nenhum sítio prende um átomo isolado melhor que o ouro maciço: os átomos reduzidos tendem a se juntar em partículas, que nascem onde a ancoragem é mais forte."} `) +
+        `Em ${ni(nchem)} de ${ni(S.E.length)} sítios o Au formou ligação química (até 2,6 Å); nos demais ficou fisissorvido, perto do nível do átomo livre. ` +
+        `${ni(nconv)} de ${ni(S.E.length)} relaxações convergidas a 0,05 eV/Å. ` +
+        (MX.validation_medium ? (() => { const Vm = MX.validation_medium, both = Vm.sites.filter((r) => r[3] < -0.4 && r[4] < -0.4);
+          return `Conferência com o MACE-MP-0 maior (medium) em ${ni(Vm.n)} sítios (losangos): as energias mudam ${nf(Vm.mean_abs_diff_eV, 2)} eV em média (no máximo ${nf(Vm.max_abs_diff_eV, 2)} eV)` +
+            `${Vm.spearman != null ? `; ${Vm.spearman >= 0.8 ? "a ordem dos sítios se mantém" : Vm.spearman >= 0.5 ? "a ordem dos sítios se mantém só em parte" : "a ordem dos sítios não se mantém"} (correlação de Spearman ${nf(Vm.spearman, 2)})` : ""}. ` +
+            (both.length ? `Prendem forte (abaixo de −0,4 eV) nos dois modelos: ${[...new Set(both.map((r) => r[1]))].map((ty) => `${STL[xi(ty)]} (${ni(both.filter((r) => r[1] === ty).length)} de ${ni(Vm.sites.filter((r) => r[1] === ty).length)} conferidos)`).join(", ")}. ` : "") +
+            (() => { const oth = Vm.sites.filter((r) => r[1].startsWith("O ") && !both.includes(r)); return oth.length && oth.every((r) => r[4] > -0.4)
+              ? `Os outros ${ni(oth.length)} grupos de oxigênio conferidos ficam fracos (acima de −0,4 eV) no modelo maior. ` : ""; })(); })() : "") +
+        (MX.validation_medium && MX.validation_medium.spearman != null && MX.validation_medium.spearman < 0.8
+          ? "Cálculo com potenciais de aprendizado de máquina, não medida: vale o que se repete nos dois modelos, não o valor nem a ordem de cada sítio.</p>"
+          : "Cálculo com potenciais de aprendizado de máquina, não medida: serve para ordenar os sítios, não como valor exato.</p>") : "";
+    }
+    function drawAdh() {
+      if (!MX) return;
+      const t = T(), sq = t.seqScale.map((c) => c[1]), cols = { "900K": sq[4], "1200K": sq[8], "1500K": sq[12], graphene: t.other };
+      const ks = ["graphene", "1500K", "1200K", "900K"].filter((k) => MX.particles[k]), Pp = MX.particles, g111 = MX.refs.gamma111_J_m2, C = MX.contact;
+      if (!ks.length) return;
+      const sel = P.sheet, xi = ks.map((_, i) => i), ki = ks.filter((k) => Pp[k].int_small && Pp[k].int_medium);
+      const lab = (k) => [k !== "graphene" ? `${Pp[k].n_AuO} Au–O` : "", Pp[k].n_AuC ? `${Pp[k].n_AuC} Au–C` : ""].filter(Boolean).join(" · ") || "sem contato";
+      const tr = [{ type: "bar", name: "adesão (folha e partícula livres para se acomodar)", x: xi, y: ks.map((k) => -Pp[k].E_adh_eV), width: 0.5,
+        marker: { color: ks.map((k) => cols[k]), opacity: ks.map((k) => (sel === "model" || k === sel || k === "graphene" ? 1 : 0.55)), line: { color: t.surface, width: 1.5 } },
+        text: ks.map(lab), textposition: "outside", textfont: { size: 11, color: t.ink2 },
+        customdata: ks.map((k) => [tLab(k), Pp[k].W_adh_J_m2, 100 * Pp[k].W_adh_J_m2 / g111, Pp[k].n_AuO, Pp[k].n_AuC, Pp[k].sink_A != null ? Pp[k].sink_A : Pp[k].drop_A || 0, -Pp[k].E_adh_rigid_eV]),
+        hovertemplate: "%{customdata[0]}: %{y:.2f} eV para descolar a partícula<br>com o GO parado: %{customdata[6]:.2f} eV<br>contatos a até 2,6 Å: %{customdata[3]} Au–O, %{customdata[4]} Au–C<br>W ≈ %{customdata[1]:.2f} J/m² pela área projetada (%{customdata[2]:.0f} % de γ₁₁₁)<br>o centro da partícula desceu %{customdata[5]:.1f} Å em relação à cena<extra></extra>" }];
+      if (ki.length) [["small", -0.34, "circle-open", "interação, mesma geometria: MACE-MP-0 small (o usado)"], ["medium", 0.34, "diamond-open", "a mesma no modelo maior (medium)"]].forEach(([m, dx, sym, nm]) =>
+        tr.push({ type: "scatter", mode: "markers", name: nm, x: ki.map((k) => ks.indexOf(k) + dx), y: ki.map((k) => -Pp[k][`int_${m}`].E_min_eV),
+          marker: { symbol: sym, size: 12, color: t.ink, line: { width: 2 } }, customdata: ki.map((k) => [tLab(k), Pp[k][`int_${m}`].h_min_A]),
+          hovertemplate: `%{customdata[0]}, ${m}: %{y:.2f} eV (partícula e folha paradas na geometria relaxada; altura ajustada em %{customdata[1]:+.2f} Å)<extra>conferência</extra>` }));
+      plot("n3-wadh", tr, { legend: { y: 1.28 }, bargap: 0.35, xaxis: { tickvals: xi, ticktext: ks.map(tLab), range: [-0.55, ks.length - 0.45] },
+        yaxis: { title: { text: "energia de adesão da partícula (eV)" }, rangemode: "tozero" } });
+      const hi = ks.reduce((a, k) => (-Pp[k].E_adh_eV > -Pp[a].E_adh_eV ? k : a), ks[0]), lo = ks.reduce((a, k) => (-Pp[k].E_adh_eV < -Pp[a].E_adh_eV ? k : a), ks[0]);
+      const gos = ks.filter((k) => k !== "graphene"), where = (k) => (k === "graphene" ? "ao grafeno perfeito" : `à folha de ${tLab(k)}`);
+      const TN = { "O carbonila": "carbonila", "O lactona": "lactona", "O hidroxila": "hidroxila", "O epóxi": "epóxi", "O éter": "éter", "O carboxila": "carboxila", "C de borda": "C de borda", "C sp²": "C sp²", "C sp³": "C sp³" };
+      const touch = (k) => { const q = Pp[k], parts = [...Object.entries(q.O_types || {}).map(([ty, n]) => `${ni(n)} O de ${TN[ty] || ty}`), ...Object.entries(q.C_types || {}).map(([ty, n]) => `${ni(n)} ${TN[ty] || ty}`)];
+        return `${tLab(k)} — ${parts.length ? parts.join(", ") : "nenhum"}${q.sink_A > 1.5 ? `; a partícula afunda ${nf(q.sink_A, 1)} Å${q.shape_rmsd_A > 0.8 ? " e se deforma" : ""}` : ""}`; };
+      const red = (k) => 100 * (1 - Pp[k].int_medium.E_min_eV / Pp[k].int_small.E_min_eV);
+      const gAdv = Pp.graphene && Pp.graphene.int_small && Pp.graphene.int_medium ? gos.filter((k) => Pp[k].int_small && Pp[k].int_medium) : [];
+      const gWins = (m) => gAdv.every((k) => Pp[k][`int_${m}`].E_min_eV > Pp.graphene[`int_${m}`].E_min_eV);
+      $("#n3-wadh-txt").innerHTML = `<p>A mesma partícula de ${Pp[ks[0]].N_Au} átomos adere mais ${where(hi)} (${nf(-Pp[hi].E_adh_eV, 1)} eV) e menos ${where(lo)} (${nf(-Pp[lo].E_adh_eV, 1)} eV). ` +
+        (gos.length ? `Contatos a até 2,6 Å sob a partícula: ${gos.map(touch).join("; ")}.${gos.some((k) => (Pp[k].C_types || {})["C de borda"]) ? " Onde a folha tem um buraco sob a partícula, ela afunda e se prende aos carbonos de borda, os sítios mais fortes do cartão acima." : ""} ` : "") +
+        (Pp.graphene && gos.length && gos.every((k) => -Pp[k].E_adh_eV < -Pp.graphene.E_adh_eV) ? "Todas as folhas de GO seguram a partícula menos que o grafeno perfeito: os grupos oxigenados e a ondulação a mantêm afastada do plano de carbono, de onde vem a maior parte da atração de van der Waals, e as poucas ligações Au–O não compensam. " : "") +
+        (ki.length ? `<b>Conferência do modelo</b> (marcadores): com a partícula e a folha paradas e só a altura ajustada, a interação no MACE-MP-0 maior (medium) fica ${ki.map((k) => `${tLab(k)} ${nf(-Pp[k].int_small.E_min_eV, 1)} → ${nf(-Pp[k].int_medium.E_min_eV, 1)} eV (${red(k) >= 0 ? "−" : "+"}${nf(Math.abs(red(k)), 0)} %)`).join("; ")}; ` +
+          (() => { const fl = []; ki.forEach((a, i) => ki.slice(i + 1).forEach((b) => { const ds = Pp[a].int_small.E_min_eV - Pp[b].int_small.E_min_eV, dm = Pp[a].int_medium.E_min_eV - Pp[b].int_medium.E_min_eV; if (ds * dm < 0) fl.push([a, b, Math.abs(dm)]); }));
+            return !fl.length ? "a ordem entre as folhas se mantém" : fl.every((x) => x[2] < 0.5) ? `a ordem se mantém, exceto ${fl.map((x) => `${tLab(x[0])} e ${tLab(x[1])}`).join(", ")}, que trocam de lugar com menos de 0,5 eV de diferença` : "a ordem entre as folhas muda"; })() +
+          (gAdv.length && gWins("small") ? (gWins("medium") ? `, e o grafeno segue na frente, mas a vantagem dele encolhe (${gAdv.map((k) => `${tLab(k)}: ${nf(Pp[k].int_small.E_min_eV - Pp.graphene.int_small.E_min_eV, 1)} → ${nf(Pp[k].int_medium.E_min_eV - Pp.graphene.int_medium.E_min_eV, 1)} eV`).join("; ")})` : ", e o grafeno perde a dianteira no medium") : "") + ". " : "") +
+        (C && C.small && C.medium ? `O motivo aparece no contato ouro–carbono: no par Au(111)/grafeno, o small + D3 liga a ${nf(C.small.d_eq_A, 2)} Å com ${nf(-C.small.E_b_meV_per_C, 0)} meV por C e o medium a ${nf(C.medium.d_eq_A, 2)} Å com ${nf(-C.medium.E_b_meV_per_C, 0)} meV/C, contra ${nf(C.reference.vdwdf_d_A[0], 2)}–${nf(C.reference.vdwdf_d_A[1], 2)} Å em cálculos com vdW-DF (Vanin et al. 2010) e menos de ${ni(C.reference.stm_max_meV_per_C)} meV/C estimados por STM (Nie et al. 2012): o modelo usado exagera a atração do ouro pelo carbono, e com ela a adesão, sobretudo no grafeno. ` : "") +
+        `Por área projetada da partícula (π r², ~${nf(Pp[ks[0]].projected_area_A2 / 100, 1)} nm²), W vai de ${nf(Math.min(...ks.map((k) => Pp[k].W_adh_J_m2)), 2)} a ${nf(Math.max(...ks.map((k) => Pp[k].W_adh_J_m2)), 2)} J/m², ou ${nf(100 * Math.min(...ks.map((k) => Pp[k].W_adh_J_m2)) / g111, 0)}–${nf(100 * Math.max(...ks.map((k) => Pp[k].W_adh_J_m2)) / g111, 0)} % da energia da face (111) do ouro no mesmo cálculo (o controle "Adesão Au–GO" da cena usa 35 %). ` +
+        `Uma partícula e uma posição por folha${C && C.small && C.small.d_eq_A < C.reference.vdwdf_d_A[0] ? ", num modelo que exagera o contato com o carbono" : ""}: os números comparam as folhas de forma qualitativa, sem barra de erro.</p>`;
+    }
     let lastSlow = 0, lastKey = "", lastGo = "";
     const refresh = () => {
       kp(); showCtl(); playLbl();
       const now = performance.now(), key = `${P.scale}|${P.mode}|${st && st.d}|${P.md}|${P.msig}|${P.lam}|${st && st.meso && st.meso.length}`;
       if (key !== lastKey) { lastKey = key; drawSpec(); drawSizes(); drawDisp(); }
-      const gk = `${P.sheet}|${st && st.CO}`; if (gk !== lastGo) { lastGo = gk; drawGo(); }
+      const gk = `${P.sheet}|${st && st.CO}`; if (gk !== lastGo) { lastGo = gk; drawGo(); drawAdh(); }
       if (P.mode === "synth" && now - lastSlow > 400) { lastSlow = now; drawLamer(); }
     };
     // tabela de parâmetros
@@ -1924,15 +2025,17 @@
       ["Grau de oxidação", "controle \"Oxidação do GO\": O/C de 0,02 (quase grafeno) a 0,45 (GO de Hummers, C/O ≈ 2–3)", "faixa relatada para GO e GO reduzido; muda de lote para lote"],
       ["Rede do ouro", "cúbica de face centrada, a = 4,078 Å; vizinhos a 2,884 Å; 59 átomos/nm³", "difração de raios X (valor tabelado a 25 °C)"],
       ["Forma da nanopartícula", "octaedro truncado de Wulff (faces {111} e {100}), γ(100)/γ(111) = 1,15", "construção de Wulff; a razão de 1,1 a 1,3 vem de cálculos DFT e medidas, 1,15 é escolha do modelo"],
-      ["Adesão ao GO", "truncamento de Winterbottom: o plano de contato fica a (1 − E_adesão/γ₁₁₁) do centro", "Winterbottom, Acta Metall. 15, 303 (1967); controle \"Adesão Au–GO\""],
+      ["Adesão ao GO", `truncamento de Winterbottom: o plano de contato fica a (1 − E_adesão/γ₁₁₁) do centro; padrão 35 % de γ₁₁₁${MX && MX.particles["900K"] ? ` (a partícula calculada sobre a folha de 900 K dá ~${nf(100 * MX.particles["900K"].W_adh_J_m2 / MX.refs.gamma111_J_m2, 0)} % pela área projetada; a escolha de área muda esse número)` : ""}`, "Winterbottom, Acta Metall. 15, 303 (1967); controle \"Adesão Au–GO\"; cartão de adesão"],
       ["Distância ouro–folha", "primeiro plano de ouro a 3,4 Å do plano do carbono (O a ~1,3 Å + Au–O ~2,1 Å)", "escolha do modelo, compatível com ligações Au–O"],
       ["Cor e plásmon", "Mie com o índice de refração do ouro de Johnson & Christy (1972), em água", "a mesma conta da aba Óptica, validada contra 798 relatos"],
       ["Síntese ao vivo", "redução de primeira ordem; nucleação nos O da face de cima com taxa ∝ exp(−B/ln²S); crescimento átomo a átomo no sítio fcc de maior coordenação", "teoria clássica de nucleação e LaMer & Dinegar (1950); parâmetros escolhidos para mostrar a tendência (qualitativo)"],
+      ...(MX ? [["Interface calculada (opção \"interface relaxada\")", `nanopartícula de ${MX.particles["900K"] ? MX.particles["900K"].N_Au : 119} átomos e átomos isolados de Au relaxados sobre as folhas publicadas; GO-MACE-23 para o GO + MACE-MP-0 (small) + D3(BJ) para o que envolve o ouro; no mesmo potencial, a₀(Au) = ${nf(MX.refs.a0_A, 3)} Å e γ(111) = ${nf(MX.refs.gamma111_J_m2, 2)} J/m²`,
+        "cálculo deste projeto (code/atomistic/au_go_interface.py → datasets/au-go-interface): potenciais de aprendizado de máquina treinados em DFT-PBE, não medida; ordena sítios e folhas, valores a confirmar com DFT"]] : []),
       ["Experimento de lotes", "a síntese ao vivo (1 000 átomos de Au, 25 °C) em folhas-modelo de O/C 0,05 a 0,40, com sementes 11, 12, … para cada repetição", "mesmo modelo qualitativo da síntese; calculado no navegador a cada clique, nada é guardado"],
       ["Escala de partículas", "diâmetros log-normais (mediana e dispersão nos controles), sem sobreposição", `comparados com ${ni(litGO.length)} tamanhos relatados em sínteses de ouro com GO (mediana ${nf(med(litGO), 0)} nm)`],
     ].map(([a, b, c]) => `<tr><th>${a}</th><td>${b}</td><td>${c}</td></tr>`).join("") + "</tbody>";
-    ready = true; showCtl(); refresh(); drawLamer(); drawDisp(); drawSpec(); drawSizes(); drawGo(); drawBatch();
-    drawer(() => { if (E && built.nano3d) E.theme(th()); drawDisp(); drawSpec(); drawSizes(); drawLamer(); drawGo(); drawBatch(); showCtl(); });
+    ready = true; showCtl(); refresh(); drawLamer(); drawDisp(); drawSpec(); drawSizes(); drawGo(); drawBatch(); drawSites(); drawAdh();
+    drawer(() => { if (E && built.nano3d) E.theme(th()); drawDisp(); drawSpec(); drawSizes(); drawLamer(); drawGo(); drawBatch(); drawSites(); drawAdh(); showCtl(); });
   };
 
   /* ================================================================== variabilidade */

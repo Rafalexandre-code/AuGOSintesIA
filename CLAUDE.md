@@ -21,8 +21,9 @@ Cada pasta de primeiro nível tem um `README.md` com o seu índice.
   `aunp-text-mined/` (LFS), `cofs-methane/`, `pressure-vessel/`, `pubchem/`, `xrd-ceo2-calibration/`
   (.ge3: 5 frames 2048×2048 uint16, offset 8192). Gerados por `tools/data_sources/` (regeráveis): `reagents/`
   (dicionário PubChem; editar só `aliases.tsv`), `literature-seed/` (Cruse+NSP+AuNCs; `go_aunp_subset.csv`),
-  `data-model/` (13 tabelas + validador, inclusive `resources` e `qc_results`), `optical-constants/` (n, k de Au/Ag para Mie). `lab/` = dados medidos (a preencher; validar com `lab_data_model.py validate`; SOPs em `lab/protocols/`).
-- `code/` — código do projeto (ambiente `core`; testes `python -m pytest code/tests`, 106): `campaign/` (`prereg.py` lê/sela
+  `data-model/` (13 tabelas + validador, inclusive `resources` e `qc_results`), `optical-constants/` (n, k de Au/Ag para Mie);
+  `au-go-interface/` = interface Au–GO CALCULADA (code/atomistic/au_go_interface.py; não regerado pelo check_repo). `lab/` = dados medidos (a preencher; validar com `lab_data_model.py validate`; SOPs em `lab/protocols/`).
+- `code/` — código do projeto (ambiente `core`; testes `python -m pytest code/tests`, 114): `campaign/` (`prereg.py` lê/sela
   o pré-registro; `plan.py` gera o plano 8/12/24/16 — braços pareados por rodada, confirmação em pares com previsões
   congeladas, TEM, controles, fichas; `ingest.py` = brutos → `outcomes.csv` (J, tamanho da TEM ou do UV-Vis/Mie calibrado
   na TEM; `check`); `analysis.py` = análise pré-registrada; `factorial.py` = fatorial 2×2), `spectral/`
@@ -40,7 +41,10 @@ Cada pasta de primeiro nível tem um `README.md` com o seu índice.
   `webapp/` (site só com dados experimentais: `expdata.py` → `analyses.py` → `build_site.py` gera `site/`; `app.js` roda o GP e
   o Mie/J no navegador; `guide.js` = textos da aba Guia por aba, indicador, figura e conceito, executado no node por teste;
   `nano3d.js` = aba Nanocompósito 3D: folhas de GO publicadas do GO-MACE-23 (`analyses.go_structures`), núcleo de geometria, síntese e lotes testado no node + cena three.js r147 de `webapp/vendor/`), `atomistic/` (ambiente
-  `jarvis`: design inverso GO–Au com JARVIS-DFT/FF/ML/Tools, CHIPS-FF, InterMat; `test_atomistic.py`).
+  `jarvis`: design inverso GO–Au com JARVIS-DFT/FF/ML/Tools, CHIPS-FF, InterMat; `test_atomistic.py`; `go_sites.py` = tipos de átomo do GO
+  publicado, usado também pelo site; `au_go_interface.py` = Au₁ por sítio e a partícula da cena relaxados nas folhas publicadas com
+  potencial híbrido GO-MACE-23 + MACE-MP-0 + D3 → `datasets/au-go-interface/`, CÁLCULO e não medida, horas de CPU; `contact` e
+  `crosscheck` conferem o modelo: o small exagera o contato Au–C — Au(111)/grafeno a 2,9 Å, contra 3,4–3,7 Å no vdW-DF).
 - `site/` — painel interativo (abrir `site/index.html`; gerado, não editar: `python code/webapp/build_site.py [--reuse]`;
   `--artifact <arquivo>` = página única). Só dados experimentais; GO-específico aparece como "aguarda o laboratório".
 - `projects/<módulo>/` — 13 subprojetos base (modificados aqui: caminhos portáveis, bugs corrigidos):
