@@ -1439,7 +1439,7 @@ estimativas são observacionais e trazem E-value.
 A aba **Guia completo** documenta o site inteiro para quem nunca viu a área (~34 mil palavras, ~2,5 h de leitura), em
 sete partes:
 
-1. **Comece aqui**: o que é o site, um roteiro de 10 minutos (nove paradas com link para o gráfico e para a explicação),
+1. **Comece aqui**: o que é o site, um roteiro de 10 minutos (dez paradas com link para o gráfico e para a explicação),
    como navegar, como ler qualquer gráfico (esquema anotado), o significado de cada cor e símbolo e os atalhos de teclado.
 2. **Conceitos** (24): nanopartícula e escala, tamanho → espectro → cor, síntese (LaMer), variabilidade, Mie, perda J,
    Stokes, difração e Bragg, mediana e escala log, correlação de Spearman, incerteza e bootstrap, p-valor e Holm, ruído
@@ -1451,14 +1451,14 @@ sete partes:
 3. **Aba por aba**: a pergunta de cada aba, para que serve e por que importa ao projeto, de onde vêm os dados, um roteiro
    de leitura, cada controle (o que faz, faixa e padrão), cada fileira de indicadores (13 fileiras, um texto por cartão:
    o que significa e como é calculado), resultados com os números atuais, mensagem principal, limites e "Experimente";
-   depois as 75 figuras e tabelas, recolhíveis, cada uma com a pergunta que responde, o que mostra, os elementos do
+   depois as 77 figuras e tabelas, recolhíveis, cada uma com a pergunta que responde, o que mostra, os elementos do
    gráfico, a leitura passo a passo, como interagir, exemplo com os números atuais, cuidados, erros comuns de leitura,
    como foi calculado (com a função do código) e os conceitos relacionados.
 4. **Fórmulas** (30), em símbolos e em palavras.
 5. **Como foi feito**: princípios e etapas, registro de decisões (adotado × rejeitado), mapa do código (aba → função em
    Python → conta no navegador → arquivo de dados), linha do tempo e limites.
-6. **Perguntas frequentes** (24).
-7. **Glossário** (136 termos, com índice por letra) e **referências** (43, por área).
+6. **Perguntas frequentes** (25).
+7. **Glossário** (142 termos, com índice por letra) e **referências** (43, por área).
 
 No topo, uma busca filtra todo o guia (abre as figuras que contêm o termo), o nível **básico** esconde fórmulas e
 detalhes de cálculo, há botões para expandir/recolher as figuras, barra de progresso e sumário que acompanha a leitura;
@@ -1475,24 +1475,43 @@ apontam para figuras e demonstrações que existem.
 Ambiente 3D (three.js r147, vendorizado em `code/webapp/vendor/`) para ver o material do projeto por dentro. É um
 **modelo ilustrativo com parâmetros medidos**, marcado assim no site (ponto dourado no menu), e não uma medida:
 
-- **Escala atômica** (~10 nm): folha de GO átomo a átomo (C–C 1,42 Å, ondulação suave), grupos epóxi e hidroxila nas
-  duas faces e carboxila nas bordas, sorteados em domínios oxidados (modelo de Lerf–Klinowski), com os carbonos sp³
-  saindo do plano; a razão O/C é um controle (lote mais ou menos oxidado). Nanopartícula de ouro com a rede fcc real
+- **Folhas de GO publicadas** (padrão da escala atômica): recortes de 9,6 × 9,6 nm das três estruturas de
+  El-Machachi et al. (Angew. Chem. Int. Ed. 2024, e202410088; dados Zenodo 10.5281/zenodo.14066557, já no repositório
+  em `projects/atomistic/GO-MACE-23/structures/{900K,1200K,1500K}/optimized.xyz`): 2 ns de dinâmica molecular a 900,
+  1 200 e 1 500 K com o potencial GO-MACE-23 e otimização. `analyses.go_structures()` lê as células inteiras
+  (11 984 a 15 009 átomos), detecta as ligações por distância com contorno periódico e classifica cada átomo (C sp², sp³
+  ou de borda; O epóxi, hidroxila, éter, carbonila, carboxila ou lactona/anidrido) → `site/data/gostruct.js`. A
+  composição segue a redução térmica: O/C 0,34 → 0,26 → 0,21, C sp³ 32 % → 2 % → 0,2 %, epóxis 10,8 → 0,3 → 0 por
+  100 C, enquanto éter, carbonila e lactona ocupam as bordas dos buracos. São estruturas de simulação, não medidas.
+  "Cores por: grupos do GO" pinta cada grupo; o cartão "O que há nas folhas de GO publicadas" compara as três (e a
+  folha-modelo). `test_folhas_de_go_publicadas` confere o classificador numa molécula montada à mão e a química das três.
+- **Folha-modelo** ("modelo ajustável", e a usada na síntese): folha de GO átomo a átomo (C–C 1,42 Å, ondulação suave),
+  grupos epóxi e hidroxila nas duas faces e carboxila nas bordas, sorteados em domínios oxidados (modelo de
+  Lerf–Klinowski), com os carbonos sp³ saindo do plano; a razão O/C é um controle (lote mais ou menos oxidado).
+- **Nanopartícula de ouro** com a rede fcc real
   (a = 4,078 Å), forma de equilíbrio de Wulff (faces {111} e {100}, γ₁₀₀/γ₁₁₁ = 1,15) truncada pela adesão ao suporte
-  (Winterbottom), apoiada numa face (111); cada átomo tem o número de coordenação calculado (faces, arestas, vértices,
+  (Winterbottom), apoiada numa face (111) (na folha publicada, pousada sobre os átomos mais altos, sem relaxar a
+  interface), em material metálico PBR que reflete um estúdio virtual (`RoomEnvironment` do three.js); cada átomo tem o número de coordenação calculado (faces, arestas, vértices,
   interface, interior), há corte transversal, ancoragens Au–O, clique com informação e medida de distância.
 - **Síntese ao vivo**: Monte Carlo cinético qualitativo com 1 400 átomos (redução Au³⁺ → Au⁰ de primeira ordem,
   nucleação nos O da face de cima com taxa ∝ exp(−B/ln²S), crescimento no sítio fcc de maior coordenação com bônus de
   adesão no primeiro plano). Gera a curva de LaMer ao vivo e reproduz as tendências químicas: NaBH₄ forma cerca do
-  dobro de núcleos que o citrato e partículas menores; GO menos oxidado forma menos núcleos.
+  dobro de núcleos que o citrato e partículas menores; GO menos oxidado forma menos núcleos. Com uma folha publicada
+  escolhida, a síntese usa a folha-modelo com o O/C dela.
+- **Experimento de lotes**: a mesma síntese (1 000 átomos) repetida em folhas-modelo de O/C 0,05 a 0,40 com 2 a 6
+  sementes por nível, calculada no navegador em fatias de ~25 ms (`AUGO_N3CORE.batch`, pausa fora da aba; nada é
+  gravado em `site/data`). Com NaBH₄ o número de partículas sobe de ~7 para ~20 e o diâmetro médio cai de ~1,5 para
+  ~1,1 nm: a hipótese do projeto (lote de GO → tamanho) na forma de um modelo qualitativo.
 - **Plásmon**: a onda de luz atravessa a cena e a nuvem de elétrons oscila com amplitude proporcional à extinção de
   Mie da partícula naquela cor (a mesma conta da aba Óptica); "varrer as cores" percorre 400–780 nm.
 - **Escala de partículas** (~400 nm): flocos de GO enrugados com AuNP de diâmetros log-normais, na cor metálica ou na
   cor da dispersão (Mie), e uma vista "como no TEM" (projeção de cima em tons de cinza).
-- Roteiro guiado de 8 passos, indicadores por modo, gráficos de sítios × diâmetro, espectro de Mie, LaMer e tamanhos
-  da cena × 184 tamanhos relatados em sínteses de ouro com GO, e a tabela de parâmetros com as fontes.
+- Roteiro guiado de 9 passos (grafeno → GO publicado de 900 K → GO de 1 500 K → cristal → sítios → interface →
+  síntese → plásmon → partículas), indicadores por modo, gráficos de sítios × diâmetro, espectro de Mie, LaMer,
+  tamanhos da cena × 184 tamanhos relatados em sínteses de ouro com GO, composição das folhas publicadas e lotes, e a
+  tabela de parâmetros com as fontes. A Visão geral tem um atalho para a aba.
 
 O desenho é sob demanda (a cena só redesenha quando algo muda e para quando sai da tela). O núcleo (geometria e
 síntese, `AUGO_N3CORE` em `code/webapp/nano3d.js`) roda sem three.js e é conferido por `test_nanocomposito_3d_geometria_e_sintese`
 (`code/tests/nano3d_check.js`): distâncias das redes, coordenação, fração de superfície citada no site e as tendências
-da síntese.
+da síntese, inclusive no experimento de lotes.

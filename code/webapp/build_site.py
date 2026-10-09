@@ -27,7 +27,8 @@ sys.path.insert(0, HERE)
 import analyses  # noqa: E402
 import expdata  # noqa: E402
 
-SECTIONS = ["literature", "optics", "designer", "benchmark", "interpret", "variability", "causal", "xrd", "aunc", "predictor"]
+SECTIONS = ["literature", "optics", "designer", "benchmark", "interpret", "variability", "causal", "xrd", "aunc", "predictor",
+            "gostruct"]
 
 
 def _write(name: str, obj: dict) -> None:
@@ -51,7 +52,7 @@ def compute(reuse: bool = False, workers: int = 4) -> dict:
              ("designer", lambda: analyses.add_calibration(analyses.designer_agnp())), ("benchmark", lambda: analyses.add_paired_stats(analyses.benchmark(workers=workers))),
              ("interpret", lambda: analyses.interpretability(out["designer"])),
              ("variability", analyses.variability), ("causal", analyses.causal), ("xrd", analyses.xrd),
-             ("aunc", analyses.aunc_section), ("predictor", analyses.predictor)]
+             ("aunc", analyses.aunc_section), ("predictor", analyses.predictor), ("gostruct", analyses.go_structures)]
     for name, fn in steps:
         prev = _read(name) if reuse else None
         if prev is not None:
@@ -127,7 +128,7 @@ def overview(d: dict) -> dict:
 
 # three.js r147 (MIT; github.com/mrdoob/three.js, tag r147): última versão com build UMD e OrbitControls em examples/js,
 # que funcionam como <script> comum, sem módulos, dentro da página única
-THREE_JS = ("three.min.js", "OrbitControls.js")
+THREE_JS = ("three.min.js", "OrbitControls.js", "RoomEnvironment.js")
 
 
 def _page(inline: bool) -> str:

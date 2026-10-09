@@ -22,7 +22,7 @@ Cada pasta de primeiro nível tem um `README.md` com o seu índice.
   (.ge3: 5 frames 2048×2048 uint16, offset 8192). Gerados por `tools/data_sources/` (regeráveis): `reagents/`
   (dicionário PubChem; editar só `aliases.tsv`), `literature-seed/` (Cruse+NSP+AuNCs; `go_aunp_subset.csv`),
   `data-model/` (13 tabelas + validador, inclusive `resources` e `qc_results`), `optical-constants/` (n, k de Au/Ag para Mie). `lab/` = dados medidos (a preencher; validar com `lab_data_model.py validate`; SOPs em `lab/protocols/`).
-- `code/` — código do projeto (ambiente `core`; testes `python -m pytest code/tests`, 105): `campaign/` (`prereg.py` lê/sela
+- `code/` — código do projeto (ambiente `core`; testes `python -m pytest code/tests`, 106): `campaign/` (`prereg.py` lê/sela
   o pré-registro; `plan.py` gera o plano 8/12/24/16 — braços pareados por rodada, confirmação em pares com previsões
   congeladas, TEM, controles, fichas; `ingest.py` = brutos → `outcomes.csv` (J, tamanho da TEM ou do UV-Vis/Mie calibrado
   na TEM; `check`); `analysis.py` = análise pré-registrada; `factorial.py` = fatorial 2×2), `spectral/`
@@ -39,7 +39,7 @@ Cada pasta de primeiro nível tem um `README.md` com o seu índice.
   IPW por entropia, mediação, causal-learn), `sustainability/` (E-factor, EcoScale, CPU, CAPEX/OPEX, ComplexGAPI),
   `webapp/` (site só com dados experimentais: `expdata.py` → `analyses.py` → `build_site.py` gera `site/`; `app.js` roda o GP e
   o Mie/J no navegador; `guide.js` = textos da aba Guia por aba, indicador, figura e conceito, executado no node por teste;
-  `nano3d.js` = aba Nanocompósito 3D: núcleo de geometria e síntese testado no node + cena three.js r147 de `webapp/vendor/`), `atomistic/` (ambiente
+  `nano3d.js` = aba Nanocompósito 3D: folhas de GO publicadas do GO-MACE-23 (`analyses.go_structures`), núcleo de geometria, síntese e lotes testado no node + cena three.js r147 de `webapp/vendor/`), `atomistic/` (ambiente
   `jarvis`: design inverso GO–Au com JARVIS-DFT/FF/ML/Tools, CHIPS-FF, InterMat; `test_atomistic.py`).
 - `site/` — painel interativo (abrir `site/index.html`; gerado, não editar: `python code/webapp/build_site.py [--reuse]`;
   `--artifact <arquivo>` = página única). Só dados experimentais; GO-específico aparece como "aguarda o laboratório".

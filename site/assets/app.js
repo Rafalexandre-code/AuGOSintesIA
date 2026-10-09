@@ -1695,19 +1695,22 @@
     const R = A.literature.records, litGO = finite(R.size.filter((_, i) => R.go[i]));
     const th = () => { const t = T(); return { dark: t.dark, surface: t.surface, ink: t.ink, muted: t.muted, cat: t.cat }; };
     let st = null, curve = K3 ? K3.siteCurve(0.35) : [], curveAdh = 0.35, ready = false;
-    const E = K3 && window.AUGO_NANO3D ? window.AUGO_NANO3D($("#n3-scene"), { optics: O, colorOf, lsprOf, theme: th(),
+    const GS = A.gostruct || { structures: [] }, gsOf = (k) => GS.structures.find((q) => q.T.replace(" ", "") === k);
+    const E = K3 && window.AUGO_NANO3D ? window.AUGO_NANO3D($("#n3-scene"), { optics: O, colorOf, lsprOf, theme: th(), gostruct: GS,
       onStats: (s) => { st = s; if (ready) refresh(); }, onPick: pickInfo, onTour: tourBox,
       onPlasmon: () => { if (E && ready) { st = E.stats(); refresh(); } },
       onLam: (l) => { $("#n3-lam").value = Math.round(l); outLam(); } }) : null;
     window.AUGO_N3 = E;                                       // acesso para os testes do navegador
-    const P = E ? E.P : { scale: "atom", mode: "explore", color: "element", d: 2.6, adh: 0.35, ox: 0.3, lam: 520, md: 18, msig: 0.25, cov: 0.2, speed: 10 };
+    const P = E ? E.P : { scale: "atom", mode: "explore", sheet: "900K", color: "element", d: 2.6, adh: 0.35, ox: 0.3, lam: 520, md: 18, msig: 0.25, cov: 0.2, speed: 10 };
     if (!st && E) st = E.stats();
     const set = (k, v) => { if (E) E.set(k, v); else P[k] = v; };
     // controles visíveis conforme a escala e o modo
     function showCtl() {
       card.querySelectorAll("[data-show]").forEach((el) => { const tk = el.dataset.show.split(" ");
-        el.hidden = !tk.some((t) => t === P.scale || (P.scale === "atom" && t === P.mode)); });
-      $("#n3-legend").innerHTML = E ? E.legend().map(([c, l]) => `<span><i style="background:${c}"></i>${esc(l)}</span>`).join("") : "";
+        el.hidden = !tk.some((t) => t === P.scale || (P.scale === "atom" && (t === P.mode || (t === "model" && P.sheet === "model")))); });
+      const lg = E ? E.legend() : [];
+      $("#n3-legend").innerHTML = lg.map(([c, l]) => `<span><i style="background:${c}"></i>${esc(l)}</span>`).join("");
+      $("#n3-legend").classList.toggle("two", lg.length > 8);
     }
     const deb = (fn, ms) => { let t = 0; return () => { clearTimeout(t); t = setTimeout(fn, ms); }; };
     const outs = {
@@ -1728,6 +1731,7 @@
     segmented("#n3-scale", (v) => { set("scale", v); showCtl(); });
     segmented("#n3-mode", (v) => { set("mode", v); showCtl(); playLbl(); });
     segmented("#n3-color", (v) => { set("color", v); showCtl(); });
+    segmented("#n3-sheet", (v) => { set("sheet", v); showCtl(); drawGo(); });
     segmented("#n3-red", (v) => { set("red", v); playLbl(); });
     segmented("#n3-mcol", (v) => { set("mcolor", v); showCtl(); });
     segmented("#n3-view", (v) => { set("tem", v === "tem"); showCtl(); });
@@ -1760,7 +1764,8 @@
     // roteiro guiado
     function syncUI() {
       const segSet = (id, v) => $(id).querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.v === String(v) ? "true" : "false"));
-      segSet("#n3-scale", P.scale); segSet("#n3-mode", P.mode); segSet("#n3-color", P.color); segSet("#n3-view", P.tem ? "tem" : "3d");
+      segSet("#n3-scale", P.scale); segSet("#n3-mode", P.mode); segSet("#n3-color", P.color); segSet("#n3-view", P.tem ? "tem" : "3d"); segSet("#n3-sheet", P.sheet);
+      $("#n3-ox").value = P.ox; $("#n3-ox-o").textContent = outs.ox(); drawGo();
       $("#n3-clip").checked = !!P.clip; $("#n3-lam").value = P.lam; outLam(); showCtl(); playLbl();
     }
     function tourBox(s) {
@@ -1790,8 +1795,9 @@
         { k: syn ? "Supersaturação S" : meso ? "Cobertura da folha" : "Átomos na superfície",
           v: syn ? nf(sim.S || 0, 1) : meso ? nf(100 * (s.coverage || 0), 0) : nf(100 * s.surfFrac, 0), u: syn ? "" : "%",
           s: syn ? `nucleação rápida acima de S* ≈ ${nf(s.Sstar, 0)}` : meso ? "fração da área do GO coberta pelas partículas (vista de cima)" : `${nf(100 * s.lowCN, 0)} % em arestas e vértices, os sítios mais reativos` },
-        { k: meso ? "Pico do plásmon (Mie)" : "Óxido de grafeno", v: meso ? nf(lsprOf(mm), 0) : `C/O ${nf(s.CO, 1)}`, u: meso ? "nm" : "",
-          s: meso ? `para o diâmetro mediano; cor ${colorOf(mm)}` : `${ni(gr.epoxi)} epóxi · ${ni(gr.hidroxila)} hidroxila · ${ni(gr.carboxila)} carboxila · ${nf(100 * (s.sp3 || 0), 0)} % dos C em sp³` },
+        { k: meso ? "Pico do plásmon (Mie)" : s.pub ? `GO publicado (${s.pub.T})` : "Óxido de grafeno", v: meso ? nf(lsprOf(mm), 0) : `C/O ${nf(s.CO, 1)}`, u: meso ? "nm" : "",
+          s: meso ? `para o diâmetro mediano; cor ${colorOf(mm)}` : s.pub ? `por 100 C: ${nf(s.pub.per100C["O epóxi"], 1)} epóxi · ${nf(s.pub.per100C["O hidroxila"], 1)} hidroxila · ${nf(s.pub.per100C["O carbonila"], 1)} carbonila · ${nf(100 * s.pub.sp3_frac, 0)} % dos C em sp³`
+            : `${s.synFrom ? `folha-modelo com o O/C da publicada ${s.synFrom.replace("K", " K")}: ` : ""}${ni(gr.epoxi)} epóxi · ${ni(gr.hidroxila)} hidroxila · ${ni(gr.carboxila)} carboxila · ${nf(100 * (s.sp3 || 0), 0)} % dos C em sp³` },
         { k: syn ? "Ouro reduzido" : meso ? "Literatura GO–AuNP" : pl ? "Extinção nesta cor" : "Pico do plásmon (Mie)",
           v: syn ? nf(100 * (1 - (sim.ions == null ? 1400 : sim.ions) / 1400), 0) : meso ? nf(med(litGO), 0) : pl ? nf(100 * pl.rel, 0) : nf(lsprOf(s.d || 2.6), 0),
           u: syn ? "%" : meso ? "nm" : pl ? "% do pico" : "nm",
@@ -1845,17 +1851,75 @@
       plot("n3-sizes", tr, { bargap: 0, legend: { y: 1.2 }, yaxis: { title: { text: "densidade (por década)" } },
         xaxis: { title: { text: "diâmetro (nm), escala log" }, tickvals: [0, 0.301, 0.699, 1, 1.301, 1.699, 2, 2.477], ticktext: ["1", "2", "5", "10", "20", "50", "100", "300"] } });
     }
-    let lastSlow = 0, lastKey = "";
+    // composição das folhas publicadas (por 100 C) e da folha-modelo atual
+    const GRP = ["O epóxi", "O hidroxila", "O éter", "O carbonila", "O carboxila", "O lactona"];
+    function drawGo() {
+      if (!GS.structures.length) return;
+      const t = T(), sq = t.seqScale.map((c) => c[1]), cols = [sq[4], sq[8], sq[12]], selK = P.sheet, x = GRP.map((g) => g.slice(2));
+      const tr = GS.structures.map((q, i) => { const on = selK === "model" || q.T.replace(" ", "") === selK;
+        return { type: "bar", name: `publicada ${q.T} (O/C ${nf(q.OC, 2)})`, x, y: GRP.map((g) => q.per100C[g] || 0), marker: { color: cols[i], opacity: on ? 1 : 0.4, line: { color: t.surface, width: 1 } },
+          hovertemplate: `%{x}: %{y:.1f} por 100 C<extra>${q.T}</extra>` }; });
+      const sm = st && !st.pub && st.groups && st.nC ? st : null;
+      if (sm) tr.push({ type: "bar", name: `folha-modelo (O/C ${nf(1 / sm.CO, 2)})`, x, y: ["epoxi", "hidroxila", null, null, "carboxila", null].map((k) => (k ? 100 * (sm.groups[k] || 0) / sm.nC : 0)),
+        marker: { color: t.other, opacity: selK === "model" ? 1 : 0.4, line: { color: t.surface, width: 1 } }, hovertemplate: "%{x}: %{y:.1f} por 100 C<extra>folha-modelo</extra>" });
+      plot("n3-go", tr, { barmode: "group", bargap: 0.22, bargroupgap: 0.06, legend: { y: 1.22 }, yaxis: { title: { text: "átomos de O por 100 C" }, rangemode: "tozero" }, xaxis: { title: { text: "grupo oxigenado" } } });
+      const r = GS.structures.map((q) => `<b>${q.T}</b>: O/C ${nf(q.OC, 2)} · ${nf(100 * q.sp3_frac, 0)} % C sp³ · ${nf(100 * q.edge_frac, 0)} % C de borda · ondulação ${nf(q.corrugation_A, 1)} Å`).join("; ");
+      $("#n3-go-txt").innerHTML = `<p>${r}. Com mais temperatura o GO perde oxigênio (O/C cai), os epóxis e hidroxilas do plano dão lugar a buracos com carbonila, éter e lactona nas bordas, e o carbono volta a sp². ` +
+        `Fonte: ${esc(GS.source)} (dados: doi ${esc(GS.doi_data)}), ${ni(GS.structures[0].n_atoms)} (900 K) a ${ni(GS.structures[2].n_atoms)} (1 500 K) átomos por célula de ${GS.structures[0].cell_nm.map((v) => nf(v, 1)).join(" × ")} nm; a cena mostra um recorte de ${nf(GS.structures[0].crop.L / 10, 1)} × ${nf(GS.structures[0].crop.L / 10, 1)} nm. São estruturas de simulação, não medidas; a folha-modelo só tem epóxi, hidroxila e carboxila.</p>`;
+    }
+    // experimento de lotes: a síntese repetida em folhas de O/C diferente (roda no navegador, em fatias)
+    const BOX = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4];
+    let bRes = null, bJob = null, bRed = "nabh4", bDone = false;
+    function drawBatch() {
+      const t = T(), res = bRes || BOX.map((ox) => ({ ox, runs: [] })), jit = (i, k) => ((k % 5) - 2) * 0.004 + (i % 2 ? 0.001 : -0.001);
+      const pts = (f) => res.flatMap((r, i) => r.runs.map((q, k) => [r.ox + jit(i, k), q[f]]));
+      const mean = (f) => res.filter((r) => r.runs.length).map((r) => [r.ox, r.runs.reduce((a, q) => a + q[f], 0) / r.runs.length]);
+      const tr = [];
+      [["n", "partículas", "x", "y", t.cat[0], "%{y} partículas"], ["d", "diâmetro médio (nm)", "x2", "y2", t.cat[2], "%{y:.2f} nm"]].forEach(([f, nm, xa, ya, c, ht]) => {
+        const p = pts(f), m = mean(f);
+        tr.push({ type: "scatter", mode: "markers", name: nm, x: p.map((q) => q[0]), y: p.map((q) => q[1]), xaxis: xa, yaxis: ya, marker: { size: 7, color: hexA(c, 0.45), line: { color: t.surface, width: 1 } }, hovertemplate: `O/C %{x:.2f}: ${ht}<extra>repetição</extra>`, showlegend: false });
+        tr.push({ type: "scatter", mode: "lines+markers", name: `${nm}, média`, x: m.map((q) => q[0]), y: m.map((q) => q[1]), xaxis: xa, yaxis: ya, line: { color: c, width: 2.4 }, marker: { size: 8, color: c, line: { color: t.surface, width: 2 } }, hovertemplate: `O/C %{x:.2f}: ${ht}<extra>média</extra>`, showlegend: false });
+      });
+      const shapes = [], ann = [];
+      GS.structures.forEach((q) => { shapes.push({ type: "line", xref: "x2", yref: "paper", x0: q.OC, x1: q.OC, y0: 0, y1: 1, line: { color: t.muted, width: 1, dash: "dash" } });
+        ann.push({ xref: "x2", yref: "paper", x: q.OC, y: 1, text: q.T, showarrow: false, yanchor: "bottom", font: { size: 10, color: t.muted } }); });
+      if (!bRes) ann.push({ xref: "paper", yref: "paper", x: 0.5, y: 0.55, text: "Aperte \"rodar o experimento\" (cerca de 30 s a 1 min)", showarrow: false, font: { size: 12, color: t.muted } });
+      plot("n3-batch", tr, { grid: { rows: 2, columns: 1, pattern: "independent", roworder: "top to bottom" }, showlegend: false, shapes, annotations: ann,
+        xaxis: { matches: "x2", showticklabels: false, range: [0, 0.45] }, xaxis2: { title: { text: "oxidação do GO (O/C)" }, range: [0, 0.45] },
+        yaxis: { title: { text: "partículas" }, rangemode: "tozero" }, yaxis2: { title: { text: "d médio (nm)" }, rangemode: "tozero" } });
+      const ok = res.filter((r) => r.runs.length), a = ok[0], b = ok[ok.length - 1], avg = (r, f) => r.runs.reduce((s, q) => s + q[f], 0) / r.runs.length;
+      $("#n3-batch-txt").innerHTML = ok.length >= 2 ? `<p>${bDone ? "Resultado" : "Parcial"} (${({ nabh4: "NaBH₄", ascorbico: "ácido ascórbico" })[bRed]}, 1 000 átomos de ouro por síntese): de O/C ${nf(a.ox, 2)} a ${nf(b.ox, 2)}, ` +
+        `<b>${nf(avg(a, "n"), 1)} → ${nf(avg(b, "n"), 1)} partículas</b> e diâmetro médio de ${nf(avg(a, "d"), 2)} → ${nf(avg(b, "d"), 2)} nm. Mais oxigênio = mais sítios de nucleação = mais núcleos disputando o mesmo ouro = partículas menores. ` +
+        "É a hipótese que a campanha testa com lotes reais de GO; aqui ela sai de um modelo qualitativo, com tempos e taxas escolhidos para mostrar a tendência.</p>" : "";
+    }
+    function runBatch() {
+      if (bJob) { bJob.cancel(); bJob = null; $("#n3-brun").textContent = "rodar o experimento"; $("#n3-bprog").textContent = "interrompido"; return; }
+      if (!K3 || !K3.batch) return;
+      bRed = $("#n3-bred [aria-pressed=true]").dataset.v; bDone = false; bRes = null;
+      const reps = +$("#n3-breps").value, t0 = performance.now();
+      $("#n3-brun").textContent = "parar"; $("#n3-bprog").textContent = "0 %";
+      bJob = K3.batch({ ox: BOX, reps, red: bRed, nAu: 1000, paused: () => document.hidden || $("#p-nano3d").hidden },
+        (r, f) => { bRes = r; $("#n3-bprog").textContent = `${nf(100 * f, 0)} %`; drawBatch(); },
+        (r) => { bRes = r; bDone = true; bJob = null; $("#n3-brun").textContent = "rodar de novo"; $("#n3-bprog").textContent = `pronto em ${nf((performance.now() - t0) / 1000, 0)} s · ${ni(BOX.length * reps)} sínteses`; drawBatch(); });
+    }
+    $("#n3-brun").addEventListener("click", runBatch);
+    segmented("#n3-bred", () => {});
+    $("#n3-breps").addEventListener("input", () => { $("#n3-breps-o").textContent = $("#n3-breps").value; });
+    $("#n3-breps-o").textContent = $("#n3-breps").value;
+    let lastSlow = 0, lastKey = "", lastGo = "";
     const refresh = () => {
       kp(); showCtl(); playLbl();
       const now = performance.now(), key = `${P.scale}|${P.mode}|${st && st.d}|${P.md}|${P.msig}|${P.lam}|${st && st.meso && st.meso.length}`;
       if (key !== lastKey) { lastKey = key; drawSpec(); drawSizes(); drawDisp(); }
+      const gk = `${P.sheet}|${st && st.CO}`; if (gk !== lastGo) { lastGo = gk; drawGo(); }
       if (P.mode === "synth" && now - lastSlow > 400) { lastSlow = now; drawLamer(); }
     };
     // tabela de parâmetros
     $("#n3-tbl").innerHTML = "<thead><tr><th>Grandeza</th><th>Valor na cena</th><th>De onde vem</th></tr></thead><tbody>" + [
       ["Rede do grafeno", "C–C 1,42 Å; parâmetro de rede 2,46 Å; 38 átomos/nm²", "medida por difração; Castro Neto et al., Rev. Mod. Phys. 81, 109 (2009)"],
-      ["Grupos do óxido de grafeno", "epóxi e hidroxila no plano (as duas faces), carboxila nas bordas, em domínios oxidados", "modelo de Lerf & Klinowski, J. Phys. Chem. B 102, 4477 (1998)"],
+      ["Folhas de GO publicadas (padrão)", `900, 1 200 e 1 500 K: O/C ${GS.structures.map((q) => nf(q.OC, 2)).join(" / ")}; recorte de ${nf((GS.structures[0] || { crop: { L: 96 } }).crop.L / 10, 1)} × ${nf((GS.structures[0] || { crop: { L: 96 } }).crop.L / 10, 1)} nm; grupos classificados pela geometria (C–O < 1,75 Å, O–H < 1,20 Å)`,
+        "El-Machachi et al., Angew. Chem. Int. Ed. 2024, e202410088 (dados: doi 10.5281/zenodo.14066557; em projects/atomistic/GO-MACE-23/structures): 2 ns de dinâmica molecular com o potencial GO-MACE-23, treinado em DFT. Simulação, não medida"],
+      ["Folha-modelo (opção \"modelo ajustável\" e síntese)", "epóxi e hidroxila no plano (as duas faces), carboxila nas bordas, em domínios oxidados; O/C no controle", "modelo de Lerf & Klinowski, J. Phys. Chem. B 102, 4477 (1998); geometria montada pelo próprio site"],
       ["Ligações com oxigênio", "C–O 1,46 Å (epóxi), 1,43 Å (hidroxila), O–H 0,97 Å, C=O 1,21 Å, C–OH 1,34 Å", "comprimentos de ligação típicos (tabelas de química orgânica)"],
       ["Grau de oxidação", "controle \"Oxidação do GO\": O/C de 0,02 (quase grafeno) a 0,45 (GO de Hummers, C/O ≈ 2–3)", "faixa relatada para GO e GO reduzido; muda de lote para lote"],
       ["Rede do ouro", "cúbica de face centrada, a = 4,078 Å; vizinhos a 2,884 Å; 59 átomos/nm³", "difração de raios X (valor tabelado a 25 °C)"],
@@ -1864,10 +1928,11 @@
       ["Distância ouro–folha", "primeiro plano de ouro a 3,4 Å do plano do carbono (O a ~1,3 Å + Au–O ~2,1 Å)", "escolha do modelo, compatível com ligações Au–O"],
       ["Cor e plásmon", "Mie com o índice de refração do ouro de Johnson & Christy (1972), em água", "a mesma conta da aba Óptica, validada contra 798 relatos"],
       ["Síntese ao vivo", "redução de primeira ordem; nucleação nos O da face de cima com taxa ∝ exp(−B/ln²S); crescimento átomo a átomo no sítio fcc de maior coordenação", "teoria clássica de nucleação e LaMer & Dinegar (1950); parâmetros escolhidos para mostrar a tendência (qualitativo)"],
+      ["Experimento de lotes", "a síntese ao vivo (1 000 átomos de Au, 25 °C) em folhas-modelo de O/C 0,05 a 0,40, com sementes 11, 12, … para cada repetição", "mesmo modelo qualitativo da síntese; calculado no navegador a cada clique, nada é guardado"],
       ["Escala de partículas", "diâmetros log-normais (mediana e dispersão nos controles), sem sobreposição", `comparados com ${ni(litGO.length)} tamanhos relatados em sínteses de ouro com GO (mediana ${nf(med(litGO), 0)} nm)`],
     ].map(([a, b, c]) => `<tr><th>${a}</th><td>${b}</td><td>${c}</td></tr>`).join("") + "</tbody>";
-    ready = true; showCtl(); refresh(); drawLamer(); drawDisp(); drawSpec(); drawSizes();
-    drawer(() => { if (E && built.nano3d) E.theme(th()); drawDisp(); drawSpec(); drawSizes(); drawLamer(); showCtl(); });
+    ready = true; showCtl(); refresh(); drawLamer(); drawDisp(); drawSpec(); drawSizes(); drawGo(); drawBatch();
+    drawer(() => { if (E && built.nano3d) E.theme(th()); drawDisp(); drawSpec(); drawSizes(); drawLamer(); drawGo(); drawBatch(); showCtl(); });
   };
 
   /* ================================================================== variabilidade */
@@ -2214,9 +2279,10 @@
       preditor: [`${ni(A.predictor.n)} sínteses de ${ni(A.predictor.n_articles)} artigos, ${ni(A.predictor.recipes.length)} receitas distintas`,
         "regressão quantílica com árvores, conformalizada por artigo (CQR), avaliada no próprio navegador",
         `intervalo de 90 % cobre <b>${nf(100 * A.predictor.bands["90"].coverage_articles, 0)} %</b> dos artigos novos; largura típica ×${nf(A.predictor.bands["90"].median_fold_width, 0)}`],
-      nano3d: ["redes do grafeno (C–C 1,42 Å) e do ouro (a = 4,078 Å), ligações C–O tabeladas, constantes ópticas do Au e " + ni(finite(L.records.size.filter((_, i) => L.records.go[i])).length) + " tamanhos GO–AuNP relatados",
-        "modelo físico ilustrativo em three.js: GO de Lerf–Klinowski, forma de Wulff–Winterbottom, número de coordenação, Mie e Monte Carlo cinético da síntese",
-        "uma AuNP de 2 nm tem <b>cerca de metade</b> dos átomos na superfície; uma de 6 nm, menos de um quarto"],
+      nano3d: [`3 folhas de GO de simulação publicada (El-Machachi et al. 2024; ${(A.gostruct ? A.gostruct.structures : []).map((q) => ni(q.n_atoms)).join(", ")} átomos), redes do grafeno e do ouro, constantes ópticas do Au e ` + ni(finite(L.records.size.filter((_, i) => L.records.go[i])).length) + " tamanhos GO–AuNP relatados",
+        "modelo físico ilustrativo em three.js: grupos do GO classificados pela geometria, forma de Wulff–Winterbottom, número de coordenação, Mie e Monte Carlo cinético da síntese e dos lotes",
+        A.gostruct && A.gostruct.structures.length === 3 ? `GO de 900 → 1 500 K: O/C <b>${nf(A.gostruct.structures[0].OC, 2)} → ${nf(A.gostruct.structures[2].OC, 2)}</b> e epóxis de ${nf(A.gostruct.structures[0].per100C["O epóxi"], 1)} para ${nf(A.gostruct.structures[2].per100C["O epóxi"], 1)} por 100 C; AuNP de 2 nm com cerca de metade dos átomos na superfície`
+          : "uma AuNP de 2 nm tem <b>cerca de metade</b> dos átomos na superfície; uma de 6 nm, menos de um quarto"],
       sobre: ["7 bases experimentais públicas, com DOI e licença",
         "tudo regenerável por code/webapp/build_site.py e conferido por testes automáticos",
         `<b>${nexp} de ${M.length}</b> seções da proposta já com dados experimentais`],

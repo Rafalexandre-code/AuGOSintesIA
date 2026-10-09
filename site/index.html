@@ -55,6 +55,7 @@
             <a class="primary" href="#designer"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12M4 10h12M4 14h12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="8" cy="6" r="2" fill="#f3c96b" stroke="currentColor" stroke-width="1.5"/><circle cx="13" cy="10" r="2" fill="#f3c96b" stroke="currentColor" stroke-width="1.5"/><circle cx="7" cy="14" r="2" fill="#f3c96b" stroke="currentColor" stroke-width="1.5"/></svg>Testar o AuNP Designer</a>
             <a class="ghost" href="#achados" id="ctaFind">Ver os achados</a>
             <a class="ghost" href="#optica">Mie e perda J</a>
+            <a class="ghost" href="#nano3d">O nanocompósito em 3D</a>
           </div>
           <div class="counters" id="ov-count"></div>
         </div>
@@ -191,13 +192,14 @@
       <div class="controls n3-ctl">
         <div class="ctl ctl-auto"><span class="lbl" id="n3-scale-l">Escala</span><div class="seg" id="n3-scale" role="group" aria-labelledby="n3-scale-l"><button type="button" aria-pressed="true" data-v="atom">átomos (≈ 10 nm)</button><button type="button" aria-pressed="false" data-v="meso">partículas (≈ 400 nm)</button></div></div>
         <div class="ctl ctl-auto" data-show="atom"><span class="lbl" id="n3-mode-l">Modo</span><div class="seg" id="n3-mode" role="group" aria-labelledby="n3-mode-l"><button type="button" aria-pressed="true" data-v="explore">explorar</button><button type="button" aria-pressed="false" data-v="synth">síntese ao vivo</button><button type="button" aria-pressed="false" data-v="plasmon">plásmon</button></div></div>
-        <div class="ctl ctl-auto" data-show="atom"><span class="lbl" id="n3-color-l">Cores por</span><div class="seg" id="n3-color" role="group" aria-labelledby="n3-color-l"><button type="button" aria-pressed="true" data-v="element">elemento</button><button type="button" aria-pressed="false" data-v="site">tipo de sítio</button></div></div>
-        <div class="ctl ctl-auto"><button type="button" class="btn" id="n3-tourbtn">roteiro guiado (8 passos)</button></div>
+        <div class="ctl ctl-auto" data-show="atom"><span class="lbl" id="n3-color-l">Cores por</span><div class="seg" id="n3-color" role="group" aria-labelledby="n3-color-l"><button type="button" aria-pressed="true" data-v="element">elemento</button><button type="button" aria-pressed="false" data-v="groups">grupos do GO</button><button type="button" aria-pressed="false" data-v="site">sítios do ouro</button></div></div>
+        <div class="ctl ctl-auto"><button type="button" class="btn" id="n3-tourbtn">roteiro guiado (9 passos)</button></div>
       </div>
       <div class="controls n3-ctl n3-ctl2">
         <div class="ctl" data-show="explore plasmon"><label for="n3-d">Diâmetro da AuNP <output id="n3-d-o"></output></label><input type="range" id="n3-d" min="1.5" max="6" step="0.1" value="2.6"></div>
         <div class="ctl" data-show="explore plasmon"><label for="n3-adh">Adesão Au–GO <output id="n3-adh-o"></output></label><input type="range" id="n3-adh" min="0" max="0.8" step="0.05" value="0.35"></div>
-        <div class="ctl" data-show="atom"><label for="n3-ox">Oxidação do GO <output id="n3-ox-o"></output></label><input type="range" id="n3-ox" min="0.02" max="0.45" step="0.01" value="0.3"></div>
+        <div class="ctl ctl-auto" data-show="atom"><span class="lbl" id="n3-sheet-l">Folha de GO</span><div class="seg" id="n3-sheet" role="group" aria-labelledby="n3-sheet-l"><button type="button" aria-pressed="true" data-v="900K">publicada 900 K</button><button type="button" aria-pressed="false" data-v="1200K">1200 K</button><button type="button" aria-pressed="false" data-v="1500K">1500 K</button><button type="button" aria-pressed="false" data-v="model">modelo ajustável</button></div></div>
+        <div class="ctl" data-show="model"><label for="n3-ox">Oxidação do GO <output id="n3-ox-o"></output></label><input type="range" id="n3-ox" min="0.02" max="0.45" step="0.01" value="0.3"></div>
         <div class="ctl" data-show="plasmon"><label for="n3-lam">Cor da luz (λ) <output id="n3-lam-o"></output></label><input type="range" id="n3-lam" min="400" max="780" step="1" value="520"></div>
         <div class="ctl ctl-auto" data-show="plasmon"><button type="button" class="btn ghost" id="n3-sweep">varrer as cores</button></div>
         <div class="ctl ctl-auto" data-show="synth"><span class="lbl" id="n3-red-l">Redutor</span><div class="seg" id="n3-red" role="group" aria-labelledby="n3-red-l"><button type="button" aria-pressed="true" data-v="citrato">citrato (brando)</button><button type="button" aria-pressed="false" data-v="ascorbico">ascórbico</button><button type="button" aria-pressed="false" data-v="nabh4">NaBH₄ (forte)</button></div></div>
@@ -233,6 +235,15 @@
       <div class="card c6"><div class="card-h"><div><h3>Tamanhos: cena × literatura GO–AuNP</h3>
         <p>Distribuição log-normal escolhida na escala de partículas contra os tamanhos relatados nas sínteses de ouro que mencionam óxido de grafeno.</p></div></div>
         <div class="card-b"><div class="plot tall" id="n3-sizes"></div></div></div>
+      <div class="card c6"><div class="card-h"><div><h3>O que há nas folhas de GO publicadas</h3>
+        <p>Composição das três estruturas de El-Machachi et al. (2024), contada átomo a átomo pelo mesmo classificador da cena: grupos por 100 carbonos. A estrutura escolhida na cena aparece destacada.</p></div></div>
+        <div class="card-b"><div class="plot tall" id="n3-go"></div><div class="prose" id="n3-go-txt" style="padding:4px 10px 0"></div></div></div>
+      <div class="card c6"><div class="card-h"><div><h3>Experimento de lotes: oxidação do GO × partículas</h3>
+        <p>A síntese da cena repetida em folhas com O/C de 0,05 a 0,40, com várias sementes cada, calculada agora no seu navegador. Ponto = uma repetição; linha = média. Tracejados = O/C das folhas publicadas.</p></div></div>
+        <div class="controls n3-ctl"><div class="ctl ctl-auto"><span class="lbl" id="n3-bred-l">Redutor</span><div class="seg" id="n3-bred" role="group" aria-labelledby="n3-bred-l"><button type="button" aria-pressed="true" data-v="nabh4">NaBH₄</button><button type="button" aria-pressed="false" data-v="ascorbico">ascórbico</button></div></div>
+          <div class="ctl"><label for="n3-breps">Repetições por O/C <output id="n3-breps-o"></output></label><input type="range" id="n3-breps" min="2" max="6" step="1" value="3"></div>
+          <div class="ctl ctl-auto"><button type="button" class="btn" id="n3-brun">rodar o experimento</button> <span class="muted" id="n3-bprog" aria-live="polite"></span></div></div>
+        <div class="card-b"><div class="plot tall" id="n3-batch"></div><div class="prose" id="n3-batch-txt" style="padding:4px 10px 0"></div></div></div>
       <div class="card c12"><div class="card-h"><div><h3>Parâmetros físicos do modelo e de onde vêm</h3>
         <p>Tudo o que a cena usa como número medido ou tabelado; o que é escolha do modelo aparece como tal.</p></div></div>
         <div class="tbl-wrap" tabindex="0" role="region" aria-label="Parâmetros do modelo 3D"><table id="n3-tbl"></table></div></div>
@@ -569,6 +580,7 @@ python -m pytest code/tests/test_webapp.py</pre></div></div>
 <script src="vendor/plotly.min.js"></script>
 <script src="vendor/three.min.js"></script>
 <script src="vendor/OrbitControls.js"></script>
+<script src="vendor/RoomEnvironment.js"></script>
 <script src="data/overview.js"></script>
 <script src="data/literature.js"></script>
 <script src="data/optics.js"></script>
@@ -580,6 +592,7 @@ python -m pytest code/tests/test_webapp.py</pre></div></div>
 <script src="data/xrd.js"></script>
 <script src="data/aunc.js"></script>
 <script src="data/predictor.js"></script>
+<script src="data/gostruct.js"></script>
 <script src="assets/guide.js"></script>
 <script src="assets/nano3d.js"></script>
 <script src="assets/app.js"></script>

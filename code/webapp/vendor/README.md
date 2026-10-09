@@ -4,6 +4,7 @@
 |---|---|---|
 | `three.min.js` | three.js **r147**, `build/three.min.js` ([github.com/mrdoob/three.js](https://github.com/mrdoob/three.js/tree/r147)) | MIT (`LICENSE-three.txt`) |
 | `OrbitControls.js` | three.js r147, `examples/js/controls/OrbitControls.js` | MIT |
+| `RoomEnvironment.js` | three.js r147, `examples/js/environments/RoomEnvironment.js` ("estúdio" virtual que o ouro metálico reflete) | MIT |
 
 A r147 é a última versão com o build UMD e os controles em `examples/js`, que funcionam como `<script>` comum (sem
 módulos ES) dentro da página única gerada por `build_site.py --artifact`. Usados só pela aba Nanocompósito 3D

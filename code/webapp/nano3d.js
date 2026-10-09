@@ -247,9 +247,33 @@
     return { n, pos, st, owner, clusters, sites, step, stats, hist, Sstar, cSat, get t() { return t; } };
   }
 
+  // experimento de lotes: a mesma síntese em folhas com O/C diferentes, várias sementes cada; roda em fatias de ~25 ms
+  // (setTimeout) para não travar a página. onProgress(resultados parciais), onDone(resultados). Devolve { cancel }.
+  function batch(o, onProgress, onDone) {
+    const oxs = o.ox || [0.05, 0.1, 0.2, 0.3, 0.4], reps = o.reps || 3, red = REDUCERS[o.red] || REDUCERS.nabh4, nAu = o.nAu || 1000;
+    const res = oxs.map((ox) => ({ ox, runs: [] })), jobs = [];
+    oxs.forEach((ox, i) => { for (let r = 0; r < reps; r++) jobs.push([i, 11 + r]); });
+    let j = 0, sim = null, cancel = false, sheets = {};
+    const tick = () => {
+      if (cancel) return;
+      if (o.paused && o.paused()) { setTimeout(tick, 400); return; }
+      const t0 = Date.now();
+      while (Date.now() - t0 < 25) {
+        if (!sim) { if (j >= jobs.length) { onDone && onDone(res); return; }
+          const [i, seed] = jobs[j], ox = oxs[i]; sheets[ox] = sheets[ox] || buildSheet(90, ox); sim = Synthesis(sheets[ox], { red, T: o.T || 25, nAu, seed }); }
+        for (let k = 0; k < 10; k++) sim.step();
+        const s = sim.stats();
+        if (s.done || sim.t > 30000) { res[jobs[j][0]].runs.push({ n: s.n, d: s.d, cv: s.cv, nuclei: s.nuclei, t: s.t }); j++; sim = null;
+          onProgress && onProgress(res, j / jobs.length); break; }
+      }
+      setTimeout(tick, 0);
+    };
+    setTimeout(tick, 0);
+    return { cancel() { cancel = true; } };
+  }
   // redutores: probabilidade de redução por passo (escala relativa; NaBH₄ reduz em segundos, citrato em minutos)
   const REDUCERS = { citrato: 0.001, ascorbico: 0.006, nabh4: 0.05 };
-  window.AUGO_N3CORE = { REDUCERS, A_AU, NN_AU, RHO_AU, CC, WULFF, Y_AU, rng, deq, ripple, rot111, apply, buildSheet, buildParticle, siteCurve, Synthesis };
+  window.AUGO_N3CORE = { batch, REDUCERS, A_AU, NN_AU, RHO_AU, CC, WULFF, Y_AU, rng, deq, ripple, rot111, apply, buildSheet, buildParticle, siteCurve, Synthesis };
 })();
 
 
@@ -276,7 +300,7 @@
       return null;
     }
     const O = opt.optics;
-    const P = { scale: "atom", mode: "explore", color: "element", d: 2.6, adh: 0.35, ox: 0.3, labels: true, clip: false, hyd: true,
+    const P = { scale: "atom", mode: "explore", sheet: "900K", color: "element", d: 2.6, adh: 0.35, ox: 0.3, labels: true, clip: false, hyd: true,
       lam: 520, red: "citrato", T: 25, speed: 10, md: 18, msig: 0.25, cov: 0.2, mcolor: "gold", tem: false };
     let theme = opt.theme, themeV = 0;
 
@@ -302,6 +326,12 @@
     const M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), V2 = new THREE.Vector3(), S3 = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0), COL = new THREE.Color();
     const matAtom = () => new THREE.MeshPhongMaterial({ color: 0xffffff, shininess: 38, specular: 0x2a2a2a });
     const matGold = new THREE.MeshPhongMaterial({ color: 0xffffff, shininess: 85, specular: 0xb89a55 });
+    // ouro metálico (PBR): reflete um "estúdio" virtual (RoomEnvironment), como o metal real; sem ele, cai no Phong
+    let matMetal = matGold;
+    if (THREE.RoomEnvironment && THREE.PMREMGenerator) {
+      try { const pm = new THREE.PMREMGenerator(renderer); scene.environment = pm.fromScene(new THREE.RoomEnvironment(), 0.04).texture; pm.dispose();
+        matMetal = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 1, roughness: 0.3, envMapIntensity: 1.05 }); } catch (e) { matMetal = matGold; }
+    }
     const clipPlane = new THREE.Plane(new THREE.Vector3(0, 0, -1), 0);
     function inst(geo, mat, n) { const m = new THREE.InstancedMesh(geo, mat, Math.max(1, n)); m.count = 0; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); return m; }
     function put(m, i, x, y, z, r, col) { M4.makeScale(r, r, r); M4.setPosition(x, y, z); m.setMatrixAt(i, M4); if (col) m.setColorAt(i, COL.set(col)); }
@@ -335,65 +365,109 @@
       g.add(label(text, 0, y + w * 7, z, w * 7, null, true)); return g;
     }
     const pal = () => { const c = theme.cat; return { C: theme.dark ? "#9aa0aa" : "#5d626b", Csp3: c[4], O: "#e0473c", H: theme.dark ? "#e8e8ea" : "#f4f4f6", Au: "#e9b949",
-      ion: "#f6d77a", mon: "#d9a52f", bond: theme.dark ? "#7c818b" : "#a7abb3", f111: c[0], f100: c[2], aresta: c[1], vertice: c[7], interface: c[6], interior: c[3] }; };
+      ion: "#f6d77a", mon: "#d9a52f", bond: theme.dark ? "#7c818b" : "#a7abb3", f111: c[0], f100: c[2], aresta: c[1], vertice: c[7], interface: c[6], interior: c[3],
+      AuM: matMetal === matGold ? "#e9b949" : "#ffcf6e",
+      // modo "grupos do GO": carbono pelo tipo e oxigênio pelo grupo funcional
+      sp3: c[4], edge: c[5], cx: c[5], epoxi: c[1], hidroxila: c[0], eter: c[2], carbonila: c[7], carboxila: c[6], lactona: c[3], outro: "#9a9a9a" }; };
     const newGroup = (labels) => { const g = new THREE.Group(); g.userData.tv = themeV; g.userData.pick = []; if (labels) { const l = new THREE.Group(); l.name = "labels"; g.add(l); g.userData.labels = l; } root.add(g); return g; };
 
     /* ---------- cena */
     const root = new THREE.Group(); scene.add(root);
     let gAtom = null, gSyn = null, gMeso = null, gPl = null, sheet = null, part = null, sim = null, simRun = false, meso = null, plState = null;
     const halo = new THREE.Mesh(SPH(20), new THREE.MeshBasicMaterial({ color: 0xff3366, transparent: true, opacity: 0.35, depthWrite: false })); halo.visible = false; scene.add(halo);
-    let sheetCache = { key: "", sheet: null };
-    const sheetFor = (L, ox) => { const k = `${L}|${ox.toFixed(3)}`; if (sheetCache.key !== k) sheetCache = { key: k, sheet: K.buildSheet(L, ox) }; return sheetCache.sheet; };
-
-    // folha de GO: átomos + ligações; "hide" esconde grupos (os que ficariam sob a partícula)
-    function sheetMeshes(g, sh, hide) {
-      const p = pal(), byElem = P.color === "element", keepSet = new Set(sh.groups.filter((q) => !hide(q)));
-      const Oat = sh.O.filter((o) => keepSet.has(o.g)), Hat = sh.H.filter((h) => keepSet.has(h.g)), Cx = sh.Cx.filter((c) => keepSet.has(c.g));
-      const nC = sh.C.length + Cx.length, mC = inst(SPH(12), matAtom(), nC), mO = inst(SPH(14), matAtom(), Oat.length), mH = inst(SPH(10), matAtom(), Hat.length);
-      const metaC = [], metaO = [], metaH = [];
-      sh.C.forEach((c, i) => { put(mC, i, c.x, c.y, c.z, 0.42, byElem || !c.sp3 ? p.C : p.Csp3);
-        metaC.push({ t: c.sp3 ? "Carbono sp³ (ligado a um grupo oxigenado)" : c.edge ? "Carbono de borda" : "Carbono sp² do grafeno", p: [c.x, c.y, c.z], r: 0.42,
-          l: [c.sp3 ? "Saiu ~0,3 Å do plano: a ligação com o O desfaz a ligação π e a folha deixa de conduzir ali." : "Três vizinhos a 1,42 Å, rede em favo de mel; os elétrons π deslocalizados conduzem eletricidade.",
-            `posição (${(c.x / 10).toFixed(2)}; ${(c.z / 10).toFixed(2)}) nm`] }); });
-      Cx.forEach((c, k) => { put(mC, sh.C.length + k, c.x, c.y, c.z, 0.42, byElem ? p.C : p.Csp3); metaC.push({ t: "Carbono da carboxila", p: [c.x, c.y, c.z], r: 0.42, l: ["Carbono do grupo –COOH na borda da folha (C–C 1,50 Å)."] }); });
-      Oat.forEach((o, i) => { put(mO, i, o.x, o.y, o.z, 0.55, p.O);
-        const tt = o.g.type === "epoxi" ? ["O em ponte entre dois carbonos vizinhos (C–O 1,46 Å).", "Abundante no plano basal; é o primeiro grupo a sair na redução do GO."] :
-          o.g.type === "hidroxila" ? ["C–O 1,43 Å e O–H 0,97 Å.", "Deixa o GO hidrofílico; ancora íons de ouro e é sítio de nucleação."] :
-            ["Grupo ácido na borda: em água vira –COO⁻ e mantém as folhas dispersas pela repulsão de cargas.", o.dbl ? "Este é o O da dupla C=O (1,21 Å)." : "Este é o O do –OH (C–O 1,34 Å)."];
-        metaO.push({ t: `Oxigênio · ${GRP[o.g.type]}`, p: [o.x, o.y, o.z], r: 0.55, l: [...tt, `face ${o.g.side > 0 ? "de cima" : "de baixo"} da folha`] }); });
-      Hat.forEach((h, i) => { put(mH, i, h.x, h.y, h.z, 0.3, p.H); metaH.push({ t: "Hidrogênio", p: [h.x, h.y, h.z], r: 0.3, l: ["Do grupo hidroxila ou do ácido carboxílico (O–H 0,97 Å)."] }); });
-      finish(mC, nC); finish(mO, Oat.length); finish(mH, Hat.length);
-      const nb = sh.bonds.length + Oat.length * 2 + Hat.length + Cx.length * 3, mB = inst(CYL, matAtom(), nb); let k = 0;
-      for (const [i, j] of sh.bonds) { const a = sh.C[i], b = sh.C[j]; bond(mB, k++, [a.x, a.y, a.z], [b.x, b.y, b.z], 0.13, p.bond); }
-      for (const o of Oat) { if (o.g.type === "carboxila") continue; for (const ci of o.g.c) { const c = sh.C[ci]; bond(mB, k++, [c.x, c.y, c.z], [o.x, o.y, o.z], 0.13, p.bond); } }
-      for (const h of Hat) { const o = Oat.find((q) => q.g === h.g && !q.dbl); if (o) bond(mB, k++, [o.x, o.y, o.z], [h.x, h.y, h.z], 0.1, p.bond); }
-      for (const c of Cx) { const e = sh.C[c.from]; bond(mB, k++, [e.x, e.y, e.z], [c.x, c.y, c.z], 0.13, p.bond);
-        for (const o of Oat.filter((q) => q.g === c.g)) bond(mB, k++, [c.x, c.y, c.z], [o.x, o.y, o.z], o.dbl ? 0.17 : 0.13, p.bond); }
-      finish(mB, k);
+    // folha de GO em formato único: átomos {e, x, y, z, k (tipo), side, g} + ligações; vem do modelo geométrico
+    // (AUGO_N3CORE.buildSheet, O/C ajustável) ou de uma estrutura publicada (El-Machachi et al. 2024, site/data/gostruct)
+    const KIND = ["sp2", "sp3", "edge", "epoxi", "hidroxila", "eter", "carbonila", "carboxila", "lactona", "outro", "H"];
+    let cacheM = { key: "", raw: null, sh: null }; const cacheP = {};
+    function modelSheet(L, ox) {
+      const key = `${L}|${ox.toFixed(3)}`; if (cacheM.key === key) return cacheM.sh;
+      const raw = K.buildSheet(L, ox), at = [], bonds = [];
+      raw.C.forEach((c) => at.push({ e: "C", x: c.x, y: c.y, z: c.z, k: c.sp3 ? "sp3" : c.edge ? "edge" : "sp2", side: c.sp3 || 0 }));
+      raw.bonds.forEach(([a, b]) => bonds.push([a, b]));
+      const oIdx = new Map();
+      raw.O.forEach((o) => { const i = at.length; at.push({ e: "O", x: o.x, y: o.y, z: o.z, k: o.g.type, side: o.g.side, g: o.g, dbl: o.dbl });
+        if (o.g.type !== "carboxila") o.g.c.forEach((ci) => bonds.push([ci, i])); if (!o.dbl) oIdx.set(o.g, i); });
+      raw.Cx.forEach((c) => { const i = at.length; at.push({ e: "C", x: c.x, y: c.y, z: c.z, k: "cx", side: 0, g: c.g }); bonds.push([c.from, i]);
+        at.forEach((o, q) => { if (o.e === "O" && o.g === c.g) bonds.push([i, q]); }); });
+      raw.H.forEach((h) => { const i = at.length; at.push({ e: "H", x: h.x, y: h.y, z: h.z, k: "H", side: h.g.side, g: h.g }); if (oIdx.has(h.g)) bonds.push([oIdx.get(h.g), i]); });
+      const sh = { pub: false, raw, L, at, bonds, CO: raw.CO, sp3: raw.sp3frac, groups: raw.count, nC: raw.C.length + raw.Cx.length };
+      cacheM = { key, raw, sh }; return sh;
+    }
+    function pubSheet(T) {
+      if (cacheP[T]) return cacheP[T];
+      const sd = (opt.gostruct || { structures: [] }).structures.find((q) => q.T.replace(" ", "") === T); if (!sd) return modelSheet(110, P.ox);
+      const c = sd.crop, at = [];
+      for (let i = 0; i < c.n; i++) { const k = KIND[c.t[i]]; at.push({ e: k === "H" ? "H" : c.t[i] >= 3 ? "O" : "C", x: c.x[i] / 100, y: c.y[i] / 100, z: c.z[i] / 100, k, side: c.s[i] }); }
+      const cut = { CC: 1.85, CO: 1.75, OC: 1.75, CH: 1.25, HC: 1.25, OH: 1.2, HO: 1.2 }, grid = new Map(), cell = 1.9, gk = (x, z) => `${Math.floor(x / cell)},${Math.floor(z / cell)}`, bonds = [];
+      at.forEach((a, i) => { const k = gk(a.x, a.z); (grid.get(k) || grid.set(k, []).get(k)).push(i); });
+      at.forEach((a, i) => { const cx = Math.floor(a.x / cell), cz = Math.floor(a.z / cell);
+        for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) for (const j of grid.get(`${cx + dx},${cz + dz}`) || []) {
+          if (j <= i) continue; const b = at[j], lim = cut[a.e + b.e]; if (!lim) continue;
+          if (Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) < lim) bonds.push([i, j]); } });
+      const sh = { pub: true, sd, L: c.L, at, bonds, CO: 1 / sd.OC, sp3: sd.sp3_frac, edge: sd.edge_frac };
+      cacheP[T] = sh; return sh;
+    }
+    const sheetNow = (L) => (P.sheet === "model" ? modelSheet(L, P.ox) : pubSheet(P.sheet));
+    const oxSyn = () => { if (P.sheet === "model") return P.ox; const sd = (opt.gostruct || { structures: [] }).structures.find((q) => q.T.replace(" ", "") === P.sheet); return sd ? sd.OC : P.ox; };
+    const INFO = {
+      sp2: ["Carbono sp² do grafeno", "Três vizinhos a ~1,42 Å, rede em favo de mel; os elétrons π deslocalizados conduzem eletricidade."],
+      sp3: ["Carbono sp³ (ligado a um grupo oxigenado)", "Sai do plano: a ligação com o O desfaz a ligação π e a folha deixa de conduzir ali."],
+      edge: ["Carbono de borda", "Tem menos de três vizinhos de carbono: fica na borda da folha ou de um buraco, onde costuma carregar C=O, éter ou OH."],
+      cx: ["Carbono da carboxila", "Carbono do grupo –COOH na borda da folha (C–C 1,50 Å)."],
+      epoxi: ["Oxigênio · epóxi (C–O–C)", "Ponte entre dois carbonos vizinhos (C–O 1,46 Å); abundante no plano basal e o primeiro grupo a sair quando o GO é aquecido ou reduzido."],
+      hidroxila: ["Oxigênio · hidroxila (C–OH)", "C–O 1,43 Å e O–H 0,97 Å; deixa o GO hidrofílico, ancora íons de ouro e é sítio de nucleação."],
+      eter: ["Oxigênio · éter cíclico", "Ponte entre dois carbonos que não estão ligados entre si (anel com O), típica das bordas de buracos depois que o GO é aquecido."],
+      carbonila: ["Oxigênio · carbonila (C=O)", "Dupla ligação C=O (~1,22 Å) nas bordas de buracos; cresce quando o GO perde epóxis no aquecimento."],
+      carboxila: ["Oxigênio · carboxila (–COOH)", "Grupo ácido de borda: em água vira –COO⁻ e mantém as folhas dispersas pela repulsão de cargas."],
+      lactona: ["Oxigênio · lactona / anidrido", "Éster cíclico na borda (O=C–O–C), formado quando grupos vizinhos se condensam."],
+      outro: ["Oxigênio · outro arranjo", "Oxigênio fora dos grupos acima (por exemplo, água presa ou um O ligado a três átomos)."],
+      H: ["Hidrogênio", "Do grupo hidroxila ou do ácido carboxílico (O–H ~0,97 Å)."],
+    };
+    // desenha a folha; skip(átomo) remove átomos (os grupos sob a partícula, no modelo)
+    function sheetMeshes(g, sh, skip) {
+      const p = pal(), grp = P.color === "groups", keep = sh.at.map((a) => !(skip && skip(a))), idx = new Int32Array(sh.at.length).fill(-1);
+      const by = { C: [], O: [], H: [] }; sh.at.forEach((a, i) => { if (keep[i]) by[a.e].push(i); });
+      const mk = (e, r, seg) => { const m = inst(SPH(seg), matAtom(), by[e].length), md = [];
+        by[e].forEach((i, q) => { const a = sh.at[i]; idx[i] = q; put(m, q, a.x, a.y, a.z, r, grp ? p[a.k] || p.C : e === "C" ? p.C : e === "O" ? p.O : p.H);
+          const inf = INFO[a.k] || INFO.sp2; md.push({ t: inf[0], p: [a.x, a.y, a.z], r, l: [inf[1], e === "O" ? `face ${a.side > 0 ? "de cima" : "de baixo"} da folha` : `posição (${(a.x / 10).toFixed(2)}; ${(a.z / 10).toFixed(2)}) nm`] }); });
+        finish(m, by[e].length); meta.set(m, md); g.userData.pick.push(m); g.add(m); return m; };
+      mk("C", 0.42, 12); mk("O", 0.55, 14); const mH = mk("H", 0.3, 10);
+      const ok = sh.bonds.filter(([a, b]) => keep[a] && keep[b]), mB = inst(CYL, matAtom(), ok.length);
+      ok.forEach(([a, b], k) => { const A = sh.at[a], Bb = sh.at[b]; bond(mB, k, [A.x, A.y, A.z], [Bb.x, Bb.y, Bb.z], A.e === "H" || Bb.e === "H" ? 0.1 : (A.dbl || Bb.dbl) ? 0.17 : 0.13, p.bond); });
+      finish(mB, ok.length); g.add(mB);
       mH.visible = P.hyd; mH.userData.hyd = true;
-      g.add(mC, mO, mH, mB); meta.set(mC, metaC); meta.set(mO, metaO); meta.set(mH, metaH); g.userData.pick.push(mC, mO, mH);
-      return Oat;
+      return sh.at.filter((a, i) => keep[i] && a.e === "O");
     }
 
     /* ---------- escala atômica: GO + uma AuNP (modos explorar e plásmon) */
     function buildAtomic() {
       if (gAtom) { root.remove(gAtom); dispose(gAtom); }
       gAtom = newGroup(true); clearSel();
-      sheet = sheetFor(110, P.ox); part = K.buildParticle(P.d, P.adh);
-      const foot = part.foot, Oat = sheetMeshes(gAtom, sheet, (q) => q.side > 0 && Math.hypot(q.x, q.z) < foot + 0.8);
-      const p = pal(), mAu = inst(SPH(part.N > 3000 ? 12 : 16), matGold, part.N), md = [];
-      part.P.forEach((q, i) => { const c = part.cls[i]; put(mAu, i, q[0], q[1], q[2], 1.36, P.color === "element" ? p.Au : p[c.cls]);
+      sheet = sheetNow(110); part = K.buildParticle(P.d, P.adh);
+      const foot = part.foot;
+      // na estrutura publicada a folha é ondulada: a partícula pousa nos átomos mais altos sob ela (Au–C ~3,3 Å, Au–O ~2,2 Å);
+      // no modelo, os grupos da face de cima sob a partícula saem (foi ali que ela nucleou)
+      let shift = 0;
+      if (sheet.pub) { const off = { C: 3.25, O: 2.15, H: 2.0 }; let top = -1e9;
+        for (const a of sheet.at) if (Math.hypot(a.x, a.z) < foot + 1) top = Math.max(top, a.y + off[a.e]);
+        shift = top - K.Y_AU; part.P.forEach((q) => { q[1] += shift; }); part.center[1] += shift; }
+      part.shift = shift;
+      const skip = sheet.pub ? null : (a) => a.g && a.g.side > 0 && Math.hypot(a.g.x, a.g.z) < foot + 0.8;
+      const Oat = sheetMeshes(gAtom, sheet, skip);
+      const p = pal(), mAu = inst(SPH(part.N > 3000 ? 12 : 16), P.color === "site" ? matGold : matMetal, part.N), md = [];
+      part.P.forEach((q, i) => { const c = part.cls[i]; put(mAu, i, q[0], q[1], q[2], 1.36, P.color === "site" ? p[c.cls] : p.AuM);
         md.push({ t: `Ouro · ${CLS[c.cls]}`, p: q, au: true, r: 1.36, l: [`Número de coordenação ${c.cn}: vizinhos a 2,88 Å (no interior do cristal são 12).`,
           c.cls === "interior" ? "Átomo do volume: tem todos os vizinhos; só aparece com o corte." : c.cn <= 7 ? "Sítio de baixa coordenação: o mais reativo (catálise, adsorção de tióis)." : "Átomo de superfície: onde ligantes e moléculas se prendem.",
-          `altura ${((q[1] - K.Y_AU) / 10).toFixed(2)} nm acima do primeiro plano`] }); });
-      finish(mAu, part.N); matGold.clippingPlanes = P.clip ? [clipPlane] : []; matGold.needsUpdate = true;
+          `altura ${((q[1] - K.Y_AU - shift) / 10).toFixed(2)} nm acima do primeiro plano`] }); });
+      finish(mAu, part.N); [matGold, matMetal].forEach((m) => { m.clippingPlanes = P.clip ? [clipPlane] : []; m.needsUpdate = true; });
       gAtom.add(mAu); meta.set(mAu, md); gAtom.userData.pick.push(mAu);
-      // âncoras Au–O: oxigênios da face de cima junto ao perímetro de contato
-      const base = part.P.filter((q) => q[1] < K.Y_AU + 0.3), anc = [];
-      for (const o of Oat) { if (o.g.side < 0 || o.g.type === "carboxila") continue; const rr = Math.hypot(o.x, o.z); if (rr < foot - 2 || rr > foot + 3.5) continue;
+      // âncoras Au–O: oxigênios da face de cima junto ao perímetro de contato (ou logo abaixo do primeiro plano)
+      const yb = K.Y_AU + shift, base = part.P.filter((q) => q[1] < yb + 0.3), anc = [];
+      for (const o of Oat) { if (o.side < 0 || o.k === "carboxila") continue; const rr = Math.hypot(o.x, o.z); if (rr > foot + 3.5 || (!sheet.pub && rr < foot - 2)) continue;
         let best = null, bd = 9; for (const b of base) { const d = Math.hypot(b[0] - o.x, b[1] - o.y, b[2] - o.z); if (d < bd) { bd = d; best = b; } }
-        if (best && bd < 5.2) anc.push([o, best]); }
-      const lineMat = new THREE.LineDashedMaterial({ color: new THREE.Color(theme.cat[7]), dashSize: 0.4, gapSize: 0.3 });
+        if (best && bd < (sheet.pub ? 3.6 : 5.2)) anc.push([o, best, bd]); }
+      anc.sort((a, b) => a[2] - b[2]);
+      const lineMat = new THREE.LineDashedMaterial({ color: new THREE.Color(theme.ink), dashSize: 0.4, gapSize: 0.3 });
       anc.slice(0, 10).forEach(([o, b]) => { const ln = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(o.x, o.y, o.z), new THREE.Vector3(...b)]), lineMat); ln.computeLineDistances(); gAtom.add(ln); });
       part.anchors = Math.min(10, anc.length);
       // rótulos e barra de escala
@@ -404,12 +478,14 @@
       const f1 = part.P.findIndex((q, i) => part.cls[i].cls === "f100");
       if (f1 >= 0) { const q = part.P[f1], u = Math.hypot(q[0], q[2]) || 1; gl.add(label("face (100)", q[0] + 4 * q[0] / u, q[1] + 1, q[2] + 4 * q[2] / u, 1.9, p.f100)); }
       const shown = new Set();
-      for (const o of Oat) { if (shown.has(o.g.type) || o.g.side < 0 || Math.hypot(o.x, o.z) < foot + 8 || (o.g.type !== "carboxila" && Math.abs(o.x) > 40)) continue;
-        shown.add(o.g.type); gl.add(label(GRP[o.g.type], o.x, o.y + 3.2, o.z, 1.7, "#e0473c")); }
-      const sp2 = sheet.C.find((c) => !c.sp3 && !c.edge && c.x > 22 && c.x < 40 && c.z > 22 && c.z < 40 && !sheet.C.some((q) => q.sp3 && Math.hypot(q.x - c.x, q.z - c.z) < 7));
+      for (const o of Oat) { if (shown.has(o.k) || o.side < 0 || Math.hypot(o.x, o.z) < foot + 8 || o.z < -10 || Math.abs(o.x) > 42 || o.k === "outro") continue;
+        shown.add(o.k); gl.add(label(INFO[o.k][0].replace("Oxigênio · ", ""), o.x, o.y + 3.2, o.z, 1.7, P.color === "groups" ? p[o.k] : "#e0473c")); }
+      if (sheet.pub) { const e = sheet.at.find((a) => a.k === "edge" && a.z > 8 && Math.abs(a.x) < 38 && Math.hypot(a.x, a.z) > foot + 10);
+        if (e) gl.add(label("borda de buraco", e.x, e.y + 3.4, e.z, 1.7, P.color === "groups" ? p.edge : null)); }
+      const sp2 = sheet.at.find((c) => c.e === "C" && c.k === "sp2" && c.x > 18 && c.x < 40 && c.z > 18 && c.z < 40 && !sheet.at.some((q) => q.e === "O" && Math.hypot(q.x - c.x, q.z - c.z) < 6));
       if (sp2) gl.add(label("ilha sp² (grafeno intacto)", sp2.x, sp2.y + 3, sp2.z, 1.7));
-      if (anc.length) { const [o] = anc[0]; gl.add(label("ancoragem Au–O", o.x, o.y + 4.6, o.z, 1.6, theme.cat[7])); }
-      const sb = scaleBar(10, 0.2, 26, "1 nm", 0.35); sb.position.x = 30; gAtom.add(sb);
+      if (anc.length) { const [o] = anc[0]; gl.add(label("ancoragem Au–O", o.x, o.y + 4.6, o.z, 1.6, theme.ink)); }
+      const sb = scaleBar(10, 0.2, 26, "1 nm", 0.35); sb.position.x = 30; if (sheet.pub) sb.position.y = Math.max(...sheet.at.filter((a) => Math.abs(a.x - 30) < 6 && Math.abs(a.z - 26) < 3).map((a) => a.y), 0) + 0.6; gAtom.add(sb);
       buildPlasmon(); applyMode(); emit();
     }
 
@@ -465,16 +541,16 @@
     }
 
     /* ---------- síntese ao vivo */
-    let simMesh = null, simFrame = 0;
+    let simMesh = null, simFrame = 0, synSheet = null;
     function buildSynthesis(keep) {
       if (gSyn) { root.remove(gSyn); dispose(gSyn); }
       gSyn = newGroup(true); clearSel();
-      const sh = sheetFor(90, P.ox); sheetMeshes(gSyn, sh, () => false);
-      if (!keep || !sim) { sim = K.Synthesis(sh, { red: K.REDUCERS[P.red], T: P.T, nAu: 1400, seed: 11 }); simFrame = 0; }
+      const sh = modelSheet(90, oxSyn()); synSheet = sh; sheetMeshes(gSyn, sh, null);
+      if (!keep || !sim) { sim = K.Synthesis(sh.raw, { red: K.REDUCERS[P.red], T: P.T, nAu: 1400, seed: 11 }); simFrame = 0; }
       const p = pal(), n = sim.n;
       const ions = inst(SPH(8), new THREE.MeshPhongMaterial({ color: new THREE.Color(p.ion), transparent: true, opacity: 0.55, shininess: 20 }), n);
       const mons = inst(SPH(10), new THREE.MeshPhongMaterial({ color: new THREE.Color(p.mon), shininess: 60, specular: 0x886622 }), n);
-      const atoms = inst(SPH(12), matGold, n); matGold.clippingPlanes = [];
+      const atoms = inst(SPH(12), matMetal, n); matGold.clippingPlanes = []; matMetal.clippingPlanes = [];
       gSyn.add(ions, mons, atoms); simMesh = { ions, mons, atoms };
       const box = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(90, 36, 90)), new THREE.LineBasicMaterial({ color: new THREE.Color(theme.muted), transparent: true, opacity: 0.4 }));
       box.position.set(0, 18, 0); gSyn.add(box);
@@ -485,7 +561,7 @@
       drawSim(); applyMode(); emit();
     }
     function drawSim() {
-      if (!sim || !simMesh) return; const au = pal().Au; let a = 0, b = 0, c = 0;
+      if (!sim || !simMesh) return; const au = pal().AuM; let a = 0, b = 0, c = 0;
       for (let i = 0; i < sim.n; i++) { const x = sim.pos[3 * i], y = sim.pos[3 * i + 1], z = sim.pos[3 * i + 2], s = sim.st[i];
         if (s === 0) put(simMesh.ions, a++, x, y, z, 0.8); else if (s === 1) put(simMesh.mons, b++, x, y, z, 1.0); else put(simMesh.atoms, c++, x, y, z, 1.36, au); }
       finish(simMesh.ions, a); finish(simMesh.mons, b); finish(simMesh.atoms, c);
@@ -524,9 +600,9 @@
         if (!ok) continue;
         const it = { x, y: f.h(x, z) + d / 2 + 0.4, z, d }, gk = `${cx},${cz}`; list.push(it); (grid.get(gk) || grid.set(gk, []).get(gk)).push(it); covered += Math.PI * d * d / 4;
       }
-      const mP = inst(SPH(18), P.tem ? new THREE.MeshBasicMaterial({ color: 0xffffff }) : matGold, list.length), md = [];
-      matGold.clippingPlanes = [];
-      list.forEach((q, i) => { put(mP, i, q.x, q.y, q.z, q.d / 2, P.tem ? "#161616" : P.mcolor === "mie" ? opt.colorOf(q.d) : "#e9b949");
+      const mP = inst(SPH(18), P.tem ? new THREE.MeshBasicMaterial({ color: 0xffffff }) : P.mcolor === "mie" ? matGold : matMetal, list.length), md = [];
+      matGold.clippingPlanes = []; matMetal.clippingPlanes = [];
+      list.forEach((q, i) => { put(mP, i, q.x, q.y, q.z, q.d / 2, P.tem ? "#161616" : P.mcolor === "mie" ? opt.colorOf(q.d) : pal().AuM);
         md.push({ t: `Nanopartícula de ouro · ${fmt(q.d, 1)} nm`, p: [q.x, q.y, q.z], au: true, r: q.d / 2, l: [`≈ ${Math.round(K.RHO_AU * 1000 * Math.PI / 6 * q.d ** 3).toLocaleString("pt-BR")} átomos de Au`,
           `pico do plásmon ≈ ${Math.round(opt.lsprOf(q.d))} nm (Mie)`, `cor de uma dispersão deste tamanho: ${opt.colorOf(q.d)}`] }); });
       finish(mP, list.length); gMeso.add(mP); meta.set(mP, md); gMeso.userData.pick.push(mP);
@@ -556,15 +632,16 @@
     function rebuild(ch) {
       if (P.scale === "meso") { if (!gMeso || gMeso.userData.tv !== themeV || ch.meso || ch.tem || ch.mcolor) buildMeso(); else applyMode(); return; }
       if (P.mode === "synth") {
-        if (ch.synth || ch.ox || !sim) buildSynthesis(false); else if (!gSyn || gSyn.userData.tv !== themeV || ch.color) buildSynthesis(true); else applyMode(); return;
+        if (ch.synth || ch.ox || ch.sheet || !sim) buildSynthesis(false); else if (!gSyn || gSyn.userData.tv !== themeV || ch.color) buildSynthesis(true); else applyMode(); return;
       }
-      if (!gAtom || gAtom.userData.tv !== themeV || ch.d || ch.adh || ch.ox || ch.color) buildAtomic(); else applyMode();
+      if (!gAtom || gAtom.userData.tv !== themeV || ch.d || ch.adh || ch.ox || ch.color || ch.sheet) buildAtomic(); else applyMode();
     }
     function emit() { opt.onStats && opt.onStats(stats()); }
     function stats() {
       const s = { P: { ...P } };
       if (part) Object.assign(s, { d: part.d, N: part.N, surfFrac: part.surfFrac, lowCN: part.lowCN, count: part.count, anchors: part.anchors, foot: part.foot, height: part.height });
-      if (sheet) Object.assign(s, { CO: sheet.CO, nO: sheet.nO, groups: sheet.count, sp3: sheet.sp3frac });
+      const sh = P.scale === "atom" && P.mode === "synth" && synSheet ? synSheet : sheet;      // a síntese usa a folha-modelo (com o O/C da publicada)
+      if (sh) Object.assign(s, { CO: sh.CO, sp3: sh.sp3, groups: sh.groups, nC: sh.nC, pub: sh.pub ? sh.sd : null, synFrom: sh === synSheet && P.sheet !== "model" ? P.sheet : null });
       if (sim) Object.assign(s, { sim: sim.stats(), hist: sim.hist, Sstar: sim.Sstar, running: simRun, sizes: sim.clusters.map((c) => c.occ.size).filter((x) => x >= 4).map(K.deq) });
       if (meso) Object.assign(s, { meso: meso.list.map((q) => q.d), coverage: meso.covered });
       if (plState) s.plasmon = plState;
@@ -649,21 +726,22 @@
 
     /* ---------- roteiro guiado */
     const TOUR = [
-      { t: "A folha de grafeno", x: "Cada bolinha cinza é um átomo de carbono, ligado a três vizinhos a 1,42 Å: a rede em favo de mel. A folha tem um átomo de espessura (0,34 nm) e conduz eletricidade pelos elétrons π, espalhados por toda a rede.", s: { scale: "atom", mode: "explore", color: "element", clip: false }, cam: [[44, 34, 76], [18, 8, 18]] },
-      { t: "Oxidação: o óxido de grafeno (GO)", x: "Oxidar o grafite (método de Hummers) prende oxigênios à folha: epóxi e hidroxila no plano, carboxila nas bordas (modelo de Lerf–Klinowski), em domínios. Os carbonos ligados ao O viram sp³ (rosa) e saem do plano. Quanto o lote foi oxidado muda de um lote para outro: é a variabilidade que o projeto quer medir.", s: { color: "site" }, cam: [[-46, 40, 72], [-12, 8, 8]] },
-      { t: "O ouro é um cristal", x: "A nanopartícula é um pedaço de cristal cúbico de face centrada (aresta 4,078 Å; vizinhos a 2,88 Å). O corte mostra os planos atômicos empilhados por dentro dela.", s: { color: "element", clip: true }, cam: [[0, 30, 74], [0, 18, 0]] },
+      { t: "A folha de grafeno", x: "Cada bolinha cinza é um átomo de carbono, ligado a três vizinhos a 1,42 Å: a rede em favo de mel. A folha tem um átomo de espessura (0,34 nm) e conduz eletricidade pelos elétrons π, espalhados por toda a rede. Aqui, a folha-modelo quase sem oxigênio.", s: { scale: "atom", mode: "explore", sheet: "model", ox: 0.05, color: "element", clip: false }, cam: [[44, 34, 76], [18, 8, 18]] },
+      { t: "Oxidação: o óxido de grafeno (GO)", x: "Agora uma estrutura publicada de GO (El-Machachi et al. 2024): 2 ns de dinâmica molecular a 900 K com um potencial de aprendizado de máquina treinado em DFT (GO-MACE-23), depois otimizada. Epóxi (laranja) e hidroxila (azul) cobrem o plano basal; os carbonos ligados ao O viram sp³ (rosa) e a folha ondula. Este GO tem O/C ≈ 0,35: um oxigênio para cada três carbonos.", s: { sheet: "900K", color: "groups" }, cam: [[-46, 40, 72], [-12, 8, 8]] },
+      { t: "Lotes diferentes: GO mais aquecido", x: "A estrutura recozida a 1 500 K no mesmo estudo: os epóxis somem, surgem buracos com bordas de carbonila (vermelho), éter (verde-azulado) e lactona (âmbar), quase não sobra carbono sp³ e o O/C cai para ~0,21. Lotes de GO diferem assim, em quantidade e em tipo de oxigênio; é a variabilidade que o projeto mede.", s: { sheet: "1500K", color: "groups" }, cam: [[-40, 46, 70], [-8, 6, 10]] },
+      { t: "O ouro é um cristal", x: "A nanopartícula é um pedaço de cristal cúbico de face centrada (aresta 4,078 Å; vizinhos a 2,88 Å), aqui com o brilho metálico do ouro. O corte mostra os planos atômicos empilhados por dentro dela.", s: { color: "element", clip: true }, cam: [[0, 30, 74], [0, 18, 0]] },
       { t: "Faces, arestas e vértices", x: "Cores pelo número de vizinhos: faces (111) com 9, faces (100) com 8, arestas com 7 e vértices com 6. Quanto menor a partícula, maior a fração de átomos na superfície e em sítios de baixa coordenação, os mais reativos (veja o gráfico de sítios).", s: { color: "site", clip: false }, cam: [[40, 44, 60], [0, 18, 0]] },
-      { t: "A interface com o GO", x: "A partícula se apoia numa face (111) e é achatada pela adesão ao suporte (construção de Winterbottom; controle \"Adesão\"). As linhas tracejadas ligam oxigênios do GO ao primeiro plano de ouro: os grupos oxigenados ancoram a partícula e são onde ela começa a crescer.", s: { color: "site", clip: false }, cam: [[50, 14, 40], [0, 9, 0]] },
+      { t: "A interface com o GO", x: "A partícula se apoia numa face (111) e é achatada pela adesão ao suporte (construção de Winterbottom; controle \"Adesão\"). Na folha publicada ela pousa sobre os átomos mais altos; as linhas tracejadas ligam oxigênios do GO ao primeiro plano de ouro: os grupos oxigenados ancoram a partícula e são onde ela começa a crescer.", s: { color: "site", clip: false }, cam: [[50, 16, 40], [0, 11, 0]] },
       { t: "A síntese, ao vivo", x: "Íons Au³⁺ (amarelo claro) são reduzidos a Au⁰ (dourado). Quando há átomos livres demais (supersaturação), surgem núcleos nos oxigênios do GO; depois eles só crescem, átomo por átomo, nos sítios da rede de maior coordenação. Compare o citrato (brando: poucos núcleos, partículas maiores) com o NaBH₄ (forte: muitos núcleos, partículas menores).", s: { mode: "synth", run: true }, cam: HOME.synth },
-      { t: "Por que o ouro é vermelho", x: "O campo elétrico da luz empurra os elétrons livres do ouro, que oscilam juntos: o plásmon. Perto de 520 nm (verde) a oscilação é máxima e essa cor é absorvida; por isso a dispersão parece vermelha. A amplitude segue o espectro de Mie desta partícula, o mesmo cálculo da aba Óptica. Use \"varrer\" para passar por todas as cores.", s: { mode: "plasmon", lam: 520 }, cam: HOME.plasmon },
+      { t: "Por que o ouro é vermelho", x: "O campo elétrico da luz empurra os elétrons livres do ouro, que oscilam juntos: o plásmon. Perto de 520 nm (verde) a oscilação é máxima e essa cor é absorvida; por isso a dispersão parece vermelha. A amplitude segue o espectro de Mie desta partícula, o mesmo cálculo da aba Óptica. Use \"varrer as cores\" para passar por todas as cores.", s: { mode: "plasmon", lam: 520 }, cam: HOME.plasmon },
       { t: "Do átomo ao filme", x: "A câmera se afasta mil vezes: flocos de GO com dezenas a centenas de nanopartículas de vários tamanhos (distribuição log-normal). A vista TEM imita a imagem do microscópio eletrônico, que é como o projeto vai medir o tamanho de verdade.", s: { scale: "meso", tem: false }, cam: HOME.meso },
     ];
     let tourI = -1;
     function tourGo(i) {
       if (i < 0 || i >= TOUR.length) { tourI = -1; opt.onTour && opt.onTour(null); return; }
       tourI = i; const st = TOUR[i], s = st.s, ch = {};
-      for (const k of ["scale", "mode", "color", "clip", "lam", "tem"]) if (s[k] !== undefined && P[k] !== s[k]) { P[k] = s[k]; ch[k] = 1; }
-      if (ch.clip && !ch.color) { matGold.clippingPlanes = P.clip ? [clipPlane] : []; matGold.needsUpdate = true; }
+      for (const k of ["scale", "mode", "sheet", "ox", "color", "clip", "lam", "tem"]) if (s[k] !== undefined && P[k] !== s[k]) { P[k] = s[k]; ch[k] = 1; }
+      if (ch.clip && !ch.color) [matGold, matMetal].forEach((m) => { m.clippingPlanes = P.clip ? [clipPlane] : []; m.needsUpdate = true; });
       rebuild(ch);
       if (s.run) { if (!sim || sim.stats().done) buildSynthesis(false); simRun = true; }
       camTo(st.cam[0], st.cam[1], 1300);
@@ -678,7 +756,7 @@
         if (P[k] === v) return; P[k] = v;
         if (k === "labels") { applyMode(); return; }
         if (k === "hyd") { [gAtom, gSyn].forEach((g) => g && g.traverse((o) => { if (o.userData.hyd) o.visible = v; })); ensureLoop(); return; }
-        if (k === "clip") { matGold.clippingPlanes = v ? [clipPlane] : []; matGold.needsUpdate = true; ensureLoop(); return; }
+        if (k === "clip") { [matGold, matMetal].forEach((m) => { m.clippingPlanes = v ? [clipPlane] : []; m.needsUpdate = true; }); ensureLoop(); return; }
         if (k === "lam" || k === "speed") return;
         const ch = { [k]: 1 }; if (["md", "msig", "cov"].includes(k)) ch.meso = 1; if (["red", "T"].includes(k)) ch.synth = 1;
         rebuild(ch);
@@ -697,12 +775,15 @@
       legend() {                                       // [cor, rótulo] do que está na tela, nas mesmas cores da cena
         const p = pal();
         if (P.scale === "meso") return P.tem ? [["#bdbdbd", "folha de GO (pouco contraste no TEM)"], ["#161616", "nanopartícula de ouro (muito contraste)"]]
-          : [[theme.dark ? "#6f6253" : "#8c7a66", "folha de óxido de grafeno"], [P.mcolor === "mie" ? opt.colorOf(P.md) : p.Au, P.mcolor === "mie" ? "AuNP na cor da sua dispersão (Mie)" : "nanopartícula de ouro"]];
-        if (P.mode === "synth") return [[p.ion, "Au³⁺ em solução (íon, ainda não reduzido)"], [p.mon, "Au⁰ livre (átomo reduzido, procurando onde ficar)"], [p.Au, "Au em partícula (rede fcc)"], [p.O, "O do GO (sítio de nucleação)"], [p.C, "C do grafeno"]];
-        const at = P.color === "element" ? [[p.C, "carbono"], [p.O, "oxigênio"], [p.H, "hidrogênio"], [p.Au, "ouro"]]
-          : [[p.C, "C sp² (grafeno intacto)"], [p.Csp3, "C sp³ (ligado a O)"], [p.O, "oxigênio"], [p.f111, "Au face (111) · CN 9"], [p.f100, "Au face (100) · CN 8"], [p.aresta, "Au aresta · CN 7"], [p.vertice, "Au vértice · CN ≤ 6"], [p.interface, "Au na interface"], [p.interior, "Au interior · CN 12"]];
+          : [[theme.dark ? "#6f6253" : "#8c7a66", "folha de óxido de grafeno"], [P.mcolor === "mie" ? opt.colorOf(P.md) : p.AuM, P.mcolor === "mie" ? "AuNP na cor da sua dispersão (Mie)" : "nanopartícula de ouro"]];
+        if (P.mode === "synth") return [[p.ion, "Au³⁺ em solução (íon, ainda não reduzido)"], [p.mon, "Au⁰ livre (átomo reduzido, procurando onde ficar)"], [p.AuM, "Au em partícula (rede fcc)"], [p.O, "O do GO (sítio de nucleação)"], [p.C, "C do grafeno"]];
+        const have = new Set(sheet ? sheet.at.map((a) => a.k) : []), G = [["sp2", "C sp² (grafeno intacto)"], ["sp3", "C sp³ (ligado a O)"], ["edge", "C de borda (folha ou buraco)"],
+          ["epoxi", "O epóxi"], ["hidroxila", "O hidroxila"], ["eter", "O éter cíclico"], ["carbonila", "O carbonila (C=O)"], ["carboxila", "O carboxila"], ["lactona", "O lactona / anidrido"]];
+        const at = P.color === "element" ? [[p.C, "carbono"], [p.O, "oxigênio"], [p.H, "hidrogênio"], [p.AuM, "ouro"]]
+          : P.color === "groups" ? G.filter(([k]) => have.has(k) || (k === "edge" && have.has("cx"))).map(([k, l]) => [p[k] || p.C, l]).concat([[p.H, "hidrogênio"], [p.AuM, "ouro"]])
+            : [[p.C, "carbono"], [p.O, "oxigênio"], [p.f111, "Au face (111) · CN 9"], [p.f100, "Au face (100) · CN 8"], [p.aresta, "Au aresta · CN 7"], [p.vertice, "Au vértice · CN ≤ 6"], [p.interface, "Au na interface"], [p.interior, "Au interior · CN 12"]];
         if (P.mode === "plasmon") at.push(["#4f8dff", "nuvem de elétrons livres"], ["rgb(" + waveRGB(P.lam).map((x) => Math.round(255 * x)).join(",") + ")", "campo elétrico da luz"]);
-        else at.push([theme.cat[7], "- - interação Au–O"]);
+        else at.push([theme.ink, "- - interação Au–O"]);
         return at;
       },
     };

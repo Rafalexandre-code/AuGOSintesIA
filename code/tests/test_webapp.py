@@ -294,11 +294,39 @@ def test_guia_executa_com_os_dados_e_sem_lacunas():
     assert len(G["concepts"]) >= 20 and set(G["tour"]) <= set(G["figs"])
 
 
+def test_folhas_de_go_publicadas(site):
+    """Folhas de GO publicadas (El-Machachi et al. 2024) usadas na aba Nanocompósito 3D: o classificador de grupos
+    reconhece epóxi, éter, hidroxila e carbonila numa molécula montada à mão, e a composição das três estruturas segue a
+    química da redução térmica (O/C e C sp³ caem com a temperatura; os epóxis somem; contagens fecham com os átomos)."""
+    el = np.array(["C", "C", "O", "C", "O", "H", "C", "O", "C", "C", "O"])
+    pos = np.array([[0, 0, 0], [1.42, 0, 0], [0.71, 1.2, 0],                       # epóxi: ponte entre C ligados
+                    [10, 0, 0], [10, 1.43, 0], [10.9, 1.75, 0],                     # hidroxila C–O–H
+                    [20, 0, 0], [20, 1.22, 0],                                       # carbonila C=O
+                    [30, 0, 0], [32.6, 0, 0], [31.3, 0.8, 0]], float)               # éter: ponte entre C não ligados
+    t, side, _ = analyses._go_classify(el, pos, np.array([60.0, 60.0, 60.0]))
+    assert [analyses.GO_TYPES[t[i]] for i in (2, 4, 7, 10)] == ["O epóxi", "O hidroxila", "O carbonila", "O éter"]
+    assert side[2] == 1 and t[5] == 10
+    G = site["gostruct"]
+    S = G["structures"]
+    assert [q["T"] for q in S] == ["900 K", "1200 K", "1500 K"] and G["doi_data"] == "10.5281/zenodo.14066557"
+    assert S[0]["OC"] > S[1]["OC"] > S[2]["OC"] > 0.15 and 0.3 < S[0]["OC"] < 0.4
+    assert S[0]["sp3_frac"] > 0.2 > 0.05 > S[1]["sp3_frac"] > S[2]["sp3_frac"]
+    assert S[0]["per100C"]["O epóxi"] > 5 and S[2]["per100C"]["O epóxi"] < 0.5
+    assert S[2]["per100C"]["O carbonila"] > 3 and S[2]["edge_frac"] > S[0]["edge_frac"]
+    for q in S:
+        assert sum(q["counts"].values()) == q["n_atoms"] == q["n_C"] + q["n_O"] + q["n_H"]
+        assert q["per100C"]["O outro"] < 0.5                                     # quase todo O cai num grupo
+        c = q["crop"]
+        assert c["L"] == 96.0 and c["n"] == len(c["x"]) == len(c["t"]) == len(c["s"]) > 3000
+        assert set(c["t"]) <= set(range(len(G["types"]))) and max(map(abs, c["x"] + c["z"])) <= 4800
+
+
 def test_nanocomposito_3d_geometria_e_sintese():
     """Aba Nanocompósito 3D (code/webapp/nano3d.js): as redes da cena têm as distâncias medidas (C–C 1,42 Å; Au–Au
     2,884 Å), a coordenação vai até 12, a fração de átomos na superfície bate com o texto do site (2 nm ≈ metade,
     6 nm < 1/4) e a síntese simulada reproduz as tendências químicas: NaBH₄ forma mais núcleos e partículas menores que
-    o citrato, GO menos oxidado forma menos núcleos, e nenhum átomo de ouro se perde."""
+    o citrato, GO menos oxidado forma menos núcleos, e nenhum átomo de ouro se perde; o experimento de lotes repete a
+    tendência com sementes diferentes."""
     node = shutil.which("node")
     if not node:
         pytest.skip("node indisponível")
@@ -316,3 +344,6 @@ def test_nanocomposito_3d_geometria_e_sintese():
     assert all(x["done"] and x["att"] == 1400 for x in s.values())
     assert s["nabh4"]["nuclei"] > 1.5 * s["citrato"]["nuclei"] and s["nabh4"]["d"] < s["citrato"]["d"]
     assert s["nabh4Low"]["nuclei"] < s["nabh4"]["nuclei"]
+    b = r["batch"]                                                   # experimento de lotes: GO mais oxidado → mais e menores
+    assert [x["ox"] for x in b] == [0.05, 0.3] and all(len(x["n"]) == 2 for x in b)
+    assert np.mean(b[1]["n"]) > 1.5 * np.mean(b[0]["n"]) and np.mean(b[1]["d"]) < np.mean(b[0]["d"])
