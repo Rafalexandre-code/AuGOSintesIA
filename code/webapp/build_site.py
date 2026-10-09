@@ -125,17 +125,24 @@ def overview(d: dict) -> dict:
         ]}
 
 
+# three.js r147 (MIT; github.com/mrdoob/three.js, tag r147): última versão com build UMD e OrbitControls em examples/js,
+# que funcionam como <script> comum, sem módulos, dentro da página única
+THREE_JS = ("three.min.js", "OrbitControls.js")
+
+
 def _page(inline: bool) -> str:
     """index.html: documento completo (inline=False, arquivos ao lado) ou corpo de página única com tudo embutido."""
     tpl = open(os.path.join(HERE, "template.html"), encoding="utf-8").read()
     css = open(os.path.join(HERE, "app.css"), encoding="utf-8").read()
     js = open(os.path.join(HERE, "app.js"), encoding="utf-8").read()
     guide = open(os.path.join(HERE, "guide.js"), encoding="utf-8").read()
+    nano = open(os.path.join(HERE, "nano3d.js"), encoding="utf-8").read()
     if not inline:
         body = tpl.replace("{{STYLE}}", '<link rel="stylesheet" href="assets/app.css">')
         data = "\n".join(f'<script src="data/{s}.js"></script>' for s in ["overview"] + SECTIONS)
-        body = body.replace("{{SCRIPTS}}", '<script src="vendor/plotly.min.js"></script>\n' + data
-                            + '\n<script src="assets/guide.js"></script>\n<script src="assets/app.js"></script>')
+        body = body.replace("{{SCRIPTS}}", '<script src="vendor/plotly.min.js"></script>\n' + "".join(
+            f'<script src="vendor/{v}"></script>\n' for v in THREE_JS) + data + '\n<script src="assets/guide.js"></script>\n'
+            '<script src="assets/nano3d.js"></script>\n<script src="assets/app.js"></script>')
         return "<!doctype html>\n<html lang=\"pt-BR\">\n<head>\n<meta charset=\"utf-8\">\n" \
                "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\">\n" \
                + body.replace("<!--BODY-->", "</head>\n<body>") + "\n</body>\n</html>\n"
@@ -144,8 +151,9 @@ def _page(inline: bool) -> str:
     datas = "".join(open(os.path.join(SITE, "data", f"{s}.js"), encoding="utf-8").read()
                     for s in ["overview"] + SECTIONS)
     body = tpl.replace("{{STYLE}}", f"<style>\n{css}\n</style>").replace("<!--BODY-->", "")
-    return body.replace("{{SCRIPTS}}", f"<script>{plotly}</script>\n<script>window.AUGO_EMBED=true;{datas}</script>\n"
-                                       f"<script>{guide}</script>\n<script>{js}</script>")
+    three = "".join(f"<script>{open(os.path.join(HERE, 'vendor', v), encoding='utf-8').read()}</script>\n" for v in THREE_JS)
+    return body.replace("{{SCRIPTS}}", f"<script>{plotly}</script>\n{three}<script>window.AUGO_EMBED=true;{datas}</script>\n"
+                                       f"<script>{guide}</script>\n<script>{nano}</script>\n<script>{js}</script>")
 
 
 def build(reuse: bool = False, artifact: str | None = None, workers: int = 4) -> None:
@@ -157,6 +165,9 @@ def build(reuse: bool = False, artifact: str | None = None, workers: int = 4) ->
     shutil.copy(os.path.join(HERE, "app.css"), os.path.join(SITE, "assets", "app.css"))
     shutil.copy(os.path.join(HERE, "app.js"), os.path.join(SITE, "assets", "app.js"))
     shutil.copy(os.path.join(HERE, "guide.js"), os.path.join(SITE, "assets", "guide.js"))
+    shutil.copy(os.path.join(HERE, "nano3d.js"), os.path.join(SITE, "assets", "nano3d.js"))
+    for v in THREE_JS + ("LICENSE-three.txt",):
+        shutil.copy(os.path.join(HERE, "vendor", v), os.path.join(SITE, "vendor", v))
     import plotly
     src = os.path.join(os.path.dirname(plotly.__file__), "package_data", "plotly.min.js")
     shutil.copy(src, os.path.join(SITE, "vendor", "plotly.min.js"))

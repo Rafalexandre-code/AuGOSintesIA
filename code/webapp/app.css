@@ -123,7 +123,7 @@ kbd { font: 500 .74rem var(--f-mono); border: 1px solid currentColor; border-bot
 .nav[aria-current="page"] svg { color: var(--ruby); }
 .nav .sec { font: 500 .66rem var(--f-mono); color: var(--muted); }
 .nav .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-left: 6px; vertical-align: 1px; }
-.dot.exp { background: var(--ok); } .dot.par { background: var(--warn); } .dot.lab { background: var(--line-strong); }
+.dot.exp { background: var(--ok); } .dot.par { background: var(--warn); } .dot.lab { background: var(--line-strong); } .dot.mod { background: var(--gold); }
 .rail-foot { margin-top: auto; padding: 16px 10px 4px; border-top: 1px solid var(--line); font-size: .74rem; color: var(--muted); }
 .rail-foot .bar { display: flex; height: 6px; border-radius: 99px; overflow: hidden; margin: 8px 0 6px; background: var(--line); gap: 2px; }
 .rail-foot .bar i { display: block; }
@@ -155,6 +155,7 @@ main:focus { outline: none; }
 .chip.lab { border-color: var(--line-strong); color: var(--muted); }
 .chip .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .chip.par .dot { background: var(--warn); }
+.chip.mod { border-color: color-mix(in oklab, var(--gold) 60%, var(--line)); color: var(--gold-ink); } .chip.mod .dot { background: var(--gold); }
 
 /* cabeçalho de seção com ficha Dados · Método · Achado */
 .sec-head { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(280px, 1fr); gap: 18px 32px; align-items: stretch;
@@ -577,4 +578,40 @@ kbd { font: 600 .74rem var(--f-mono); padding: 2px 6px; border: 1px solid var(--
   .card.full { position: static; }
   .tbl-wrap { max-height: none !important; overflow: visible !important; }
   a.fig { background: none; padding: 0; }
+}
+
+/* nanocompósito 3D */
+.n3-ctl { padding-bottom: 6px; } .n3-ctl2 { padding-top: 0; }
+.n3-ctl [hidden] { display: none !important; }
+.n3-ticks { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; }
+.scene3d { position: relative; height: min(68vh, 640px); min-height: 420px; margin: 0 12px; border-radius: 12px; overflow: hidden;
+  border: 1px solid var(--line); background: var(--surface); touch-action: none; }
+.scene3d canvas { display: block; width: 100% !important; height: 100% !important; outline: none; }
+.scene3d canvas:focus-visible { box-shadow: inset 0 0 0 2px var(--ruby); }
+.card.full .scene3d { height: calc(100vh - 230px); min-height: 0; }
+.n3-legend { position: absolute; left: 10px; bottom: 10px; display: flex; flex-direction: column; gap: 3px; max-width: 46%; padding: 8px 10px;
+  border-radius: 10px; background: color-mix(in oklab, var(--surface) 88%, transparent); border: 1px solid var(--line); font-size: .74rem; color: var(--ink-2); pointer-events: none; }
+.n3-legend span { display: flex; align-items: center; gap: 7px; } .n3-legend i { width: 11px; height: 11px; border-radius: 50%; flex: none; border: 1px solid var(--line-strong); }
+.n3-zoom { position: absolute; right: 10px; bottom: 10px; display: flex; flex-direction: column; gap: 4px; }
+.n3-zoom button { width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font: 600 1rem var(--f-mono); cursor: pointer; }
+.n3-zoom button:hover { border-color: var(--ruby); color: var(--ruby-ink); }
+.n3-info { position: absolute; right: 54px; top: 10px; width: min(330px, 60%); padding: 10px 12px; border-radius: 12px; background: var(--surface);
+  border: 1px solid var(--line-strong); box-shadow: 0 6px 24px rgb(0 0 0 / .14); font-size: .82rem; color: var(--ink-2); }
+.n3-info b { color: var(--ink); display: block; margin-right: 20px; } .n3-info ul { margin: 6px 0 0; padding-left: 16px; } .n3-info li { margin: 2px 0; }
+.n3-dist { margin: 6px 0 0; font-size: .8rem; }
+.n3-x { position: absolute; right: 6px; top: 4px; border: 0; background: none; color: var(--muted); font-size: 1.2rem; cursor: pointer; line-height: 1; }
+.n3-tour { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); width: min(520px, calc(100% - 24px)); padding: 10px 14px 8px; border-radius: 14px;
+  background: var(--surface); border: 1px solid var(--gold); box-shadow: 0 10px 34px rgb(0 0 0 / .18); font-size: .86rem; color: var(--ink-2); }
+.n3-tour b { color: var(--ink); font: 650 .98rem var(--f-display); } .n3-tour p { margin: 3px 0 6px; line-height: 1.45; font-size: .84rem; }
+.n3-tour-h { display: flex; justify-content: space-between; font: 600 .66rem var(--f-mono); letter-spacing: .07em; text-transform: uppercase; color: var(--gold-ink); margin-bottom: 2px; }
+.n3-tour-h .n3-x { position: static; }
+.n3-tour-nav { display: flex; gap: 8px; justify-content: flex-end; }
+.n3-dots { display: flex; gap: 5px; justify-content: center; margin-top: 6px; } .n3-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--line-strong); } .n3-dots i.on { background: var(--gold); }
+.n3-tip { position: absolute; padding: 4px 8px; border-radius: 7px; background: var(--ink); color: var(--surface); font-size: .74rem; pointer-events: none; white-space: nowrap; z-index: 2; }
+.n3-hint { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 8px 14px; border-radius: 10px; background: rgb(0 0 0 / .66); color: #fff; font-size: .82rem; pointer-events: none; }
+.n3-nogl { padding: 40px 24px; text-align: center; color: var(--ink-2); }
+@media (max-width: 720px) {
+  .scene3d { height: 62vh; min-height: 360px; margin: 0 6px; }
+  .n3-legend { max-width: 62%; font-size: .68rem; } .n3-info { right: 8px; left: 8px; width: auto; top: auto; bottom: 54px; }
+  .n3-tour { top: 8px; font-size: .8rem; }
 }

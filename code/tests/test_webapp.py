@@ -292,3 +292,27 @@ def test_guia_executa_com_os_dados_e_sem_lacunas():
         assert set(c["where"]) <= alvos, c
         assert c["demo"] is None or f'"{c["demo"]}"' in app, c   # wrap("…") ou D_("…") em guideDemos()
     assert len(G["concepts"]) >= 20 and set(G["tour"]) <= set(G["figs"])
+
+
+def test_nanocomposito_3d_geometria_e_sintese():
+    """Aba Nanocompósito 3D (code/webapp/nano3d.js): as redes da cena têm as distâncias medidas (C–C 1,42 Å; Au–Au
+    2,884 Å), a coordenação vai até 12, a fração de átomos na superfície bate com o texto do site (2 nm ≈ metade,
+    6 nm < 1/4) e a síntese simulada reproduz as tendências químicas: NaBH₄ forma mais núcleos e partículas menores que
+    o citrato, GO menos oxidado forma menos núcleos, e nenhum átomo de ouro se perde."""
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node indisponível")
+    out = subprocess.run([node, os.path.join(ROOT, "code", "tests", "nano3d_check.js")], capture_output=True, text=True,
+                         check=True, timeout=300).stdout
+    r = json.loads(out)
+    assert r["cc"][0] == pytest.approx(1.42, abs=0.005) and r["cc"][1] == pytest.approx(1.42, abs=0.005)
+    assert r["innerNb"] == [3]                                     # favo de mel: três vizinhos
+    assert 2.5 < r["CO"] < 5 and min(r["groups"].values()) > 0       # GO de Hummers típico, os três grupos presentes
+    au = r["au"]
+    assert au["nn"] == pytest.approx(4.078 / 2 ** 0.5, abs=0.002) and au["cnMax"] == 12
+    assert au["base"] == pytest.approx(3.4, abs=1e-6)
+    assert 0.4 < au["surf2"] < 0.6 and au["surf6"] < 0.25 and au["low2"] > 3 * au["low6"]
+    s = r["syn"]
+    assert all(x["done"] and x["att"] == 1400 for x in s.values())
+    assert s["nabh4"]["nuclei"] > 1.5 * s["citrato"]["nuclei"] and s["nabh4"]["d"] < s["citrato"]["d"]
+    assert s["nabh4Low"]["nuclei"] < s["nabh4"]["nuclei"]

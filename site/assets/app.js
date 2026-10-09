@@ -168,6 +168,7 @@
     literatura: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/><path d="M8 7h8M8 11h6"/>',
     caracterizacao: '<circle cx="12" cy="12" r="2"/><circle cx="12" cy="12" r="5.5"/><circle cx="12" cy="12" r="9"/>',
     optica: '<path d="M2 14c2.5 0 3-8 5.5-8S10 18 12.5 18 15 9 17 9s2.5 5 5 5"/>',
+    nano3d: '<path d="M3 17l9 4 9-4M3 17l9-4 9 4"/><circle cx="12" cy="8" r="3.2"/><circle cx="6.5" cy="12.5" r="1.6"/><circle cx="17.5" cy="12" r="1.9"/>',
     designer: '<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2" fill="currentColor"/><circle cx="15" cy="12" r="2" fill="currentColor"/><circle cx="7" cy="18" r="2" fill="currentColor"/>',
     interpretabilidade: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
     preditor: '<path d="M4 20h16"/><path d="M6 20V9M10 20V5M14 20v-8M18 20v-5"/><path d="M5 9l5-4 4 7 4-2" stroke-dasharray="2 2"/>',
@@ -180,7 +181,7 @@
   const ico = (id, cls) => `<svg viewBox="0 0 24 24" aria-hidden="true"${cls ? ` class="${cls}"` : ""} fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${IC[id]}</svg>`;
   const NAV = [["Panorama", [["visao", "Visão geral", ""]]],
     ["Dados", [["literatura", "Literatura", "4.1"], ["caracterizacao", "Caracterização", "4.2"]]],
-    ["Modelos", [["optica", "Óptica e J", "4.4"], ["designer", "AuNP Designer", "4.5"], ["interpretabilidade", "Interpretabilidade", "4.13"]]],
+    ["Modelos", [["optica", "Óptica e J", "4.4"], ["nano3d", "Nanocompósito 3D", "4.10"], ["designer", "AuNP Designer", "4.5"], ["interpretabilidade", "Interpretabilidade", "4.13"]]],
     ["Decisão", [["preditor", "Preditor", "4.18"], ["aprendizado", "Aprendizado ativo", "4.15"], ["variabilidade", "Variabilidade", "4.17"], ["causal", "Causalidade", "4.9"]]],
     ["Projeto", [["guia", "Guia completo", ""], ["sobre", "Sobre e dados", ""]]]];
   const TABS = [].concat(...NAV.map((g) => g[1]));
@@ -223,12 +224,13 @@
   }
   function tabStatus(id) {
     if (id === "visao") return "exp";
+    if (id === "nano3d") return "mod";                       // modelo ilustrativo com parâmetros medidos
     const st = A.overview.map.filter((m) => m.tab === id).map((m) => m.status);
     if (!st.length || id === "sobre") return "lab";
     return st.every((x) => x === "experimental") ? "exp" : st.every((x) => x === "laboratorio") ? "lab" : "par";
   }
   function buildTabs() {
-    const M = A.overview.map, n = M.length, c = (k) => M.filter((m) => m.status === k).length, T = { exp: "dados experimentais", par: "parcial", lab: "aguarda o laboratório" };
+    const M = A.overview.map, n = M.length, c = (k) => M.filter((m) => m.status === k).length, T = { exp: "dados experimentais", par: "parcial", lab: "aguarda o laboratório", mod: "modelo físico ilustrativo" };
     $("#tabs").innerHTML = NAV.map(([g, items]) => `<div class="grp">${g}</div>` + items.map(([id, label, sec]) => {
       const st = tabStatus(id);
       return `<a class="nav" id="t-${id}" href="#${id}" aria-controls="p-${id}">${ico(id)}<span>${label}</span>` +
@@ -1239,7 +1241,7 @@
     const G = guide(); if (!G) return;
     const icoG = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6.3 6.2a1.8 1.8 0 1 1 2.4 1.7c-.5.2-.7.6-.7 1.1M8 11.3v.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
     document.querySelectorAll(".panel:not(#p-guia) .card").forEach((card) => {
-      const el = card.querySelector(".plot[id], table[id]"), head = card.querySelector(".card-h");
+      const el = card.querySelector(".plot[id], table[id], .scene3d[id]"), head = card.querySelector(".card-h");
       if (!el || !head || !G.FIG[el.id]) return;
       let g = head.querySelector(".btns");
       if (!g) { g = document.createElement("div"); g.className = "btns"; head.appendChild(g); }
@@ -1685,6 +1687,189 @@
         $("#gd-pe").addEventListener("change", draw); $("#gd-pw").addEventListener("change", draw); drawer(draw); } }
   }
 
+  /* ================================================================== nanocompósito 3D */
+  INIT.nano3d = function () {
+    const O = A.optics, G = goldColors(), K3 = window.AUGO_N3CORE, card = $("#n3-card");
+    const near = (d) => O.d.reduce((b, x, i) => (Math.abs(Math.log(x / d)) < Math.abs(Math.log(O.d[b] / d)) ? i : b), 0);
+    const colorOf = (d) => G.cols[near(d)], lsprOf = (d) => peakOf(O.wl, O.C_ext[near(d)]);
+    const R = A.literature.records, litGO = finite(R.size.filter((_, i) => R.go[i]));
+    const th = () => { const t = T(); return { dark: t.dark, surface: t.surface, ink: t.ink, muted: t.muted, cat: t.cat }; };
+    let st = null, curve = K3 ? K3.siteCurve(0.35) : [], curveAdh = 0.35, ready = false;
+    const E = K3 && window.AUGO_NANO3D ? window.AUGO_NANO3D($("#n3-scene"), { optics: O, colorOf, lsprOf, theme: th(),
+      onStats: (s) => { st = s; if (ready) refresh(); }, onPick: pickInfo, onTour: tourBox,
+      onPlasmon: () => { if (E && ready) { st = E.stats(); refresh(); } },
+      onLam: (l) => { $("#n3-lam").value = Math.round(l); outLam(); } }) : null;
+    window.AUGO_N3 = E;                                       // acesso para os testes do navegador
+    const P = E ? E.P : { scale: "atom", mode: "explore", color: "element", d: 2.6, adh: 0.35, ox: 0.3, lam: 520, md: 18, msig: 0.25, cov: 0.2, speed: 10 };
+    if (!st && E) st = E.stats();
+    const set = (k, v) => { if (E) E.set(k, v); else P[k] = v; };
+    // controles visíveis conforme a escala e o modo
+    function showCtl() {
+      card.querySelectorAll("[data-show]").forEach((el) => { const tk = el.dataset.show.split(" ");
+        el.hidden = !tk.some((t) => t === P.scale || (P.scale === "atom" && t === P.mode)); });
+      $("#n3-legend").innerHTML = E ? E.legend().map(([c, l]) => `<span><i style="background:${c}"></i>${esc(l)}</span>`).join("") : "";
+    }
+    const deb = (fn, ms) => { let t = 0; return () => { clearTimeout(t); t = setTimeout(fn, ms); }; };
+    const outs = {
+      d: () => `${nf(+$("#n3-d").value, 1)} nm`, adh: () => `${nf(100 * $("#n3-adh").value, 0)} % de γ(111)`,
+      ox: () => `O/C ${nf(+$("#n3-ox").value, 2)} (C/O ≈ ${nf(1 / Math.max(0.02, +$("#n3-ox").value * 0.85), 1)})`,
+      T: () => `${$("#n3-T").value} °C`, speed: () => `${$("#n3-speed").value} passos/quadro`, md: () => `${$("#n3-md").value} nm`,
+      msig: () => `${nf(100 * $("#n3-msig").value, 0)} %`, cov: () => `${nf(100 * $("#n3-cov").value, 0)} %`,
+    };
+    const outLam = () => { const l = +$("#n3-lam").value; $("#n3-lam-o").textContent = `${l} nm`; };
+    Object.keys(outs).forEach((k) => { $(`#n3-${k}-o`).textContent = outs[k](); });
+    outLam();
+    for (const k of ["d", "adh", "ox", "md", "msig", "cov", "T"]) {
+      const apply = deb(() => { set(k, +$(`#n3-${k}`).value); if (k === "adh") curveAt(+$("#n3-adh").value); showCtl(); }, k === "T" ? 120 : 220);
+      $(`#n3-${k}`).addEventListener("input", () => { $(`#n3-${k}-o`).textContent = outs[k](); apply(); });
+    }
+    $("#n3-speed").addEventListener("input", () => { $("#n3-speed-o").textContent = outs.speed(); set("speed", +$("#n3-speed").value); });
+    $("#n3-lam").addEventListener("input", () => { outLam(); set("lam", +$("#n3-lam").value); });
+    segmented("#n3-scale", (v) => { set("scale", v); showCtl(); });
+    segmented("#n3-mode", (v) => { set("mode", v); showCtl(); playLbl(); });
+    segmented("#n3-color", (v) => { set("color", v); showCtl(); });
+    segmented("#n3-red", (v) => { set("red", v); playLbl(); });
+    segmented("#n3-mcol", (v) => { set("mcolor", v); showCtl(); });
+    segmented("#n3-view", (v) => { set("tem", v === "tem"); showCtl(); });
+    [["lab", "labels"], ["clip", "clip"], ["hyd", "hyd"]].forEach(([id, k]) => $(`#n3-${id}`).addEventListener("change", (e) => set(k, e.target.checked)));
+    const playLbl = () => { $("#n3-play").textContent = st && st.running ? "pausar" : st && st.sim && st.sim.done ? "nova síntese" : "iniciar"; };
+    $("#n3-play").addEventListener("click", () => { if (E) E.play(!(st && st.running)); playLbl(); });
+    $("#n3-restart").addEventListener("click", () => { if (E) E.restart(); playLbl(); });
+    $("#n3-sweep").addEventListener("click", () => E && E.sweep());
+    $("#n3-zin").addEventListener("click", () => E && E.zoom(1 / 1.25));
+    $("#n3-zout").addEventListener("click", () => E && E.zoom(1.25));
+    $("#n3-home").addEventListener("click", () => E && E.home());
+    $("#n3-full").addEventListener("click", () => { toggleFull(card, $("#n3-full")); setTimeout(() => E && E.resize(), 60); });
+    $("#n3-png").addEventListener("click", async () => {
+      if (!E) return;
+      const url = E.png(), bin = atob(url.slice(url.indexOf(",") + 1)), u8 = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      if (DL) { const d = await DL; if (d) { try { await d.save({ filename: "nanocomposito-3d.png", data: u8 }); } catch (e) { /* cancelado */ } } return; }
+      const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([u8], { type: "image/png" })); a.download = "nanocomposito-3d.png";
+      document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    });
+    if (DL) DL.then((d) => { if (!d) $("#n3-png").hidden = true; });
+    // informação do átomo clicado (e distância até o anterior)
+    function pickInfo(m) {
+      const box = $("#n3-info");
+      if (!m) { box.hidden = true; return; }
+      box.innerHTML = `<button type="button" class="n3-x" aria-label="Fechar">×</button><b>${esc(m.t)}</b><ul>${m.l.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` +
+        (m.dist != null ? `<p class="n3-dist">Distância até o anterior (${esc(m.prev)}): <b>${nf(m.dist, 2)} ${m.scale === "meso" ? "nm" : "Å"}</b>${m.scale === "meso" ? "" : ` = ${nf(m.dist / 10, 3)} nm`}</p>` : `<p class="n3-dist muted">Clique em outro ${m.scale === "meso" ? "objeto" : "átomo"} para medir a distância.</p>`);
+      box.hidden = false; box.querySelector(".n3-x").onclick = () => { box.hidden = true; };
+    }
+    // roteiro guiado
+    function syncUI() {
+      const segSet = (id, v) => $(id).querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.v === String(v) ? "true" : "false"));
+      segSet("#n3-scale", P.scale); segSet("#n3-mode", P.mode); segSet("#n3-color", P.color); segSet("#n3-view", P.tem ? "tem" : "3d");
+      $("#n3-clip").checked = !!P.clip; $("#n3-lam").value = P.lam; outLam(); showCtl(); playLbl();
+    }
+    function tourBox(s) {
+      const box = $("#n3-tour");
+      if (!s) { box.hidden = true; return; }
+      syncUI();
+      box.innerHTML = `<div class="n3-tour-h"><span>passo ${s.i + 1} de ${s.n}</span><button type="button" class="n3-x" aria-label="Fechar o roteiro">×</button></div><b>${esc(s.t)}</b><p>${esc(s.x)}</p>` +
+        `<div class="n3-tour-nav"><button type="button" class="btn ghost" ${s.i ? "" : "disabled"} data-go="${s.i - 1}">anterior</button><button type="button" class="btn" data-go="${s.i + 1 < s.n ? s.i + 1 : -1}">${s.i + 1 < s.n ? "próximo" : "concluir"}</button></div>` +
+        `<div class="n3-dots">${Array.from({ length: s.n }, (_, k) => `<i class="${k === s.i ? "on" : ""}"></i>`).join("")}</div>`;
+      box.hidden = false;
+      box.querySelector(".n3-x").onclick = () => E.tourGo(-1);
+      box.querySelectorAll("[data-go]").forEach((b) => { b.onclick = () => E.tourGo(+b.dataset.go); });
+      box.querySelector(".btn:not(.ghost)").focus({ preventScroll: true });
+    }
+    $("#n3-tourbtn").addEventListener("click", () => { if (E) { E.tourGo(0); card.scrollIntoView({ block: "start", behavior: "smooth" }); } });
+    function curveAt(adh) { if (!K3 || Math.abs(adh - curveAdh) < 1e-6) return; curve = K3.siteCurve(adh); curveAdh = adh; drawDisp(); }
+
+    /* ---------- indicadores e gráficos ligados à cena */
+    const med = (a) => median(a);
+    function kp() {
+      const s = st || {}, syn = P.scale === "atom" && P.mode === "synth", meso = P.scale === "meso", sim = s.sim || {}, ms = s.meso || [], mm = ms.length ? med(ms) : P.md;
+      const pl = P.mode === "plasmon" && s.plasmon, gr = s.groups || { epoxi: 0, hidroxila: 0, carboxila: 0 };
+      kpis("#n3-kpis", [
+        { k: syn ? "Partículas formadas" : meso ? "Diâmetro mediano na cena" : "AuNP na cena", key: true,
+          v: syn ? ni(sim.n || 0) : meso ? nf(mm, 1) : nf(s.d, 1), u: syn ? "" : "nm",
+          s: syn ? (sim.n ? `diâmetro médio ${nf(sim.d, 2)} nm · variação ${nf(100 * sim.cv, 0)} %` : "aguardando os primeiros núcleos") : meso ? `${ni(ms.length)} partículas · dispersão ${nf(100 * P.msig, 0)} %` : `${ni(s.N)} átomos de ouro · forma de Wulff truncada` },
+        { k: syn ? "Supersaturação S" : meso ? "Cobertura da folha" : "Átomos na superfície",
+          v: syn ? nf(sim.S || 0, 1) : meso ? nf(100 * (s.coverage || 0), 0) : nf(100 * s.surfFrac, 0), u: syn ? "" : "%",
+          s: syn ? `nucleação rápida acima de S* ≈ ${nf(s.Sstar, 0)}` : meso ? "fração da área do GO coberta pelas partículas (vista de cima)" : `${nf(100 * s.lowCN, 0)} % em arestas e vértices, os sítios mais reativos` },
+        { k: meso ? "Pico do plásmon (Mie)" : "Óxido de grafeno", v: meso ? nf(lsprOf(mm), 0) : `C/O ${nf(s.CO, 1)}`, u: meso ? "nm" : "",
+          s: meso ? `para o diâmetro mediano; cor ${colorOf(mm)}` : `${ni(gr.epoxi)} epóxi · ${ni(gr.hidroxila)} hidroxila · ${ni(gr.carboxila)} carboxila · ${nf(100 * (s.sp3 || 0), 0)} % dos C em sp³` },
+        { k: syn ? "Ouro reduzido" : meso ? "Literatura GO–AuNP" : pl ? "Extinção nesta cor" : "Pico do plásmon (Mie)",
+          v: syn ? nf(100 * (1 - (sim.ions == null ? 1400 : sim.ions) / 1400), 0) : meso ? nf(med(litGO), 0) : pl ? nf(100 * pl.rel, 0) : nf(lsprOf(s.d || 2.6), 0),
+          u: syn ? "%" : meso ? "nm" : pl ? "% do pico" : "nm",
+          s: syn ? `${ni(sim.att || 0)} átomos já em partículas · ${ni(sim.mon || 0)} livres` : meso ? `mediana de ${ni(litGO.length)} sínteses de ouro relatadas com GO` : pl ? `luz de ${Math.round(pl.lam)} nm; o pico desta partícula fica em ${Math.round(pl.peak)} nm` : `cor da dispersão: ${colorOf(s.d || 2.6)}` },
+        { k: syn ? "Tempo de simulação" : meso ? "Ouro na cena" : "Ancoragem Au–O",
+          v: syn ? ni(sim.t || 0) : meso ? nf(ms.reduce((a, d) => a + K3.RHO_AU * 1000 * Math.PI / 6 * d * d * d, 0) / 1e6, 1) : ni(s.anchors || 0), u: syn ? "passos" : meso ? "milhões de átomos" : "",
+          s: syn ? (sim.done ? "síntese concluída" : s.running ? "em andamento" : "pausada: aperte iniciar") : meso ? "somando todas as partículas" : `oxigênios junto ao contato de ${nf(2 * (s.foot || 0) / 10, 1)} nm de diâmetro` },
+      ]);
+    }
+    function drawDisp() {
+      const t = T(), d0 = st && st.d ? st.d : P.d, x = curve.map((c) => c.d), pct = (f) => curve.map((c) => 100 * c[f]);
+      const tr = [["surf", "todos na superfície", t.ink, 2.6], ["f111", "faces (111)", t.cat[0], 2], ["f100", "faces (100)", t.cat[2], 2], ["low", "arestas e vértices", t.cat[1], 2], ["inter", "interface com o GO", t.cat[6], 2]]
+        .map(([f, n, c, w]) => ({ type: "scatter", mode: "lines+markers", name: n, x, y: pct(f), line: { color: c, width: w }, marker: { size: 4, color: c }, hovertemplate: `%{x:.2f} nm: %{y:.0f} %<extra>${n}</extra>` }));
+      plot("n3-disp", tr, { xaxis: { title: { text: "diâmetro equivalente (nm)" } }, yaxis: { title: { text: "% dos átomos da partícula" }, range: [0, 100] }, legend: { y: 1.18 },
+        shapes: [{ type: "line", x0: d0, x1: d0, yref: "paper", y0: 0, y1: 1, line: { color: t.ruby, width: 1.6, dash: "dot" } }],
+        annotations: [{ x: d0, y: 1, yref: "paper", text: `cena: ${nf(d0, 1)} nm`, showarrow: false, xanchor: "left", xshift: 5, yanchor: "top", font: { size: 11, color: t.ruby } }] });
+    }
+    function drawSpec() {
+      const t = T(), s = st || {}, d = P.scale === "meso" ? (s.meso && s.meso.length ? med(s.meso) : P.md) : P.mode === "synth" && s.sim && s.sim.d ? s.sim.d : s.d || P.d;
+      const row = O.C_ext[near(d)], mx = Math.max(...row.filter((_, i) => O.wl[i] >= 450)), y = row.map((v) => v / mx), pk = lsprOf(d), lam = P.lam;
+      const shapes = [{ type: "line", x0: pk, x1: pk, yref: "paper", y0: 0, y1: 1, line: { color: t.muted, width: 1, dash: "dot" } }];
+      if (P.scale === "atom" && P.mode === "plasmon") shapes.push({ type: "line", x0: lam, x1: lam, yref: "paper", y0: 0, y1: 1, line: { color: t.ruby, width: 2.2 } });
+      plot("n3-spec", [{ type: "scatter", mode: "lines", x: O.wl, y, line: { color: t.cat[0], width: 2.4 }, fill: "tozeroy", fillcolor: hexA(colorOf(d), 0.35), hovertemplate: "λ = %{x} nm: %{y:.2f}<extra></extra>" }],
+        { showlegend: false, xaxis: { title: { text: "comprimento de onda da luz (nm)" }, range: [400, 800] }, yaxis: { title: { text: "extinção (pico = 1)" }, range: [0, 1.08] }, shapes,
+          annotations: [{ x: pk, y: 1.04, text: `pico ${Math.round(pk)} nm · d = ${nf(d, 1)} nm`, showarrow: false, xanchor: "left", xshift: 4, font: { size: 11, color: t.ink } }] });
+    }
+    function drawLamer() {
+      const t = T(), s = st || {}, h = s.hist || [], x = h.map((q) => q.t);
+      const tr = [{ type: "scatter", mode: "lines", name: "supersaturação S", x, y: h.map((q) => q.S), line: { color: t.cat[0], width: 2.2 }, xaxis: "x", yaxis: "y", hovertemplate: "passo %{x}: S = %{y:.1f}<extra></extra>" },
+        { type: "scatter", mode: "lines", name: "partículas", x, y: h.map((q) => q.n), line: { color: t.cat[1], width: 2.2, shape: "hv" }, xaxis: "x2", yaxis: "y2", hovertemplate: "passo %{x}: %{y} partículas<extra></extra>" },
+        { type: "scatter", mode: "lines", name: "diâmetro médio", x, y: h.map((q) => q.d), line: { color: t.cat[2], width: 2.2 }, xaxis: "x3", yaxis: "y3", hovertemplate: "passo %{x}: %{y:.2f} nm<extra></extra>" }];
+      const ss = s.Sstar || 30, xr = x.length ? [0, Math.max(...x)] : [0, 1000];
+      plot("n3-lamer", tr, { grid: { rows: 3, columns: 1, pattern: "independent", roworder: "top to bottom" }, showlegend: false,
+        xaxis: { matches: "x3", showticklabels: false, range: xr }, xaxis2: { matches: "x3", showticklabels: false }, xaxis3: { title: { text: "tempo (passos da simulação)" }, range: xr },
+        yaxis: { title: { text: "S" }, rangemode: "tozero" }, yaxis2: { title: { text: "partículas" }, rangemode: "tozero" }, yaxis3: { title: { text: "d (nm)" }, rangemode: "tozero" },
+        shapes: [{ type: "line", xref: "x", yref: "y", x0: xr[0], x1: xr[1], y0: ss, y1: ss, line: { color: t.ruby, width: 1.4, dash: "dash" } }],
+        annotations: [{ xref: "x", yref: "y", x: xr[1], y: ss, text: "S*: nucleação rápida", showarrow: false, xanchor: "right", yanchor: "bottom", font: { size: 10, color: t.ruby } }]
+          .concat(x.length ? [] : [{ xref: "paper", yref: "paper", x: 0.5, y: 0.5, text: "Escolha o modo \"síntese ao vivo\" e aperte iniciar", showarrow: false, font: { size: 12, color: t.muted } }]) });
+      const q = h[h.length - 1];
+      $("#n3-lamer-txt").innerHTML = q ? `<p>${q.done ? "Síntese concluída" : "Até agora"}: <b>${ni(q.n)} partículas</b> de ${nf(q.d, 2)} nm em média (${ni(q.nuclei)} núcleos formados) com ${({ citrato: "citrato", ascorbico: "ácido ascórbico", nabh4: "NaBH₄" })[P.red]} a ${P.T} °C. ` +
+        `A curva de cima sobe enquanto o redutor gera átomos livres e cai quando os núcleos passam a consumi-los: é a separação entre nucleação e crescimento de LaMer. Redutor mais forte ou GO mais oxidado → mais núcleos → partículas menores.</p>` :
+        "<p>Modelo qualitativo: a escala de tempo e os parâmetros foram escolhidos para mostrar a tendência, não para prever uma síntese real.</p>";
+    }
+    function drawSizes() {
+      const t = T(), s = st || {}, lg = litGO.map(Math.log10), lo = 0, hi = 2.7, nb = 27, w = (hi - lo) / nb, dens = (v) => { const c = new Array(nb).fill(0); v.forEach((x) => { const j = Math.floor((x - lo) / w); if (j >= 0 && j < nb) c[j]++; }); const n = v.length || 1; return c.map((x) => x / n / w); };
+      const mids = Array.from({ length: nb }, (_, j) => lo + (j + 0.5) * w), sl = Math.sqrt(Math.log(1 + P.msig * P.msig)), xs = lin(lo, hi, 200);
+      const ln = xs.map((x) => Math.exp(-0.5 * ((x * Math.LN10 - Math.log(P.md)) / sl) ** 2) / (sl * Math.sqrt(2 * Math.PI)) * Math.LN10);
+      const tr = [{ type: "bar", name: `literatura GO–AuNP (${ni(litGO.length)} sínteses)`, x: mids, y: dens(lg), width: w * 0.92, marker: { color: t.other }, customdata: mids.map((m) => Math.pow(10, m)), hovertemplate: "≈ %{customdata:.1f} nm<extra>literatura</extra>" },
+        { type: "scatter", mode: "lines", name: `escolha da cena (mediana ${P.md} nm, ${nf(100 * P.msig, 0)} %)`, x: xs, y: ln, line: { color: t.cat[0], width: 2.4 }, hoverinfo: "skip" }];
+      if (s.meso && s.meso.length) tr.push({ type: "scatter", mode: "lines", name: `partículas da cena (${ni(s.meso.length)})`, x: mids, y: dens(s.meso.map(Math.log10)), line: { color: t.cat[1], width: 2, shape: "hvh" }, hoverinfo: "skip" });
+      plot("n3-sizes", tr, { bargap: 0, legend: { y: 1.2 }, yaxis: { title: { text: "densidade (por década)" } },
+        xaxis: { title: { text: "diâmetro (nm), escala log" }, tickvals: [0, 0.301, 0.699, 1, 1.301, 1.699, 2, 2.477], ticktext: ["1", "2", "5", "10", "20", "50", "100", "300"] } });
+    }
+    let lastSlow = 0, lastKey = "";
+    const refresh = () => {
+      kp(); showCtl(); playLbl();
+      const now = performance.now(), key = `${P.scale}|${P.mode}|${st && st.d}|${P.md}|${P.msig}|${P.lam}|${st && st.meso && st.meso.length}`;
+      if (key !== lastKey) { lastKey = key; drawSpec(); drawSizes(); drawDisp(); }
+      if (P.mode === "synth" && now - lastSlow > 400) { lastSlow = now; drawLamer(); }
+    };
+    // tabela de parâmetros
+    $("#n3-tbl").innerHTML = "<thead><tr><th>Grandeza</th><th>Valor na cena</th><th>De onde vem</th></tr></thead><tbody>" + [
+      ["Rede do grafeno", "C–C 1,42 Å; parâmetro de rede 2,46 Å; 38 átomos/nm²", "medida por difração; Castro Neto et al., Rev. Mod. Phys. 81, 109 (2009)"],
+      ["Grupos do óxido de grafeno", "epóxi e hidroxila no plano (as duas faces), carboxila nas bordas, em domínios oxidados", "modelo de Lerf & Klinowski, J. Phys. Chem. B 102, 4477 (1998)"],
+      ["Ligações com oxigênio", "C–O 1,46 Å (epóxi), 1,43 Å (hidroxila), O–H 0,97 Å, C=O 1,21 Å, C–OH 1,34 Å", "comprimentos de ligação típicos (tabelas de química orgânica)"],
+      ["Grau de oxidação", "controle \"Oxidação do GO\": O/C de 0,02 (quase grafeno) a 0,45 (GO de Hummers, C/O ≈ 2–3)", "faixa relatada para GO e GO reduzido; muda de lote para lote"],
+      ["Rede do ouro", "cúbica de face centrada, a = 4,078 Å; vizinhos a 2,884 Å; 59 átomos/nm³", "difração de raios X (valor tabelado a 25 °C)"],
+      ["Forma da nanopartícula", "octaedro truncado de Wulff (faces {111} e {100}), γ(100)/γ(111) = 1,15", "construção de Wulff; a razão de 1,1 a 1,3 vem de cálculos DFT e medidas, 1,15 é escolha do modelo"],
+      ["Adesão ao GO", "truncamento de Winterbottom: o plano de contato fica a (1 − E_adesão/γ₁₁₁) do centro", "Winterbottom, Acta Metall. 15, 303 (1967); controle \"Adesão Au–GO\""],
+      ["Distância ouro–folha", "primeiro plano de ouro a 3,4 Å do plano do carbono (O a ~1,3 Å + Au–O ~2,1 Å)", "escolha do modelo, compatível com ligações Au–O"],
+      ["Cor e plásmon", "Mie com o índice de refração do ouro de Johnson & Christy (1972), em água", "a mesma conta da aba Óptica, validada contra 798 relatos"],
+      ["Síntese ao vivo", "redução de primeira ordem; nucleação nos O da face de cima com taxa ∝ exp(−B/ln²S); crescimento átomo a átomo no sítio fcc de maior coordenação", "teoria clássica de nucleação e LaMer & Dinegar (1950); parâmetros escolhidos para mostrar a tendência (qualitativo)"],
+      ["Escala de partículas", "diâmetros log-normais (mediana e dispersão nos controles), sem sobreposição", `comparados com ${ni(litGO.length)} tamanhos relatados em sínteses de ouro com GO (mediana ${nf(med(litGO), 0)} nm)`],
+    ].map(([a, b, c]) => `<tr><th>${a}</th><td>${b}</td><td>${c}</td></tr>`).join("") + "</tbody>";
+    ready = true; showCtl(); refresh(); drawLamer(); drawDisp(); drawSpec(); drawSizes();
+    drawer(() => { if (E && built.nano3d) E.theme(th()); drawDisp(); drawSpec(); drawSizes(); drawLamer(); showCtl(); });
+  };
+
   /* ================================================================== variabilidade */
   INIT.variabilidade = function () {
     const Va = A.variability, ag = Va.agnp, tk = Va.turkevich, ge = Va.aunc_generalization;
@@ -2029,6 +2214,9 @@
       preditor: [`${ni(A.predictor.n)} sínteses de ${ni(A.predictor.n_articles)} artigos, ${ni(A.predictor.recipes.length)} receitas distintas`,
         "regressão quantílica com árvores, conformalizada por artigo (CQR), avaliada no próprio navegador",
         `intervalo de 90 % cobre <b>${nf(100 * A.predictor.bands["90"].coverage_articles, 0)} %</b> dos artigos novos; largura típica ×${nf(A.predictor.bands["90"].median_fold_width, 0)}`],
+      nano3d: ["redes do grafeno (C–C 1,42 Å) e do ouro (a = 4,078 Å), ligações C–O tabeladas, constantes ópticas do Au e " + ni(finite(L.records.size.filter((_, i) => L.records.go[i])).length) + " tamanhos GO–AuNP relatados",
+        "modelo físico ilustrativo em three.js: GO de Lerf–Klinowski, forma de Wulff–Winterbottom, número de coordenação, Mie e Monte Carlo cinético da síntese",
+        "uma AuNP de 2 nm tem <b>cerca de metade</b> dos átomos na superfície; uma de 6 nm, menos de um quarto"],
       sobre: ["7 bases experimentais públicas, com DOI e licença",
         "tudo regenerável por code/webapp/build_site.py e conferido por testes automáticos",
         `<b>${nexp} de ${M.length}</b> seções da proposta já com dados experimentais`],
@@ -2044,7 +2232,7 @@
       if (!sec) continue;
       let k = 0;
       document.querySelectorAll(`#p-${id} .card`).forEach((card) => {
-        const h = card.querySelector(".card-h h3"); if (!h || !card.querySelector(".plot, table")) return;
+        const h = card.querySelector(".card-h h3"); if (!h || !card.querySelector(".plot, table, .scene3d")) return;
         const n = `${sec}${String.fromCharCode(97 + k++)}`;
         if (!card.id) card.id = "fig-" + n;
         h.insertAdjacentHTML("afterbegin", `<a class="fig" href="#${card.id}" title="Endereço desta figura">Fig. ${n}</a>`);

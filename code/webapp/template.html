@@ -169,6 +169,70 @@
     </div>
   </section>
 
+  <!-- ================================================================== nanocompósito 3D -->
+  <section class="panel" id="p-nano3d" aria-labelledby="t-nano3d" hidden>
+    <div class="sec-head"><div><span class="eyebrow">§4.10 modelo físico · o nanocompósito do átomo ao filme</span>
+      <h2>Ouro sobre óxido de grafeno, em 3D</h2>
+      <p class="lede">Uma folha de óxido de grafeno montada átomo a átomo, com os grupos oxigenados em domínios, e uma
+        nanopartícula de ouro com a rede cristalina real, as faces de equilíbrio e a adesão ao suporte. Gire, aproxime,
+        clique nos átomos, assista à síntese (redução, nucleação e crescimento) e ao plásmon que dá a cor, e afaste a
+        câmera até a escala de dezenas a centenas de partículas, inclusive como o microscópio eletrônico as vê.</p>
+      <span class="chip mod"><span class="dot"></span>modelo ilustrativo · parâmetros medidos</span></div>
+      <dl class="ficha" id="fi-nano3d"></dl></div>
+    <div class="card n3-card" id="n3-card"><div class="card-h"><div><h3>Cena 3D interativa</h3>
+      <p id="n3-cap">Arraste para girar, botão direito (ou dois dedos) para mover, Ctrl + roda para aproximar. Clique num átomo para saber o que ele é; clique em outro para medir a distância.</p></div>
+      <div class="btns"><button type="button" class="icon-btn" id="n3-png"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 5h3l1.5-2h3L11 5h3v8H2z" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="9" r="2.4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><span>foto</span></button><button type="button" class="icon-btn" id="n3-full" aria-label="Ampliar a cena"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><span>ampliar</span></button></div></div>
+      <div class="controls n3-ctl">
+        <div class="ctl ctl-auto"><span class="lbl" id="n3-scale-l">Escala</span><div class="seg" id="n3-scale" role="group" aria-labelledby="n3-scale-l"><button type="button" aria-pressed="true" data-v="atom">átomos (≈ 10 nm)</button><button type="button" aria-pressed="false" data-v="meso">partículas (≈ 400 nm)</button></div></div>
+        <div class="ctl ctl-auto" data-show="atom"><span class="lbl" id="n3-mode-l">Modo</span><div class="seg" id="n3-mode" role="group" aria-labelledby="n3-mode-l"><button type="button" aria-pressed="true" data-v="explore">explorar</button><button type="button" aria-pressed="false" data-v="synth">síntese ao vivo</button><button type="button" aria-pressed="false" data-v="plasmon">plásmon</button></div></div>
+        <div class="ctl ctl-auto" data-show="atom"><span class="lbl" id="n3-color-l">Cores por</span><div class="seg" id="n3-color" role="group" aria-labelledby="n3-color-l"><button type="button" aria-pressed="true" data-v="element">elemento</button><button type="button" aria-pressed="false" data-v="site">tipo de sítio</button></div></div>
+        <div class="ctl ctl-auto"><button type="button" class="btn" id="n3-tourbtn">roteiro guiado (8 passos)</button></div>
+      </div>
+      <div class="controls n3-ctl n3-ctl2">
+        <div class="ctl" data-show="explore plasmon"><label for="n3-d">Diâmetro da AuNP <output id="n3-d-o"></output></label><input type="range" id="n3-d" min="1.5" max="6" step="0.1" value="2.6"></div>
+        <div class="ctl" data-show="explore plasmon"><label for="n3-adh">Adesão Au–GO <output id="n3-adh-o"></output></label><input type="range" id="n3-adh" min="0" max="0.8" step="0.05" value="0.35"></div>
+        <div class="ctl" data-show="atom"><label for="n3-ox">Oxidação do GO <output id="n3-ox-o"></output></label><input type="range" id="n3-ox" min="0.02" max="0.45" step="0.01" value="0.3"></div>
+        <div class="ctl" data-show="plasmon"><label for="n3-lam">Cor da luz (λ) <output id="n3-lam-o"></output></label><input type="range" id="n3-lam" min="400" max="780" step="1" value="520"></div>
+        <div class="ctl ctl-auto" data-show="plasmon"><button type="button" class="btn ghost" id="n3-sweep">varrer as cores</button></div>
+        <div class="ctl ctl-auto" data-show="synth"><span class="lbl" id="n3-red-l">Redutor</span><div class="seg" id="n3-red" role="group" aria-labelledby="n3-red-l"><button type="button" aria-pressed="true" data-v="citrato">citrato (brando)</button><button type="button" aria-pressed="false" data-v="ascorbico">ascórbico</button><button type="button" aria-pressed="false" data-v="nabh4">NaBH₄ (forte)</button></div></div>
+        <div class="ctl" data-show="synth"><label for="n3-T">Temperatura <output id="n3-T-o"></output></label><input type="range" id="n3-T" min="25" max="100" step="5" value="25"></div>
+        <div class="ctl" data-show="synth"><label for="n3-speed">Velocidade <output id="n3-speed-o"></output></label><input type="range" id="n3-speed" min="1" max="24" step="1" value="10"></div>
+        <div class="ctl ctl-auto" data-show="synth"><button type="button" class="btn" id="n3-play">iniciar</button> <button type="button" class="btn ghost" id="n3-restart">recomeçar</button></div>
+        <div class="ctl" data-show="meso"><label for="n3-md">Diâmetro mediano <output id="n3-md-o"></output></label><input type="range" id="n3-md" min="5" max="60" step="1" value="18"></div>
+        <div class="ctl" data-show="meso"><label for="n3-msig">Dispersão de tamanhos <output id="n3-msig-o"></output></label><input type="range" id="n3-msig" min="0.05" max="0.45" step="0.01" value="0.25"></div>
+        <div class="ctl" data-show="meso"><label for="n3-cov">Cobertura da folha <output id="n3-cov-o"></output></label><input type="range" id="n3-cov" min="0.02" max="0.35" step="0.01" value="0.2"></div>
+        <div class="ctl ctl-auto" data-show="meso"><span class="lbl" id="n3-mcol-l">Cor das partículas</span><div class="seg" id="n3-mcol" role="group" aria-labelledby="n3-mcol-l"><button type="button" aria-pressed="true" data-v="gold">ouro metálico</button><button type="button" aria-pressed="false" data-v="mie">cor da dispersão (Mie)</button></div></div>
+        <div class="ctl ctl-auto" data-show="meso"><span class="lbl" id="n3-view-l">Vista</span><div class="seg" id="n3-view" role="group" aria-labelledby="n3-view-l"><button type="button" aria-pressed="true" data-v="3d">3D</button><button type="button" aria-pressed="false" data-v="tem">como no TEM</button></div></div>
+        <div class="ctl ctl-auto n3-ticks"><label class="tick"><input type="checkbox" id="n3-lab" checked> rótulos</label>
+          <label class="tick" data-show="explore"><input type="checkbox" id="n3-clip"> corte da partícula</label>
+          <label class="tick" data-show="atom"><input type="checkbox" id="n3-hyd" checked> hidrogênios</label></div>
+      </div>
+      <div class="scene3d" id="n3-scene">
+        <div class="n3-legend" id="n3-legend" aria-label="Legenda das cores da cena"></div>
+        <div class="n3-zoom" role="group" aria-label="Câmera"><button type="button" id="n3-zin" aria-label="Aproximar">+</button><button type="button" id="n3-zout" aria-label="Afastar">−</button><button type="button" id="n3-home" aria-label="Voltar à vista inicial">⟲</button></div>
+        <div class="n3-info" id="n3-info" aria-live="polite" hidden></div>
+        <div class="n3-tour" id="n3-tour" role="dialog" aria-label="Roteiro guiado" hidden></div>
+      </div>
+      <div class="kpis inset" id="n3-kpis"></div></div>
+    <div class="grid">
+      <div class="card c6"><div class="card-h"><div><h3>Quantos átomos ficam na superfície</h3>
+        <p>Fração dos átomos de cada partícula em cada tipo de sítio, de 1 a 8 nm, com a forma e a adesão escolhidas. Linha vertical = a partícula da cena.</p></div></div>
+        <div class="card-b"><div class="plot" id="n3-disp"></div></div></div>
+      <div class="card c6"><div class="card-h"><div><h3>A cor desta partícula: espectro de Mie</h3>
+        <p>Extinção calculada para o diâmetro da cena (a mesma conta da aba Óptica). A linha marca a cor da luz no modo plásmon.</p></div></div>
+        <div class="card-b"><div class="plot" id="n3-spec"></div></div></div>
+      <div class="card c6"><div class="card-h"><div><h3>Síntese ao vivo: supersaturação, nucleação e crescimento</h3>
+        <p>Curva de LaMer gerada pela simulação da cena: átomos livres em relação à saturação (S), número de partículas e diâmetro médio ao longo do tempo.</p></div></div>
+        <div class="card-b"><div class="plot tall" id="n3-lamer"></div><div class="prose" id="n3-lamer-txt" style="padding:4px 10px 0"></div></div></div>
+      <div class="card c6"><div class="card-h"><div><h3>Tamanhos: cena × literatura GO–AuNP</h3>
+        <p>Distribuição log-normal escolhida na escala de partículas contra os tamanhos relatados nas sínteses de ouro que mencionam óxido de grafeno.</p></div></div>
+        <div class="card-b"><div class="plot tall" id="n3-sizes"></div></div></div>
+      <div class="card c12"><div class="card-h"><div><h3>Parâmetros físicos do modelo e de onde vêm</h3>
+        <p>Tudo o que a cena usa como número medido ou tabelado; o que é escolha do modelo aparece como tal.</p></div></div>
+        <div class="tbl-wrap" tabindex="0" role="region" aria-label="Parâmetros do modelo 3D"><table id="n3-tbl"></table></div></div>
+    </div>
+  </section>
+
   <!-- ================================================================== designer -->
   <section class="panel" id="p-designer" aria-labelledby="t-designer" hidden>
     <div class="sec-head"><div><span class="eyebrow">§4.5 AuNP Designer · §4.18 incerteza</span>

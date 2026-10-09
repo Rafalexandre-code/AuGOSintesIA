@@ -1357,7 +1357,7 @@ se estiver desligado.
 
 `datasets/lab/` ainda não tem medidas do projeto. Para executar a proposta desde já **sem o simulador**, os métodos
 foram aplicados às medidas reais e publicadas que o repositório já tem, e os resultados ficam num site interativo:
-**[`site/index.html`](../site/README.md)** (abre com duplo clique; 12 abas, incluindo um **Guia completo** para leigos, gráficos 2D e 3D Plotly, temas claro e
+**[`site/index.html`](../site/README.md)** (abre com duplo clique; 13 abas, incluindo um **Guia completo** para leigos e o **Nanocompósito 3D** em WebGL, gráficos 2D e 3D Plotly, temas claro e
 escuro, uso no celular). O código fica em `code/webapp/`: `expdata.py` carrega só dados experimentais,
 `analyses.py` faz as análises por seção, `build_site.py` gera `site/`, e `app.js` desenha os gráficos e roda no
 navegador o GP do Designer (mesma conta do GPyTorch) e o Mie + perda J (mesma conta de `uvvis.spectral_loss_J`).
@@ -1387,7 +1387,7 @@ superfície 3D colorida e cubeta interativa na aba Óptica).
 Recursos do painel: cada aba guarda o estado (filtros, controles) ao trocar o tema; controles redesenham uma vez por
 quadro; gráficos ampliáveis em tela cheia, com tabela de dados, CSV e figura PNG em 2× (botão "dados"), endereço próprio por figura (`#fig-4.9e`) e impressão em PDF (Ctrl P) só da aba aberta; clique num ponto da literatura para ver o artigo; exemplos prontos na aba
 Óptica; medidas próximas do corte em destaque no Designer; anéis ajustados sobre a imagem do detector; glossário.
-Acessibilidade conferida com axe-core (sem violações nas 12 abas), contraste ≥ 4,5:1, navegação por teclado nas abas
+Acessibilidade conferida com axe-core (sem violações nas 13 abas), contraste ≥ 4,5:1, navegação por teclado nas abas
 (setas, Home, End) e nas tabelas roláveis.
 
 ```bash
@@ -1449,16 +1449,16 @@ sete partes:
    ponto a ponto, correlação tamanho × pico por faixa, previsão do Preditor somando árvore a árvore, efeito fixo ×
    aleatório na replicação, energia do feixe × anéis medidos, Stokes dos aglomerados e pesos de propensão antes/depois).
 3. **Aba por aba**: a pergunta de cada aba, para que serve e por que importa ao projeto, de onde vêm os dados, um roteiro
-   de leitura, cada controle (o que faz, faixa e padrão), cada fileira de indicadores (12 fileiras, um texto por cartão:
+   de leitura, cada controle (o que faz, faixa e padrão), cada fileira de indicadores (13 fileiras, um texto por cartão:
    o que significa e como é calculado), resultados com os números atuais, mensagem principal, limites e "Experimente";
-   depois as 69 figuras e tabelas, recolhíveis, cada uma com a pergunta que responde, o que mostra, os elementos do
+   depois as 75 figuras e tabelas, recolhíveis, cada uma com a pergunta que responde, o que mostra, os elementos do
    gráfico, a leitura passo a passo, como interagir, exemplo com os números atuais, cuidados, erros comuns de leitura,
    como foi calculado (com a função do código) e os conceitos relacionados.
 4. **Fórmulas** (30), em símbolos e em palavras.
 5. **Como foi feito**: princípios e etapas, registro de decisões (adotado × rejeitado), mapa do código (aba → função em
    Python → conta no navegador → arquivo de dados), linha do tempo e limites.
-6. **Perguntas frequentes** (22).
-7. **Glossário** (128 termos, com índice por letra) e **referências** (43, por área).
+6. **Perguntas frequentes** (24).
+7. **Glossário** (136 termos, com índice por letra) e **referências** (43, por área).
 
 No topo, uma busca filtra todo o guia (abre as figuras que contêm o termo), o nível **básico** esconde fórmulas e
 detalhes de cálculo, há botões para expandir/recolher as figuras, barra de progresso e sumário que acompanha a leitura;
@@ -1468,3 +1468,31 @@ acompanham as análises; cada gráfico do site tem um botão **como ler** que le
 executa o guia no node com os dados do site (`code/tests/guide_check.js`) e confere que nenhum número fica vazio, que
 cada figura tem todos os campos, que cada fileira de indicadores tem um texto por cartão e que conceitos e roteiro
 apontam para figuras e demonstrações que existem.
+
+
+### 20.4 Nanocompósito 3D (aba do site)
+
+Ambiente 3D (three.js r147, vendorizado em `code/webapp/vendor/`) para ver o material do projeto por dentro. É um
+**modelo ilustrativo com parâmetros medidos**, marcado assim no site (ponto dourado no menu), e não uma medida:
+
+- **Escala atômica** (~10 nm): folha de GO átomo a átomo (C–C 1,42 Å, ondulação suave), grupos epóxi e hidroxila nas
+  duas faces e carboxila nas bordas, sorteados em domínios oxidados (modelo de Lerf–Klinowski), com os carbonos sp³
+  saindo do plano; a razão O/C é um controle (lote mais ou menos oxidado). Nanopartícula de ouro com a rede fcc real
+  (a = 4,078 Å), forma de equilíbrio de Wulff (faces {111} e {100}, γ₁₀₀/γ₁₁₁ = 1,15) truncada pela adesão ao suporte
+  (Winterbottom), apoiada numa face (111); cada átomo tem o número de coordenação calculado (faces, arestas, vértices,
+  interface, interior), há corte transversal, ancoragens Au–O, clique com informação e medida de distância.
+- **Síntese ao vivo**: Monte Carlo cinético qualitativo com 1 400 átomos (redução Au³⁺ → Au⁰ de primeira ordem,
+  nucleação nos O da face de cima com taxa ∝ exp(−B/ln²S), crescimento no sítio fcc de maior coordenação com bônus de
+  adesão no primeiro plano). Gera a curva de LaMer ao vivo e reproduz as tendências químicas: NaBH₄ forma cerca do
+  dobro de núcleos que o citrato e partículas menores; GO menos oxidado forma menos núcleos.
+- **Plásmon**: a onda de luz atravessa a cena e a nuvem de elétrons oscila com amplitude proporcional à extinção de
+  Mie da partícula naquela cor (a mesma conta da aba Óptica); "varrer as cores" percorre 400–780 nm.
+- **Escala de partículas** (~400 nm): flocos de GO enrugados com AuNP de diâmetros log-normais, na cor metálica ou na
+  cor da dispersão (Mie), e uma vista "como no TEM" (projeção de cima em tons de cinza).
+- Roteiro guiado de 8 passos, indicadores por modo, gráficos de sítios × diâmetro, espectro de Mie, LaMer e tamanhos
+  da cena × 184 tamanhos relatados em sínteses de ouro com GO, e a tabela de parâmetros com as fontes.
+
+O desenho é sob demanda (a cena só redesenha quando algo muda e para quando sai da tela). O núcleo (geometria e
+síntese, `AUGO_N3CORE` em `code/webapp/nano3d.js`) roda sem three.js e é conferido por `test_nanocomposito_3d_geometria_e_sintese`
+(`code/tests/nano3d_check.js`): distâncias das redes, coordenação, fração de superfície citada no site e as tendências
+da síntese.
